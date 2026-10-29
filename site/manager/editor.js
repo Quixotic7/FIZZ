@@ -24,15 +24,10 @@ import { esc, MIDI_I } from "./ui.js";
 
 const K = { c1: "--k1", c2: "--k2", c3: "--k3", c4: "--k4", alg: "--kalg" };
 const OPS = [["C", Q.RC, Q.OFSC, K.c1], ["A", Q.RA, Q.OFSA, K.c2], ["B1", Q.RB1, Q.OFSB1, K.c3], ["B2", Q.RB2, Q.OFSB2, K.c4]];
+// (FIZZ NEON: each section's name after a ring in its colour, as the boards' EDIT pages)
 export const SECTIONS = [
-  ["ops", "OPERATORS", K.c1, "M4 18a5 5 0 1 0 10 0 5 5 0 1 0-10 0M15 7a4 4 0 1 0 8 0 4 4 0 1 0-8 0M12 14l5-4"],
-  ["openv", "OP ENV", K.c2, "M2 20 L7 4 L13 12 L22 12 L22 20"],
-  ["play", "PLAY", "--yellow", "M6 4 L20 12 L6 20 Z"],
-  ["filter", "FILTER", K.c4, "M2 8 H12 Q16 8 18 4 Q19 14 24 20"],
-  ["amp", "AMP", K.c3, "M2 20 L5 5 L10 10 L18 10 L23 20"],
-  ["drive", "DRIVE · CRUSH", "--orange", "M2 12 H6 L9 4 L12 20 L15 4 L18 20 L20 12 H24"],
-  ["lfo", "LFO", "--cyan", "M2 12 Q6 2 10 12 T18 12 T26 12"],
-  ["mod", "MOD", K.alg, "M4 6 h6 M4 12 h6 M4 18 h6 M14 6 L22 18 M14 18 L22 6"],
+  ["ops", "OPERATORS", K.c1], ["openv", "OP ENV", K.c2], ["play", "PLAY", "--yellow"], ["filter", "FILTER", K.c4],
+  ["amp", "AMP", K.c3], ["drive", "DRIVE · CRUSH", "--orange"], ["lfo", "LFO", "--cyan"], ["mod", "MOD", K.alg],
 ];
 const LFOC = ["--cyan", "--yellow", "--violet"];      // (core/ui ui_kit.c UI_LFO_COL)
 const MACH = [["LEGACY", [0, 1, 2]], ["LP4", [3]], ["MULTI", [4]], ["COMB+", [5]], ["COMB−", [6]], ["EQ", [7]]];
@@ -80,9 +75,20 @@ export function mountEditor(ctx) {
   const untouch = (k) => setSlot(k, { value: 0, touched: false });
 
   // ---------------------------------------------------------------- the small parts
-  // a value chip: its name, its text; dragged up / down, the wheel, the arrows
+  // an arc of a knob's ring (FIZZ NEON: 270°, from the lower left), t0..t1 of its range
+  const arcD = (cx, cy, R, t0, t1) => {
+    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, at = (t) => a0 + (a1 - a0) * t, pt = (a) => [cx + R * Math.cos(a), cy + R * Math.sin(a)];
+    const [x0, y0] = pt(at(t0)), [x1, y1] = pt(at(t1));
+    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 ${Math.abs(t1 - t0) * 270 > 180 ? 1 : 0} ${t1 > t0 ? 1 : 0} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  };
+  // a value's ring: the dark ring, the value an arc in its colour (from the middle for a signed value)
+  const ringSvg = (id, cx, cy, R, vb) => {
+    const r = info(id), f = frac(id, v(id)), z = r.min < 0 ? frac(id, 0) : 0;
+    return `<svg viewBox="${vb}" aria-hidden="true"><path d="${arcD(cx, cy, R, 0, 1)}" class="track"/>${Math.abs(f - z) > 0.002 ? `<path d="${arcD(cx, cy, R, Math.min(z, f), Math.max(z, f))}" class="fill"/>` : ""}</svg>`;
+  };
+  // a value chip: its ring, its name, its text; dragged up / down, the wheel, the arrows
   const chip = (id, label = info(id).name, c = "--text", cls = "") =>
-    `<span class="vc ${cls}" data-id="${id}" data-y="${id}" tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}"><small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
+    `<span class="vc ${cls}" data-id="${id}" data-y="${id}" tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">${ringSvg(id, 12, 12, 8.5, "0 0 24 24")}<small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
   // a picker chip (a long list: the destinations, the sources): a click opens the list
   const pick = (id, label, c = "--text", cls = "") =>
     `<span class="vc pick ${cls}" data-id="${id}" data-y="${id}" data-pick="${id}" tabindex="0" style="--c:var(${c})" role="button" aria-label="${esc(label)}: ${esc(text(id, v(id)))}"><small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
@@ -103,14 +109,8 @@ export function mountEditor(ctx) {
     `<button data-set="${id}:${x}" class="${v(id) === x ? "on" : ""}" aria-pressed="${v(id) === x}">${esc(l)}</button>`).join("")}</span>`;
   // an arc (a dial): from the left end, or from the middle for a signed value
   function dial(id, label, c) {
-    const r = info(id), f = frac(id, v(id)), signed = r.min < 0;
-    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, at = (t) => a0 + (a1 - a0) * t;
-    const pt = (a) => [35 + 27 * Math.cos(a), 34 + 27 * Math.sin(a)];
-    const arc = (t0, t1) => { const [x0, y0] = pt(at(t0)), [x1, y1] = pt(at(t1)); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A27 27 0 ${Math.abs(t1 - t0) * 270 > 180 ? 1 : 0} ${t1 > t0 ? 1 : 0} ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
-    const z = signed ? frac(id, 0) : 0;
     return `<span class="dial" data-id="${id}" data-y="${id}" tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">
-      <svg viewBox="0 0 70 62" aria-hidden="true"><path d="${arc(0, 1)}" class="track"/>${Math.abs(f - z) > 0.002 ? `<path d="${arc(Math.min(z, f), Math.max(z, f))}" class="fill"/>` : ""}</svg>
-      <b>${esc(text(id, v(id)))}</b><small>${esc(label)}</small></span>`;
+      ${ringSvg(id, 35, 34, 27, "0 0 70 62")}<b>${esc(text(id, v(id)))}</b><small>${esc(label)}</small></span>`;
   }
   // a horizontal bar, dragged sideways
   const bar = (id, label, c) => {
@@ -183,10 +183,10 @@ export function mountEditor(ctx) {
     if (fb < 4) parts.push(`<path d="M${x[fb] + R * 0.7} ${y[fb] - R * 0.7} a26 26 0 1 1 ${R * 0.5} ${R * 0.95}" class="fb" style="stroke:var(${OPS[fb][3]})"/>`);
     OPS.forEach(([nm, rid, , c], o) => {
       parts.push(`<g class="op ${E.op === o ? "on" : ""}" data-y="${rid}" data-id="${rid}" data-op="${o}" tabindex="0" role="slider" aria-label="RATIO ${nm}" aria-valuetext="${esc(text(rid, v(rid)))}" style="--c:var(${c})">` +
-        `<circle cx="${x[o]}" cy="${y[o]}" r="${R}"/><text x="${x[o]}" y="${y[o] + 10}" text-anchor="middle">${nm}</text></g>`);
+        `<circle cx="${x[o]}" cy="${y[o]}" r="${R}" class="rim"/><circle cx="${x[o]}" cy="${y[o]}" r="${R - 8}" class="inner"/><text x="${x[o]}" y="${y[o] + 9}" text-anchor="middle">${nm}</text></g>`);
     });
     parts.push(`<g class="algo" data-y="${Q.ALGO}" data-id="${Q.ALGO}" data-ys="240" data-step="1" tabindex="0" role="slider" aria-label="ALGO" aria-valuetext="${v(Q.ALGO)}">` +
-      `<text x="24" y="58" class="algolab">ALGO</text><text x="20" y="160" class="algonum">${v(Q.ALGO)}</text></g>`);
+      `<text x="22" y="40" class="algolab">ALGO</text><text x="12" y="186" class="algonum">${v(Q.ALGO)}</text></g>`);
     return `<svg class="algosvg" viewBox="0 0 600 400">${parts.join("")}</svg>`;
   }
   function opsPanel() {
@@ -366,16 +366,20 @@ export function mountEditor(ctx) {
       head.querySelector("#ed-acts").innerHTML = acts();
       return;
     }
+    // (FIZZ NEON: where it plays, then REVERT, SAVE AS NEW, EXPORT outlined, SAVE the one fill, breathing when there is
+    // something to save)
     function acts() {
-      return `${strip}${strip && live ? "" : `<button class="aud ${live ? "live" : t && t.ready() ? "on" : ""}" id="ed-target" style="--c:var(${tc})" aria-label="Where the sound plays: ${esc(tl)}"><span class="dot"></span>${esc(tl)}</button>`}
-        <button class="btn small ghost" id="ed-revert" ${dirty && !locked ? "" : "disabled"}>↺ REVERT</button>
-        <button class="btn small" id="ed-save" style="--c:var(--pink);color:#fff" ${can.save ? "" : "disabled"}>SAVE</button>
-        <button class="btn small ghost" id="ed-savenew" ${can.saveNew ? "" : "disabled"}>SAVE AS NEW</button>
-        <button class="btn small ghost" id="ed-export">EXPORT</button>`;
+      const where = `${strip}${strip && live ? "" : `<button class="aud ${live ? "live" : t && t.ready() ? "on" : ""}" id="ed-target" style="--c:var(${tc})" aria-label="Where the sound plays: ${esc(tl)}"><span class="dot"></span>${esc(tl)}</button>`}`;
+      return `<div class="edwhere">${where}</div>
+        <button class="ol" id="ed-revert" ${dirty && !locked ? "" : "disabled"}>↺ REVERT</button>
+        <button class="ol" id="ed-savenew" style="--c:var(--pink)" ${can.saveNew ? "" : "disabled"}>SAVE AS NEW</button>
+        <button class="ol" id="ed-export" style="--c:var(--violet)">EXPORT</button>
+        <button class="arc${can.save && dirty ? " breathe" : ""}" id="ed-save" style="--c:var(--pink)" ${can.save ? "" : "disabled"}>SAVE</button>`;
     }
     const tk = E.place.track >= 0 && E.place.fromTarget ? E.place.track : -1;
+    const pl = /^(.*\S)\s+(\d+)$/.exec(E.place.label || ""), plh = pl ? `${esc(pl[1])} <span class="hud">${pl[2]}</span>` : esc(E.place.label || "");
     head.innerHTML = `${tk >= 0 ? `<div class="trkbig ${live && !locked ? "live" : "view"}" aria-label="Track ${tk + 1}${locked ? ", shown only" : ", live"}"><small>TRACK</small><b>${tk + 1}</b></div>` : ""}
-      <div class="edname"><div class="h" style="margin:0">${E.s.midi ? '<span class="mchip">MIDI</span> ' : ""}${esc(E.place.label || "")}${dirty ? ' <span class="edited">EDITED</span>' : ""}</div>
+      <div class="edname"><div class="h">${E.s.midi ? '<span class="mchip">MIDI</span> ' : ""}${plh}${dirty ? ' <span class="edited">EDITED</span>' : ""}</div>
         <input class="bigname" id="ed-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(E.s.name)}" aria-label="Name">
         <div class="edtags">${FIZZ_TAGS.map((tg, k) => `<button class="tag t-${tg} ${(E.s.tags >> k) & 1 ? "" : "off"}" data-tag="${k}" aria-pressed="${!!((E.s.tags >> k) & 1)}">${tg}</button>`).join("")}</div></div>
       <div class="row edacts" id="ed-acts">${acts()}</div>`;
@@ -427,8 +431,8 @@ export function mountEditor(ctx) {
     if (stage.dataset.mode !== mode) { stage.dataset.mode = mode; stage.classList.toggle("midi", mode === "midi"); stage.innerHTML = ""; drawn.clear(); }
     if (E.s.midi) { renderMidi(); return; }
     if (!stage.querySelector(".pn")) {
-      stage.innerHTML = SECTIONS.map(([k, nm, c, d]) => `<section class="pn pn-${k}" data-sec="${k}" style="--c:var(${c})" aria-label="${nm}">` +
-        `<div class="pnh"><svg viewBox="0 0 26 24" aria-hidden="true"><path d="${d}"/></svg>${nm}</div><div class="pnb"></div></section>`).join("");
+      stage.innerHTML = SECTIONS.map(([k, nm, c]) => `<section class="pn pn-${k}" data-sec="${k}" style="--c:var(${c})" aria-label="${nm}">` +
+        `<div class="pnh"><i class="pdot" aria-hidden="true"></i>${nm}</div><div class="pnb"></div></section>`).join("");
       drawn.clear();
     }
     const keep = document.activeElement && stage.contains(document.activeElement) ? focusKey(document.activeElement) : null;
@@ -452,7 +456,9 @@ export function mountEditor(ctx) {
     const lo = 53 + 12 * E.oct, ph = (n) => E.held.has(n);
     const wk = WHITE.map((o, i) => `<button class="wk ${ph(lo + o) ? "down" : ""}" data-n="${lo + o}" style="left:${(i * 100 / 16).toFixed(3)}%;width:${(100 / 16).toFixed(3)}%" aria-label="${noteName(lo + o)}"></button>`).join("");
     const bk = BLACK.map(([a, o]) => `<button class="bk2 ${ph(lo + o) ? "down" : ""}" data-n="${lo + o}" style="left:${((a + 1) * 100 / 16 - 100 / 16 * 0.31).toFixed(3)}%;width:${(100 / 16 * 0.62).toFixed(3)}%" aria-label="${noteName(lo + o)}"></button>`).join("");
-    kb.innerHTML = `<button class="oct" data-oct="-1" aria-label="Octave down">−</button><div class="bed ${E.rec ? "rec" : ""}">${wk}${bk}</div><button class="oct" data-oct="1" aria-label="Octave up">+</button><span class="octv">${E.oct > 0 ? "+" : ""}${E.oct}</span>`;
+    // (FIZZ NEON: OCT − / + beside the keys, the keys' range between them)
+    kb.innerHTML = `<div class="octs"><button class="oct ol" data-oct="-1" aria-label="Octave down">OCT −</button><span class="octv hud">${noteName(lo)}–${noteName(lo + 26)}</span>` +
+      `<button class="oct ol" data-oct="1" aria-label="Octave up">OCT +</button></div><div class="bed ${E.rec ? "rec" : ""}">${wk}${bk}</div>`;
   }
   const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const noteName = (n) => `${NOTE[n % 12]}${Math.floor(n / 12) - 1}`;

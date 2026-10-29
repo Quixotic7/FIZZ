@@ -9,7 +9,7 @@
 // one asks once (ui.js confirmBox), saying what it does to the unit's undo: each change is one undo level (SHIFT +
 // F1), the pool's swaps and a project load excepted (they forget the levels).
 import { FIZZ_TAGS, parseDump } from "../js/fizz_sysex.js";
-import { esc, tagsOf, colOf, DARK_TEXT_TAGS, refusal, confirmBox, midiChip } from "./ui.js";
+import { esc, tagsOf, colOf, refusal, confirmBox, midiChip } from "./ui.js";
 import { isMidiBlob } from "./sound.js";
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces } from "./presets.js";
 
@@ -27,23 +27,27 @@ export function mountPool(ctx) {
   };
   const shown = () => !$("tab-pool").hidden;
 
+  // a place (FIZZ NEON, the board PhonePool): its number in HUD at the corner; a sound's in its tag's colour with a
+  // ring, its name where the tile is wide enough, a glowing dot when steps use it
   function tile(k, e) {
     const u = P.users.get(k), cls = ["ps"];
     if (P.sel === k) cls.push("sel");
     if (P.fizz.has(k)) cls.push("fizz");
     if (e && P.pick && e.id === P.pick) cls.push("here");
-    if (!e) return `<button class="${cls.join(" ")}" data-k="${k}" aria-label="Pool ${k}, empty"><span class="no">${k}</span></button>`;
-    const t = tagsOf(e.tags)[0];
+    if (!e) return `<button class="${cls.join(" ")}" data-k="${k}" aria-label="Pool ${k}, empty"><span class="no hud">${k}</span></button>`;
     cls.push("full");
-    const dots = u && u.steps ? `<span class="use">${"<i></i>".repeat(Math.min(4, u.steps))}</span>` : "";
-    return `<button class="${cls.join(" ")}" style="--c:${colOf(e.tags)};--t:${t && DARK_TEXT_TAGS.has(t) ? "#fff" : "#000"}" data-k="${k}" draggable="${can()}" aria-label="Pool ${k}, ${esc(e.name)}${u ? `, ${u.steps} steps` : ""}">` +
-      `<span class="no">${k}</span><span class="pn">${esc(e.name)}</span>${midiChip(midiOf(e))}${dots}</button>`;
+    const dot = u && u.steps ? '<i class="use" aria-hidden="true"></i>' : "";
+    return `<button class="${cls.join(" ")}" style="--c:${colOf(e.tags)};--i:${k % 16}" data-k="${k}" draggable="${can()}" aria-label="Pool ${k}, ${esc(e.name)}${u ? `, ${u.steps} steps` : ""}">` +
+      `<span class="no hud">${k}</span><span class="ring" aria-hidden="true"></span><span class="nm">${esc(e.name)}</span>${midiChip(midiOf(e))}${dot}</button>`;
   }
   function render() {
     const u = S.unit, pm = pool(), st = u && u.status;
-    $("p-count").textContent = u ? `${pm.size} / 128` : "";
-    const list = u && u.projects ? u.projects.list.filter((p) => p.there) : [];
-    proj.innerHTML = list.map((p) => `<button class="${p.current ? "on" : ""}" data-p="${p.slot}" ${can() || p.current ? "" : "disabled"}>${esc(p.name || `PROJECT ${p.slot}`)}</button>`).join("");
+    $("p-count").innerHTML = u ? `${pm.size}<small>/128</small>` : "";
+    // the eight projects as round numbers (the one on the FM-1 lit; an empty place dim), its name big
+    const list = u && u.projects ? u.projects.list : [], cur = list.find((p) => p.current);
+    proj.innerHTML = list.map((p) => `<button class="${p.current ? "on" : ""}${p.there ? "" : " none"}" data-p="${p.slot}" aria-pressed="${!!p.current}" aria-label="${esc(p.there ? p.name || `PROJECT ${p.slot}` : `Project ${p.slot}, empty`)}" ${p.there && (can() || p.current) ? "" : "disabled"}><span class="hud">${p.slot}</span></button>`).join("");
+    $("p-pname").textContent = cur ? cur.name || `PROJECT ${cur.slot}` : "";
+    $("p-pno").textContent = cur && cur.name && cur.name !== `PROJECT ${cur.slot}` ? `PROJECT ${cur.slot}` : "";
     let html = "";
     for (let k = 1; k <= 128; k++) html += tile(k, pm.get(k));
     grid.innerHTML = html;
@@ -56,10 +60,15 @@ export function mountPool(ctx) {
   }
   function renderBar() {
     const e = P.sel && pool().get(P.sel), u = e && P.users.get(P.sel);
-    $("p-selname").innerHTML = e ? `<b>${P.sel}</b> ${esc(e.name)}${midiOf(e) ? ` ${midiChip(true)}` : ""}${u ? ` <span class="dots">${"●".repeat(Math.min(6, u.steps))}</span>` : ""}` : "";
+    // the place picked: its ring and number, the name, how many steps use it
+    const sn = $("p-selname");
+    sn.style.setProperty("--c", e ? colOf(e.tags) : "var(--green)");
+    sn.classList.toggle("on", !!e);
+    sn.innerHTML = e ? `<span class="pring"><span class="hud">${P.sel}</span></span><b class="pselnm">${esc(e.name)}</b>${midiOf(e) ? midiChip(true) : ""}` +
+      `${u ? `<span class="psteps"><span class="num">${u.steps}</span><span class="lbl">steps</span></span>` : ""}` : "";
     $("p-clear").hidden = !e;
     $("p-clear").disabled = !can();
-    $("p-clear").className = "btn small ghost redline";
+    $("p-clear").className = "ol redline";
     $("p-clear").textContent = "CLEAR";
     $("p-sort").disabled = $("p-unused").disabled = !can() || !pool().size;
   }

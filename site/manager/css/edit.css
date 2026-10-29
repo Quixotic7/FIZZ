@@ -1,246 +1,350 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* FIZZ Manager: EDIT (moved from manager.css unchanged; phase 2 restyles it) */
-/* ---- EDIT (Manager P2: the sound editor; the fixes: every value on one panel, a synth's front panel) */
-.body.edit { gap: 20px; align-items: flex-start; }
-.edcard { flex: 1; gap: 14px; min-width: 0; padding: 16px; }
-.edhead { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-/* the track the editor follows: big, pink when live, ringed when only shown (TRACK off) */
-.trkbig { width: 88px; height: 88px; border-radius: 20px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2.5px solid var(--pink); color: var(--pink); }
-.trkbig small { font-size: 12px; font-weight: 800; letter-spacing: .14em; }
-.trkbig b { font-size: 50px; line-height: .95; font-weight: 800; color: inherit; }
-.trkbig.live { background: var(--pink); color: #fff; box-shadow: 0 0 26px color-mix(in srgb, var(--pink) 50%, transparent); }
-.trkbig.view { border-style: dashed; color: color-mix(in srgb, var(--pink) 75%, var(--text)); }
-/* the track strip: SELECTED, 1..6, LIVE */
-.trks { display: inline-flex; gap: 4px; padding: 3px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--pink) 40%, var(--line)); align-items: center; }
-.trk { height: 38px; min-width: 38px; padding: 0 10px; border-radius: 11px; border: 0; background: transparent; color: var(--muted); font-weight: 800; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; }
-.trk.sel { font-size: 12px; letter-spacing: .08em; }
-.trk svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
-.trk.on { background: var(--pink); color: #fff; }
-.trk.usel::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--yellow); }
-.trk.live { font-size: 12px; letter-spacing: .1em; color: var(--text); padding: 0 12px 0 8px; margin-left: 4px; box-shadow: inset 0 0 0 1.5px var(--line); }
-.trk .sw { width: 34px; height: 20px; border-radius: 10px; background: #24242b; position: relative; flex: none; transition: background .2s; }
-.trk .sw i { position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: left .2s, background .2s; }
-.trk.live.on { background: color-mix(in srgb, var(--pink) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--pink); }
-.trk.live.on .sw { background: var(--pink); }
-.trk.live.on .sw i { left: 17px; background: #fff; }
-.edname { min-width: 0; flex: 1 1 380px; }
-.edname .bigname { font-size: 38px; }
-.edited { color: var(--pink); margin-left: 6px; }
-.edtags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
-.edtags .tag.off { opacity: .7; }
-.edtags .tag { height: 24px; padding: 0 7px; }
-.edacts { gap: 10px; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
-.aud { display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px; border-radius: 20px; background: transparent; border: 1.5px solid var(--line); color: var(--muted); font-weight: 800; font-size: 13px; letter-spacing: .06em; white-space: nowrap; }
-.aud .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
-.aud.on { border-color: var(--c); color: var(--text); background: color-mix(in srgb, var(--c) 14%, transparent); }
-.aud.on .dot { background: var(--c); box-shadow: 0 0 10px var(--c); }
-.aud.live { border-color: var(--c); color: var(--text); background: color-mix(in srgb, var(--c) 16%, transparent); }
-.aud.live .dot { background: var(--c); box-shadow: 0 0 10px var(--c); animation: blink .9s infinite alternate; }
-.stage { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: stretch; user-select: none; -webkit-user-select: none; touch-action: pan-y;
+/* FIZZ Manager: EDIT in FIZZ NEON (the boards PadEditLandscape, PhoneEdit, PhoneEditLandscape, inside the web shell):
+   every value on one panel (the owner's choice), each section a card outlined in its colour (a ring and its name),
+   lit while one of its values is dragged; the operators' drawing with its roundels, ALGO a big glowing pink number,
+   the operators' cards (the ratio big, OFS a 10-segment bar), the values as knobs (rings: an arc in the value's colour
+   on a dark ring), the choices outlined and lit when on; SAVE the one fill; the keybed lit pink under a finger.
+   Everything under #tab-edit (POOL's tiles have a .pn of their own). */
+
+/* ---- the card: the head, the panel (it scrolls by itself on a computer), the keys */
+#tab-edit { gap: 20px; align-items: flex-start; }
+#tab-edit .edcard { flex: 1; gap: 14px; min-width: 0; padding: 18px 20px 16px; border-radius: 26px; border-color: color-mix(in srgb, var(--muted) 30%, transparent); }
+
+/* ---- the head: the track followed, the place and the name, the tags; where it plays, REVERT, SAVE AS NEW, EXPORT, SAVE */
+#tab-edit .edhead { display: flex; gap: 12px 18px; align-items: flex-end; flex-wrap: wrap; }
+#tab-edit .edname { min-width: 0; flex: 1 1 300px; display: flex; flex-direction: column; gap: 4px; }
+#tab-edit .edname .h { margin: 0; gap: 8px; font-size: 11px; letter-spacing: .16em; }
+#tab-edit .edname .h .hud { color: var(--pink); font-size: 11px; letter-spacing: .04em; }
+#tab-edit .edname .bigname { font-size: 42px; line-height: 1.02; }
+#tab-edit .edited { margin-left: 8px; color: var(--pink); display: inline-flex; align-items: center; gap: 6px; }
+#tab-edit .edited::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); animation: led 1.4s ease-in-out infinite; }
+#tab-edit .edtags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+#tab-edit .edtags .tag { height: 24px; padding: 0 8px; }
+#tab-edit .edtags .tag:not(.off) { background: color-mix(in srgb, var(--c) 12%, transparent); border-color: var(--c); box-shadow: 0 0 12px -3px var(--c); }
+#tab-edit .edtags .tag.off { color: var(--muted); opacity: .75; }
+#tab-edit .edacts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-left: auto; max-width: 760px; }
+#tab-edit .edwhere { flex: 1 1 100%; display: flex; justify-content: flex-end; min-width: 0; }
+#tab-edit .edwhere:empty { display: none; }
+#tab-edit .edacts .ol { height: 42px; padding: 0 16px; font-size: 11px; }
+#tab-edit .edacts .arc { height: 42px; padding: 0 30px; font-size: 13px; }
+#tab-edit .edacts .arc:disabled { box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000); }
+/* the track the editor follows: a roundel, filled pink when live, a dashed ring when only shown (TRACK off) */
+#tab-edit .trkbig { --c: var(--pink); width: 76px; height: 76px; border-radius: 50%; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 2px solid var(--c); color: var(--c); background: #000; box-shadow: inset 0 0 0 5px #000, inset 0 0 0 6.5px color-mix(in srgb, var(--c) 45%, transparent); align-self: center; }
+#tab-edit .trkbig small { font-size: 11px; font-weight: 800; letter-spacing: .14em; }
+#tab-edit .trkbig b { font: 400 30px/1 var(--hud); color: inherit; }
+#tab-edit .trkbig.live { background: var(--c); color: #000; box-shadow: 0 0 26px -2px var(--c), 0 0 0 4px #000, 0 0 0 5.5px color-mix(in srgb, var(--c) 45%, transparent); }
+#tab-edit .trkbig.view { border-style: dashed; color: color-mix(in srgb, var(--c) 75%, var(--text)); box-shadow: none; }
+/* the track strip (live.js): SELECTED, 1..6, LIVE: a pink tube */
+#tab-edit .trks { --c: var(--pink); display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; align-items: center; flex-wrap: wrap;
+  border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); }
+#tab-edit .trk { height: 36px; min-width: 36px; padding: 0 10px; border-radius: 999px; border: 0; background: transparent; color: var(--body); font: 400 14px/1 var(--hud);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; transition: background .16s, color .16s, box-shadow .16s; }
+#tab-edit .trk:hover { color: var(--text); }
+#tab-edit .trk.sel, #tab-edit .trk.live { font: 800 11px/1 "Inter Tight", sans-serif; letter-spacing: .12em; }
+#tab-edit .trk svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+#tab-edit .trk.on { background: var(--c); color: #000; box-shadow: 0 0 14px -3px var(--c); }
+#tab-edit .trk.usel::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+#tab-edit .trk.on.usel::after { background: #000; box-shadow: none; }
+#tab-edit .trk.live { color: var(--text); padding: 0 12px 0 6px; margin-left: 3px; box-shadow: inset 0 0 0 1.5px var(--line); }
+#tab-edit .trk .sw { width: 30px; height: 18px; border-radius: 9px; background: var(--dim); position: relative; flex: none; transition: background .2s; }
+#tab-edit .trk .sw i { position: absolute; left: 3px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: left .2s var(--snap), background .2s; }
+#tab-edit .trk.live.on { background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--c), 0 0 14px -4px var(--c); }
+#tab-edit .trk.live.on .sw { background: var(--c); }
+#tab-edit .trk.live.on .sw i { left: 15px; background: #fff; }
+/* where the sound plays (the browser's FIZZ, or a track): a tube, lit when ready */
+#tab-edit .aud { --c: var(--violet); display: inline-flex; align-items: center; gap: 9px; height: 42px; padding: 0 16px; border-radius: 999px; white-space: nowrap;
+  border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); color: var(--body);
+  font-weight: 800; font-size: 11px; letter-spacing: .12em; transition: border-color .16s var(--snap), background .16s, box-shadow .16s; }
+#tab-edit .aud:hover { border-color: color-mix(in srgb, var(--c) 75%, transparent); }
+#tab-edit .aud .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+#tab-edit .aud.on, #tab-edit .aud.live { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
+  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent); }
+#tab-edit .aud.on .dot, #tab-edit .aud.live .dot { background: var(--c); box-shadow: 0 0 10px var(--c); animation: led 1.8s ease-in-out infinite; }
+#tab-edit .aud.live .dot { animation: blink .9s infinite alternate; }
+
+/* ---- the panel: every section at once, each a card in its colour */
+#tab-edit .stage { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: stretch; user-select: none; -webkit-user-select: none; touch-action: pan-y;
   grid-template-areas: "ops ops ops ops ops ops openv openv openv openv openv openv" "filter filter filter filter filter filter filter amp amp amp amp amp"
     "lfo lfo lfo lfo lfo lfo lfo lfo lfo drive drive drive" "mod mod mod mod mod mod mod play play play play play"; }
-.pn { grid-area: var(--a); background: var(--raised); border: 1.5px solid var(--line); border-top: 3px solid var(--c); border-radius: 16px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.pn-ops { --a: ops; } .pn-openv { --a: openv; } .pn-filter { --a: filter; } .pn-amp { --a: amp; } .pn-drive { --a: drive; } .pn-lfo { --a: lfo; } .pn-mod { --a: mod; } .pn-play { --a: play; }
-.pnh { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--c); }
-.stage .pnh svg { width: 22px; height: 20px; flex: none; fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-.pnb { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
-.duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: start; }
-.sub { background: var(--panel); border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.sub .cn { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--c); }
-.envc .tgs { margin-left: auto; display: inline-flex; gap: 6px; }
-.bars { display: flex; flex-wrap: wrap; gap: 8px; }
-.stage.locked [data-x], .stage.locked [data-y], .stage.locked [data-set], .stage.locked [data-pick] { cursor: not-allowed; }
+#tab-edit .pn { grid-area: var(--a); border-radius: 22px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  border: 1.5px solid color-mix(in srgb, var(--c) 34%, transparent); background: color-mix(in srgb, var(--c) 4%, rgba(10, 10, 15, .7));
+  transition: border-color .16s var(--snap), box-shadow .2s; }
+#tab-edit .pn:has(.dragging) { border-color: var(--c); box-shadow: 0 0 22px -6px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 18px -10px color-mix(in srgb, var(--c) 70%, transparent); }
+#tab-edit .pn-ops { --a: ops; } #tab-edit .pn-openv { --a: openv; } #tab-edit .pn-filter { --a: filter; } #tab-edit .pn-amp { --a: amp; }
+#tab-edit .pn-drive { --a: drive; } #tab-edit .pn-lfo { --a: lfo; } #tab-edit .pn-mod { --a: mod; } #tab-edit .pn-play { --a: play; }
+#tab-edit .pnh { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 800; letter-spacing: .14em; color: var(--text); }
+#tab-edit .pdot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--c); box-shadow: 0 0 8px -2px var(--c); flex: none; }
+#tab-edit .pnb { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
+#tab-edit .duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+#tab-edit div.sub { border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; min-width: 0;
+  background: rgba(0, 0, 0, .5); border: 1.5px solid color-mix(in srgb, var(--c) 22%, var(--line)); }
+#tab-edit .cn { font-size: 11px; font-weight: 800; letter-spacing: .16em; color: var(--c); }
+#tab-edit .sub .kv { font: 400 11px var(--hud); color: var(--muted); }
+#tab-edit .envc .tgs { margin-left: auto; display: inline-flex; gap: 6px; }
+#tab-edit .pnb > .vbar, #tab-edit div.sub > .vbar { flex: none; }
+#tab-edit .bars { display: flex; flex-wrap: wrap; gap: 8px; }
+#tab-edit .row.wrap { flex-wrap: wrap; gap: 8px; }
+#tab-edit .stage.locked [data-x], #tab-edit .stage.locked [data-y], #tab-edit .stage.locked [data-set], #tab-edit .stage.locked [data-pick] { cursor: not-allowed; }
+#tab-edit .stage [data-x], #tab-edit .stage [data-y], #tab-edit .stage [data-pick] { touch-action: none; }
+#tab-edit .stage svg { display: block; width: 100%; height: auto; overflow: visible; }
+#tab-edit .stage [data-x], #tab-edit .stage [data-y] { cursor: ns-resize; }
+#tab-edit .stage [data-x]:not([data-y]) { cursor: ew-resize; }
+#tab-edit .stage .hd { cursor: move; }
+.foot { margin-top: auto; }
+
+/* ---- a value: a knob's ring with its name and value; a dial (a big knob); a bar; a choice */
+#tab-edit .vc { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 12px 0 6px; border-radius: 12px; white-space: nowrap; min-width: 0;
+  background: #000; border: 1.5px solid color-mix(in srgb, var(--c) 26%, var(--line)); transition: border-color .16s var(--snap), box-shadow .16s; }
+#tab-edit .stage .vc svg { width: 26px; height: 26px; flex: none; }
+#tab-edit .vc .track, #tab-edit .dial .track { fill: none; stroke: #24242B; stroke-width: 3.2; stroke-linecap: round; }
+#tab-edit .vc .fill, #tab-edit .dial .fill { fill: none; stroke: var(--c); stroke-width: 3.2; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--c)); }
+#tab-edit .vc small { font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
+#tab-edit .vc b { color: var(--text); font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+#tab-edit .vc.big b { font-size: 21px; }
+#tab-edit .vc.pick { cursor: pointer; padding-left: 12px; gap: 8px; border-color: color-mix(in srgb, var(--c) 50%, var(--line)); }
+#tab-edit .vc.pick b { color: var(--c); }
+#tab-edit .vc.pick b::after { content: " ▾"; font-size: 11px; color: var(--muted); }
+#tab-edit .vc:hover, #tab-edit .vbar:hover, #tab-edit .dial:hover { border-color: color-mix(in srgb, var(--c) 70%, transparent); }
+#tab-edit .vc:focus-visible, #tab-edit .vbar:focus-visible, #tab-edit .dial:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+#tab-edit .vc.dragging, #tab-edit .vbar.dragging, #tab-edit .dial.dragging { border-color: var(--c); box-shadow: 0 0 16px -3px color-mix(in srgb, var(--c) 70%, transparent), inset 0 0 12px -6px var(--c); }
+#tab-edit .vc.dragging b, #tab-edit .dial.dragging b, #tab-edit .vbar.dragging b { color: var(--c); }
+#tab-edit .dial { display: inline-flex; flex-direction: column; align-items: center; gap: 0; width: 84px; padding: 4px 0 6px; border-radius: 16px; border: 1.5px solid transparent; transition: border-color .16s, box-shadow .16s; }
+#tab-edit .stage .dial svg { width: 64px; }
+#tab-edit .dial .track, #tab-edit .dial .fill { stroke-width: 6; }
+#tab-edit .dial .fill { filter: drop-shadow(0 0 4px var(--c)); }
+#tab-edit .dial b { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -.02em; margin-top: -10px; }
+#tab-edit .dial small { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: var(--muted); }
+#tab-edit .vbar { display: inline-grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 12px; min-width: 120px; flex: 1 1 140px; padding: 8px 12px 10px; border-radius: 12px;
+  background: #000; border: 1.5px solid color-mix(in srgb, var(--c) 22%, var(--line)); transition: border-color .16s var(--snap), box-shadow .16s; }
+#tab-edit .vbar small { font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
+#tab-edit .vbar b { justify-self: end; color: var(--text); font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+#tab-edit .vbar i { grid-column: 1 / 3; height: 6px; border-radius: 3px; background: #1C1C24; position: relative; overflow: hidden; }
+#tab-edit .vbar i span { position: absolute; top: 0; bottom: 0; background: var(--c); border-radius: 3px; box-shadow: 0 0 10px var(--c); }
+#tab-edit .vseg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 13px; border: 1.5px solid var(--line); background: #000; flex-wrap: wrap; }
+#tab-edit .vseg button { height: 32px; padding: 0 11px; border: 0; border-radius: 10px; background: transparent; font-weight: 800; font-size: 11px; letter-spacing: .1em; color: var(--muted);
+  transition: background .16s, color .16s, box-shadow .16s; }
+#tab-edit .vseg button:hover { color: var(--text); }
+#tab-edit .vseg button.on { color: var(--text); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: inset 0 0 0 1.5px var(--c), 0 0 12px -3px var(--c); }
+#tab-edit .vseg.mach button { height: 34px; padding: 0 12px; }
+#tab-edit .vtog { height: 32px; padding: 0 11px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--c) 35%, var(--line)); background: transparent; color: var(--muted);
+  font-weight: 800; font-size: 11px; letter-spacing: .1em; transition: border-color .16s, background .16s, box-shadow .16s, color .16s; }
+#tab-edit .vtog.on { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); box-shadow: 0 0 14px -3px var(--c), inset 0 0 10px -6px var(--c); }
+#tab-edit .capt { display: inline-flex; align-items: center; gap: 10px; }
+#tab-edit .capt small { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: var(--muted); }
+#tab-edit .lfoc .vseg button { height: 30px; padding: 0 8px; }
+#tab-edit .lfoc .vseg.waves button { padding: 0 6px; }
+#tab-edit .vseg.waves svg { width: 22px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+#tab-edit .vseg.waves button.on { color: var(--c); }
+#tab-edit .vseg.waves button.on svg { filter: drop-shadow(0 0 3px var(--c)); }
+
+/* ---- OPERATORS: the algorithm drawn (the roundels, the wires, the signals running), ALGO big, the four cards, the knobs */
+#tab-edit .ops { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; align-items: center; }
+#tab-edit .algosvg .bus { stroke: #5A5A66; stroke-width: 3; }
+#tab-edit .algosvg .spk { fill: none; stroke: var(--muted); stroke-width: 3; stroke-linejoin: round; }
+#tab-edit .algosvg .spk.wave { stroke: var(--cream); opacity: .7; animation: blink 1s infinite alternate; }
+#tab-edit .algosvg .carrier { stroke: color-mix(in srgb, var(--cream) 62%, #000); fill: none; }
+#tab-edit .algosvg .joint { fill: var(--cream); }
+#tab-edit .algosvg .modl { stroke: #4A4A55; stroke-width: 3.5; stroke-linecap: round; }
+#tab-edit .algosvg .arrow { fill: #4A4A55; }
+#tab-edit .algosvg .spark { fill: var(--cream); filter: drop-shadow(0 0 5px var(--cream)); }
+#tab-edit .algosvg .fb { fill: none; stroke-width: 3.5; stroke-dasharray: 8 6; opacity: .85; animation: fbrun 1.2s linear infinite; }
+@keyframes fbrun { to { stroke-dashoffset: -28; } }
+#tab-edit .algosvg .op { cursor: ns-resize; }
+#tab-edit .algosvg .op .rim { fill: #000; stroke: var(--c); stroke-width: 4; transition: filter .16s; }
+#tab-edit .algosvg .op .inner { fill: none; stroke: color-mix(in srgb, var(--c) 42%, transparent); stroke-width: 2.5; }
+#tab-edit .algosvg .op text { fill: var(--text); font: 900 26px "Inter Tight", sans-serif; pointer-events: none; }
+#tab-edit .algosvg .op.on .rim, #tab-edit .algosvg .op.dragging .rim { stroke-width: 5; filter: drop-shadow(0 0 10px var(--c)); }
+#tab-edit .algosvg .op.on .inner { stroke: var(--c); }
+#tab-edit .algosvg .op:focus { outline: none; }
+#tab-edit .algosvg .op:focus-visible .rim { stroke: var(--cyan); }
+#tab-edit .algosvg .algolab { fill: var(--pink); font: 800 20px "Inter Tight", sans-serif; letter-spacing: 3px; }
+#tab-edit .algosvg .algonum { fill: var(--kalg); font: 900 168px "Inter Tight", sans-serif; letter-spacing: -4px; filter: drop-shadow(0 0 14px rgba(255, 60, 160, .6));
+  transform-box: fill-box; transform-origin: left center; animation: throb 2.4s ease-in-out infinite; }
+#tab-edit .algosvg .algo.dragging .algonum, #tab-edit .algosvg .algo:hover .algonum { filter: drop-shadow(0 0 22px rgba(255, 60, 160, .9)); }
+#tab-edit .algosvg .algo:focus { outline: none; }
+#tab-edit .algosvg .algo:focus-visible .algonum { fill: var(--cyan); }
+@keyframes throb { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+#tab-edit .algosvg .algo { cursor: ns-resize; }
+#tab-edit .opcards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* an operator's card: its name, OFS (a HUD value, top right) and its 10-segment bar, the ratio big */
+#tab-edit .opc { position: relative; border-radius: 18px; padding: 11px 13px 24px; display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 104px; cursor: pointer;
+  border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, rgba(0, 0, 0, .5));
+  transition: border-color .16s var(--snap), background .16s, box-shadow .16s; }
+#tab-edit .opc:hover { border-color: color-mix(in srgb, var(--c) 75%, transparent); }
+#tab-edit .opc.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
+  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent);
+  outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 3px; }
+#tab-edit .opc .opn { font-size: 13px; font-weight: 900; letter-spacing: .06em; color: var(--c); line-height: 1.2; }
+#tab-edit .opc .opv { align-self: flex-start; font-size: 40px; font-weight: 800; color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  border-radius: 10px; border: 1.5px solid transparent; padding: 2px 4px; margin: 2px -5px 0; }
+#tab-edit .opc .opv small { font-size: 22px; color: var(--muted); font-weight: 800; }
+#tab-edit .opc .opv:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }
+#tab-edit .opc .opv.dragging { border-color: var(--c); box-shadow: 0 0 14px -4px var(--c); }
+#tab-edit .opc .vbar { position: absolute; inset: 11px 13px 11px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto 1fr 6px; gap: 0 6px;
+  min-width: 0; padding: 0; border: 0; background: none; border-radius: 0; pointer-events: none; }
+#tab-edit .opc .vbar > * { pointer-events: auto; }
+#tab-edit .opc .vbar small { grid-column: 2; grid-row: 1; font: 400 11px/16px var(--hud); letter-spacing: .04em; color: var(--muted); }
+#tab-edit .opc .vbar b { grid-column: 3; grid-row: 1; font: 400 11px/16px var(--hud); letter-spacing: .04em; color: var(--muted); }
+#tab-edit .opc .vbar i { grid-column: 1 / 4; grid-row: 3; height: 6px; border-radius: 0; background: #24242B; overflow: hidden;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent calc(10% - 3px) 10%); mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent calc(10% - 3px) 10%); }
+#tab-edit .opc .vbar i span { border-radius: 0; box-shadow: none; }
+#tab-edit .opc .vbar.dragging b, #tab-edit .opc .vbar:hover b { color: var(--c); }
+#tab-edit .opc .vbar.dragging { box-shadow: none; }
+#tab-edit .opc .vbar.dragging i { box-shadow: 0 0 10px var(--c); }
+#tab-edit .opc .vbar:focus-visible { outline: none; }
+#tab-edit .opc .vbar:focus-visible i { outline: 2px solid var(--cyan); outline-offset: 2px; }
+#tab-edit .dials { display: flex; gap: 6px; justify-content: space-around; flex-wrap: wrap; border-top: 1.5px solid var(--line); padding-top: 10px; }
+#tab-edit .pn-ops .pnb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "algo cards" "dials dials"; gap: 10px 14px; align-items: center; }
+#tab-edit .pn-ops .ops { display: contents; }
+#tab-edit .pn-ops .algowrap { grid-area: algo; } #tab-edit .pn-ops .opcards { grid-area: cards; } #tab-edit .pn-ops .dials { grid-area: dials; }
+
+/* ---- the drawings: envelopes, the filter's curve, the waves; their handles */
+#tab-edit .env .area, #tab-edit .curve .area { fill: color-mix(in srgb, var(--c) 14%, transparent); stroke: none; }
+#tab-edit .env .line, #tab-edit .curve .line, #tab-edit .wave .line, #tab-edit .crush .line, #tab-edit .glide .line { fill: none; stroke: var(--c); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--c) 70%, transparent)); }
+#tab-edit .glide .line.dim { opacity: .35; filter: none; }
+#tab-edit .env .lab, #tab-edit .curve .lab { fill: var(--muted); font: 800 14px "Inter Tight", sans-serif; letter-spacing: 2px; }
+#tab-edit .curve .grid { stroke: #1A1A22; stroke-width: 2; }
+#tab-edit .curve .val { fill: var(--text); font: 800 22px "Inter Tight", sans-serif; }
+#tab-edit .curve text.sub { fill: var(--k2); font: 800 15px "Inter Tight", sans-serif; }
+#tab-edit .hd { fill: #000; stroke: var(--c); stroke-width: 3.5; transition: fill .12s; }
+#tab-edit .hd:hover, #tab-edit .hd.dragging { fill: var(--c); filter: drop-shadow(0 0 8px var(--c)); }
+#tab-edit .hd:focus { outline: none; } #tab-edit .hd:focus-visible { stroke: var(--cyan); }
+#tab-edit .wave .axis { stroke: #24242B; stroke-width: 2; }
+#tab-edit .wave .spark { fill: #fff; filter: drop-shadow(0 0 6px var(--c)); }
+#tab-edit .lfos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+#tab-edit div.lfoc { border-color: color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 4%, rgba(0, 0, 0, .5)); }
+#tab-edit .lfoc .row:first-child { justify-content: space-between; }
+#tab-edit .lfoc .vc { height: 38px; padding-right: 9px; gap: 5px; }
+#tab-edit .lfoc .vc.pick { padding-left: 9px; }
+#tab-edit .lfoc .wave { max-height: 56px; }
+
+/* ---- MOD: the slots as cables, from the source to the destination */
+#tab-edit .mrow { display: grid; grid-template-columns: 22px minmax(0, 1.1fr) minmax(40px, .6fr) minmax(0, 1.4fr) minmax(0, 1fr) 36px; align-items: center; gap: 8px; min-height: 42px; }
+#tab-edit .mrow .vc { min-width: 0; overflow: hidden; justify-content: space-between; }
+#tab-edit .mrow .vc b { overflow: hidden; text-overflow: ellipsis; }
+#tab-edit .mrow .mk { font: 400 12px var(--hud); color: var(--muted); text-align: center; }
+#tab-edit .mrow .cable path { fill: none; stroke: var(--c); stroke-linecap: round; filter: drop-shadow(0 0 4px var(--c)); }
+#tab-edit .mrow .cable { cursor: ew-resize; }
+#tab-edit .mrow.empty { grid-template-columns: 22px minmax(0, 1.1fr); min-height: 34px; }
+#tab-edit .stage .icon svg { width: 18px; height: 18px; }
+#tab-edit .mrow .mx { width: 36px; height: 36px; border-radius: 50%; }
+#tab-edit .mrow .mx:hover { border-color: var(--red); box-shadow: 0 0 12px -4px var(--red); }
+#tab-edit .madd { width: 100%; height: 30px; border-radius: 12px; border: 1.5px dashed #34343D; background: transparent; color: #66666F; font-weight: 800; font-size: 16px; transition: border-color .16s, color .16s, box-shadow .16s; }
+#tab-edit .madd:hover { border-color: var(--kalg); color: var(--kalg); box-shadow: 0 0 12px -4px var(--kalg); }
+#tab-edit .pn-mod .pnb { gap: 4px; }
+
+/* ---- the keybed: the FM-1's 27 keys from F, lit pink under a finger (red while recording); OCT − / + and the range */
+#tab-edit .kbed { display: flex; align-items: stretch; gap: 12px; height: 104px; margin-top: 2px; }
+#tab-edit .kbed .octs { width: 78px; flex: none; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
+#tab-edit .kbed .oct { height: 34px; padding: 0; font: 700 12px "Chakra Petch", sans-serif; letter-spacing: .06em; --c: var(--pink); }
+#tab-edit .kbed .octv { text-align: center; font-size: 11px; color: var(--pink); white-space: nowrap; }
+#tab-edit .kbed .bed { position: relative; flex: 1; touch-action: none; min-width: 0; }
+#tab-edit .kbed .wk { position: absolute; top: 0; bottom: 0; border: 0; background: transparent; padding: 0; }
+#tab-edit .kbed .wk::before { content: ""; position: absolute; inset: 0 2px; border-radius: 0 0 10px 10px; border: 1.5px solid #3A3A44; background: #0D0D12; transition: background .08s, border-color .08s, box-shadow .08s; }
+#tab-edit .kbed .wk:hover::before { border-color: #55555F; }
+#tab-edit .kbed .bk2 { position: absolute; top: 0; height: 60%; border: 1.5px solid #3A3A44; border-radius: 0 0 7px 7px; background: #15151B; padding: 0; z-index: 1; box-shadow: 0 6px 10px rgba(0, 0, 0, .6);
+  transition: background .08s, border-color .08s, box-shadow .08s; }
+#tab-edit .kbed .wk.down::before, #tab-edit .kbed .bk2.down { background: color-mix(in srgb, var(--pink) 22%, #000); border-color: var(--pink); box-shadow: 0 0 24px -2px var(--pink), inset 0 -6px 0 var(--pink); }
+#tab-edit .kbed .bed.rec .wk::before { border-color: color-mix(in srgb, var(--red) 50%, #3A3A44); }
+#tab-edit .kbed .bed.rec .wk.down::before, #tab-edit .kbed .bed.rec .bk2.down { background: color-mix(in srgb, var(--red) 24%, #000); border-color: var(--red); box-shadow: 0 0 24px -2px var(--red), inset 0 -6px 0 var(--red); }
+
+/* ---- the layouts: a computer (3 rows of sections from 1600, 4 below, 2 columns under 1180), a phone (one column) */
 @media (min-width: 1600px) {
-  .stage { grid-template-areas: "ops ops ops ops openv openv openv openv openv play play play" "filter filter filter filter filter filter amp amp amp drive drive drive"
+  #tab-edit .stage { grid-template-areas: "ops ops ops ops openv openv openv openv openv play play play" "filter filter filter filter filter filter amp amp amp drive drive drive"
     "lfo lfo lfo lfo lfo lfo lfo mod mod mod mod mod"; }
 }
-.stage [data-x], .stage [data-y], .stage [data-pick] { touch-action: none; }
-.stage svg { display: block; width: 100%; height: auto; overflow: visible; }
-.stage [data-x], .stage [data-y] { cursor: ns-resize; }
-.stage [data-x]:not([data-y]) { cursor: ew-resize; }
-.stage .hd { cursor: move; }
-.row.wrap { flex-wrap: wrap; }
-.row.center { justify-content: center; }
-.pair { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.col2 { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.card2 { background: var(--raised); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.card2 .cn { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--c); }
-/* a value: its chip, a dial, a bar, a choice */
-.vc { display: inline-flex; align-items: baseline; gap: 8px; height: 38px; padding: 0 11px; border-radius: 11px; background: var(--bg); border: 1.5px solid var(--line); font-weight: 800; white-space: nowrap; }
-.vc small { font-size: 12px; letter-spacing: .08em; color: var(--muted); align-self: center; }
-.vc b { color: var(--c); font-size: 18px; align-self: center; font-variant-numeric: tabular-nums; }
-.vc.big b { font-size: 22px; }
-.vc.pick { cursor: pointer; border-color: color-mix(in srgb, var(--c) 55%, var(--line)); }
-.vc.pick b::after { content: " ▾"; font-size: 12px; color: var(--muted); }
-.vc:hover, .vbar:hover, .dial:hover, .opv:hover { border-color: color-mix(in srgb, var(--c) 60%, var(--line)); }
-.vc.dragging, .vbar.dragging, .dial.dragging { border-color: var(--yellow); box-shadow: 0 0 14px color-mix(in srgb, var(--yellow) 40%, transparent); }
-.dial { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; width: 80px; padding: 4px 0; border-radius: 14px; border: 1.5px solid transparent; }
-.dial svg { width: 62px !important; }
-.dial .track { fill: none; stroke: #24242b; stroke-width: 7; stroke-linecap: round; }
-.dial .fill { fill: none; stroke: var(--c); stroke-width: 7; stroke-linecap: round; }
-.dial b { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; margin-top: -10px; }
-.dial small { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--muted); }
-.vbar { display: inline-grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px; min-width: 120px; flex: 1 1 140px; padding: 6px 10px; border-radius: 11px; background: var(--bg); border: 1.5px solid var(--line); }
-.vbar small { font-size: 12px; font-weight: 800; letter-spacing: .08em; color: var(--muted); }
-.vbar b { justify-self: end; color: var(--c); font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.vbar i { grid-column: 1 / 3; height: 8px; border-radius: 4px; background: #1d1d23; position: relative; overflow: hidden; }
-.vbar i span { position: absolute; top: 0; bottom: 0; background: var(--c); border-radius: 5px; }
-.vseg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; flex-wrap: wrap; }
-.vseg button { height: 36px; padding: 0 11px; border: 0; background: transparent; font-weight: 800; font-size: 13px; letter-spacing: .05em; color: var(--muted); }
-.vseg button.on { background: var(--c); color: #000; }
-.vseg.mach button { height: 38px; padding: 0 12px; }
-.vtog { height: 34px; padding: 0 11px; border-radius: 10px; border: 1.5px solid var(--line); background: transparent; color: var(--muted); font-weight: 800; font-size: 13px; letter-spacing: .06em; }
-.vtog.on { background: var(--c); border-color: var(--c); color: #000; box-shadow: 0 0 12px color-mix(in srgb, var(--c) 35%, transparent); }
-.capt { display: inline-flex; align-items: center; gap: 10px; }
-.capt small { font-size: 12px; font-weight: 800; letter-spacing: .08em; color: var(--muted); }
-.lfoc .vseg button { height: 32px; padding: 0 8px; font-size: 12px; }
-.lfoc .vseg.waves button { padding: 0 6px; }
-.vseg.waves svg { width: 22px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; display: block; }
-.vseg.waves button.on { color: #000; }
-/* the drawings */
-.ops { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; align-items: center; }
-.algosvg .bus { stroke: #3a3a44; stroke-width: 3; }
-.algosvg .spk { fill: none; stroke: var(--muted); stroke-width: 3; }
-.algosvg .spk.wave { stroke: var(--cream); opacity: .7; animation: blink 1s infinite alternate; }
-.algosvg .carrier { stroke: var(--cream); fill: none; }
-.algosvg .joint { fill: var(--cream); }
-.algosvg .modl { stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
-.algosvg .arrow { fill: var(--muted); }
-.algosvg .spark { fill: var(--cream); }
-.algosvg .fb { fill: none; stroke-width: 4; stroke-dasharray: 8 6; }
-.algosvg .op circle { fill: color-mix(in srgb, var(--c) 22%, #0b0b0e); stroke: var(--c); stroke-width: 5; transition: r .15s; }
-.algosvg .op text { fill: var(--c); font: 800 28px "Inter Tight", sans-serif; pointer-events: none; }
-.algosvg .op.on circle, .algosvg .op.dragging circle { stroke: var(--yellow); filter: drop-shadow(0 0 8px var(--yellow)); }
-.algosvg .op:focus { outline: none; }
-.algosvg .op:focus-visible circle { stroke: var(--cyan); }
-.algosvg .algolab { fill: var(--kalg); font: 800 18px "Inter Tight", sans-serif; letter-spacing: 2px; }
-.algosvg .algonum { fill: var(--kalg); font: 800 110px "Inter Tight", sans-serif; }
-.algosvg .algo { cursor: ns-resize; }
-.opcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.opc { border-radius: 14px; background: var(--panel); border: 2px solid var(--c); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.opc.on { box-shadow: 0 0 18px color-mix(in srgb, var(--c) 35%, transparent); }
-.opc .opn { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--c); }
-.opc .opv { font-size: 30px; font-weight: 800; color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; border-radius: 10px; border: 1.5px solid transparent; padding: 2px 4px; margin: -4px; }
-.opc .opv small { font-size: 16px; color: var(--muted); font-weight: 700; }
-.opc .opv.dragging { border-color: var(--yellow); }
-.opc .vbar { min-width: 0; padding: 6px 10px; flex: none; }
-.dials { display: flex; gap: 6px; justify-content: space-around; flex-wrap: wrap; }
-.env .area, .curve .area { fill: color-mix(in srgb, var(--c) 18%, transparent); stroke: none; }
-.env .line, .curve .line, .wave .line, .crush .line, .glide .line { fill: none; stroke: var(--c); stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
-.glide .line.dim { opacity: .35; }
-.env .lab, .curve .lab { fill: var(--muted); font: 800 14px "Inter Tight", sans-serif; letter-spacing: 2px; }
-.curve .grid { stroke: #18181d; stroke-width: 2; }
-.curve .val { fill: var(--text); font: 800 22px "Inter Tight", sans-serif; }
-.curve .sub { fill: var(--k2); font: 800 15px "Inter Tight", sans-serif; }
-.hd { fill: #000; stroke: var(--c); stroke-width: 4; }
-.hd:hover, .hd.dragging { stroke: var(--yellow); filter: drop-shadow(0 0 6px var(--yellow)); }
-.hd:focus { outline: none; } .hd:focus-visible { stroke: var(--cyan); }
-.wave .axis { stroke: #24242b; stroke-width: 2; }
-.wave .spark { fill: #fff; filter: drop-shadow(0 0 6px var(--c)); }
-.lfos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.lfoc { border: 2px solid var(--c); }
-.lfoc .row:first-child { justify-content: space-between; }
-.lfoc .vc { height: 36px; padding: 0 9px; gap: 6px; }
-.mrow { display: grid; grid-template-columns: 20px minmax(0, 1.1fr) minmax(40px, .6fr) minmax(0, 1.4fr) minmax(0, 1fr) 34px; align-items: center; gap: 8px; min-height: 40px; }
-.mrow .vc { min-width: 0; overflow: hidden; }
-.mrow .vc b { overflow: hidden; text-overflow: ellipsis; }
-.mrow .mk { font-weight: 800; color: var(--muted); font-size: 13px; }
-.mrow .vc { justify-content: space-between; }
-.mrow .cable path { fill: none; stroke: var(--c); stroke-linecap: round; }
-.mrow .cable { cursor: ew-resize; }
-.mrow.empty { grid-template-columns: 20px minmax(0, 1.1fr); }
-.stage .icon svg { width: 18px; height: 18px; }
-.madd { width: 100%; height: 34px; border-radius: 12px; border: 2px dashed #34343d; background: transparent; color: #66666f; font-weight: 800; font-size: 18px; }
-.madd:hover { border-color: var(--kalg); color: var(--kalg); }
-.foot { margin-top: auto; }
-/* the keybed: the FM-1's 27 keys from F */
-.kbed { display: flex; align-items: stretch; gap: 10px; height: 92px; margin-top: 4px; }
-.kbed .bed { position: relative; flex: 1; border-radius: 10px; overflow: hidden; touch-action: none; }
-.kbed .wk { position: absolute; top: 0; bottom: 0; border: 1.5px solid #2c2c34; border-radius: 0 0 8px 8px; background: #121216; padding: 0; }
-.kbed .bk2 { position: absolute; top: 0; height: 58%; border: 1.5px solid #2c2c34; border-radius: 0 0 6px 6px; background: #000; padding: 0; z-index: 1; }
-.kbed .wk.down, .kbed .bk2.down { background: var(--cream); border-color: var(--cream); box-shadow: 0 0 16px color-mix(in srgb, var(--cream) 45%, transparent); }
-.kbed .bed.rec .wk { border-color: color-mix(in srgb, var(--red) 55%, #2c2c34); }
-.kbed .bed.rec .wk.down, .kbed .bed.rec .bk2.down { background: var(--red); border-color: var(--red); }
-.kbed .oct { width: 44px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--raised); color: var(--text); font-weight: 800; font-size: 22px; }
-.kbed .octv { align-self: center; width: 28px; text-align: center; font-weight: 800; color: var(--muted); font-size: 15px; }
 @media (max-width: 1180px) {
-  .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "ops openv" "filter filter" "amp drive" "lfo lfo" "mod mod" "play play"; }
-}
-@media (max-width: 900px) {
-  .body.edit { flex-direction: column; align-items: stretch; }
-  .edcard { padding: 12px; }
-  .stage { grid-template-columns: minmax(0, 1fr); grid-template-areas: "ops" "openv" "filter" "amp" "drive" "lfo" "mod" "play"; }
-  .duo { grid-template-columns: minmax(0, 1fr); }
-  .lfos { grid-template-columns: minmax(0, 1fr); }
-  .trkbig { width: 64px; height: 64px; border-radius: 16px; }
-  .trkbig b { font-size: 36px; }
-  .trks { flex-wrap: wrap; }
-  .trk { min-width: 34px; height: 36px; padding: 0 8px; }
-  .edname .bigname { font-size: 30px; }
-  .edacts { margin-left: 0; }
-  .opcards { grid-template-columns: 1fr 1fr; }
-  .opc .opv { font-size: 32px; }
-  .dial { width: 74px; }
-  .vbar { min-width: 0; flex-basis: 140px; }
-  .mrow { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 34px; row-gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
-  .mrow .cable { display: none; }
-  .mrow .depth { grid-column: 2 / 4; }
-  .mrow .vc { min-width: 0; overflow: hidden; padding: 0 10px; gap: 6px; }
-  .mrow .vc.pick small { display: none; }
-  .mrow .vc b { overflow: hidden; text-overflow: ellipsis; }
-  .edacts { justify-content: flex-start; }
-  .mrow.empty { grid-template-columns: 22px 130px; }
-  .kbed { height: 76px; gap: 6px; }
-  .kbed .oct { width: 34px; }
-  .kbed .octv { display: none; }
-}
-/* the panel's sections, laid out (after the shared rules above) */
-.pnb > .vbar, .sub > .vbar { flex: none; }
-.pn-ops .pnb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "algo cards" "dials dials"; gap: 8px 10px; align-items: center; }
-.pn-ops .opc .vbar { min-width: 0; flex: none; }
-.pn-ops .opc .vbar b { font-size: 14px; }
-.pn-mod .pnb { gap: 4px; }
-.pn-ops .ops { display: contents; }
-.pn-ops .algowrap { grid-area: algo; } .pn-ops .opcards { grid-area: cards; } .pn-ops .dials { grid-area: dials; }
-.mrow.empty { min-height: 32px; }
-.mrow.empty .madd { height: 28px; font-size: 15px; }
-.lfoc .wave { max-height: 56px; }
-@media (max-width: 900px) {
-  .pn-ops .pnb { grid-template-columns: minmax(0, 1fr); grid-template-areas: "algo" "cards" "dials"; }
-  .pn .dial { width: 70px; }
-  .pn .dial svg { width: 54px !important; }
+  #tab-edit .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "ops openv" "filter filter" "amp drive" "lfo lfo" "mod mod" "play play"; }
 }
 @media (min-width: 901px) {
-  .body.edit { align-items: stretch; }
-  .edcard { overflow: hidden; }                       /* (EDIT: the head and the keybed stay, the panels scroll) */
-  .edcard .stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; padding: 2px; }
-  .edcard .edhead, .edcard .kbed { flex: none; }
+  #tab-edit { align-items: stretch; }
+  #tab-edit .edcard { overflow: hidden; }                 /* (the head and the keybed stay, the panel scrolls) */
+  #tab-edit .edcard .stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; padding: 6px; margin: -6px; scrollbar-width: thin; scrollbar-color: #2A2A33 transparent; }
+  #tab-edit .edcard .edhead, #tab-edit .edcard .kbed { flex: none; }
 }
-/* ---- FIZZ MIDI (e): a MIDI track's sound: its chip in the lists, the editor's seven pages of four bars
-   (mockups/fizz-midi-track.html screens 4..6: the knobs' colours, CC n under each bar, then its value; untouched dashed) */
-.stage.midi { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); grid-template-areas: none; }
-.stage .mpg { grid-area: auto; }
-.stage .mpg .pnh { color: var(--midi); }
-.stage .mpg .pnh .din { width: 22px; height: 22px; stroke: var(--midi); fill: none; stroke-width: 2; }
-.stage .mpg .pnh .din circle ~ circle { fill: var(--midi); stroke: none; }
-.mdots { display: inline-flex; gap: 4px; margin-right: 2px; }
-.mdots i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--midi) 55%, transparent); }
-.mdots i.on { background: var(--midi); border-color: var(--midi); }
-.mslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.msl { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 24px; min-width: 0; }
-.mbar { position: relative; width: 32px; height: 150px; border-radius: 11px; background: #1d1d23; overflow: hidden; cursor: ns-resize; touch-action: none; border: 1.5px solid transparent; }
-.mbar i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--c); border-radius: 9px; box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent); transition: height .06s linear; }
-.mbar i::before { content: ""; position: absolute; left: 4px; right: 4px; top: 4px; height: 3px; border-radius: 2px; background: color-mix(in srgb, #fff 70%, var(--c)); }
-.msl.un .mbar { background: transparent; border: 2px dashed #3a3a44; }
-.msl.un .mbar i { display: none; }
-.mbar:hover { border-color: color-mix(in srgb, var(--c) 55%, var(--line)); }
-.mbar.dragging { border-color: var(--yellow); box-shadow: 0 0 14px color-mix(in srgb, var(--yellow) 40%, transparent); }
-.mcc { background: none; border: 0; padding: 2px 4px; border-radius: 6px; color: var(--text); font-size: 15px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; cursor: text; }
-.mcc:hover { color: var(--c); text-decoration: underline; text-decoration-color: var(--c); text-underline-offset: 4px; text-decoration-thickness: 2px; }
-.mccin { width: 52px; height: 28px; border-radius: 7px; border: 1.5px solid var(--c); background: var(--bg); color: var(--text); font: 800 15px "Inter Tight", sans-serif; text-align: center; padding: 0; }
-.mval b { display: block; font-size: 22px; font-weight: 600; line-height: 1.1; color: var(--c); font-variant-numeric: tabular-nums; }
-.msl.un .mval b { color: var(--muted); }
-.mx { position: absolute; top: 0; right: 0; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--bg); color: var(--muted); font-size: 14px; font-weight: 800; line-height: 1; padding: 0; opacity: .7; }
-.mx:hover, .mx:focus-visible { opacity: 1; color: var(--text); border-color: var(--c); }
-.stage.locked .mbar { cursor: not-allowed; }
-@media (max-width: 900px) { .mbar { height: 120px; } }
+@media (max-width: 1380px) and (min-width: 901px) {
+  #tab-edit .edname .bigname { font-size: 36px; }
+  #tab-edit .trkbig { width: 66px; height: 66px; }
+  #tab-edit .trkbig b { font-size: 26px; }
+}
+@media (max-width: 900px) {
+  #tab-edit { flex-direction: column; align-items: stretch; }
+  #tab-edit .edcard { padding: 14px; border-radius: 22px; }
+  #tab-edit .edhead { gap: 10px 12px; }
+  #tab-edit .edname { flex-basis: 220px; }
+  #tab-edit .edname .bigname { font-size: 30px; }
+  #tab-edit .edacts { margin-left: 0; max-width: none; flex: 1 1 100%; justify-content: flex-start; gap: 8px; }
+  #tab-edit .edwhere { justify-content: flex-start; }
+  #tab-edit .edacts .ol { height: 40px; padding: 0 12px; }
+  #tab-edit .edacts .arc { height: 40px; padding: 0 24px; margin-left: auto; }
+  #tab-edit .trkbig { width: 60px; height: 60px; align-self: flex-start; }
+  #tab-edit .trkbig small { font-size: 11px; letter-spacing: .08em; }
+  #tab-edit .trkbig b { font-size: 22px; }
+  #tab-edit .edwhere { flex-wrap: wrap; gap: 8px; }
+  #tab-edit .trk { min-width: 34px; height: 34px; padding: 0 8px; }
+  #tab-edit .stage { grid-template-columns: minmax(0, 1fr); grid-template-areas: "ops" "openv" "filter" "amp" "drive" "lfo" "mod" "play"; gap: 12px; }
+  #tab-edit .pn { padding: 12px; border-radius: 20px; }
+  #tab-edit .duo { grid-template-columns: minmax(0, 1fr); }
+  #tab-edit .lfos { grid-template-columns: minmax(0, 1fr); }
+  #tab-edit .pn-ops .pnb { grid-template-columns: minmax(0, 1fr); grid-template-areas: "algo" "cards" "dials"; }
+  #tab-edit .opc .opv { font-size: 34px; }
+  #tab-edit .opc { min-height: 96px; }
+  #tab-edit .dial { width: 68px; }
+  #tab-edit .stage .dial svg { width: 54px; }
+  #tab-edit .dial b { font-size: 17px; }
+  #tab-edit .vbar { min-width: 0; flex-basis: 140px; }
+  #tab-edit .mrow { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 36px; row-gap: 6px; padding: 6px 0; border-bottom: 1.5px solid var(--line); }
+  #tab-edit .mrow .cable { display: none; }
+  #tab-edit .mrow .depth { grid-column: 2 / 4; }
+  #tab-edit .mrow .vc { padding: 0 10px 0 6px; gap: 6px; }
+  #tab-edit .mrow .vc.pick { padding-left: 10px; }
+  #tab-edit .mrow .vc.pick small { display: none; }
+  #tab-edit .mrow.empty { grid-template-columns: 22px 130px; }
+  #tab-edit .kbed { height: 84px; gap: 8px; }
+  #tab-edit .kbed .octs { width: 58px; }
+  #tab-edit .kbed .oct { height: 30px; font-size: 11px; letter-spacing: .02em; }
+  #tab-edit .kbed .octv { font-size: 11px; letter-spacing: 0; }
+}
+/* a phone upright: the track strip in two rows (SELECTED and LIVE, then 1..6) */
+@media (max-width: 900px) and (orientation: portrait) {
+  #tab-edit .trks { flex: 1 1 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; border-radius: 22px; }
+  #tab-edit .trk { min-width: 0; padding: 0 6px; }
+  #tab-edit .trk.sel { grid-row: 1; grid-column: 1 / 4; justify-self: start; }
+  #tab-edit .trk.live { grid-row: 1; grid-column: 4 / 7; justify-self: end; margin-left: 0; }
+}
+/* a phone on its side: the operators' drawing beside their cards again */
+@media (max-width: 900px) and (orientation: landscape) {
+  #tab-edit .pn-ops .pnb { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "algo cards" "dials dials"; }
+  #tab-edit .duo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* ---- FIZZ MIDI (e): a MIDI track's sound: seven pages of four bars (mockups/fizz-midi-track.html screens 4..6: the
+   knobs' colours, CC n under each bar, then its value; untouched dashed) */
+#tab-edit .stage.midi { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); grid-template-areas: none; }
+#tab-edit .stage .mpg { grid-area: auto; }
+#tab-edit .stage .mpg .pnh { color: var(--midi); }
+#tab-edit .stage .mpg .pnh .din { width: 22px; height: 22px; stroke: var(--midi); fill: none; stroke-width: 2; }
+#tab-edit .stage .mpg .pnh .din circle ~ circle { fill: var(--midi); stroke: none; }
+#tab-edit .mdots { display: inline-flex; gap: 4px; margin-right: 2px; }
+#tab-edit .mdots i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--midi) 55%, transparent); }
+#tab-edit .mdots i.on { background: var(--midi); border-color: var(--midi); box-shadow: 0 0 6px var(--midi); }
+#tab-edit .mslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+#tab-edit .msl { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 24px; min-width: 0; }
+#tab-edit .mbar { position: relative; width: 32px; height: 150px; border-radius: 11px; background: #17171F; overflow: hidden; cursor: ns-resize; touch-action: none; border: 1.5px solid transparent; transition: border-color .16s, box-shadow .16s; }
+#tab-edit .mbar i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--c); border-radius: 9px; box-shadow: 0 0 16px color-mix(in srgb, var(--c) 55%, transparent); transition: height .06s linear; }
+#tab-edit .mbar i::before { content: ""; position: absolute; left: 4px; right: 4px; top: 4px; height: 3px; border-radius: 2px; background: color-mix(in srgb, #fff 70%, var(--c)); }
+#tab-edit .msl.un .mbar { background: transparent; border: 1.5px dashed #3A3A44; }
+#tab-edit .msl.un .mbar i { display: none; }
+#tab-edit .mbar:hover { border-color: color-mix(in srgb, var(--c) 60%, transparent); }
+#tab-edit .mbar.dragging { border-color: var(--c); box-shadow: 0 0 16px -2px var(--c); }
+#tab-edit .mcc { background: none; border: 0; padding: 2px 4px; border-radius: 6px; color: var(--text); font: 400 12px var(--hud); letter-spacing: .04em; white-space: nowrap; cursor: text; }
+#tab-edit .mcc:hover { color: var(--c); text-decoration: underline; text-decoration-color: var(--c); text-underline-offset: 4px; text-decoration-thickness: 2px; }
+#tab-edit .mccin { width: 52px; height: 28px; border-radius: 7px; border: 1.5px solid var(--c); background: var(--bg); color: var(--text); font: 800 15px "Inter Tight", sans-serif; text-align: center; padding: 0; box-shadow: 0 0 12px -4px var(--c); }
+#tab-edit .mval b { display: block; font-size: 22px; font-weight: 800; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; }
+#tab-edit .msl.un .mval b { color: var(--muted); }
+#tab-edit .msl .mx { position: absolute; top: 0; right: 0; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--bg); color: var(--muted); font-size: 14px; font-weight: 800; line-height: 1; padding: 0; opacity: .7; }
+#tab-edit .msl .mx:hover, #tab-edit .msl .mx:focus-visible { opacity: 1; color: var(--text); border-color: var(--c); }
+#tab-edit .stage.locked .mbar { cursor: not-allowed; }
+@media (max-width: 900px) { #tab-edit .mbar { height: 120px; } }

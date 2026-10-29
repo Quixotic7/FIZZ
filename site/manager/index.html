@@ -89,13 +89,16 @@
 
   <section id="tab-pool" class="body" role="tabpanel" aria-labelledby="t-pool" hidden>
     <div class="card poolcard">
-      <div class="h">PROJECT <div class="seg proj" id="p-proj" role="group" aria-label="Project"></div><span class="n" id="p-count" style="margin-left:auto"></span></div>
+      <div class="phead">
+        <div class="projs" id="p-proj" role="group" aria-label="Project"></div>
+        <div class="ptitle"><h2 class="pname" id="p-pname"></h2><span class="lbl" id="p-pno"></span><span class="pcount hud" id="p-count"></span></div>
+      </div>
       <div class="pool" id="p-grid"></div>
-      <div class="row pbar"><span class="legdot" aria-hidden="true">●</span><span class="kv">steps using it</span>
-        <span class="selname" id="p-selname"></span>
-        <button id="p-clear" class="btn small ghost redline" hidden>CLEAR</button>
-        <button id="p-sort" class="btn small ghost" disabled>SORT BY TAG</button>
-        <button id="p-unused" class="btn small ghost" disabled>CLEAR UNUSED</button></div>
+      <div class="pbar">
+        <div class="selname" id="p-selname"></div>
+        <div class="pacts"><button id="p-clear" class="ol redline" hidden>CLEAR</button>
+          <button id="p-sort" class="ol" disabled>SORT BY TAG</button>
+          <button id="p-unused" class="ol" disabled>CLEAR UNUSED</button></div></div>
     </div>
     <div class="card pmine"><div class="h">SOUNDS</div><div class="filters" id="p-filter"></div><div class="cases" id="p-list"></div></div>
   </section>
