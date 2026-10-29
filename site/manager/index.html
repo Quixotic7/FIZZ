@@ -46,26 +46,30 @@
 
 <main>
   <section id="tab-backup" class="body" role="tabpanel" aria-labelledby="t-backup">
-    <div class="card this">
-      <div><div class="h">THIS FM-1</div><div class="big" id="u-ver">FM-1</div></div>
-      <div class="stats">
-        <div class="kv"><b id="u-prj">–</b>projects</div>
-        <div class="kv"><b id="u-pre">–</b>my presets</div>
-        <div class="kv"><b id="u-use">–</b>store used</div>
+    <div class="this">
+      <div class="card unitcard tube">
+        <div class="uhead"><span class="led" id="u-led"></span><span class="lbl">THIS FM-1</span><span class="hud" id="u-pkg"></span></div>
+        <div class="verrow"><span class="num" id="u-ver">FM-1</span><span class="chip" id="u-beta" hidden></span></div>
+        <div class="stats">
+          <div class="stat"><span class="num" id="u-prj">–</span><span class="lbl">projects</span></div>
+          <div class="stat"><span class="num" id="u-pre">–</span><span class="lbl">my presets</span></div>
+          <div class="stat"><span class="num" id="u-use">–</span><span class="lbl">store used</span></div>
+        </div>
+        <div class="leds" id="u-meter" role="img" aria-label="The store"></div>
+        <div class="legend"><span><i class="lp"></i>MY PRESETS</span><span><i class="lj"></i>PROJECTS</span><span class="r hud" id="u-kb"></span></div>
+        <div class="speed" id="speed" hidden></div>
       </div>
-      <div><div class="meter" id="u-meter"><span style="width:0;background:var(--cream)"></span><span style="width:0;background:color-mix(in srgb,var(--cream) 25%,#15151a)"></span><span style="width:0;background:var(--green)"></span><span style="width:0;background:color-mix(in srgb,var(--green) 18%,#15151a)"></span></div>
-        <div class="legend"><span><i style="background:var(--cream)"></i>MY PRESETS</span><span><i style="background:var(--green)"></i>PROJECTS</span><span class="r" id="u-kb"></span></div></div>
-      <div class="speed" id="speed" hidden></div>
-      <div class="actions">
-        <button id="go-backup" class="btn huge" style="--c:var(--yellow)" disabled>● BACK UP</button>
-        <button id="go-presets" class="btn ghost" disabled>PRESETS ONLY</button>
+      <div class="actions" id="b-acts">
+        <button id="go-backup" class="arc breathe" disabled><span class="dot" aria-hidden="true"></span>BACK UP</button>
+        <button id="go-presets" class="ol" disabled>PRESETS ONLY</button>
+        <span class="bubble" aria-hidden="true"></span><span class="bubble" aria-hidden="true"></span><span class="bubble" aria-hidden="true"></span><span class="bubble" aria-hidden="true"></span>
       </div>
     </div>
-    <div class="card list">
-      <div class="h">BACKUPS <span class="n">in this browser</span><span class="use" id="b-use"></span></div>
+    <div class="list">
+      <div class="bhead"><span class="lbl">BACKUPS</span><span class="use hud" id="b-use"></span></div>
       <div class="baks" id="baks"></div>
       <label class="drop" id="drop"><input type="file" id="file" accept=".fizzbak,.fizzlib,.bin" hidden>
-        <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M13 4v13M7 11l6 6 6-6M4 21h18"/></svg>.fizzbak · .fizzlib</label>
+        <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M13 4v13M7 11l6 6 6-6M4 21h18"/></svg><span class="hud">.fizzbak · .fizzlib</span></label>
     </div>
   </section>
 
@@ -104,17 +108,17 @@
   </section>
 
   <section id="tab-projects" class="body" role="tabpanel" aria-labelledby="t-projects" hidden>
-    <div class="card pjslots">
-      <div class="h"><span id="pj-on">ON THE FM-1</span> <span class="n" id="pj-n"></span><span class="pjuse" id="pj-use"></span></div>
+    <div class="pjslots">
+      <div class="pjh"><span class="lbl" id="pj-on">ON THE FM-1</span><span class="hud n" id="pj-n"></span><span class="pjuse hud" id="pj-use"></span></div>
       <div class="slots" id="pj-slots"></div>
       <div class="acts" id="pj-acts"></div>
     </div>
-    <div class="card pjmain">
-      <div class="row pjhead"><div class="big pjname" id="pj-name"></div><span class="kv" id="pj-count"></span><span class="clip" id="pj-clip" hidden></span>
-        <div class="seg pjview" id="pj-view" role="group" aria-label="Show"><button data-v="patterns" class="on">PATTERNS</button><button data-v="kept">KEPT <b id="pj-kn"></b></button></div></div>
+    <div class="pjmain">
+      <div class="pjhead"><h1 class="pjname" id="pj-name"></h1><span class="hud pjcount" id="pj-count"></span><span class="clip" id="pj-clip" hidden></span>
+        <div class="pjview" id="pj-view" role="group" aria-label="Show"><button data-v="patterns" class="on">PATTERNS</button><button data-v="kept">KEPT <b id="pj-kn" class="hud"></b></button></div></div>
       <div class="pjgrid" id="pj-grid"></div>
       <div class="kept" id="pj-kept" hidden></div>
-      <div class="row pjtools" id="pj-tools"></div>
+      <div class="pjtools" id="pj-tools"></div>
       <div class="pending" id="pj-pending" hidden></div>
     </div>
   </section>
@@ -122,15 +126,16 @@
   <section id="tab-import" class="body col" role="tabpanel" aria-labelledby="t-import" hidden>
     <div class="dz" id="i-drop">
       <label class="files" for="i-file" aria-label="Choose sounds: FIZZ or Digitone"><input type="file" id="i-file" accept=".fizzlib,.fizzsnd,.fizzbak,.dnsnd,.dn2pst,.dn2snd" multiple hidden>
-        <span class="ft" style="--c:var(--cream)">FIZZ<small>.fizzlib</small></span><span class="ft" style="--c:var(--cream)">FIZZ<small>.fizzsnd</small></span><span class="ft" style="--c:var(--yellow)">FIZZ<small>.fizzbak</small></span>
-        <span class="ft" style="--c:var(--cyan)">DN1<small>.dnsnd</small></span><span class="ft" style="--c:var(--magenta)">DN II<small>.dn2pst</small></span><span class="ft" style="--c:var(--magenta)">DN II<small>.dn2snd</small></span></label>
-      <div class="big" id="i-count">0 sounds</div>
-      <div class="dest"><div class="seg" id="i-dest" role="group" aria-label="Where they go" style="--c:var(--cream)"><button data-d="mine" class="on">MY PRESETS</button><button data-d="pool">POOL</button><button data-d="track">TRACK</button></div>
+        <span class="plus" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span class="fts"><span class="ft" style="--c:var(--cream)">FIZZ<small>.fizzlib</small></span><span class="ft" style="--c:var(--cream)">FIZZ<small>.fizzsnd</small></span><span class="ft" style="--c:var(--yellow)">FIZZ<small>.fizzbak</small></span>
+        <span class="ft" style="--c:var(--cyan)">DN1<small>.dnsnd</small></span><span class="ft" style="--c:var(--magenta)">DN II<small>.dn2pst</small></span><span class="ft" style="--c:var(--magenta)">DN II<small>.dn2snd</small></span></span></label>
+      <div class="num icount" id="i-count">0 sounds</div>
+      <div class="dest"><div class="seg" id="i-dest" role="group" aria-label="Where they go"><button data-d="mine" class="on">MY PRESETS</button><button data-d="pool">POOL</button><button data-d="track">TRACK</button></div>
         <select id="i-track" class="select" aria-label="Track" hidden><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option><option value="4">5</option><option value="5">6</option></select></div>
     </div>
-    <div class="card ilist">
+    <div class="ilist">
       <div id="i-rows" class="irows"></div>
-      <div class="row ifoot"><span class="kv" id="i-foot"></span><button id="i-clear" class="btn small ghost" hidden>CLEAR</button><button id="i-send" class="btn" style="--c:var(--violet);margin-left:auto;color:#fff" disabled>↓ SEND 0 TO FM-1</button></div>
+      <div class="ifoot"><span class="kv" id="i-foot"></span><button id="i-clear" class="ol" hidden>CLEAR</button><button id="i-send" class="arc" disabled>↓ SEND 0 TO FM-1</button></div>
     </div>
   </section>
 </main>

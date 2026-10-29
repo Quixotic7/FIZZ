@@ -55,6 +55,7 @@ export function mountImport(ctx) {
   const can = () => !!(S.link && !S.busy && S.unit && S.unit.version && !I.sending);
   const fid = (s) => (s.notes.length ? Math.max(3, 10 - s.notes.length) : 10);
   const fidC = (n) => (n >= 10 ? "var(--green)" : n >= 8 ? "var(--yellow)" : "var(--orange)");
+  const leds = (f, c) => Array.from({ length: 10 }, (_, j) => (j < f ? `<i class="l" style="--c:${c}"></i>` : "<i></i>")).join("");
 
   async function add(files) {
     const list = [];
@@ -74,22 +75,24 @@ export function mountImport(ctx) {
   }
   function render() {
     const n = I.items.filter((x) => x.on).length;
-    $("i-count").textContent = `${I.items.length} sound${I.items.length === 1 ? "" : "s"}`;
+    $("i-count").innerHTML = `${I.items.length}<small>sound${I.items.length === 1 ? "" : "s"}</small>`;
+    const shown = I.shown || 0;                         // (a row pops in once, when it first shows)
     $("i-rows").innerHTML = I.items.map((it, k) => {
       if (!it.ok) {
         const why = (it.error || "").replace(/^Not importable: /, "");
         const fz = /\.fizz/i.test(it.file);
-        return `<div class="ir no"><span class="chk" aria-hidden="true"></span><span class="src ${fz ? "fz" : /dn2/i.test(it.file) ? "dn2" : "dn1"}">${fz ? "FIZZ" : /dn2/i.test(it.file) ? "DN II" : "DN1"}</span>` +
-          `<span class="nm">${esc(it.file.replace(/\.[^.]+$/, ""))}</span><span class="fid">${"<i></i>".repeat(10)}</span><span class="note">${esc(why.slice(0, 60))}</span><span></span></div>`;
+        return `<div class="ir tube no${k >= shown ? " pop" : ""}" style="--i:${Math.min(k, 12)}"><span class="chk" aria-hidden="true"></span><span class="src hud ${fz ? "fz" : /dn2/i.test(it.file) ? "dn2" : "dn1"}">${fz ? "FIZZ" : /dn2/i.test(it.file) ? "DN II" : "DN1"}</span>` +
+          `<span class="nm">${esc(it.file.replace(/\.[^.]+$/, ""))}</span><span class="fid">${leds(0)}</span><span class="note">${esc(why.slice(0, 60))}</span><span class="tg"></span></div>`;
       }
       const s = it.sound, f = fid(s), web = (s.tags || []).map((t) => String(t).toUpperCase()).filter((t) => !s.fizzTags.includes(t));
       const res = it.result ? (it.result.ok ? `<span class="okmark">✓ ${it.result.pool ? "POOL" : "MY"} ${it.result.slot}</span>` : `<span class="note bad">${esc(it.result.error)}</span>`) : "";
-      return `<div class="ir ${it.on ? "" : "off"}${I.cur === k ? " cur" : ""}" data-k="${k}"><button class="chk ${it.on ? "on" : ""}" data-k="${k}" aria-pressed="${it.on}" aria-label="Send ${esc(s.name)}">${it.on ? '<svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6"/></svg>' : ""}</button>` +
-        `<span class="src ${s.fizz ? "fz" : s.dn2 ? "dn2" : "dn1"}">${s.fizz ? "FIZZ" : s.dn2 ? "DN II" : "DN1"}</span><span class="nm">${esc(s.name)}</span>` +
-        `<span class="fid" title="${esc(s.notes.join("\n") || "exact")}">${Array.from({ length: 10 }, (_, j) => `<i style="background:${j < f ? fidC(f) : "#24242b"}"></i>`).join("")}</span>` +
-        `<span class="note ${it.dup ? "dup" : s.notes.length ? "lost" : ""}">${it.dup === "mine" ? "already in MY PRESETS" : it.dup === "list" ? "twice in these files" : esc((s.notes[0] || "exact").slice(0, 44))}</span>` +
+      return `<div class="ir tube ${k >= shown ? "pop " : ""}${it.on ? "" : "off"}${I.cur === k ? " cur" : ""}" data-k="${k}" style="--i:${Math.min(k, 12)}"><button class="chk ${it.on ? "on" : ""}" data-k="${k}" aria-pressed="${it.on}" aria-label="Send ${esc(s.name)}">${it.on ? '<svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6"/></svg>' : ""}</button>` +
+        `<span class="src hud ${s.fizz ? "fz" : s.dn2 ? "dn2" : "dn1"}">${s.fizz ? "FIZZ" : s.dn2 ? "DN II" : "DN1"}</span><span class="nm">${esc(s.name)}</span>` +
+        `<span class="fid" title="${esc(s.notes.join("\n") || "exact")}">${leds(f, fidC(f))}</span>` +
+        `<span class="note ${it.dup ? "dup" : s.notes.length ? "lossy" : ""}">${it.dup === "mine" ? "already in MY PRESETS" : it.dup === "list" ? "twice in these files" : esc((s.notes[0] || "exact").slice(0, 44))}</span>` +
         `<span class="tg">${res || [midiChip(isMidiBlob(s.blob)), ...s.fizzTags.map((t) => `<span class="tag t-${t}">${t}</span>`), ...web.slice(0, 2).map((t) => `<span class="tag web">${esc(t)}</span>`)].join("")}</span></div>`;
     }).join("");
+    I.shown = I.items.length;
     const mine = S.unit ? S.unit.rows.filter((r) => r.source === "mine").map((r) => r.slot) : [];
     const free = [], nlib = ctx.pkg ? ctx.pkg().nlib : 256; for (let s = 1; s <= nlib && free.length < n; s++) if (!mine.includes(s)) free.push(s);
     const run = free.length > 1 && free[free.length - 1] - free[0] === free.length - 1;

@@ -106,6 +106,13 @@
 .selacts .tag.web { height: 30px; padding: 0 10px; }
 .selacts .redline { flex: 1; height: 40px; font-size: 11px; color: var(--red); }
 
+/* ---- LIBRARY's presets at rest: no box (no border, no tint), only the picked one a lit tube in its tag's colour
+   (cards and rows alike: WebDesktop, WebMobilePortrait, WebMobileLandscape) */
+#l-list .cas { border-color: transparent; background: transparent; }
+#l-list .cas:hover { border-color: color-mix(in srgb, var(--c) 28%, transparent); background: color-mix(in srgb, var(--c) 3%, transparent); }
+#l-list .cas[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, rgba(10, 10, 15, .6)); }
+#l-list .cas.target { border-color: var(--yellow); }
+
 /* ---- cards: a computer and a phone upright */
 @media (min-width: 901px), (max-width: 900px) and (orientation: portrait) {
   #l-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 14px; align-content: start; padding: 6px; margin: -6px; }
