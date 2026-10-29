@@ -6,8 +6,12 @@
 // commands (FZBI / FZBR / FZSR) are simfizz.js's model of app.c, over the browser FIZZ's flash. Its store is shown in
 // the FM-1's layout (fizzstore.js convertImage: the same records), so a backup of it restores onto the FM-1 and the
 // FM-1's restores onto it. The flash is kept in this browser (onFlash: the page stores it) and comes back next time.
+// Before the page's first click (the autoplay rule: no sound yet) the same FIZZ runs quietly on the page's own thread
+// (engine.js, as simfizz.js runs it); wake() on the first click moves it into the worklet with its flash, and the frames
+// sent meanwhile wait for it.
 //   const u = new BrowserUnit({ log, onFlash(hostImage) }); await u.start() (in a click: the autoplay rule);
-//   await u.boot(image | null) (an FM-1 image or the browser's 1 MiB one); u.access (navigator.requestMIDIAccess's shape)
+//   await u.boot(image | null) (an FM-1 image or the browser's 1 MiB one: quiet if the sound has not started);
+//   await u.wake() (in a click: the sound on, FIZZ moved into the worklet); u.quiet; u.access (requestMIDIAccess's shape)
 import { SimFizz } from "./simfizz.js";
 import { Player } from "../js/audio.js";
 import { ver } from "../js/build.js";
@@ -21,6 +25,7 @@ export class BrowserUnit extends SimFizz {
     super({ id: BROWSER_ID, name: "FM-1 (FIZZ in this browser)", frameMs: 0, tryMs: 2000 });   // (fm1lib.js probes ports named FM-1 only)
     this.log = log; this.onFlash = onFlash;
     this.host = null; this.region = null; this.waitFlash = null; this.booted = null; this.saveT = null;
+    this.quiet = false; this.holding = null; this.waking = null; this.fseq = -1;
     this.player = new Player({
       midiOut: (b) => this.out(b),
       info: () => { if (this.booted) { const f = this.booted; this.booted = null; f(true); } },
@@ -29,10 +34,13 @@ export class BrowserUnit extends SimFizz {
     }, { root: "../" });
   }
   start() { return this.player.start(); }
-  get running() { return this.player.running; }
+  get running() { return this.player.running && !this.quiet; }
   setVolume(v) { this.player.setVolume(v); }
   async boot(image = null) {
     const host = image && image.length !== LAYOUTS.host.size ? convertImage(image, "host") : image;
+    if (!this.player.running) return this.bootQuiet(host);
+    if (this.quiet && this.engine) this.engine.dispose();
+    this.quiet = false;
     this.engine = { midiIn: (d) => this.player.midi(d), dispose: () => {} };
     const up = new Promise((r) => { this.booted = r; });
     await this.player.load(ver("../fizz.wasm"), host);
@@ -41,14 +49,59 @@ export class BrowserUnit extends SimFizz {
     await sleep(600);                                  // (FIZZ mounts its store and draws its first screen)
     return this;
   }
-  run() {}                                            // (the worklet runs FIZZ in real time)
-  pass() { const d = this.slot; this.slot = null; if (d) { this.counts.frames++; this.take(d); } }
+  // quiet: FIZZ on this thread (simfizz.js's loop), no sound
+  async bootQuiet(host) {
+    if (!this.module) {
+      const [{ createEngine }, module] = await Promise.all([import("../engine/engine.js"), fetch(ver("../fizz.wasm")).then((r) => r.arrayBuffer()).then((b) => WebAssembly.compile(b))]);
+      this.createEngine = createEngine; this.module = module;
+    }
+    this.quiet = true;
+    await super.boot(host);
+    this.fseq = this.engine.flash().seq;
+    this.host = host; this.region = null;
+    return this;
+  }
+  run(ms) {                                           // (the worklet runs FIZZ in real time)
+    if (!this.quiet || !this.engine) return;
+    super.run(ms);
+    const q = this.engine.flash().seq;
+    if (q !== this.fseq) { this.fseq = q; this.flashMsg({}); }
+  }
+  pass() {
+    if (this.quiet) { super.pass(); return; }
+    const d = this.slot; this.slot = null; if (d) { this.counts.frames++; this.take(d); }
+  }
+  rx(d) { if (this.holding) this.holding.push(d); else super.rx(d); }
+  // the first click: the sound on; a quiet FIZZ moved into the worklet (its flash as it is now). -> true if it plays
+  wake() {
+    if (this.waking) return this.waking;
+    this.waking = (async () => {
+      const ok = await this.player.start().catch(() => false);
+      if (ok && this.quiet && this.engine) await this.move();
+      return ok && !this.quiet;
+    })().finally(() => { this.waking = null; });
+    return this.waking;
+  }
+  async move() {
+    while (this.restoring) await sleep(100);
+    this.holding = [];                                // (frames sent meanwhile: kept, then given to the worklet's FIZZ)
+    clearTimeout(this.timer); this.timer = null;
+    if (this.slot) { this.holding.push(this.slot); this.slot = null; }
+    SimFizz.prototype.run.call(this, 300);            // (its replies out, its saves written)
+    const host = this.engine.flash().bytes;
+    await this.boot(host);                            // (the quiet FIZZ let go there)
+    this.log("browser FIZZ: the sound on (moved into the audio worklet)");
+    const held = this.holding;
+    this.holding = null;
+    for (const d of held) { this.rx(d); await sleep(20); }
+  }
   // the flash: asked of the worklet when the bulk commands need it; each change of FIZZ's own stored for next time
   flashMsg(m) {
     if (m.requested && this.waitFlash) { const f = this.waitFlash; this.waitFlash = null; f(m.bytes); return; }
     if (this.onFlash && !m.requested) { clearTimeout(this.saveT); this.saveT = setTimeout(() => this.save(), 1500); }
   }
   hostFlash() {
+    if (this.quiet) return Promise.resolve(this.engine ? this.engine.flash().bytes : null);
     return new Promise((res) => { this.waitFlash = res; this.player.flashReq(); setTimeout(() => { if (this.waitFlash === res) { this.waitFlash = null; res(null); } }, 3000); });
   }
   async save() { const b = await this.hostFlash(); if (b && this.onFlash) { this.host = b; this.onFlash(b); } }
@@ -61,5 +114,5 @@ export class BrowserUnit extends SimFizz {
     }
     if (this.region) super.usbCmd(u);
   }
-  dispose() { this.unplug(); this.engine = null; try { this.player.ctx && this.player.ctx.close(); } catch (_) { /* (gone) */ } }
+  dispose() { clearTimeout(this.saveT); this.onFlash = null; this.unplug(); if (this.quiet && this.engine) this.engine.dispose(); this.engine = null; try { this.player.ctx && this.player.ctx.close(); } catch (_) { /* (gone) */ } }
 }

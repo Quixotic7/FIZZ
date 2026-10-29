@@ -63,33 +63,8 @@ b { color: var(--text); }
 .refresh.spin svg { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* the FM-1 pill: a lit green tube when on (it strikes up), searching yellow, NOT FIZZ red, CONNECT the screen's fill */
-.unit { --c: var(--cyan); display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 13px; border-radius: 999px; flex: none;
-  border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent);
-  color: var(--text); font-weight: 800; font-size: 13px; letter-spacing: .04em; white-space: nowrap; transition: border-color .16s var(--snap), background .16s, box-shadow .16s; }
-.unit .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); flex: none; }
-.unit small { color: var(--muted); font: 400 11px/1 var(--hud); letter-spacing: .04em; }
-.unit[data-state="on"] { --c: var(--green); cursor: default; border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
-  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent);
-  outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 3px; animation: strike .9s linear 1; }
-.unit[data-state="on"] .dot { animation: led 1.8s ease-in-out infinite; }
-.unit[data-state="on"] small { color: var(--green); }
-.unit[data-state="off"] { --c: var(--cyan); background: var(--c); border-color: var(--c); color: #000; font-weight: 900; letter-spacing: .1em;
-  box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000), 0 0 28px -6px var(--c); transition: transform .12s var(--snap), box-shadow .12s; }
-.unit[data-state="off"]:not(:disabled):active { transform: translateY(3px); box-shadow: 0 1px 0 0 color-mix(in srgb, var(--c) 42%, #000), 0 0 18px -6px var(--c); }
-.unit[data-state="off"] .dot { background: #000; box-shadow: none; }
-.unit[data-state="look"] { --c: var(--yellow); animation: flicker 2s linear infinite; }
-.unit[data-state="look"] .dot { animation: blink .8s infinite alternate; }
-.unit[data-state="bad"] { --c: var(--red); }
-.unit[data-state="idle"] { --c: var(--muted); color: var(--muted); cursor: pointer; }
-.unit[data-state="idle"] .dot { box-shadow: none; }
+/* the unit pill, the sound, the FM-1 beside them, the picker: unit.css */
 @keyframes blink { to { opacity: .2; } }
-/* BROWSER (the owner, 2026-10-27): FIZZ in this browser as the FM-1; the FM-1 pill quiet then */
-.unit.bunit, .unit.bunit[data-state="off"] { --c: var(--cyan); background: color-mix(in srgb, var(--c) 5%, transparent); border-color: color-mix(in srgb, var(--c) 42%, transparent);
-  color: var(--text); font-weight: 800; font-size: 11px; letter-spacing: .12em; box-shadow: none; }
-.bunit svg { width: 18px; height: 18px; fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; flex: none; }
-.unit.bunit[data-state="on"] { --c: var(--green); border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent); }
-.bunit[data-state="look"] svg { animation: blink .8s infinite alternate; }
 /* LOG: a pill in the bar, its lines a panel under it */
 .logbox { flex: none; position: relative; }
 .logbox summary { list-style: none; cursor: pointer; height: 40px; padding: 0 14px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--muted) 55%, transparent);

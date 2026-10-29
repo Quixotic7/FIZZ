@@ -1,0 +1,131 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ Manager, the header's unit (the offline mode, 2026-10-29: unitpicker.js): the unit pill (THIS BROWSER orange,
+   the FM-1 green), the sound pill, the FM-1 beside it (a dashed circle; found: a green ⇄ FM-1 with bubbles), and the
+   unit picker (a popover from the pill, a bottom sheet on a phone). */
+:root { --browser: var(--orange); }
+
+.top .ic, .uppop .ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.livesw[hidden] + .refresh[hidden] + .spk, .livesw[hidden] + .refresh[hidden] + .spk[hidden] + .unit { margin-left: auto; }
+
+/* the unit pill */
+.unit > *, .spk > *, .fm1c > * { pointer-events: none; }
+.unit { --c: var(--browser); display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 11px 0 11px; border-radius: 999px; flex: none;
+  border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 11%, transparent); color: var(--text); font-weight: 800; font-size: 13px; letter-spacing: .02em; white-space: nowrap;
+  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent);
+  outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 3px; transition: border-color .16s var(--snap), background .16s, box-shadow .16s; }
+.unit[data-u="fm1"] { --c: var(--green); }
+.unit .g { width: 20px; height: 20px; color: var(--c); flex: none; }
+.unit .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); flex: none; animation: led 1.8s ease-in-out infinite; }
+.unit small { color: var(--c); font: 400 11px/1 var(--hud); letter-spacing: .04em; }
+.unit .chev { width: 12px; height: 12px; color: var(--muted); flex: none; transition: transform .2s var(--snap); }
+.unit[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.unit[data-state="look"] .g, .unit[data-state="look"] .dot { animation: blink .8s infinite alternate; }
+.unit[data-state="look"] { box-shadow: none; outline-color: transparent; }
+
+/* the sound: grey and struck through with two faint orange rings until the first click; then orange (on) or muted */
+.spk { --c: var(--browser); position: relative; width: 40px; height: 40px; border-radius: 50%; padding: 0; display: grid; place-items: center; flex: none; color: var(--c);
+  border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
+  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent);
+  outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 3px; }
+.spk svg { width: 20px; height: 20px; }
+.spk[data-state="off"], .spk[data-state="look"] { --c: var(--muted); color: var(--muted); box-shadow: none; outline-color: transparent;
+  border-color: color-mix(in srgb, var(--muted) 55%, transparent); background: transparent; }
+.spk[data-state="mute"] { color: var(--c); box-shadow: none; outline-color: transparent; border-color: color-mix(in srgb, var(--c) 55%, transparent); background: transparent; }
+.spk .ring { position: absolute; inset: -7px; border-radius: 50%; border: 2px solid var(--browser); opacity: .45; pointer-events: none; animation: spkring 2.4s ease-in-out infinite; }
+.spk .ring + .ring { inset: -13px; opacity: .18; animation-delay: -1.2s; }
+.spk[data-state="look"] svg { animation: blink .8s infinite alternate; }
+@keyframes spkring { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+/* the FM-1 beside the pill: absent, a dashed circle with a tiny FM-1; found, a green ⇄ FM-1 that glows, bubbles rising */
+.fm1c { position: relative; flex: none; height: 40px; min-width: 40px; border-radius: 999px; padding: 0; display: inline-grid; place-items: center; color: var(--dim);
+  border: 1.5px dashed color-mix(in srgb, var(--muted) 55%, transparent); background: transparent; }
+.fm1c .g { width: 26px; height: 18px; }
+.fm1c[data-state="absent"]:hover { color: var(--muted); border-color: var(--muted); }
+.fm1c[data-state="found"] { --c: var(--green); display: inline-flex; align-items: center; gap: 9px; padding: 0 16px 0 12px; border: 0; background: var(--c); color: #0A0A0A;
+  font-weight: 900; font-size: 12px; letter-spacing: .1em; box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000), 0 0 40px -2px var(--c);
+  animation: breathe 2.4s ease-in-out infinite, fm1in .5s var(--snap) both; }
+.fm1c[data-state="found"]:active { transform: translateY(3px); }
+.fm1c[data-state="found"] .ic { width: 18px; height: 18px; stroke-width: 2.6; }
+.fm1c small { font: 400 11px/1 var(--hud); letter-spacing: .04em; }
+.fm1c .bubs { position: absolute; left: 6px; right: 6px; top: -2px; height: 10px; pointer-events: none; }
+.fm1c .bubs i { position: absolute; bottom: 0; border-radius: 50%; border: 1.5px solid var(--green); opacity: 0; animation: fm1bub 2.6s ease-out infinite; }
+.fm1c .bubs i:nth-child(1) { left: 14%; width: 7px; height: 7px; }
+.fm1c .bubs i:nth-child(2) { left: 48%; width: 5px; height: 5px; animation-delay: -.9s; }
+.fm1c .bubs i:nth-child(3) { left: 82%; width: 9px; height: 9px; animation-delay: -1.7s; }
+@keyframes fm1bub { 0% { transform: translateY(4px); opacity: 0; } 20% { opacity: .8; } 100% { transform: translateY(-18px); opacity: 0; } }
+@keyframes fm1in { from { transform: scale(.6); opacity: 0; } }
+
+/* the picker: a popover under the pill (a computer), a bottom sheet (a phone) */
+.upick { position: fixed; inset: 0; z-index: 9; }
+.upscrim { position: absolute; inset: var(--toph) 0 0 0; background: rgba(0, 0, 0, .45); }
+.uppop { position: absolute; width: min(430px, calc(100vw - 32px)); border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 12px; background: #0B0B10;
+  border: 1.5px solid var(--line); box-shadow: 0 30px 80px -10px #000, 0 0 0 1px #000; animation: uppopin .22s var(--snap) both; }
+.uppop::before { content: ""; position: absolute; top: -9px; left: var(--nub, 200px); width: 16px; height: 16px; background: #0B0B10; border-left: 1.5px solid var(--line); border-top: 1.5px solid var(--line); transform: rotate(45deg); }
+@keyframes uppopin { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+.uphead { display: flex; align-items: center; gap: 10px; padding: 2px 4px; }
+.uphead .hud { font-size: 12px; color: var(--text); }
+.urow { --c: var(--browser); border-radius: 18px; padding: 14px; display: flex; align-items: center; gap: 14px; position: relative; cursor: pointer; }
+.urow.fm { --c: var(--green); }
+.urow .big { width: 76px; height: 50px; color: var(--c); flex: none; }
+.urow .nm { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.urow .nm b { color: var(--text); font-weight: 900; font-size: 19px; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.urow .nm .hud { font-size: 11px; color: var(--c); }
+.urow .radio { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--dim); display: grid; place-items: center; flex: none; }
+.urow .radio.y { background: var(--c); border-color: var(--c); box-shadow: 0 0 16px -2px var(--c); }
+.urow .radio svg { width: 16px; height: 16px; color: #000; stroke-width: 3; }
+.urow .more { width: 34px; height: 34px; border-radius: 50%; padding: 0; display: grid; place-items: center; color: var(--body); font-weight: 900; letter-spacing: .08em; font-size: 12px; flex: none; }
+.urow .more.ol { border-color: var(--dim); }
+.urow .more.tube.on { --c: var(--browser); color: var(--text); }
+.urow.off { --c: var(--muted); cursor: pointer; border: 1.5px dashed color-mix(in srgb, var(--muted) 55%, transparent); background: transparent; }
+.urow.off .big { color: var(--dim); }
+.urow.off .nm b { color: var(--muted); }
+.urow.off .nm .hud { color: var(--dim); }
+.urow.off .radio { border-style: dashed; }
+.urow.off .usb { --c: #5A5A64; }
+.usb { --c: var(--green); display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 6px; border: 1.5px solid color-mix(in srgb, var(--c) 70%, transparent);
+  color: var(--c); font-weight: 800; font-size: 11px; letter-spacing: .1em; }
+.usb svg { width: 12px; height: 12px; }
+.drawer { --c: var(--browser); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; margin-top: -4px; }
+.drawer .lbl { color: var(--browser); }
+.drawer .cells { flex: 1; display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; }
+.drawer .cells i { height: 14px; border-radius: 3px; background: var(--well); }
+.drawer .cells i.p { background: var(--browser); box-shadow: 0 0 8px -2px var(--browser); }
+.drawer .cells i.j { background: var(--cyan); box-shadow: 0 0 8px -2px var(--cyan); }
+.drawer .hud { font-size: 11px; color: var(--browser); min-width: 30px; text-align: right; }
+.drawer .reset { --c: var(--red); color: var(--red); height: 36px; padding: 0 14px; font-size: 11px; }
+.uppop .connect { --c: var(--green); height: 54px; font-size: 15px; }
+.uppop .connect svg { width: 20px; height: 20px; stroke-width: 2.4; }
+.uppop .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--dim); margin: 0 auto 4px; }
+
+/* a computer: the pill's version while the bar has room (unitpicker.js fit(): the crumb goes first, then the version,
+   then the dashed FM-1, THIS, the word) */
+@media (min-width: 901px) { .unit small { display: inline; } }
+.top.fit1 .crumb, .top.fit2 .unit small, .top.fit3 .fm1c[data-state="absent"], .top.fit3 .fm1c small, .top.fit4 .unit .this, .top.fit5 .unit .ul { display: none; }
+.top.fit3 .fm1c[data-state="found"] { padding: 0 14px 0 11px; gap: 7px; }
+.top.fit5 .fm1c[data-state="found"] { width: 40px; padding: 0; justify-content: center; }
+.top.fit5 .fm1c[data-state="found"] > span:not(.bubs) { display: none; }
+@media (max-width: 1180px) and (min-width: 901px) { .unit .ul { display: none; } }
+
+/* a phone: BROWSER (no THIS), 36 px, no dashed circle; the picker a bottom sheet */
+@media (max-width: 900px) {
+  .unit { height: 36px; padding: 0 10px; font-size: 12px; gap: 7px; }
+  .unit .this, .fm1c[data-state="absent"] { display: none; }
+  .spk { width: 36px; height: 36px; }
+  .fm1c { height: 36px; }
+  .fm1c[data-state="found"] { padding: 0 12px 0 10px; gap: 7px; }
+  .fm1c[data-state="found"] small { display: none; }
+  .upick.sheet .upscrim { inset: 0; background: rgba(0, 0, 0, .55); }
+  .upick.sheet .uppop { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: calc(100% - 40px); overflow-y: auto; border-radius: 28px 28px 0 0; border: 0;
+    border-top: 1.5px solid var(--line); padding: 10px 16px max(30px, env(safe-area-inset-bottom, 0px)); box-shadow: 0 -30px 60px -10px #000; animation: upsheet .28s var(--snap) both; }
+  .upick.sheet .uppop::before { display: none; }
+  .upick.sheet .connect { height: 58px; }
+}
+/* a phone upright: no room for REFRESH beside the sound and THIS BROWSER (the browser's FIZZ reads itself back) */
+@media (max-width: 430px) and (orientation: portrait) {
+  .top:has(.unit[data-u="browser"]) .refresh { display: none; }
+  .top:has(.fm1c[data-state="found"]) .unit :is(.ul, .chev) { display: none; }   /* (⇄ FM-1 beside it: the glyph only) */
+}
+@keyframes upsheet { from { transform: translateY(40px); opacity: 0; } }
+@media (max-width: 900px) and (orientation: landscape) {
+  .upick.sheet .uppop { left: calc(50% - 230px); right: calc(50% - 230px); }
+}
