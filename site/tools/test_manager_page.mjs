@@ -37,7 +37,9 @@
 //   - FIZZ MIDI (e): a MIDI track's sound STOREd on the unit: its MIDI chip in LIBRARY; EDIT's MIDI view (seven pages
 //     of four bars, the CC numbers, untouched dashed): a bar dragged, the wheel, a CC number typed, a slot untouched;
 //     SAVE AS NEW DUMPs back the same; EXPORT's Digitone refuses it; with TRACK on an edit reaches the unit's track (an
-//     AUDITION); at 1280 x 800 and 390 x 844 (no horizontal scroll, screenshots manager-midi-edit-*.png).
+//     AUDITION); at 1280 x 800 and 390 x 844 (no horizontal scroll, screenshots manager-midi-edit-*.png);
+//   - bug fixes (2026-10-29): a project RENAME, + POOL and every other write with its reply lost, its request lost,
+//     replies late, or the first LIST after it stale: shown on every tab without a reload, nothing said failed.
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -650,6 +652,223 @@ try {
   await click("#t-backup");
   check(await evaluate("[...document.querySelectorAll('#baks .bk')].some((b) => b.querySelector('.icon.play'))"), "BACKUP: a full backup has its play button (the browser's FIZZ)");
 
+  // ---- bug fixes: rename + refresh after writes (the owner, 2026-10-29, on the FM-1: a project's RENAME did not take,
+  // + POOL showed only after a reload). The unit loses a frame at times: here the sim loses a reply (__sim.hooks.reply
+  // "drop"), loses a request, delays every reply, or the first LIST after a write is the one from before. Each write
+  // still shows on every tab without a reload, and nothing says it failed when it did not
+  {
+    if (await evaluate("__mgr.live.on()")) { await click("#live"); await waitFor("!__mgr.live.on()"); }
+    const dropReply = (cmd, kind = 0x52) => evaluate(`window.__lost = 0; __sim.hooks.reply = (d) => (d[5] === ${kind} && (${kind} !== 0x52 || d[6] === ${cmd}) && !window.__lost++ ? "drop" : 0)`);
+    const dropAsk = (cmd) => evaluate(`(() => { const u = __sim; if (!u.__rx) u.__rx = u.rx.bind(u); window.__dropAsk = 0; u.rx = (d) => { if (d[5] === ${cmd} && !window.__dropAsk++) return; u.__rx(d); }; })()`);
+    const clean = () => evaluate("(() => { __sim.hooks.reply = null; if (__sim.__rx) __sim.rx = __sim.__rx; })()");
+    const settled = () => waitFor("!__mgr.S.editing && !__mgr.S.writing && !__mgr.S.busy && !__mgr.S.refreshing", 30000);
+    const said = () => evaluate("document.getElementById('say').textContent");
+    const lost = () => evaluate("window.__lost || window.__dropAsk || 0");
+    const logHas = (re) => evaluate(`${re}.test(document.getElementById('log').textContent)`);
+    const pj = () => evaluate("__mgr.S.unit.projects.list.map((p) => ({ there: p.there, current: p.current, name: p.name }))");
+    // PROJECTS without the store read (the sim's 1 MiB read is slow): the slots are the unit's PROJECTS list
+    const showProjects = () => evaluate("(() => { for (const t of ['backup', 'library', 'edit', 'pool', 'projects', 'import']) document.getElementById('tab-' + t).hidden = t !== 'projects'; __mgr.projtab.render(); })()");
+    const renameProject = async (p, name) => {
+      await evaluate(`__mgr.projtab.state.sel = ${p}; __mgr.projtab.render()`);
+      await click('#pj-acts [data-act="rename"]');
+      await waitFor("!!document.getElementById('pj-rename')", 3000);
+      await evaluate(`(() => { const i = document.getElementById('pj-rename'); i.value = ${JSON.stringify(name)}; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+      await waitFor(`__mgr.S.unit.projects.list[${p}].name === ${JSON.stringify(name)} && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+      await settled();
+      await sleep(300);
+      return evaluate(`({ unit: __mgr.S.unit.projects.list[${p}].name, slot: (document.querySelector('#pj-slots .slot[data-p="${p}"] .sname') || {}).textContent, big: document.getElementById('pj-name').textContent })`);
+    };
+    await evaluate("__mgr.S.link.project('new', 2).then(() => __mgr.refreshRows({ projects: true }))");
+    await showProjects();
+    let pr = await renameProject(1, "CURRENT ONE");
+    check(pr.unit === "CURRENT ONE" && pr.slot === pr.unit && pr.big === pr.unit, `PROJECTS: RENAME the open project: ${JSON.stringify(pr)}`);
+    await dropReply(0x13);
+    pr = await renameProject(0, "LOST REPLY");
+    check((await lost()) === 1 && pr.unit === "LOST REPLY" && pr.slot === pr.unit && !(await said()) && (await logHas("/RENAME: its reply lost, the FM-1 has it/")),
+      `PROJECTS: RENAME another project (a job), its reply lost: the projects read again show it (${JSON.stringify(pr)})`);
+    await clean();
+    await dropAsk(0x13);
+    pr = await renameProject(0, "LOST ASK");
+    check((await lost()) === 1 && pr.unit === "LOST ASK" && pr.slot === pr.unit && !(await said()) && (await logHas("/RENAME: no reply and not on the FM-1: sent again/")),
+      `PROJECTS: RENAME, the request lost: not on the unit, sent once more (${JSON.stringify(pr)})`);
+    await clean();
+    // COPY TO, DELETE: their replies lost
+    await evaluate("__mgr.projtab.state.sel = 0; __mgr.projtab.render()");
+    await dropReply(0x24);
+    await click('#pj-acts [data-act="copyto"]');
+    await click('#pj-slots .slot[data-p="2"]');
+    await waitFor("__mgr.S.unit.projects.list[2].there && !__mgr.S.editing && !__mgr.S.writing", 30000);
+    await settled();
+    let pl = await pj();
+    check((await lost()) === 1 && pl[2].there && !!(await evaluate("document.querySelector('#pj-slots .slot[data-p=\"2\"] .sname')")) && !(await said()),
+      `PROJECTS: COPY TO slot 3, its reply lost: slot 3 shown (${pl[2].name})`);
+    await dropReply(0x24);
+    await evaluate("__mgr.projtab.state.sel = 2; __mgr.projtab.render()");
+    await click('#pj-acts [data-act="delete"]');
+    await waitFor("!document.getElementById('cf').hidden");
+    await click("#cf-go");
+    await waitFor("!__mgr.S.unit.projects.list[2].there && !__mgr.S.editing && !__mgr.S.writing", 30000);
+    await settled();
+    check((await lost()) === 1 && (await evaluate("document.querySelector('#pj-slots .slot[data-p=\"2\"]').classList.contains('empty')")) && !(await said()),
+      "PROJECTS: DELETE slot 3, its reply lost: shown empty");
+    await clean();
+    await evaluate("__mgr.S.link.project('load', 1).then(() => __mgr.S.link.project('delete', 2)).then(() => __mgr.S.link.rename('project', 1, 'PROJECT 1')).then(() => __mgr.refreshRows({ projects: true }))");
+    await settled();
+    pl = await pj();
+    check(pl[0].current && pl[0].name === "PROJECT 1" && !pl[1].there, "PROJECTS: the sim's projects as before (PROJECT 1 open, slot 2 empty)");
+
+    // LIBRARY + POOL: the POOL REF's reply lost (the owner's report); then with every reply late and the first LIST
+    // after the write the one from before
+    await click("#t-library");
+    const freeMine = () => evaluate("(() => { const rs = __mgr.S.unit.rows, inp = new Set(rs.filter((x) => x.source === 'pool').map((x) => x.id)); const r = rs.find((x) => x.source === 'mine' && !inp.has(x.id) && x.name !== 'EDIT TEST'); return r && { slot: r.slot, id: r.id, name: r.name }; })()");
+    const shownInPool = async (r) => {
+      const at = await evaluate(`__mgr.S.unit.rows.filter((x) => x.source === 'pool' && x.id === ${r.id}).map((x) => x.slot)`);
+      const badge = await evaluate(`(document.querySelector("${MINE(r.slot)} .pbadge") || {}).textContent || ""`);
+      await click("#t-pool");
+      await sleep(200);
+      const tile = at.length ? await evaluate(`(() => { const t = document.querySelector("#p-grid .ps[data-k='${at[0]}']"); return !!t && t.classList.contains('full') && t.querySelector('.nm').textContent; })()`) : "";
+      await click("#t-library");
+      return { at, badge, tile };
+    };
+    let fm = await freeMine();
+    await click(MINE(fm.slot));
+    await settled();
+    await dropReply(0x16);
+    await click("#l-pool");
+    await waitFor(`__mgr.S.unit.rows.some((x) => x.source === 'pool' && x.id === ${fm.id})`, 20000);
+    await settled();
+    let sp = await shownInPool(fm);
+    check((await lost()) === 1 && sp.at.length === 1 && sp.badge === String(sp.at[0]) && sp.tile === fm.name && !(await said()),
+      `+ POOL, its reply lost: LIBRARY's badge ${sp.badge}, POOL's place ${sp.at[0]} ${sp.tile}, no reload, nothing said`);
+    // − POOL, its reply lost
+    await click(MINE(fm.slot));
+    await settled();
+    await dropReply(0x14);
+    await click("#l-pool");
+    const out = await waitFor(`!__mgr.S.unit.rows.some((x) => x.source === 'pool' && x.id === ${fm.id}) && !document.querySelector("${MINE(fm.slot)} .pbadge") && !__mgr.S.editing`, 20000);
+    await settled();
+    await sleep(500);
+    check((await lost()) === 1 && out && !(await evaluate(`!!document.querySelector("${MINE(fm.slot)} .pbadge")`)) && !(await said()), "− POOL, its reply lost: out of the pool, the badge gone");
+    await clean();
+    fm = await freeMine();
+    await click(MINE(fm.slot));
+    await settled();
+    await evaluate(`(() => { __sim.hooks.reply = () => 120; const l = __mgr.S.link, o = l.list.bind(l), before = __mgr.S.unit.rows.map((x) => ({ ...x })); window.__stale = 0;
+      l.list = async (a) => (window.__stale++ ? o(a) : before); window.__unstale = () => { l.list = o; }; })()`);
+    await click("#l-pool");
+    await waitFor(`__mgr.S.unit.rows.some((x) => x.source === 'pool' && x.id === ${fm.id}) && window.__stale > 1`, 20000);
+    await settled();
+    await evaluate("window.__unstale()");
+    sp = await shownInPool(fm);
+    check(sp.at.length === 1 && sp.badge === String(sp.at[0]) && sp.tile === fm.name && (await evaluate("window.__stale")) >= 2,
+      `+ POOL, every reply 120 ms late and the first LIST after it stale: read again (${await evaluate("window.__stale")} LISTs), badge ${sp.badge}, POOL ${sp.at[0]}`);
+    await clean();
+
+    // TAGS, RENAME, MOVE, DELETE in LIBRARY; EDIT's header follows the preset it came from
+    await click(MINE(fm.slot));
+    await settled();
+    const tg0 = await evaluate(`__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === ${fm.slot}).tags`);
+    await dropReply(0x12);
+    await click("#l-sel [data-dtag='5']");
+    await waitFor(`__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === ${fm.slot}).tags === ${tg0 ^ 32} && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+    await settled();
+    check((await lost()) === 1 && (await evaluate("document.querySelector(\"#l-sel [data-dtag='5']\").classList.contains('" + (tg0 & 32 ? "off" : "on") + "')")) && !(await said()),
+      `TAGS, the reply lost: DRUMS toggled, shown (tags ${tg0} -> ${tg0 ^ 32})`);
+    await clean();
+    await click("#l-edit");
+    await waitFor(`__mgr.editor.place().source === 'mine' && __mgr.editor.place().slot === ${fm.slot}`, 5000);
+    await click("#t-library");
+    await click(MINE(fm.slot));
+    await settled();
+    await dropAsk(0x13);
+    await evaluate("(() => { const i = document.getElementById('l-name'); i.value = 'LOST ASK'; i.dispatchEvent(new Event('change')); })()");
+    await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.slot === ${fm.slot} && r.name === 'LOST ASK') && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+    await settled();
+    check((await lost()) === 1 && (await evaluate(`document.querySelector("${MINE(fm.slot)}").textContent.includes('LOST ASK')`)) && (await evaluate("__mgr.editor.sound().name")) === "LOST ASK" && !(await said()),
+      "RENAME a MY preset, the request lost: sent again, shown in LIBRARY and EDIT's name");
+    await clean();
+    const to = fm.slot + 1;
+    await dropReply(0x15);
+    await evaluate(`document.querySelector("${MINE(fm.slot)}").dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }))`);
+    await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.id === ${fm.id} && r.slot === ${to}) && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+    await settled();
+    const ep = await evaluate("({ slot: __mgr.editor.place().slot, label: document.querySelector('#ed-head .h').textContent })");
+    check((await lost()) === 1 && ep.slot === to && /MY PRESETS\s*\d+/.test(ep.label) && ep.label.includes(String(to)) && !(await said()),
+      `MOVE (ALT + down), its reply lost: MY PRESETS ${to}; EDIT's header follows it (${ep.label.trim()})`);
+    await click(MINE(to));
+    await settled();
+    await dropReply(0x14);
+    await click("#l-del");
+    await waitFor("!document.getElementById('cf').hidden");
+    await click("#cf-go");
+    await waitFor(`!__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.id === ${fm.id}) && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+    await settled();
+    check((await lost()) === 1 && !(await evaluate(`[...document.querySelectorAll('#l-list .cas')].some((c) => +c.dataset.id === ${fm.id})`)) &&
+      (await evaluate("__mgr.editor.place().source === 'deleted' && document.getElementById('ed-save').disabled")) && !(await said()),
+      "DELETE, its reply lost: gone from LIBRARY; EDIT's SAVE off (not over the place another preset may take)");
+    await clean();
+    // SAVE AS NEW from EDIT, its reply lost: LIBRARY shows it
+    await click("#t-edit");
+    await evaluate("(() => { const i = document.getElementById('ed-name'); i.value = 'LOST SAVE'; i.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    await dropReply(0, 0x50);
+    await click("#ed-savenew");
+    await click("#t-library");
+    const saved = await waitFor("[...document.querySelectorAll('#l-list .cas')].some((c) => c.textContent.includes('LOST SAVE'))", 20000);
+    const onIt = await waitFor("__mgr.editor.place().source === 'mine' && __mgr.S.unit.rows.some((r) => r.source === 'mine' && r.slot === __mgr.editor.place().slot && r.name === 'LOST SAVE')", 20000);
+    await settled();
+    check((await lost()) === 1 && saved && onIt && !(await said()),
+      "SAVE AS NEW, its reply lost: the lists read again, LIBRARY shows it, the editor on it, nothing said");
+    await clean();
+
+    // POOL: a place, a swap, CLEAR, each reply lost
+    await click("#t-pool");
+    await waitFor("document.querySelectorAll('#p-grid .ps').length === 128");
+    await settled();
+    const freeK = () => evaluate("[...document.querySelectorAll('#p-grid .ps:not(.full)')].map((e) => +e.dataset.k).find((k) => k < 128 && !document.querySelector(`#p-grid .ps[data-k='${k + 1}']`).classList.contains('full'))");
+    const k1 = await freeK();
+    const pid = await evaluate("+document.querySelector('#p-list .cas[data-src=mine]').dataset.id");
+    await click("#p-list .cas[data-src='mine']");
+    await dropReply(0x16);
+    await click(`#p-grid .ps[data-k='${k1}']`);
+    await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${k1} && r.id === ${pid}) && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+    await settled();
+    check((await lost()) === 1 && (await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1}']").classList.contains('full')`)) && !(await said()), `POOL: a place (${k1}), its reply lost: shown`);
+    await dropReply(0x15);
+    await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1}']").dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }))`);
+    await waitFor("!document.getElementById('cf').hidden");
+    await click("#cf-go");
+    await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${k1 + 1} && r.id === ${pid}) && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+    await settled();
+    check((await lost()) === 1 && (await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1 + 1}']").classList.contains('full') && !document.querySelector("#p-grid .ps[data-k='${k1}']").classList.contains('full')`)) && !(await said()),
+      `POOL: a move ${k1} -> ${k1 + 1} (SWAP), its reply lost: shown`);
+    await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1 + 1}']").click()`);
+    await dropReply(0x14);
+    await click("#p-clear");
+    await waitFor("!document.getElementById('cf').hidden");
+    await click("#cf-go");
+    await waitFor(`!__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${k1 + 1}) && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+    await settled();
+    check((await lost()) === 1 && !(await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1 + 1}']").classList.contains('full')`)) && !(await said()), `POOL: CLEAR ${k1 + 1}, its reply lost: shown empty`);
+    await clean();
+
+    // KEEP on TRACK: who uses the preset (USERS) read again
+    await click("#t-library");
+    await click("#live");
+    await waitFor("__mgr.live.on()");
+    const km = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine').slot");
+    await click(MINE(km));
+    await waitFor("!document.getElementById('loadbar').hidden", 8000);
+    await settled();
+    await sleep(300);
+    const u0 = await evaluate("__sim.counts.cmds[0x17] || 0");
+    await click("#lb-keep");
+    check(await waitFor(`(__sim.counts.cmds[0x17] || 0) > ${u0}`, 5000), "KEEP on TRACK: LIBRARY's \"Used by\" read again (USERS)");
+    await click("#live");
+    await waitFor("!__mgr.live.on()");
+    await settled();
+  }
+  // ---- (end of the bug fixes' block)
+
   // BROWSER (the owner, 2026-10-27): FIZZ in this browser as the unit, heard here; PROJECTS on it: KEEP, LOAD INTO a
   // slot, WRITE (the store before kept in BACKUP), read back; the computer keys on LIBRARY and IMPORT
   await realClick("#bunit");
@@ -669,8 +888,14 @@ try {
   const staged = await evaluate("__mgr.projtab.state.ops.length === 1 && !document.getElementById('pj-pending').hidden");
   await shot("manager-projects-staged.png");
   check(read1 && kept && staged, "PROJECTS: the store read, PROJECT 1 KEPT in this browser, LOAD INTO slot 3 waits in the yellow bar");
+  // ---- bug fixes: rename + refresh after writes: the first LIST after the restore's FZOK lost (read again, not "did not finish")
+  await evaluate("(() => { const u = __mgr.bu(); window.__lost = 0; window.__fzok = false; u.hooks.restored = () => { window.__fzok = true; }; u.hooks.reply = (d) => (window.__fzok && d[5] === 0x61 && !window.__lost ? (window.__lost = 1, 'drop') : 0); })()");
   await click('#pj-pending [data-act="write"]');
   const wrote = await waitFor("__mgr.projtab.state.ops.length === 0 && !__mgr.S.busy", 60000);
+  const wsay = await evaluate("document.getElementById('say').textContent");
+  await evaluate("(() => { const u = __mgr.bu(); u.hooks.reply = null; u.hooks.restored = null; })()");
+  check(wrote && (await evaluate("window.__lost")) === 1 && !/did not finish|cut off/i.test(wsay) && (await evaluate("/LIST: .*read again|no answer in \\d+ ms: sent again/.test(document.getElementById('log').textContent)")),
+    `PROJECTS: WRITE, the first LIST after FZOK lost: read again, the write not reported failed${wsay ? ` ("${wsay}")` : ""}`);
   await evaluate("__mgr.projtab.state.base = null; __mgr.projtab.show()");
   await waitFor("!!__mgr.projtab.state.base && !__mgr.S.busy", 60000);
   const p3 = await evaluate("__mgr.S.unit.projects.list[2]");
@@ -678,6 +903,21 @@ try {
     `PROJECTS: WRITE: slot 3 is ${p3 && p3.name} on the browser's FIZZ, read back; the store before kept in BACKUP`);
   check(await evaluate("document.documentElement.scrollHeight <= window.innerHeight + 1"), "PROJECTS fits 1280 x 800");
   await shot("manager-projects.png");
+  // ---- bug fixes: rename + refresh after writes: RENAME on the browser's FIZZ, its reply lost; the store read here
+  // carries the new name too (KEEP, WRITE)
+  {
+    await evaluate("(() => { window.__lost = 0; __mgr.bu().hooks.reply = (d) => (d[5] === 0x52 && d[6] === 0x13 && !window.__lost++ ? 'drop' : 0); __mgr.projtab.state.sel = 2; __mgr.projtab.render(); })()");
+    await click('#pj-acts [data-act="rename"]');
+    await waitFor("!!document.getElementById('pj-rename')", 3000);
+    await evaluate("(() => { const i = document.getElementById('pj-rename'); i.value = 'browser one'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()");
+    await waitFor("__mgr.S.unit.projects.list[2].name === 'BROWSER ONE' && !__mgr.S.editing && !__mgr.S.writing", 30000);
+    await waitFor("!__mgr.S.editing && !__mgr.S.writing && !__mgr.S.busy", 30000);
+    await evaluate("__mgr.bu().hooks.reply = null");
+    const br = await evaluate(`(async () => { const P = await import('./projects.js'); return { unit: __mgr.S.unit.projects.list[2].name, slot: document.querySelector('#pj-slots .slot[data-p="2"] .sname').textContent,
+      model: P.project(__mgr.projtab.state.base.model, 2).name, said: document.getElementById('say').textContent }; })()`);
+    check((await evaluate("window.__lost")) === 1 && br.unit === "BROWSER ONE" && br.slot === br.unit && br.model === br.unit && !br.said,
+      `PROJECTS (BROWSER): RENAME slot 3, its reply lost: shown, and in the store read here (${JSON.stringify(br)})`);
+  }
   const peakJs = `(async (key) => { const p = __mgr.bu().player; if (!window.__an) { window.__an = p.ctx.createAnalyser(); window.__an.fftSize = 2048; p.out.connect(window.__an); }
     const b = new Float32Array(2048), pk = () => { window.__an.getFloatTimeDomainData(b); let m = 0; for (const x of b) m = Math.max(m, Math.abs(x)); return m; };
     document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })); let m = 0;

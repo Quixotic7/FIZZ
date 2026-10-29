@@ -15,7 +15,8 @@
 // a delete, a project load) step with the store's step as the unit's do, so the main loop runs on for a while after
 // each semantic frame (3 s); sim.tapPlay() starts or stops FIZZ's transport (MIDI START / STOP: the
 // commands that need it stopped answer BUSY), sim.counts.cmds[cmd] counts the semantic commands; notes and controllers go
-// to the engine at once (sim.counts.notes).
+// to the engine at once (sim.counts.notes). sim.hooks.reply(frame) (tests: a unit that loses or delays replies):
+// "drop" loses that reply, a number delays it (ms).
 // No DOM: Node runs it as it is.
 //   new SimFizz({createEngine, module, id, playing, frameMs, tryMs, bulk, answers}); await sim.boot()
 //   sim.access (navigator.requestMIDIAccess's shape), sim.unplug(), sim.engine, sim.flash(), sim.counts, sim.tapPlay(),
@@ -79,7 +80,9 @@ export class SimFizz {
     if (this.gone) return;
     this.counts.sent++;
     const data = Uint8Array.from(bytes);
-    later(() => { if (!this.gone && this.input.onmidimessage) this.input.onmidimessage({ data }); }, 0);
+    const h = this.hooks.reply ? this.hooks.reply(data) : 0;   // (tests: "drop" loses the reply, a number delays it, ms)
+    if (h === "drop") { this.counts.lost = (this.counts.lost || 0) + 1; return; }
+    later(() => { if (!this.gone && this.input.onmidimessage) this.input.onmidimessage({ data }); }, +h || 0);
   }
   flash() {                                          // the region now (cached between the engine's flash writes)
     const f = this.engine.flash();
