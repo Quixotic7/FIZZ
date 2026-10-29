@@ -25,6 +25,10 @@
   - FreeType files: `plutovg-ft-types.h` (a 32-bit long under the arena, `PVG_FT_LONG`), `plutovg-ft-raster.c` (its
     positions and divisions on that type), `plutovg-ft-stroker.c` (`PVG_FT_Stroker_TakeLeft`, the left border's
     arrays handed over).
+  - `plutovg-ft-raster.c` in WebAssembly only (`__wasm__`, for the .rfm1 that RemoteFM1 builds, which has no
+    setjmp / longjmp): the render pool's overflow is a flag instead of a longjmp. The cells after it go to a spare,
+    the outline is decomposed to its end, and the band is split as before, so the same rows are drawn. The device's
+    and the native builds are unchanged.
 - Built with `PLUTOVG_BUILD PLUTOVG_BUILD_STATIC PLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD` (the last leaves out the font
   cache's file and directory loading: the core never reads a file).
 - Licences:

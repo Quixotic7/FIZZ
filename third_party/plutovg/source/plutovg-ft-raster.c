@@ -189,6 +189,10 @@ PVG_FT_END_STMNT
     int  band_shoot;
 
     pvg_ft_jmp_buf  jump_buffer;
+#ifdef __wasm__
+    int    overflow;   /* FIZZ (Wasm, its .rfm1): the overflow as a flag (no setjmp in WebAssembly without its   */
+    TCell  spare;      /* exceptions); the cells after it go to the spare and the band is split as before */
+#endif
 
     void*       buffer;
     long        buffer_size;
@@ -291,7 +295,14 @@ PVG_FT_END_STMNT
     }
 
     if ( ras.num_cells >= ras.max_cells )
+#ifdef __wasm__
+    {
+      ras.overflow = 1;
+      return &ras.spare;
+    }
+#else
       pvg_ft_longjmp( ras.jump_buffer, 1 );
+#endif
 
     cell        = ras.cells + ras.num_cells++;
     cell->x     = x;
@@ -1632,6 +1643,15 @@ void PVG_FT_Outline_Get_CBox(const PVG_FT_Outline* outline, PVG_FT_BBox* acbox)
   {
     volatile int  error = 0;
 
+#ifdef __wasm__
+    /* FIZZ (Wasm, its .rfm1): the outline decomposed to its end, then the overflow reported as the longjmp would */
+    ras.overflow = 0;
+    error = PVG_FT_Outline_Decompose( &ras.outline, &ras );
+    if ( !ras.invalid )
+      gray_record_cell( RAS_VAR );
+    if ( ras.overflow )
+      error = ErrRaster_Memory_Overflow;
+#else
     if ( pvg_ft_setjmp( ras.jump_buffer ) == 0 )
     {
       error = PVG_FT_Outline_Decompose( &ras.outline, &ras );
@@ -1642,6 +1662,7 @@ void PVG_FT_Outline_Get_CBox(const PVG_FT_Outline* outline, PVG_FT_BBox* acbox)
     {
       error = ErrRaster_Memory_Overflow;
     }
+#endif
 
     return error;
   }
