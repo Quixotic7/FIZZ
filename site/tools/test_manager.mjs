@@ -49,6 +49,8 @@ import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage,
 import { modelOf, imageOf, projects, project, walkPat, rkey, RK, patName, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject,
   renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, fitModel, fitChoice, limits } from "../manager/projects.js";
 import { backupFlash, isBackupFile } from "../js/backup-play.js";
+import { usedBy } from "../manager/usedby.js";
+import { browserRows, recordOf, keepIn, dropFrom } from "../manager/browserlib.js";
 import { poolPlaces, shownRows, newFilter, listHtml } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
 import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound, tickStep, stepOf,
@@ -677,6 +679,39 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   f.pool = "in"; const pin = shownRows(rows, f); f.pool = "out"; const pout = shownRows(rows, f);
   const n = (x) => x.mine.length + x.fac.length;
   check(n(pin) > 0 && n(pout) > 0 && n(pin) + n(pout) === n(all) && pin.fac.every((r) => poolPlaces(rows).has(r.id)), `IN POOL ${n(pin)} + NOT IN POOL ${n(pout)} = ${n(all)}`);
+  // ---- NEON features: LIBRARY (USED BY with each pattern's steps; IN THIS BROWSER's store written offline)
+  {
+    // (the edited A01: track 1 names KEPT ONE, but each of its trigs is locked to a factory sound; two locks cleared:
+    // those two steps play it)
+    const mu = modelOf(img), kp = readRegion(img).presets.find((x) => x.name === "KEPT ONE");
+    const u0 = usedBy(mu, kp && kp.id);
+    const pb = mu.prj.get(rkey(RK.PAT, 0, k0)).slice(), pw = walkPat(pb);
+    pb[pw.soundAt[0]] = 0; pb[pw.soundAt[1]] = 0;          // (track 1's first two locked steps: 1 and 4)
+    mu.prj.set(rkey(RK.PAT, 0, k0), pb);
+    const ub = usedBy(mu, kp && kp.id);
+    const UB = await fizz(convertImage(imageOf(mu), "host"));
+    const ur = UB.ask(usersRequest({ source: "mine", slot: kp ? kp.slot : 1 })).find((x) => x.kind === "users");
+    const fizzSteps = ur ? ur.projects.reduce((a, x) => a + x.steps, 0) : -1, ours = ub.rows.reduce((a, x) => a + x.plays, 0);
+    const r0 = ub.rows[0], w0 = r0 && walkPat(mu.prj.get(rkey(RK.PAT, r0.p, r0.k)));
+    const trigOk = r0 && r0.steps.every((x, s) => x.trig === !!((w0.pages[r0.track - 1][r0.page] >> s) & 1) && (!x.plays || x.trig));
+    const lit = r0 ? r0.steps.map((x, s) => (x.plays ? s + 1 : 0)).filter(Boolean) : [];
+    check(kp && !u0.rows.length && r0 && r0.track === 1 && r0.pat === patName(k0) && ours === 2 && lit.join() === "1,4" && trigOk && ub.rows.every((x) => x.steps.length === 16),
+      `USED BY: KEPT ONE, every trig locked elsewhere: none; two locks cleared: ${ub.rows.map((x) => `${x.project} ${x.pat} track ${x.track} steps ${lit.join(", ")}`).join("; ")} (FIZZ's USERS: ${fizzSteps})`);
+    const cap = usedBy(mu, kp && kp.id, { max: 0 });
+    check(cap.rows.length === 0 && cap.more === ub.total && usedBy(mu, 0x7777).rows.length === 0, `USED BY: capped (+${cap.more}); an id nothing plays: none`);
+    // IN THIS BROWSER: a preset kept into the browser FIZZ's flash (no boot), the same one again skipped, one dropped;
+    // the wasm FIZZ boots it and lists it
+    const host = convertImage(img, "host"), before = browserRows(host);
+    const rec = recordOf({ name: "KEPT HERE", blob: blob6(soundFromLib({ name: "X", blob: blob(3), drive: 0, pan: 0, sends: {} })), pan: -3, reverb: 20, tags: 4 });
+    const k1 = keepIn(host, [rec]), k2 = keepIn(k1.image, [rec]);
+    const after = browserRows(k1.image), mine1 = after.find((x) => x.name === "KEPT HERE");
+    const H = await fizz(k1.image);
+    const hl = H.ask(listRequest({})).flatMap((r) => r.entries || []).filter((x) => x.source === "mine");
+    const dropped = browserRows(dropFrom(k1.image, [mine1.slot]));
+    check(k1.added === 1 && k2.added === 0 && k2.same === 1 && after.length === before.length + 1 && mine1 && mine1.lib.pan === -3 && mine1.tags === 4 &&
+      mine1.id > Math.max(...before.map((x) => x.id)) && hl.some((x) => x.name === "KEPT HERE" && x.slot === mine1.slot) && dropped.length === before.length,
+      `IN THIS BROWSER: KEPT HERE into the browser's flash at ${mine1 && mine1.slot} (id ${mine1 && mine1.id}), again: skipped; the wasm FIZZ lists it; dropped again`);
+  }
   // ---- the Bluetooth package (2026-10-27; core/app/persist.h, firmware/BUDGET.md): its store's layout, its limits,
   // the two packages' stores and projects into each other
   const BU = [];
