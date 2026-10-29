@@ -1597,12 +1597,15 @@ const __fizz_m5 = (function () {
 //
 //   modelOf(image) -> {layout, magic, lib: Map(key -> bytes), prj: Map}      imageOf(model) -> the store image
 //   project(model, p) -> {p, there, name, demo, pats: [patSummary | null] x 64, used, pool: n}
-//   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt} | null (a record it cannot read)
+//   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt, pages, locks, trk} | null (a record it cannot read)
+//   poolEntry(model, p, n) -> {id} | {rec} | null
 //   copyPatterns(model, p, ks) -> a clip {from, names, pats: [{k, bytes}], pool: Map(n -> {id} | {rec}), presets: Map(id -> LIB record)}
-//   pastePatterns(model, q, j, clip) -> {at: [k], poolAdded, presetsAdded}   (throws {code: "poolfull" | "libfull" | "range"})
+//   pastePatterns(model, q, j, clip) -> {at: [k], poolAdded, presetsAdded, copies}   (throws {code: "poolfull" | "range"})
 //   clearPatterns(model, q, ks)
 //   keepProject(model, p) -> a kept project {name, demo, recs: [{kind, i, bytes}], presets: Map, pats, sounds}
 //   loadProject(model, q, kept) -> {presetsAdded, copies}  (slot q's records replaced; throws {code: "range"})
+//   renameProject(model, p, name)                    (the name the unit took, in the store read here)
+//   addPreset(model, rec) -> {i, id, same} (throws {code: "libfull"})    removePreset(model, i)
 //   limits(model) -> {nproj, nlib, package}           (the store's package: USB 8 and 256, Bluetooth 4 and 128)
 //   fitModel(model, to, {projects, presets}) -> {model, copies, left: {projects, presets}}   (another package's layout)
 //   fitChoice(model, to, {projects}) -> {projects, presets}   (fitModel's default: the first projects, their presets)
@@ -1648,13 +1651,13 @@ function walkPat(b) {
   if (!b || b.length < 12 || b[0] !== 0x50 || b[1] < 2 || b[1] > 6 || b[2] !== WIRE) return null;
   const v = b[1], tsz = b[3], nlock = g16(b, 10), used = b[7];
   let o = 12;
-  const refAt = [], idAt = [], soundAt = [], pages = [];
+  const refAt = [], idAt = [], soundAt = [], pages = [], locks = [], trk = [];
   if (v >= 5) { for (let t = 0; t < NTRACK; t++) refAt.push(o + 2 * t); o += 2 * NTRACK; }
   o += tsz * NTRACK + 4 * NTRACK;                      // the track settings, lock_start[], lock_n[]
   let trigs = 0;
   for (let t = 0; t < NTRACK; t++) {
     if (o >= b.length) return null;
-    const mask = b[o++], pg = new Array(8).fill(0);
+    const mask = b[o++], pg = new Array(8).fill(0), lk = Array.from({ length: 8 }, () => new Uint8Array(16));
     for (let p = 0; p < 8; p++) {
       if (!((mask >> p) & 1)) continue;
       if (o + 2 > b.length) return null;
@@ -1664,19 +1667,22 @@ function walkPat(b) {
         if (!((sm >> s) & 1)) continue;
         if (o + WIRE > b.length) return null;
         if (b[o + 16]) soundAt.push(o + 16);           // the step's sound lock (a pool number)
+        lk[p][s] = b[o + 16];
         if (b[o + 2] & 1) { pg[p] |= 1 << s; trigs++; }
         o += WIRE;
       }
     }
     pages.push(pg);
+    locks.push(lk);
   }
   o += 4 * nlock;
   const sndAt = o;
   for (let t = 0; t < NTRACK; t++) {
-    if (refAt.length && g16(b, refAt[t])) { soundAt.push(o); o += 2; continue; }   // by reference: its pool source, edited
+    if (refAt.length && g16(b, refAt[t])) { trk.push({ ref: g16(b, refAt[t]), id: 0 }); soundAt.push(o); o += 2; continue; }   // by reference: its pool source, edited
     o += v >= 3 ? BLOB : 96;
     soundAt.push(o);
     o += 2 + NAME;
+    trk.push({ ref: 0, id: v >= 2 && o + 2 <= b.length ? g16(b, o) : 0 });
     if (v >= 2) { idAt.push(o); o += 2; }              // a copy's preset id (where it came from)
   }
   if (o !== b.length) return null;
@@ -1689,7 +1695,9 @@ function walkPat(b) {
     if (n > best) { best = n; show = p; }
   }
   const rows = pages.map((pg) => Array.from({ length: 16 }, (_, s) => !!((pg[show] >> s) & 1)));
-  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt, sndAt };
+  // (pages: each track's trig masks, page by page; locks: each step's sound lock; trk: each track's sound, by
+  // reference (ref: a MY preset id) or a copy (id: the preset it came from))
+  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt, sndAt, pages, locks, trk };
 }
 
 // ---- a project
@@ -1773,6 +1781,24 @@ function relink(m, presets, need = null) {
   }
   return { map, added, lost };
 }
+// (LIBRARY's IN THIS BROWSER) a MY PRESETS record put in the first free place, a new id (as the unit's id_next) ->
+// {i, id, same} (same: the place of one with the same name and sound already there, nothing added); MY PRESETS full:
+// throws {code: "libfull"}
+function addPreset(m, rec) {
+  const ix = libIndex(m);
+  const same = [...ix.byId.values()].find((x) => sameSound(x.r, rec));
+  if (same) return { i: same.i, id: g16(same.r, 2 + NAME + BLOB), same: true };
+  if (!ix.free.length) throw err("libfull", "MY PRESETS is full");
+  const i = ix.free[0], id = nextId(m, ix), r = rec.slice();
+  p16(r, 2 + NAME + BLOB, id);
+  m.lib.set(rkey(RK.LIB, 0, i), r);
+  const f = m.lib.get(rkey(RK.FTAG, 0, 0));
+  if (f && f[0] === 0x46 && f[1] === 2 && f.length >= 2 + NFACTORY + 2 && g16(f, 2 + NFACTORY) <= id) {
+    const g = f.slice(); p16(g, 2 + NFACTORY, id + 1); m.lib.set(rkey(RK.FTAG, 0, 0), g);
+  }
+  return { i, id, same: false };
+}
+const removePreset = (m, i) => m.lib.delete(rkey(RK.LIB, 0, i));
 // the ids a project's patterns play by reference and its pool references (relink's need)
 function neededIds(pats, poolIds) {
   const need = new Set(poolIds);
@@ -1851,36 +1877,37 @@ function copyPatterns(m, p, ks) {
   const presets = presetsOf(m, pats.map((x) => x.bytes), [...pool.values()].filter((e) => e && e.id).map((e) => e.id));
   return { from: info.name || `PROJECT ${p + 1}`, project: p, names: pats.map((x) => patName(x.k)), pats, pool, presets };
 }
-// the clip's patterns from pattern j on, in their order (a range keeps its gaps: A03, A05 -> j, j + 2)
+// the clip's patterns from pattern j on, in their order (a range keeps its gaps: A03, A05 -> j, j + 2). A pool sound the
+// target has (same preset id, or the same copy) is reused, its own number first; else it goes to a free place, its own
+// number if free there. Too few free places: refused ({code: "poolfull"}), the pool left as it was
 function pastePatterns(m, q, j, clip) {
-  if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0 };
+  if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0, copies: 0 };
   const k0 = clip.pats[0].k, at = clip.pats.map((x) => j + x.k - k0);
   if (at.some((k) => k < 0 || k >= NPAT)) throw err("range", `the patterns run past D16 from ${patName(j)}`);
   if (q < 0 || q >= limits(m).nproj) throw err("range", `slot ${q + 1}: this store has ${limits(m).nproj} projects`);
   const need = neededIds(clip.pats.map((x) => x.bytes), [...clip.pool.values()].filter((e) => e && e.id).map((e) => e.id));
   const { map: imap, added, lost } = relink(m, clip.presets, need);
-  let copies = 0;
-  const pmap = new Map();
-  let poolAdded = 0;
+  let copies = 0, poolAdded = 0;
+  const pmap = new Map(), want = [];
   const free = [];
   for (let n = 1; n <= NPOOL; n++) if (!poolEntry(m, q, n)) free.push(n);
+  const sameAs = (t, e) => !!t && ((e.id && t.id === (imap.get(e.id) ?? e.id)) ||
+    (e.rec && t.rec && t.rec.length === e.rec.length && t.rec.every((v, i) => v === e.rec[i])));
   for (const [n, e0] of clip.pool) {
     if (!e0) { pmap.set(n, 0); continue; }             // (a lock on an empty place: the track's sound, as FIZZ plays it)
     const e = e0.id && lost.has(e0.id) ? { rec: copyRecord(lost.get(e0.id)) } : e0;   // (MY PRESETS full: its own copy)
     if (e !== e0) copies++;
-    let hit = 0;
-    for (let x = 1; x <= NPOOL && !hit; x++) {
-      const t = poolEntry(m, q, x);
-      if (t && e.id && t.id === imap.get(e.id)) hit = x;
-      else if (t && e.rec && t.rec && t.rec.length === e.rec.length && t.rec.every((v, i) => v === e.rec[i])) hit = x;
-    }
-    if (!hit) {
-      if (!free.length) throw err("poolfull", "the pool is full (128)", { need: [...clip.pool.values()].filter(Boolean).length });
-      hit = free.shift();
-      if (e.id) { const r = new Uint8Array(4); r[0] = 0x52; r[1] = 1; p16(r, 2, imap.get(e.id) ?? e.id); m.prj.set(rkey(RK.SND, q, hit), r); }
-      else m.prj.set(rkey(RK.SND, q, hit), e.rec);
-      poolAdded++;
-    }
+    let hit = sameAs(poolEntry(m, q, n), e) ? n : 0;
+    for (let x = 1; x <= NPOOL && !hit; x++) if (sameAs(poolEntry(m, q, x), e)) hit = x;
+    if (hit) pmap.set(n, hit); else want.push([n, e]);
+  }
+  if (want.length > free.length) throw err("poolfull", "the pool is full (128)", { need: [...clip.pool.values()].filter(Boolean).length });
+  const placed = want.map(([n, e]) => { const i = free.indexOf(n); if (i < 0) return [n, e, 0]; free.splice(i, 1); return [n, e, n]; });
+  for (const [n, e, own] of placed) {
+    const hit = own || free.shift();
+    if (e.id) { const r = new Uint8Array(4); r[0] = 0x52; r[1] = 1; p16(r, 2, imap.get(e.id) ?? e.id); m.prj.set(rkey(RK.SND, q, hit), r); }
+    else m.prj.set(rkey(RK.SND, q, hit), e.rec);
+    poolAdded++;
     pmap.set(n, hit);
   }
   clip.pats.forEach((x, i) => {
@@ -1977,6 +2004,14 @@ function fitModel(m, to, choice = null) {
   return { model: out, copies, left: { projects: all.filter((x) => x.there && !c.projects.includes(x.p)).map((x) => ({ slot: x.p + 1, name: x.name })),
     presets: [...ix.byId.entries()].filter(([, x]) => !c.presets.includes(x.i)).map(([id, x]) => ({ slot: x.i + 1, id, name: (presetRec(x.r, x.i + 1) || {}).name || "?" })) } };
 }
+// a project's name in a store read here (the unit renamed it: RENAME), so KEEP and WRITE carry the new one
+function renameProject(m, p, name) {
+  const k = rkey(RK.HDR, p, 0), h = m.prj.get(k);
+  if (!h) return;
+  const b = h.slice(), s = cleanName(name);
+  for (let i = 0; i < NAME; i++) b[2 + i] = i < s.length ? s.charCodeAt(i) : 0;
+  m.prj.set(k, b);
+}
 // a kept project's name (HDR 'H' 1: name[13] after the two bytes)
 function renameKept(kept, name) {
   const h = kept.recs.find((r) => r.kind === RK.HDR);
@@ -2061,7 +2096,7 @@ async function readFizzpat(bytes, file = "") {
 }
 const patFileName = (clip) => `${safe(clip.from)} ${clip.names.length > 1 ? `${clip.names[0]}-${clip.names[clip.names.length - 1]}` : clip.names[0] || ""}.fizzpat`;
 const prjFileName = (kept) => `${safe(kept.name)}.fizzprj`;
-return { DEMO_N, FILE_VERSION, MINE0, NFACTORY, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, cleanName, clearPatterns, cloneModel, copyPatterns, copyRecord, derefPat, fitChoice, fitModel, idxOf, imageOf, keepProject, kindOf, limits, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, renameKept, rkey, walkPat };
+return { DEMO_N, FILE_VERSION, MINE0, NFACTORY, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, addPreset, cleanName, clearPatterns, cloneModel, copyPatterns, copyRecord, derefPat, fitChoice, fitModel, idxOf, imageOf, keepProject, kindOf, limits, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, poolEntry, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, removePreset, renameKept, renameProject, rkey, walkPat };
 })();
 
 // ======== site/manager/fizzvalues.js
@@ -3478,6 +3513,18 @@ const { FIZZ_TAGS } = __fizz_m1;
 
 const $ = (id) => document.getElementById(id);
 const TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
+// each tag's icon (24 x 24, stroked in currentColor): BASS a slow low wave, KEYS piano keys, PLUCK a plucked string,
+// PAD a soft cloud, LEAD a sharp saw, DRUMS a drum and its sticks, FX a sparkle
+const TAG_ICON = {
+  BASS: '<path d="M2 12c3.3-8 6.7-8 10 0s6.7 8 10 0"/><path d="M2 20h20"/>',
+  KEYS: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 12.5V19M15 12.5V19"/><path d="M7.5 5v7.5h3V5M13.5 5v7.5h3V5"/>',
+  PLUCK: '<path d="M2 7h5l5 8 5-8h5"/><circle cx="12" cy="18.5" r="1.6"/>',
+  PAD: '<path d="M7 18h10a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6.6A3.7 3.7 0 0 0 7 18z"/>',
+  LEAD: '<path d="M2 18l6-12v12l6-12v12l6-12"/>',
+  DRUMS: '<ellipse cx="12" cy="11" rx="8" ry="3"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M7 3l4 6M17 3l-4 6"/>',
+  FX: '<path d="M11 3c.7 4.6 3.3 7.3 8 8-4.7.7-7.3 3.3-8 8-.7-4.7-3.3-7.3-8-8 4.7-.7 7.3-3.4 8-8z"/><path d="M19 3v4M17 5h4"/>',
+};
+const tagIcon = (tag, cls = "ti") => (TAG_ICON[tag] ? `<svg class="${cls}" data-tag="${tag}" viewBox="0 0 24 24" aria-hidden="true">${TAG_ICON[tag]}</svg>` : "");
 const DARK_TEXT_TAGS = new Set(["BASS", "PAD", "FX"]);   // (white letters on these)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const tagsOf = (m) => FIZZ_TAGS.filter((_, k) => (m >> k) & 1);
@@ -3540,7 +3587,7 @@ function confirmBox({ title, what = "", sub = "", go = "OK", color = "--red", un
     box.onclick = (ev) => { if (ev.target === box) end(false); };
   });
 }
-return { $, DARK_TEXT_TAGS, MIDI_I, TAGC, algo, colOf, confirmBox, emptyArt, esc, midiChip, refusal, tagsOf };
+return { $, DARK_TEXT_TAGS, MIDI_I, TAGC, TAG_ICON, algo, colOf, confirmBox, emptyArt, esc, midiChip, refusal, tagIcon, tagsOf };
 })();
 
 // ======== site/manager/importer.js (imports site/js/digitone.js, site/js/library.js, site/js/fizz_sysex.js, site/manager/fizzbak.js, site/manager/ui.js, site/manager/sound.js)
@@ -3603,6 +3650,7 @@ function mountImport(ctx) {
   const can = () => !!(S.link && !S.busy && S.unit && S.unit.version && !I.sending);
   const fid = (s) => (s.notes.length ? Math.max(3, 10 - s.notes.length) : 10);
   const fidC = (n) => (n >= 10 ? "var(--green)" : n >= 8 ? "var(--yellow)" : "var(--orange)");
+  const leds = (f, c) => Array.from({ length: 10 }, (_, j) => (j < f ? `<i class="l" style="--c:${c}"></i>` : "<i></i>")).join("");
 
   async function add(files) {
     const list = [];
@@ -3622,22 +3670,24 @@ function mountImport(ctx) {
   }
   function render() {
     const n = I.items.filter((x) => x.on).length;
-    $("i-count").textContent = `${I.items.length} sound${I.items.length === 1 ? "" : "s"}`;
+    $("i-count").innerHTML = `${I.items.length}<small>sound${I.items.length === 1 ? "" : "s"}</small>`;
+    const shown = I.shown || 0;                         // (a row pops in once, when it first shows)
     $("i-rows").innerHTML = I.items.map((it, k) => {
       if (!it.ok) {
         const why = (it.error || "").replace(/^Not importable: /, "");
         const fz = /\.fizz/i.test(it.file);
-        return `<div class="ir no"><span class="chk" aria-hidden="true"></span><span class="src ${fz ? "fz" : /dn2/i.test(it.file) ? "dn2" : "dn1"}">${fz ? "FIZZ" : /dn2/i.test(it.file) ? "DN II" : "DN1"}</span>` +
-          `<span class="nm">${esc(it.file.replace(/\.[^.]+$/, ""))}</span><span class="fid">${"<i></i>".repeat(10)}</span><span class="note">${esc(why.slice(0, 60))}</span><span></span></div>`;
+        return `<div class="ir tube no${k >= shown ? " pop" : ""}" style="--i:${Math.min(k, 12)}"><span class="chk" aria-hidden="true"></span><span class="src hud ${fz ? "fz" : /dn2/i.test(it.file) ? "dn2" : "dn1"}">${fz ? "FIZZ" : /dn2/i.test(it.file) ? "DN II" : "DN1"}</span>` +
+          `<span class="nm">${esc(it.file.replace(/\.[^.]+$/, ""))}</span><span class="fid">${leds(0)}</span><span class="note">${esc(why.slice(0, 60))}</span><span class="tg"></span></div>`;
       }
       const s = it.sound, f = fid(s), web = (s.tags || []).map((t) => String(t).toUpperCase()).filter((t) => !s.fizzTags.includes(t));
       const res = it.result ? (it.result.ok ? `<span class="okmark">✓ ${it.result.pool ? "POOL" : "MY"} ${it.result.slot}</span>` : `<span class="note bad">${esc(it.result.error)}</span>`) : "";
-      return `<div class="ir ${it.on ? "" : "off"}${I.cur === k ? " cur" : ""}" data-k="${k}"><button class="chk ${it.on ? "on" : ""}" data-k="${k}" aria-pressed="${it.on}" aria-label="Send ${esc(s.name)}">${it.on ? '<svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6"/></svg>' : ""}</button>` +
-        `<span class="src ${s.fizz ? "fz" : s.dn2 ? "dn2" : "dn1"}">${s.fizz ? "FIZZ" : s.dn2 ? "DN II" : "DN1"}</span><span class="nm">${esc(s.name)}</span>` +
-        `<span class="fid" title="${esc(s.notes.join("\n") || "exact")}">${Array.from({ length: 10 }, (_, j) => `<i style="background:${j < f ? fidC(f) : "#24242b"}"></i>`).join("")}</span>` +
-        `<span class="note ${it.dup ? "dup" : s.notes.length ? "lost" : ""}">${it.dup === "mine" ? "already in MY PRESETS" : it.dup === "list" ? "twice in these files" : esc((s.notes[0] || "exact").slice(0, 44))}</span>` +
+      return `<div class="ir tube ${k >= shown ? "pop " : ""}${it.on ? "" : "off"}${I.cur === k ? " cur" : ""}" data-k="${k}" style="--i:${Math.min(k, 12)}"><button class="chk ${it.on ? "on" : ""}" data-k="${k}" aria-pressed="${it.on}" aria-label="Send ${esc(s.name)}">${it.on ? '<svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6"/></svg>' : ""}</button>` +
+        `<span class="src hud ${s.fizz ? "fz" : s.dn2 ? "dn2" : "dn1"}">${s.fizz ? "FIZZ" : s.dn2 ? "DN II" : "DN1"}</span><span class="nm">${esc(s.name)}</span>` +
+        `<span class="fid" title="${esc(s.notes.join("\n") || "exact")}">${leds(f, fidC(f))}</span>` +
+        `<span class="note ${it.dup ? "dup" : s.notes.length ? "lossy" : ""}">${it.dup === "mine" ? "already in MY PRESETS" : it.dup === "list" ? "twice in these files" : esc((s.notes[0] || "exact").slice(0, 44))}</span>` +
         `<span class="tg">${res || [midiChip(isMidiBlob(s.blob)), ...s.fizzTags.map((t) => `<span class="tag t-${t}">${t}</span>`), ...web.slice(0, 2).map((t) => `<span class="tag web">${esc(t)}</span>`)].join("")}</span></div>`;
     }).join("");
+    I.shown = I.items.length;
     const mine = S.unit ? S.unit.rows.filter((r) => r.source === "mine").map((r) => r.slot) : [];
     const free = [], nlib = ctx.pkg ? ctx.pkg().nlib : 256; for (let s = 1; s <= nlib && free.length < n; s++) if (!mine.includes(s)) free.push(s);
     const run = free.length > 1 && free[free.length - 1] - free[0] === free.length - 1;
