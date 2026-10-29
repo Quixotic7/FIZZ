@@ -264,14 +264,14 @@ export function mountLive(ctx) {
     }
     return null;
   }
-  function keep() { if (L.pending) toast(`${tn(L.pending.t)}: ${L.pending.name}`, "--pink"); L.pending = null; render(); }
+  function keep() { if (L.pending) toast(`${tn(L.pending.t)}: ${L.pending.name}`, "--pink"); L.pending = null; render(); if (ctx.kept) ctx.kept(); }
   async function cancel() {
     const p = L.pending;
     L.pending = null;
     render();
     if (!p || !S.link) return;
     const x = await sure(trackFrame(p.frame), parseDump(p.frame).name, p.t);
-    if (x && x.status === 0) toast(`${tn(p.t)}: its own sound again`, "--muted");
+    if (x && x.status === 0) { toast(`${tn(p.t)}: its own sound again`, "--muted"); if (ctx.kept) ctx.kept(); }
     else { L.pending = p; render(); say(`${tn(p.t)}'s own sound did not go back yet: CANCEL again.`, "--orange"); }
     if (editShown() && L.follow) await attach();
   }

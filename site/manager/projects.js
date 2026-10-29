@@ -15,6 +15,7 @@
 //   clearPatterns(model, q, ks)
 //   keepProject(model, p) -> a kept project {name, demo, recs: [{kind, i, bytes}], presets: Map, pats, sounds}
 //   loadProject(model, q, kept) -> {presetsAdded, copies}  (slot q's records replaced; throws {code: "range"})
+//   renameProject(model, p, name)                    (the name the unit took, in the store read here)
 //   limits(model) -> {nproj, nlib, package}           (the store's package: USB 8 and 256, Bluetooth 4 and 128)
 //   fitModel(model, to, {projects, presets}) -> {model, copies, left: {projects, presets}}   (another package's layout)
 //   fitChoice(model, to, {projects}) -> {projects, presets}   (fitModel's default: the first projects, their presets)
@@ -400,6 +401,14 @@ export function fitModel(m, to, choice = null) {
   const all = projects(m);
   return { model: out, copies, left: { projects: all.filter((x) => x.there && !c.projects.includes(x.p)).map((x) => ({ slot: x.p + 1, name: x.name })),
     presets: [...ix.byId.entries()].filter(([, x]) => !c.presets.includes(x.i)).map(([id, x]) => ({ slot: x.i + 1, id, name: (presetRec(x.r, x.i + 1) || {}).name || "?" })) } };
+}
+// a project's name in a store read here (the unit renamed it: RENAME), so KEEP and WRITE carry the new one
+export function renameProject(m, p, name) {
+  const k = rkey(RK.HDR, p, 0), h = m.prj.get(k);
+  if (!h) return;
+  const b = h.slice(), s = cleanName(name);
+  for (let i = 0; i < NAME; i++) b[2 + i] = i < s.length ? s.charCodeAt(i) : 0;
+  m.prj.set(k, b);
 }
 // a kept project's name (HDR 'H' 1: name[13] after the two bytes)
 export function renameKept(kept, name) {

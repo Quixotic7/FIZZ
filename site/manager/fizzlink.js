@@ -176,14 +176,25 @@ export class FizzLink {
       return r && r.kind === "identity" ? r.version.replace(/^FIZZ\s*/, "") : undefined;
     }, { timeout: 700, retry: 3, partial: () => null });
   }
-  list({ factory = false, pool = false } = {}) {
+  // (a part lost on the way: fewer rows than the total LIST gives, or no last part: read again, twice at most; still
+  // short, the rows read are given)
+  async list(o = {}) {
+    let short = null;
+    for (let k = 0; k < 3; k++) {
+      const r = await this.list1(o).catch((e) => { if (e.code === "lost" || (k === 2 && !short)) throw e; this.log(`LIST: ${e.message}: read again`); return null; });
+      if (r && !r.short) return r.rows;
+      if (r) { short = r.rows; this.log(`LIST: ${r.rows.length} of ${r.total} rows: read again`); }
+    }
+    return short;
+  }
+  list1({ factory = false, pool = false } = {}) {
     const rows = [];
     return this.op(() => { rows.length = 0; this.send(listRequest({ factory, pool })); }, (p) => {
       const l = parseList(p);
       if (!l) return undefined;
       rows.push(...l.entries);
-      return l.last ? rows : MORE;
-    });
+      return l.last ? { rows, total: l.total, short: rows.length !== l.total } : MORE;
+    }, { retry: 1 });
   }
   dump(source, slot) {
     return this.op(() => this.send(dumpRequest({ source, slot })), (p) => {
@@ -235,11 +246,12 @@ export class FizzLink {
     return r && r.kind === "status" ? r : null;
   }
   flush() { return this.ask1(flushRequest(), CMD1.FLUSH, (x) => x.kind === "status"); }
-  tags(source, slot, tags) { return this.ask1(tagsRequest({ source, slot, tags }), CMD1.TAGS); }
-  rename(source, slot, name) { return this.ask1(renameRequest({ source, slot, name }), CMD1.RENAME); }
+  // (TAGS, RENAME, POOL REF, SWAP of MY PRESETS answer at once, from the handler: a reply lost is known in 4 s, not 15)
+  tags(source, slot, tags) { return this.ask1(tagsRequest({ source, slot, tags }), CMD1.TAGS, undefined, 4000); }
+  rename(source, slot, name) { return this.ask1(renameRequest({ source, slot, name }), CMD1.RENAME, undefined, 4000); }
   remove(source, slot, { confirm = false } = {}) { return this.ask1(deleteRequest({ source, slot, confirm }), CMD1.DELETE); }
-  swap(source, a, b) { return this.ask1(swapRequest({ source, a, b }), CMD1.SWAP); }
-  poolRef(slot, id) { return this.ask1(poolRefRequest({ slot, id }), CMD1.POOLREF); }
+  swap(source, a, b) { return this.ask1(swapRequest({ source, a, b }), CMD1.SWAP, undefined, source === "mine" ? 4000 : 15000); }
+  poolRef(slot, id) { return this.ask1(poolRefRequest({ slot, id }), CMD1.POOLREF, undefined, id ? 4000 : 15000); }
   users(source, slot) { return this.ask1(usersRequest({ source, slot }), CMD1.USERS, (x) => x.kind === "users", 5000, 1); }
   async projects() {
     const r = await this.ask1(projectsRequest(), CMD1.PROJECTS, (x) => x.kind === "projects", 800, 3).catch(() => null);

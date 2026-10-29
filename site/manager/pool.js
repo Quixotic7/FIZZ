@@ -14,7 +14,7 @@ import { isMidiBlob } from "./sound.js";
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces } from "./presets.js";
 
 export function mountPool(ctx) {
-  const { S, $, say, toast, edit, refreshRows, frameOf, projectName, poolSet } = ctx;
+  const { S, $, say, toast, editSure, refreshRows, frameOf, projectName, poolSet } = ctx;
   const P = { sel: 0, pick: null, users: new Map(), gen: 0, filling: false, run: false, fizz: new Map(), dragFrom: null, filter: newFilter() };
   const grid = $("p-grid"), mine = $("p-list"), proj = $("p-proj");
   const rows = () => (S.unit ? S.unit.rows : []);
@@ -106,12 +106,13 @@ export function mountPool(ctx) {
     const el = grid.querySelector(`[data-k="${k}"]`);
     if (el) el.classList.add("fizz");
   }
+  // (editSure: its reply lost, the lists read say whether it took; every tab drawn again)
   async function place(k, id) {
-    const x = await edit("POOL", (l) => l.poolRef(k, id));
     P.pick = null;
     grid.classList.remove("picking");
-    if (x && x.status === 0) { const p = presetOf(id); poolSet(x.a, p || { id, name: "?", tags: 0 }); bubble(x.a); }
-    await after(x, "", (rs) => { const e = at(rs, x.a); return !!e && e.id === id; });
+    forget();
+    await editSure("POOL", (l) => l.poolRef(k, id), { took: (rs) => { const e = at(rs, k); return !!e && e.id === id; },
+      shown: (x) => { const p = presetOf(id); poolSet(x.a, p || { id, name: "?", tags: 0 }); bubble(x.a); } });
   }
   async function swap(a, b) {
     if (a === b) return null;
@@ -120,10 +121,9 @@ export function mountPool(ctx) {
       sub: "Every pattern's steps follow (the FM-1 stopped).", go: eb ? "SWAP" : "MOVE", color: "--yellow", undo: "cleared" });
     if (!ok) return null;
     say("");
-    const x = await edit("SWAP", (l) => l.swap("pool", a, b));
-    if (x && x.status === 0) { P.sel = b; poolSet(a, eb || null); poolSet(b, ea || null); bubble(b); }
-    await after(x, "", (rs) => { const na = at(rs, a), nb = at(rs, b); return (na ? na.id : 0) === (eb ? eb.id : 0) && (nb ? nb.id : 0) === (ea ? ea.id : 0); });
-    return x;
+    forget();
+    return editSure("SWAP", (l) => l.swap("pool", a, b), { shown: () => { P.sel = b; poolSet(a, eb || null); poolSet(b, ea || null); bubble(b); },
+      took: (rs) => { const na = at(rs, a), nb = at(rs, b); return (na ? na.id : 0) === (eb ? eb.id : 0) && (nb ? nb.id : 0) === (ea ? ea.id : 0); } });
   }
 
   grid.addEventListener("click", (ev) => {
@@ -209,10 +209,9 @@ export function mountPool(ctx) {
     const ok = await confirmBox({ title: "LOAD PROJECT", what: projectName(p), go: "LOAD", color: "--green", undo: "cleared",
       sub: `The FM-1 switches from ${esc(projectName(cur))}.` });
     if (!ok) return;
-    const x = await edit("LOAD", (l) => l.project("load", p));
     P.sel = 0;
     forget();
-    await refreshRows({ projects: true });
+    const x = await editSure("LOAD", (l) => l.project("load", p), { projects: true, took: (rs, pj) => !!pj && pj.current === p });
     if (x && x.status === 0) toast(`${projectName(p)} on the FM-1`);
   });
   $("p-clear").addEventListener("click", async () => {
@@ -222,9 +221,9 @@ export function mountPool(ctx) {
     const ok = await confirmBox({ title: `CLEAR POOL ${k}`, what: e.name, go: "CLEAR", undo: "kept",
       sub: u && u.steps ? `${u.steps} step${u.steps === 1 ? "" : "s"} use it: they go back to their track's sound.` : "Its steps go back to their track's sound." });
     if (!ok) return;
-    const x = await edit("CLEAR", (l) => l.remove("pool", k, { confirm: true }));
-    if (x && x.status === 0) { P.sel = 0; poolSet(k, null); }
-    await after(x, `POOL ${k} cleared`, (rs) => !at(rs, k));
+    forget();
+    const x = await editSure("CLEAR", (l) => l.remove("pool", k, { confirm: true }), { took: (rs) => !at(rs, k), shown: () => { P.sel = 0; poolSet(k, null); } });
+    if (x && x.status === 0) { P.sel = 0; toast(`POOL ${k} cleared`); }
   });
   // SORT BY TAG: the sounds to the front, in FIZZ's tag order then by name: a swap each that is out of place
   $("p-sort").addEventListener("click", async () => {
@@ -247,7 +246,7 @@ export function mountPool(ctx) {
         const place2 = i + 1, from = at.get(want[i]);
         if (from === place2) continue;
         say(`SORTING · ${i + 1} / ${want.length}`, "--green");
-        const x = await S.link.swap("pool", from, place2);
+        const x = await S.link.swap("pool", from, place2).catch(() => null);   // (no answer: stopped, the lists read)
         ok = x && x.status === 0;
         if (!ok) { say(refusal(x, "SORT BY TAG"), "--orange"); break; }
         n++;
@@ -270,7 +269,7 @@ export function mountPool(ctx) {
     let n = 0;
     try {
       for (const k of [...pool().keys()]) {
-        const x = await S.link.remove("pool", k);
+        const x = await S.link.remove("pool", k).catch(() => null);
         if (x && x.status === 0) n++;
         else if (!x || x.status !== 10) { say(refusal(x, "CLEAR UNUSED"), "--orange"); break; }
       }
