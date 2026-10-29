@@ -912,6 +912,125 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .cell.land { width: 584px; }
 .cell.land .zf { zoom: .66; }
 
+/* ================================================================ 34–40: the unit picker, SEND across, EDIT's borrow, PLAY's STEPS */
+/* the unit picker (a FizzSheet: rows of units, + BLUETOOTH pinned) */
+.unit.ring { box-shadow: 0 0 0 3px #000, 0 0 0 5px var(--c), 0 0 22px var(--c); }
+.emul .me.ring { box-shadow: 0 0 0 3px var(--t-body), 0 0 0 5px var(--t-label); }
+.upk .h { margin: 2px 2px 12px; }
+.urow { height: 104px; border-radius: 24px; border: 2px solid color-mix(in srgb, var(--c) 32%, var(--line)); background: color-mix(in srgb, var(--c) 6%, var(--panel)); display: flex; align-items: center; gap: 14px; padding: 0 16px 0 12px; margin-bottom: 10px; position: relative; }
+.urow .art { width: 92px; height: 80px; display: grid; place-items: center; flex: none; }
+.urow .art .fm1 { width: 92px; height: auto; }
+.urow .tn3 { width: 24px; height: 24px; border-radius: 12px; background: var(--pink); color: #fff; display: grid; place-items: center; font-size: 14px; }
+.urow .un { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.urow .un b { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: .01em; white-space: nowrap; display: flex; align-items: center; gap: 7px; }
+.urow .un b svg { width: 17px; height: 17px; fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.urow .un > span { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.via2 { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 8px; font-size: 12px; font-weight: 800; letter-spacing: .06em; color: #000; background: var(--vc); }
+.via2 svg, .urow .un b .via2 svg { width: 14px; height: 14px; fill: none; stroke: #000; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.urow .un b .via2 { margin-left: 4px; letter-spacing: .06em; }
+.urow .rad { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #3a3a44; flex: none; display: grid; place-items: center; }
+.urow .rad svg { width: 18px; height: 18px; fill: none; stroke: #000; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.urow.cur { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--panel)); --c2: var(--c); animation: ucur 2.4s ease-in-out infinite; }
+@keyframes ucur { 0%, 100% { box-shadow: 0 0 22px color-mix(in srgb, var(--c) 35%, transparent); } 50% { box-shadow: 0 0 40px color-mix(in srgb, var(--c) 70%, transparent); } }
+.urow.cur .rad { background: var(--c); border-color: var(--c); box-shadow: 0 0 12px var(--c); }
+.urow.dead { opacity: .36; border-style: dashed; background: transparent; }
+.urow.dead .art { filter: grayscale(1); animation: flick 2.4s steps(1) infinite; }
+.urow.tap { border-color: var(--c); }
+.urow.tap::after { content: ""; position: absolute; inset: -2px; border-radius: 24px; border: 2px solid var(--c); animation: utap 1.6s ease-out infinite; pointer-events: none; }
+@keyframes utap { from { transform: scale(1); opacity: .9; } to { transform: scale(1.07, 1.25); opacity: 0; } }
+.phart { overflow: visible; display: block; }
+.btbtn { width: 100%; height: 58px; border-radius: 29px; --c: var(--blue); margin-top: 6px; }
+.btbtn svg { stroke: #000; }
+.tch { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255, 255, 255, .24); box-shadow: 0 0 0 2px rgba(255, 255, 255, .8), 0 0 26px rgba(255, 255, 255, .35); z-index: 45; pointer-events: none; animation: tchp 1.4s ease-in-out infinite; }
+.tch.dk { background: rgba(60, 25, 10, .22); box-shadow: 0 0 0 2px rgba(255, 255, 255, .9), 0 4px 18px rgba(0, 0, 0, .35); }
+@keyframes tchp { 50% { transform: scale(.92); } }
+/* SEND TO FM-1 / THIS iPHONE in a preset's sheet; the toast where it lands */
+.ptag.g { display: inline-flex; align-items: center; gap: 4px; }
+.ptag.g svg { width: 12px; height: 12px; fill: #000; }
+.trk.sm { height: 48px; font-size: 21px; border-radius: 14px; }
+.octs { display: flex; gap: 6px; margin-left: auto; }
+.octs span { height: 26px; padding: 0 8px; border-radius: 7px; border: 1.5px solid #3a3a44; font-size: 12px; font-weight: 800; color: var(--muted); display: grid; place-items: center; letter-spacing: .04em; }
+.sendrow { display: flex; gap: 8px; margin-top: 14px; }
+.sendrow .btn { height: 52px; font-size: 14px; padding: 0 14px; letter-spacing: .06em; }
+.btn.kept { flex: 1; background: transparent; color: var(--champagne); border: 1.5px solid color-mix(in srgb, var(--champagne) 70%, transparent); box-shadow: none; }
+.btn.kept svg.phg { width: 16px; height: 19px; }
+.btn.tofm { flex: 1.75; --c: var(--green); animation: breathe 2s ease-in-out infinite; }
+.btn.tofm svg { width: 24px; height: 20px; stroke: #000; stroke-width: 2; }
+.btn.toemu { flex: 1.75; --c: var(--emu); }
+.btn .dst { height: 24px; min-width: 24px; padding: 0 6px; border-radius: 12px; background: #000; color: var(--c); font-size: 13px; display: grid; place-items: center; letter-spacing: 0; }
+.irow { display: flex; gap: 8px; margin-top: 10px; }
+.irow .btn { height: 50px; padding: 0 14px; font-size: 14px; letter-spacing: .06em; box-shadow: none; }
+.irow .btn.ic { width: 50px; padding: 0; flex: none; }
+.irow .btn.ic.y { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 60%, transparent); }
+.toast { position: absolute; left: 14px; right: 14px; top: 58px; z-index: 88; height: 76px; border-radius: 26px; border: 2px solid var(--green); background: color-mix(in srgb, var(--green) 12%, #0b0b0e); display: flex; align-items: center; gap: 12px; padding: 0 14px 0 10px; box-shadow: 0 16px 40px #000, 0 0 30px color-mix(in srgb, var(--green) 40%, transparent); animation: toastin 3.2s cubic-bezier(.2, .9, .3, 1) infinite; }
+@keyframes toastin { 0% { transform: translateY(-130px); } 14%, 80% { transform: none; } 100% { transform: translateY(-130px); } }
+.toast .fm1 { flex: none; }
+.toast .tt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.toast .tt b { font-size: 19px; font-weight: 800; color: var(--text); line-height: 1; white-space: nowrap; }
+.toast .tt span { font-size: 14px; font-weight: 800; color: var(--green); letter-spacing: .06em; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.toast .tt span i { font-style: normal; color: #000; background: var(--green); border-radius: 7px; padding: 1px 7px; letter-spacing: 0; }
+.toast .okc { width: 40px; height: 40px; }
+.flyname { position: absolute; z-index: 87; font-size: 15px; font-weight: 800; color: var(--green); letter-spacing: .04em; padding: 4px 10px; border-radius: 12px; border: 1.5px solid var(--green); background: #0b0b0e; white-space: nowrap; animation: flyup 3.2s cubic-bezier(.4, 0, .2, 1) infinite; }
+@keyframes flyup { 0%, 4% { transform: none; opacity: 0; } 6% { opacity: 1; } 16% { transform: translate(-40px, -560px) scale(.7); opacity: 0; } 100% { transform: translate(-40px, -560px); opacity: 0; } }
+/* EDIT's borrow: heard on a track without loading it */
+.heard { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 5px 0 10px; border-radius: 999px; border: 2px solid var(--tc); background: color-mix(in srgb, var(--tc) 14%, transparent); color: var(--text); font-weight: 800; font-size: 13px; letter-spacing: .1em; white-space: nowrap; margin-left: auto; box-shadow: 0 0 16px color-mix(in srgb, var(--tc) 30%, transparent); }
+.heard + .unit { margin-left: 0; }
+.heard svg { width: 22px; height: 22px; fill: none; stroke: var(--tc); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.heard svg .w1 { animation: wv 1s ease-in-out infinite; } .heard svg .w2 { animation: wv 1s .25s ease-in-out infinite; }
+@keyframes wv { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.heard b { min-width: 30px; height: 30px; border-radius: 15px; display: grid; place-items: center; background: var(--tc); color: #000; font-size: 17px; letter-spacing: 0; }
+.keepon { margin-left: auto; height: 32px; padding: 0 11px 0 9px; border-radius: 16px; border: 1.5px solid color-mix(in srgb, var(--tc) 70%, transparent); color: var(--tc); display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
+.keepon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.envseg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0 10px; }
+.envseg span { height: 38px; border-radius: 19px; display: grid; place-items: center; font-weight: 800; font-size: 14px; letter-spacing: .08em; color: var(--text); border: 1.5px solid #3a3a44; }
+.envseg span.on { background: var(--green); color: #000; border-color: var(--green); box-shadow: 0 0 16px color-mix(in srgb, var(--green) 40%, transparent); }
+.envc { border-radius: 18px; border: 1.5px solid color-mix(in srgb, var(--green) 40%, var(--line)); background: color-mix(in srgb, var(--green) 3%, var(--panel)); padding: 12px 12px 14px; }
+.envc .top { display: flex; align-items: center; gap: 8px; }
+.envc .top b { color: var(--green); font-size: 15px; margin-right: auto; }
+.envc .top span { height: 32px; padding: 0 13px; border-radius: 16px; background: var(--green); color: #000; font-size: 12px; font-weight: 800; letter-spacing: .08em; display: grid; place-items: center; }
+.envc svg.eg { display: block; width: 100%; height: 200px; margin: 8px 0 10px; overflow: visible; }
+.envc .eg .ef { fill: color-mix(in srgb, var(--green) 16%, transparent); }
+.envc .eg .el { fill: none; stroke: var(--green); stroke-width: 2.6; stroke-linejoin: round; }
+.envc .eg .eb { fill: none; stroke: #6a6a74; stroke-width: 2; stroke-dasharray: 6 5; }
+.envc .eg .eh { animation: ehop 2.6s ease-in-out infinite; }
+@keyframes ehop { 50% { transform: translateY(-14px); } }
+.evals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.evals span { border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--green) 45%, var(--line)); background: color-mix(in srgb, var(--green) 6%, transparent); padding: 6px 10px 6px; font-size: 12px; font-weight: 800; color: var(--green); letter-spacing: .06em; line-height: 1.1; }
+.evals span b { display: block; font-size: 20px; color: var(--text); letter-spacing: 0; }
+.elevel { display: flex; justify-content: space-between; margin: 12px 0 7px; font-size: 13px; font-weight: 800; color: var(--green); letter-spacing: .08em; }
+.elevel b { font-size: 16px; letter-spacing: 0; }
+.ebar { height: 10px; border-radius: 5px; background: #1d1d23; overflow: hidden; }
+.ebar span { display: block; height: 100%; width: 84%; background: var(--green); border-radius: 5px; }
+/* PLAY's STEPS view: FIZZ's 16 steps as pads, a chromatic keyboard */
+.spads { position: absolute; background: var(--t-bed); box-shadow: inset 0 3px 0 rgba(0, 0, 0, .2); }
+.spd { position: absolute; border-radius: var(--r, 12px); background: var(--t-key); box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
+.spd > i { display: block; width: 5px; border-radius: 3px; background: var(--t-ledOff); }
+.spd.on > i { background: var(--t-led); opacity: .62; }
+.spd.hd > i { background: var(--t-led); opacity: 1; box-shadow: 0 0 10px var(--t-led), 0 0 3px var(--t-led); }
+.spd b { font: 700 12px/1 "Chakra Petch"; color: var(--t-keyText); opacity: .8; }
+.spd.held { background: var(--t-hi); z-index: 2; animation: sheld 1.4s ease-in-out infinite; }
+.spd.held > i { background: var(--t-led); opacity: 1; box-shadow: 0 0 12px var(--t-led), 0 0 3px var(--t-led); }
+.spd.held b { opacity: 1; }
+@keyframes sheld { 0%, 100% { box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo), 0 0 0 2.5px var(--t-led), 0 0 16px var(--t-led); } 50% { box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo), 0 0 0 2.5px var(--t-led), 0 0 30px var(--t-led); } }
+.spd .nd { position: absolute; top: 6px; right: 6px; display: flex; flex-direction: column; gap: 3px; }
+.spd .nd s { display: block; width: 9px; height: 9px; border-radius: 50%; background: var(--nc); box-shadow: 0 0 0 1.5px #000, 0 0 8px var(--nc); text-decoration: none; animation: ndot 1.4s ease-out infinite; }
+@keyframes ndot { 0% { transform: scale(1.6); } 30%, 100% { transform: none; } }
+.pkb { position: absolute; background: var(--t-bed); box-shadow: inset 0 3px 0 rgba(0, 0, 0, .2); }
+.pnk { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; box-sizing: border-box; }
+.pnk.w { background: var(--t-keyText); border-radius: 4px 4px 12px 12px; box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .12), 0 4px 0 var(--t-lo); }
+.pnk.k { background: var(--t-key); border-radius: 3px 3px 9px 9px; box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo); z-index: 2; }
+.pnk b { font: 700 12px/1 "Chakra Petch"; color: var(--t-key); letter-spacing: .04em; }
+.pnk.dn.w { background: linear-gradient(color-mix(in srgb, var(--nc) 22%, var(--t-keyText)), color-mix(in srgb, var(--nc) 60%, var(--t-keyText))); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .12), 0 1px 0 var(--t-lo), 0 0 24px color-mix(in srgb, var(--nc) 80%, transparent); transform: translateY(3px); z-index: 1; }
+.pnk.dn.k { background: var(--t-hi); box-shadow: 0 0 18px var(--nc); }
+.pnk.dn > s { width: 12px; height: 12px; border-radius: 50%; background: var(--nc); box-shadow: 0 0 0 2px #000, 0 0 10px var(--nc); text-decoration: none; }
+.pnk.dn b { color: #000; }
+.octrow { position: absolute; display: flex; align-items: center; gap: 8px; }
+.octrow .fpair { flex: none; }
+.octrow .rng { flex: 1; text-align: center; font: 700 15px/1 "Chakra Petch"; letter-spacing: .1em; color: var(--t-label); }
+.octcol { position: absolute; display: flex; flex-direction: column; gap: 8px; padding: 6px; background: var(--t-bed); border-radius: 16px; box-sizing: border-box; }
+.octcol span { flex: 1; border-radius: 11px; background: var(--t-key); box-shadow: inset 0 2px 0 var(--t-hi), 0 3px 0 var(--t-lo); color: var(--t-keyText); font: 700 15px/1.2 "Chakra Petch"; letter-spacing: .06em; display: grid; place-items: center; text-align: center; }
+.octcol b { font: 700 13px/1 "Chakra Petch"; color: var(--t-keyText); text-align: center; letter-spacing: .08em; opacity: .85; padding: 4px 0; }
+
 /* ================================================================ the page around the devices */
 body.shot { padding: 16px; width: fit-content; }
 body.sheet { width: 1640px; padding: 30px 34px 40px; }
@@ -1657,6 +1776,163 @@ SCREENS.push(
     html: () => ipad(emuPad()).replace('<div class="scr">', `<div class="scr emus" style="${tv("Tangerine")};background:var(--t-body)">`) },
 );
 
+// ---------------------------------------------------------------- 34–40: the unit picker, SEND across, EDIT's borrow, PLAY's STEPS
+Object.assign(IC, {
+  pin: '<svg viewBox="0 0 24 24"><path d="M9 3h6l-1 6 4 4H6l4-4z"/><path d="M12 13v8"/></svg>',
+  swap: '<svg viewBox="0 0 24 24"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>',
+  usb: '<svg viewBox="0 0 24 24"><path d="M12 3v15"/><path d="M9 6l3-3 3 3"/><path d="M12 14l-5-3V8M12 12l5-3V6.5"/><circle cx="12" cy="19.5" r="1.8"/></svg>',
+  spk: '<svg viewBox="0 0 24 24"><path d="M3 9.5h4l5-4.5v14l-5-4.5H3z"/><path class="w1" d="M15.5 9a4 4 0 0 1 0 6"/><path class="w2" d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
+});
+// THIS iPHONE, drawn: the phone with the tangerine panel on its screen
+function phoneArt(c, w = 46) {
+  const h = Math.round(w * 1.72);
+  return `<svg class="phart" viewBox="0 0 46 79" width="${w}" height="${h}"><rect x="1.5" y="1.5" width="43" height="76" rx="10" fill="color-mix(in srgb, ${c} 8%, #050507)" stroke="${c}" stroke-width="2.6"/>` +
+    `<rect x="5.5" y="9" width="35" height="61" rx="4" fill="${c}" opacity=".95"/><rect x="18" y="4.2" width="10" height="3" rx="1.5" fill="#000"/>` +
+    `<circle cx="11" cy="16" r="3" fill="#1B1715"/><circle cx="18.5" cy="16" r="3" fill="#1B1715"/><rect x="23.5" y="12.5" width="13" height="13" rx="2" fill="#000"/>` +
+    `<circle cx="28" cy="20" r="3" fill="none" stroke="#28E1FF" stroke-width="1.2"/><circle cx="32.5" cy="17" r="2" fill="none" stroke="#FF3CA0" stroke-width="1.2"/>` +
+    `${[0, 1].map((r) => [0, 1, 2, 3].map((i) => `<rect x="${9 + i * 7.5}" y="${31 + r * 6}" width="5.6" height="4" rx="1" fill="#874332"/>`).join("")).join("")}` +
+    `<rect x="7.5" y="46" width="31" height="21" rx="3" fill="#874332"/>${Array.from({ length: 6 }, (_, i) => `<rect x="${9.2 + i * 4.85}" y="52" width="3.7" height="13" rx="1" fill="#A9614B"/>`).join("")}</svg>`;
+}
+const VIA = (n) => n === "USB" ? `<span class="via2" style="--vc:var(--green)">${IC.usb}USB</span>` : `<span class="via2" style="--vc:var(--blue)">${IC.bt}BLUETOOTH</span>`;
+// one unit's row: [colour, art, name, sub, cls]
+function urow(c, art, name, sub, cls = "", pin = false, via = "") {
+  return `<div class="urow ${cls}" style="--c:${c}"><span class="art">${art}</span><span class="un"><b>${name}${pin ? IC.pin : ""}${via ? VIA(via) : ""}</b><span>${sub}</span></span>` +
+    `<span class="rad">${cls.includes("cur") ? IC.tap : ""}</span></div>`;
+}
+// the picker: THIS iPHONE in use (picked by hand: the pin), an FM-1 on USB, the FM-1 over Bluetooth paired but not answering
+function picker({ dev = "iPHONE", play = false, top = 318 } = {}) {
+  return `<div class="psheet upk" style="top:${top}px"><div class="grab"></div>
+    <div class="h">UNIT <span class="n">3</span></div>
+    ${urow("var(--emu)", phoneArt("var(--emu)", 44), `THIS ${dev}`, "FIZZ 0.12.0-beta.12", "cur", !play)}
+    ${urow("var(--green)", fm1("var(--green)", LCD_BUB, 92), "FM-1", `0.12.0-beta.11${play ? '<span class="tn3">3</span>' : ""}`, play ? "tap" : "", false, "USB")}
+    ${urow("var(--blue)", fm1("var(--blue)", LCD_BUB, 92), "FM-1", "0.12.0-beta.11", "dead", false, "BT")}
+    <span class="btn btbtn">${IC.bt}+ BLUETOOTH</span></div>`;
+}
+// LIBRARY on THIS iPHONE: its MY PRESETS (the KEPT button is the phone glyph at the switch's head)
+function unitLib() {
+  const seg = `<div class="seg"><button class="phs">${PHG(17)}</button><button class="on">MY PRESETS</button><button>FACTORY</button><button>ALL</button></div>`;
+  return topBar3({ track: 3 }) + `<div class="pg"><div class="lhead src" style="--c:var(--cream)">${seg}<span class="cnt"><b>143</b> / 256</span></div>
+    <div class="tscroll">${tagChips()}</div>${MINE.slice(0, 11).map((p) => libRow(p, p[0] === 2 ? "sel" : "")).join("")}</div>`;
+}
+// a MY PRESETS preset's sheet on THIS iPHONE, with an FM-1 connected: SEND TO FM-1 beside → KEPT
+function sendSheet() {
+  const poolTag = `<span class="ptag g"><svg viewBox="0 0 12 12"><rect x="0" y="0" width="5" height="5" rx="1.5"/><rect x="7" y="0" width="5" height="5" rx="1.5"/><rect x="0" y="7" width="5" height="5" rx="1.5"/><rect x="7" y="7" width="5" height="5" rx="1.5"/></svg>3</span>`;
+  const fmGlyph = IC.fm1.replace("<svg", '<svg style="width:24px;height:22px"');
+  return `<div class="psheet" style="top:292px;--c:var(--emu)"><div class="grab"></div>
+    <div class="ph">${algo(2, "var(--yellow)")}<div style="min-width:0"><div class="h" style="gap:8px">MY PRESETS 2 ${poolTag}</div><div class="pname">GLASS BELL<i class="caret"></i></div></div></div>
+    <div class="tgl">${TAGS.map((t) => tag(t, t === "PLUCK" ? "" : "off")).join("")}</div>
+    <div class="sec row" style="gap:8px"><span class="h">USED BY</span><span class="uchip">NOIR<span class="dots"><i></i><i></i><i></i><i></i></span></span><span class="uchip">SUNDAY<span class="dots"><i></i></span></span></div>
+    <div class="sec"><div class="h" style="color:var(--pink)">LOAD ON THIS iPHONE<span class="octs"><span>OCT−</span><span style="color:var(--green);border-color:var(--green)">OCT+</span></span></div>
+      <div class="trks">${[1, 2, 3, 4, 5, 6].map((n) => `<span class="trk sm">${n}</span>`).join("")}</div></div>
+    <div class="sendrow"><span class="btn kept">${PHG(16)}KEPT</span><span class="btn tofm">${fmGlyph}SEND TO FM-1<span class="dst">15</span></span></div>
+    <div class="irow"><span class="btn ghost" style="flex:1">− POOL</span><span class="btn" style="--c:var(--pink);flex:1.2">${IC.pencil}EDIT</span><span class="btn ghost ic">${IC.share}</span><span class="btn ghost ic y">${IC.swap}</span><span class="btn redline ic">${IC.trash}</span></div></div>`;
+}
+const sendToast = () => `<div class="toast">${fm1("var(--green)", LCD_BUB, 70)}<span class="tt"><b>GLASS BELL</b><span>FM-1 · MY PRESETS <i>15</i></span></span><span class="okc">${IC.tap}</span></div>`;
+// EDIT, OP ENV page, a MY PRESETS preset borrowed on track 2 (no KEEP / CANCEL bar)
+function editBorrow() {
+  const pg = [PAGES[0], PAGES[1], PAGES[6], PAGES[2]];
+  const T2 = "var(--green)";
+  return `<div class="tb"><span class="logo">${BUB}</span><span class="heard" style="--tc:${T2}">${IC.spk}<span>TRACK</span><b>2</b></span><span class="unit emu">${PHG(13)}THIS iPHONE</span></div>
+    <div class="pg ed">
+    <div class="edn" style="margin-bottom:10px"><div style="flex:1;min-width:0"><div class="h" style="margin-bottom:6px">MY PRESETS 3<span class="keepon" style="--tc:${T2}">${IC.pin}KEEP ON T2</span></div>
+      <div style="display:flex;align-items:flex-end;gap:10px"><div class="nm2">NIGHT PAD</div>${tag("PAD")}<span class="edited"></span></div></div></div>
+    <div class="pages">${pg.map(([n, c, ic], i) => `<span class="pgc ${i === 1 ? "on" : ""}" style="--c:var(${c})">${ic}${n}</span>`).join("")}</div>
+    <div class="envseg"><span class="on">ENV A</span><span>ENV B</span></div>
+    <div class="envc"><div class="top"><b>A</b><span>TRIG</span><span>RESET</span></div>
+      <svg class="eg" viewBox="0 0 330 200" preserveAspectRatio="none"><path class="ef" d="M6 194 L10 14 L48 80 L328 80 L328 194 Z"/><path class="eb" d="M10 14 L70 138 L328 138"/><path class="el" d="M6 194 L10 14 L48 80 L328 80"/>
+        <circle cx="6" cy="194" r="7" fill="#8D8D96" stroke="#000" stroke-width="2"/><circle cx="10" cy="14" r="9" fill="var(--green)" stroke="#000" stroke-width="2"/><g class="eh"><circle cx="48" cy="80" r="10" fill="var(--yellow)" stroke="#000" stroke-width="2"/></g></svg>
+      <div class="evals"><span>ATK<b>5</b></span><span>DEC<b>38</b></span><span>END<b>82</b></span><span>DLY<b>0</b></span></div>
+      <div class="elevel">LEVEL<b>112</b></div><div class="ebar"><span></span></div></div>
+    <div class="edacts" style="margin-top:14px"><span class="keysb on">${IC.keys}</span><span class="btn ghost" style="flex:1;padding:0 8px">↺ REVERT</span><span class="btn" style="--c:var(--pink);flex:1;padding:0 8px">SAVE</span><span class="btn ghost" style="flex:1.45;padding:0 8px">SAVE AS NEW</span></div></div>`;
+}
+// the 16 step pads (the FM-1's white keys, FIZZ's steps 1–16), in the theme's LED colour; held ones glow with the notes played
+function stepPads({ x, y, W, H, rows = 2, steps, head = -1, held = {} }) {
+  const pad = rows === 1 ? 12 : 10, g = rows === 1 ? 8 : 6, per = 16 / rows;
+  const pw = (W - 2 * pad - (per - 1) * g) / per, ph = (H - 2 * pad - (rows - 1) * g) / rows;
+  let s = "";
+  for (let i = 0; i < 16; i++) {
+    const r = Math.floor(i / per), c = i % per, hl = held[i];
+    const cls = ["spd", steps[i] ? "on" : "", i === head ? "hd" : "", hl ? "held" : ""].join(" ");
+    s += `<span class="${cls}" style="left:${(pad + c * (pw + g)).toFixed(1)}px;top:${(pad + r * (ph + g)).toFixed(1)}px;width:${pw.toFixed(1)}px;height:${ph.toFixed(1)}px;--r:${Math.round(Math.min(pw, ph) * 0.26)}px">` +
+      `<i style="height:${Math.round(ph * 0.36)}px"></i><b>${i + 1}</b>${hl ? `<span class="nd">${hl.map((nc) => `<s style="--nc:var(${nc})"></s>`).join("")}</span>` : ""}</span>`;
+  }
+  return `<div class="spads" style="left:${x}px;top:${y}px;width:${W}px;height:${H}px;border-radius:${Math.round(Math.min(W, H) * 0.12)}px">${s}</div>`;
+}
+// a chromatic keyboard from C<oct>, n white keys; down: {name: note colour}
+function piano({ x, y, W, H, oct = 4, n = 11, down = {} }) {
+  const pad = 9, g = 4, ww = (W - 2 * pad + g) / n, kw = ww - g, L = "CDEFGAB";
+  let s = "", o = oct;
+  const names = [];
+  for (let i = 0; i < n; i++) { const l = L[i % 7]; if (i && l === "C") o++; names.push(l + o); }
+  names.forEach((nm, i) => {
+    const d = down[nm];
+    s += `<span class="pnk w ${d ? "dn" : ""}" style="left:${(pad + i * ww).toFixed(1)}px;top:${pad}px;width:${kw.toFixed(1)}px;height:${H - 2 * pad}px;padding-bottom:12px${d ? `;--nc:var(${d})` : ""}">${d ? "<s></s>" : ""}${nm[0] === "C" || d ? `<b>${nm}</b>` : ""}</span>`;
+  });
+  names.forEach((nm, i) => {
+    if (!"CDFGA".includes(nm[0]) || i === n - 1) return;
+    const bn = nm[0] + "#" + nm.slice(1), d = down[bn], bw = ww * 0.62, cx = pad + (i + 1) * ww - g / 2;
+    s += `<span class="pnk k ${d ? "dn" : ""}" style="left:${(cx - bw / 2).toFixed(1)}px;top:${pad}px;width:${bw.toFixed(1)}px;height:${Math.round((H - 2 * pad) * 0.58)}px;padding-bottom:9px${d ? `;--nc:var(${d})` : ""}">${d ? "<s></s>" : ""}</span>`;
+  });
+  return `<div class="pkb" style="left:${x}px;top:${y}px;width:${W}px;height:${H}px;border-radius:${Math.round(Math.min(W, H) * 0.08)}px">${s}</div>`;
+}
+const MEL = [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1];
+const HELD = { 0: ["--yellow", "--green"] };
+const DOWN = { C4: "--yellow", G4: "--green" };
+const octRow = (x, y, w, rng) => `<div class="octrow" style="left:${x}px;top:${y}px;width:${w}px"><div class="fpair" style="width:136px;height:44px;padding:4px"><span>OCT −</span></div><span class="rng">${rng}</span><div class="fpair" style="width:136px;height:44px;padding:4px"><span>OCT +</span></div></div>`;
+function emuSteps() {
+  const kx = 16, ky = 508, kW = 358, kH = 288, ww = (kW - 18 + 4) / 11;
+  return ehdr() +
+    `<div class="abs" style="left:16px;top:96px">${fscreen(196, "fizz-held-note")}</div>
+    <div class="abs ekgrid" style="left:222px;top:110px;width:152px;row-gap:20px">${KN14(46, "KN1")}</div>` +
+    stepPads({ x: 16, y: 306, W: 358, H: 138, rows: 2, steps: MEL, head: 6, held: HELD }) +
+    octRow(16, 456, 358, "C4–F5") +
+    piano({ x: kx, y: ky, W: kW, H: kH, oct: 4, n: 11, down: DOWN }) +
+    `<span class="tch" style="left:${16 + 10 + 30}px;top:${306 + 10 + 44}px"></span>` +
+    `<span class="tch dk" style="left:${kx + 9 + ww * 0.5}px;top:${ky + kH - 70}px"></span><span class="tch dk" style="left:${kx + 9 + ww * 4.5}px;top:${ky + kH - 78}px"></span>` +
+    `<div class="vdots"><span><i></i></span><span><i></i></span><span class="on"><i></i></span><span><i></i></span></div>`;
+}
+function emuStepsLand() {
+  const kx = 56, ky = 202, kW = 734, kH = 176, ww = (kW - 18 + 4) / 15;
+  return `<div class="egrab" style="left:422px;top:-8px"><span></span></div>
+    <div class="abs" style="left:56px;top:18px">${fscreen(170, "fizz-held-note")}</div>
+    <div class="abs" style="left:240px;width:330px;top:20px;display:flex;justify-content:space-between">${KN14(32, "KN1")}</div>
+    <div class="abs fpair" style="left:584px;top:22px;width:118px;height:42px;padding:4px"><span>OCT −</span><span>OCT +</span></div>
+    <span class="abs efz" style="left:712px;top:25px;display:flex;align-items:center;gap:5px;height:36px;padding:0 11px 0 5px;border-radius:999px;background:#0b0b0e;box-shadow:0 0 0 1.5px #2a2a33">${BUB.replace('class="bub"', 'class="bub" style="width:24px;height:24px"')}<span class="word" style="font-size:15px">FIZZ</span></span>` +
+    stepPads({ x: 240, y: 84, W: 550, H: 106, rows: 2, steps: [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1], head: 10, held: HELD }) +
+    piano({ x: kx, y: ky, W: kW, H: kH, oct: 4, n: 15, down: DOWN }) +
+    `<span class="tch" style="left:${240 + 10 + 46}px;top:${84 + 10 + 32}px"></span>` +
+    `<span class="tch" style="left:${kx + 9 + ww * 0.5}px;top:${ky + kH - 52}px"></span><span class="tch" style="left:${kx + 9 + ww * 4.5}px;top:${ky + kH - 58}px"></span>`;
+}
+function emuStepsPad() {
+  const kx = 128, ky = 506, kW = 932, kH = 262, ww = (kW - 18 + 4) / 15;
+  return srail("PLAY") + `<div class="emarea emul" style="position:relative;inset:auto">
+    <div class="hdr" style="left:36px;right:36px;top:14px">${ehdr("THIS iPAD", false, false).replace(/^<div class="hdr">|<\/div>$/g, "")}</div>
+    <div class="abs" style="left:36px;top:66px">${fscreen(300, "fizz-held-note")}</div>
+    <div class="abs" style="left:380px;width:680px;top:72px;display:flex;justify-content:space-between">${KMAIN(62)}</div>
+    <div class="abs" style="left:380px;width:680px;top:210px;display:flex;align-items:center;justify-content:space-between">${KN14(62, "KN1")}</div>` +
+    stepPads({ x: 36, y: 386, W: 1024, H: 104, rows: 1, steps: MEL, head: 6, held: HELD }) +
+    `<div class="octcol" style="left:36px;top:${ky}px;width:80px;height:${kH}px"><span>OCT<br>+</span><b>C4</b><span>OCT<br>−</span></div>` +
+    piano({ x: kx, y: ky, W: kW, H: kH, oct: 4, n: 15, down: DOWN }) +
+    `<span class="tch" style="left:${36 + 12 + 42}px;top:${386 + 12 + 62}px"></span>` +
+    `<span class="tch dk" style="left:${kx + 9 + ww * 0.5}px;top:${ky + kH - 70}px"></span><span class="tch dk" style="left:${kx + 9 + ww * 4.5}px;top:${ky + kH - 78}px"></span></div>`;
+}
+SCREENS.push(
+  { id: "unit-picker", title: "The unit picker", cap: "The unit pill (top bar, every tab) opens it: one big row per unit the app can use. THIS iPHONE (the emulated FIZZ, in the theme's colour) is in use: ringed, its glow breathing, its tick lit, the pin saying it was picked by hand. The FM-1 on USB (green; its screen fizzes) is a tap away: the whole manager switches to it. The FM-1 over Bluetooth is paired but not answering: greyed, dashed, flickering. + BLUETOOTH (pinned) opens iOS's Bluetooth MIDI pairing; a paired FM-1 then gets its blue row. The rule: a plugged-in FM-1 still takes over by itself; a unit picked by hand (the pin) stays until it goes away or another FM-1 is plugged in.",
+    html: () => phone3(`<div class="under">${unitLib().replace('class="unit emu"', 'class="unit emu ring"')}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>${picker()}`, "LIBRARY", false) },
+  { id: "unit-picker-play", title: "The unit picker from PLAY", cap: "PLAY's header pill (THIS iPHONE / FM-1) opens the same picker over the panel; PLAY's own sheet stays on the handle and the swipe down. Here the FM-1 on USB is tapped (its ring ripples): it becomes the manager's unit and PLAY's keys play its track 3 over MIDI (PLAY's SOUND = FM-1; the row shows the track). Choosing THIS iPHONE again: back to the emulated FIZZ. The panel keeps running underneath.",
+    html: () => ephone(emuFull().replace('class="me "', 'class="me ring"') + `<div class="abs" style="inset:0;background:rgba(0,0,0,.5);z-index:70"></div>${picker({ play: true, top: 318 })}<span class="tch" style="left:226px;top:520px;z-index:80"></span>`).replace('class="scr emus"', 'class="scr emus sbl"') },
+  { id: "send-to-fm1", title: "SEND TO FM-1 from THIS iPHONE", cap: "With an FM-1 connected and THIS iPHONE picked, a preset's sheet gets SEND TO FM-1 (green, the FM-1's colour) beside → KEPT: one tap copies it, nothing kept on the way. The badge says where it lands: the FM-1's first free MY PRESETS place (15). The name flies up out of the sheet and the toast drops from the top: GLASS BELL · FM-1 · MY PRESETS 15, then rises away; the sheet stays open. The other way round (the FM-1 picked, THIS iPHONE there) it reads SEND TO THIS iPHONE in the theme's colour. SELECT's bar: SEND n TO FM-1. The rest of the row folds to glyphs (EXPORT, MOVE, DELETE).",
+    html: () => phone3(`<div class="under">${unitLib()}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>${sendSheet()}${sendToast()}<span class="flyname" style="left:190px;top:700px">GLASS BELL</span>`, "LIBRARY", false) },
+  { id: "edit-borrow", title: "EDIT without loading: borrowed on T2", cap: "EDIT on any preset (FM-1, THIS iPHONE, KEPT) is heard at once on the selected track as a borrow: no TRACK switch, no KEEP / CANCEL bar. The green chip says where it's heard (track 2, its colour; the waves pulse; a tap picks another track). T2's own sound comes back by itself on leaving EDIT or opening another sound. KEEP ON T2 makes the borrow stay. SAVE / SAVE AS NEW write the preset as today (KEPT: SAVE to KEPT). The keys button opens the keybed, heard on T2. The env's points follow the finger as ever.",
+    html: () => phone3(editBorrow(), "EDIT", false) },
+  { id: "play-steps", title: "PLAY: STEPS", cap: "A fifth PLAY view (the sheet's VIEW row gains STEPS; the dots: FULL / KEYS / STEPS / SCREEN, swipe sideways). FIZZ's screen at 196 with KN 1–4 beside it; the 16 steps as pads in two rows of 8 (the FM-1's white keys, lit in the theme's LED colour: trigs dim, the head bright); a chromatic keyboard, C4–F5, playing the selected track's sound (OCT − / + move it). Hold a pad (or several) and play: the notes go into that step, as FIZZ takes MIDI notes into a held step. Here step 1 is held with C4 and G4 down: the pad glows, the notes' dots pop on it in FIZZ's note colours, and FIZZ's screen shows the step's notes.",
+    html: () => ephone(emuSteps()) },
+  { id: "play-steps-landscape", title: "PLAY: STEPS on its side", land: true, cap: "The phone on its side: the screen at the left, KN 1–4 and OCT − / + across the top with the FIZZ badge (back to the manager), the 16 pads in two rows of 8 beside the screen, two octaves of keys (C4–C6) across the bottom. Same moment: step 1 held, C4 and G4 down. Shown in the FIZZ theme.",
+    html: () => ephoneLand(emuStepsLand(), "FIZZ") },
+  { id: "ipad-play-steps", title: "iPad: PLAY STEPS", ipad: true, cap: "iPad: the screen at 300, all eight knobs beside it, the 16 pads in one row (as on the FM-1), two octaves of keys with OCT + / − stacked at their left (the range between). Step 1 held, C4 and G4 down.",
+    html: () => ipad(emuStepsPad()).replace('<div class="scr">', `<div class="scr emus" style="${tv("Tangerine")};background:var(--t-body)">`) },
+);
+
 // ---------------------------------------------------------------- the page
 const out = document.getElementById("out");
 const inits = [];
@@ -1676,7 +1952,7 @@ if (SHOT) {
 }
 inits.forEach(([s, el]) => s.init(el));
 // still: every animation stopped at a chosen moment (a fraction of its loop), one-shots finished; SMIL at 0.6 s
-const POSTER = { knturn: 0.5, beat: 0.05, kpulse: 0.5,swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5, plugblink: 0, ckpop: 0.2, tgtfly: 0.4, plugA: 0.3, plugB: 0.3, dragL: 0.62 };
+const POSTER = { knturn: 0.5, beat: 0.05, kpulse: 0.5,swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5, plugblink: 0, ckpop: 0.2, tgtfly: 0.4, plugA: 0.3, plugB: 0.3, dragL: 0.62, flyup: 0.1, ndot: 0.15, utap: 0.3, toastin: 0.45 };
 function freeze() {
   document.getAnimations().forEach((a) => {
     const t = a.effect.getTiming();
