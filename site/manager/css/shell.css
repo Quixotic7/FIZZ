@@ -270,9 +270,9 @@ button.tag:not(:disabled):active { transform: scale(.94); }
 .exfoot .exname { margin-right: auto; overflow-wrap: anywhere; }
 
 /* ---- the toast */
-.toast { --c: var(--green); pointer-events: none; position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 8; background: rgba(10, 10, 15, .96); border: 1.5px solid var(--c); color: var(--text); font-weight: 800;
+.toast { --c: var(--green); pointer-events: none; position: fixed; left: 50%; top: 78px; transform: translateX(-50%); z-index: 8; background: rgba(10, 10, 15, .96); border: 1.5px solid var(--c); color: var(--text); font-weight: 800;
   padding: 14px 22px; border-radius: 16px; box-shadow: 0 0 30px -4px color-mix(in srgb, var(--c) 50%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent); max-width: calc(100vw - 32px); animation: toastin .4s var(--snap) both; }
-@keyframes toastin { from { opacity: 0; transform: translate(-50%, 14px) scale(.96); } }
+@keyframes toastin { from { opacity: 0; transform: translate(-50%, -14px) scale(.96); } }   /* (at the top: the bottom holds the KEEP / CANCEL card and PROJECTS' write bar) */
 @keyframes slidein { from { opacity: 0; transform: translateY(-10px); } }
 
 /* ---- a computer: the page fits the window (the owner, 2026-10-26): the page itself never scrolls; each card's list
