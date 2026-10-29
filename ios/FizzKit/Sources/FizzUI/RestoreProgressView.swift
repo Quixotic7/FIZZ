@@ -78,7 +78,7 @@ public struct RestoreProgressView: View {
     private var label: (String, String?) {
         if done { return ("WRITTEN", nil) }
         switch run.phase {
-        case .saving: return ("SAVING THE FM-1", nil)
+        case .saving: return (model.onEmulator ? "SAVING \(EmulatorHost.hereName)" : "SAVING THE FM-1", nil)
         case .checking: return ("CHECKING", nil)
         case .writing: return ("WRITING", model.restoring.subject)
         }

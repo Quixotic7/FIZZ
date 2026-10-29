@@ -11,10 +11,10 @@ import FizzData
 import FizzKit
 
 extension UnitModel {
-    /// The connected unit is the emulated FIZZ (its port "FIZZ (this iPhone)"), not an FM-1.
+    /// The connected unit is the emulated FIZZ, not an FM-1 (the unit says so; its port name for the demo and tests).
     public var unitIsEmulated: Bool {
-        guard let p = unit?.portName else { return false }
-        return p.range(of: "this iP(hone|ad)", options: [.regularExpression, .caseInsensitive]) != nil
+        guard let u = unit else { return false }
+        return u.isEmulated || u.portName.range(of: "this iP(hone|ad)", options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// No FM-1 to talk to: the emulated FIZZ or nothing (KEPT opens first then).

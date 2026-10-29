@@ -19,8 +19,9 @@ let package = Package(
         // the app's screens and models (they also build on macOS, for the snapshots and the tests)
         .target(
             name: "FizzUI",
-            dependencies: ["FizzKit", "FizzData"],
-            resources: [.copy("Resources/InterTight.ttf"), .copy("Resources/OFL.txt")]
+            dependencies: ["FizzKit", "FizzData", "FizzEngine"],
+            resources: [.copy("Resources/InterTight.ttf"), .copy("Resources/OFL.txt"),
+                        .copy("Resources/ChakraPetch-Bold.ttf"), .copy("Resources/OFL-ChakraPetch.txt")]
         ),
         // the web Manager's data modules (site/, bundled by ios/jsbundle/build.mjs) run in JavaScriptCore
         .target(
@@ -33,7 +34,7 @@ let package = Package(
         // the emulated FIZZ: the core's clock, sound, panel and flash; a MIDITransport and LinkSource onto it
         .target(name: "FizzEngine", dependencies: ["FizzKit", "CFizzCore"]),
         // PNGs of the screens with the demo unit's data (macOS, no window)
-        .executableTarget(name: "fizzshots", dependencies: ["FizzUI", "FizzKit", "FizzData"]),
+        .executableTarget(name: "fizzshots", dependencies: ["FizzUI", "FizzKit", "FizzData", "FizzEngine"]),
         .testTarget(
             name: "FizzKitTests",
             dependencies: ["FizzKit"],
@@ -44,7 +45,7 @@ let package = Package(
             dependencies: ["FizzUI", "FizzKit", "FizzData"],
             resources: [.copy("Resources/lib.fizzlib")]
         ),
-        .testTarget(name: "FizzEngineTests", dependencies: ["FizzEngine", "FizzKit"]),
+        .testTarget(name: "FizzEngineTests", dependencies: ["FizzEngine", "FizzKit", "FizzUI"]),
         // (fixtures: node ios/jsbundle/gen_fixtures.mjs; each file copied to the bundle's root, no Resources folder)
         .testTarget(
             name: "FizzDataTests",

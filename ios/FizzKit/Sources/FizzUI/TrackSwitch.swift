@@ -171,7 +171,7 @@ struct TrackTopBar: View {
             BubbleLogo().frame(width: 32, height: 32)
             Spacer(minLength: 0)
             TrackPill(model: model)
-            if let u = model.unit { UnitPill(info: u) }
+            if model.unit != nil { UnitBadge(model: model) }
         }
         .frame(height: 56)
         .padding(.horizontal, 16)

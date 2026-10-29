@@ -87,7 +87,7 @@ public struct RestoreSheet: View {
                     if r.viaBle {
                         StateBox(icon: TransferIcons.plug, text: "USB CABLE NEEDED", color: FZ.orange)
                     } else {
-                        StateBox(icon: TransferIcons.warn, text: "EVERYTHING ON THE FM-1 IS REPLACED")
+                        StateBox(icon: TransferIcons.warn, text: "EVERYTHING ON \(model.onEmulator ? EmulatorHost.hereName : "THE FM-1") IS REPLACED")
                         SlideToConfirm("RESTORE", color: FZ.yellow, enabled: r.canRestore) { Task { await r.restore() } }
                             .id(o.name + (r.problem ?? ""))
                             .padding(.top, 4)
@@ -117,7 +117,7 @@ public struct RestoreSheet: View {
     private func diff(_ o: RestoreModel.Offer, tint: RGB) -> some View {
         let r = model.restoring
         return HStack(spacing: 6) {
-            DiffCard(title: "FM-1 NOW", value: "\(r.now.projects) · \(r.now.presets)", tint: nil)
+            DiffCard(title: model.onEmulator ? "\(EmulatorHost.hereName) NOW" : "FM-1 NOW", value: "\(r.now.projects) · \(r.now.presets)", tint: nil)
             Animated(still: 0) { t in
                 Text("→").fz(28, 800).foregroundStyle(tint.color).offset(x: 5 * breathe(t, 1.2))
             }

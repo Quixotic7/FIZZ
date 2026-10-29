@@ -40,7 +40,7 @@ struct TopBar: View {
             .contentShape(Rectangle())
             .onLongPressGesture(minimumDuration: 0.6) { ports = true }
             Spacer(minLength: 0)
-            if unit, let u = model.unit { UnitPill(info: u).onLongPressGesture(minimumDuration: 0.6) { ports = true } }
+            if unit, model.unit != nil { UnitBadge(model: model).onLongPressGesture(minimumDuration: 0.6) { ports = true } }
         }
         .frame(height: 56)
         .padding(.horizontal, 16)

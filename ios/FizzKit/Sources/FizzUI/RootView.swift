@@ -20,10 +20,11 @@ public struct FizzAppView: View {
     @State private var demoKept = false
     @Environment(\.scenePhase) private var phase
 
-    public init(source: any LinkSource = LinkSources.fromArguments(),
+    /// emulated: the app keeps its emulated FIZZ (PLAY, and the unit while no FM-1 is plugged in).
+    public init(source: any LinkSource = LinkSources.fromArguments(), emulated: Bool = true,
                 arguments: [String] = ProcessInfo.processInfo.arguments) {
         FizzFont.register()
-        _model = State(initialValue: UnitModel(source: source))
+        _model = State(initialValue: UnitModel(source: source, emulator: emulated ? EmulatorHost.app : nil))
         // `-tab library` opens on that tab (simulator screenshots, UI tests)
         if let k = arguments.firstIndex(of: "-tab"), k + 1 < arguments.count, let t = FizzTab(rawValue: arguments[k + 1]) {
             _tab = State(initialValue: t)
@@ -37,9 +38,15 @@ public struct FizzAppView: View {
         }
     }
 
+    private var playLight: Bool {
+        guard let h = model.emulator else { return false }
+        return h.playShown && h.play.theme.lightBody && !h.play.sheet
+    }
+
     public var body: some View {
         ZStack {
-            if entered, case .found = model.state {
+            // (with the emulated FIZZ the app opens straight to its tabs)
+            if model.hasFallback || (entered && model.state.kind == "found") {
                 RootView(model: model, tab: $tab).transition(.opacity)
             } else {
                 ConnectView(model: model).transition(.opacity)
@@ -64,8 +71,10 @@ public struct FizzAppView: View {
         .animation(.easeInOut(duration: 0.3), value: model.backups.run == nil)
         .animation(.easeInOut(duration: 0.3), value: model.projectsTab.writing == nil)
         .background(Color.black)
-        .preferredColorScheme(.dark)
+        // (PLAY's light themes: the status bar's letters dark)
+        .preferredColorScheme(playLight ? .light : .dark)
         .task {
+            model.emulator?.launch()
             model.start()
             if demoKept { try? await DemoKept.seed(model.kept) }
         }
@@ -80,6 +89,9 @@ public struct FizzAppView: View {
             }
         }
         .onChange(of: phase) { _, p in if p == .active { model.becameActive() } }
+        // the emulated FIZZ heard while TRACK is on it; read again after PLAY (its panel may have changed it)
+        .onChange(of: model.actions.trackOn) { _, on in model.emulator?.trackOn = on }
+        .onChange(of: tab) { old, _ in if old == .play && model.onEmulator { Task { await model.refresh(quick: true) } } }
         // a screen asking for another tab (LIBRARY's EDIT: model.editTarget)
         .onChange(of: model.goTo) { _, t in if let t { tab = t; model.goTo = nil } }
         // a .fizzbak / .bin opened from Files, AirDrop, Mail: kept with the backups, RESTORE offered; a sound file
@@ -125,7 +137,8 @@ public struct RootView: View {
             if wide { PadRoot(model: model, tab: $tab) } else { PhoneRoot(model: model, tab: $tab) }
         } else {
             GeometryReader { g in
-                if g.size.width >= 720 { PadRoot(model: model, tab: $tab) } else { PhoneRoot(model: model, tab: $tab) }
+                // (an iPhone on its side, PLAY only, is wide but low: still the phone's)
+                if g.size.width >= 720 && g.size.height >= 500 { PadRoot(model: model, tab: $tab) } else { PhoneRoot(model: model, tab: $tab) }
             }
         }
     }
@@ -144,6 +157,7 @@ struct TabScreen: View {
         case .pool: PoolView(model: model, wide: wide)
         case .edit: EditView(model: model, wide: wide)
         case .importer: ImportSheet(model: model, inline: true)
+        case .play: Color.clear      // (PhoneRoot and PadRoot show PLAY themselves)
         }
     }
 }
@@ -163,6 +177,25 @@ struct PhoneRoot: View {
     }
 
     var body: some View {
+        Group {
+            // PLAY is full-screen: its sheet carries the tab bar
+            if (tab == .importer ? model.importer.under : tab) == .play, let host = model.emulator {
+                PlayView(model: model, host: host, tab: $tab)
+            } else {
+                tabs
+            }
+        }
+        .onChange(of: tab) { old, new in if new == .importer && old != .importer { model.importer.under = old } }
+        .sheet(isPresented: Binding(get: { tab == .importer }, set: { if !$0 && tab == .importer { tab = model.importer.under } })) {
+            ImportSheet(model: model)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RGB(0x0d0d11).color)
+                .preferredColorScheme(.dark)
+        }
+    }
+
+    private var tabs: some View {
         ZStack(alignment: .bottom) {
             Color.black
             VStack(spacing: 0) {
@@ -190,14 +223,6 @@ struct PhoneRoot: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.kept.selecting)
         .ignoresSafeArea(edges: .bottom)
-        .onChange(of: tab) { old, new in if new == .importer && old != .importer { model.importer.under = old } }
-        .sheet(isPresented: Binding(get: { tab == .importer }, set: { if !$0 && tab == .importer { tab = model.importer.under } })) {
-            ImportSheet(model: model)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(RGB(0x0d0d11).color)
-                .preferredColorScheme(.dark)
-        }
     }
 }
 
@@ -207,7 +232,7 @@ struct TabBar: View {
     static let height: CGFloat = 64
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             ForEach(FizzTab.bar) { t in
                 let on = t == tab
                 Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = t } } label: {
@@ -216,8 +241,9 @@ struct TabBar: View {
                             .frame(width: 21, height: 21)
                         if on { Text(t.title).fz(13, 800, em: 0.05).foregroundStyle(.black).lineLimit(1).fixedSize() }
                     }
-                    .frame(maxWidth: on ? .infinity : 42)
-                    .frame(width: on ? nil : 42, height: 48)
+                    .padding(.horizontal, on ? 8 : 0)
+                    .frame(maxWidth: on ? .infinity : 39)
+                    .frame(width: on ? nil : 39, height: 48)
                     .background(Capsule().fill(on ? t.tint.color : t.tint.opacity(0.09)))
                     .overlay(Capsule().strokeBorder(on ? t.tint.color : t.tint.mix(38, FZ.nav).color, lineWidth: 1.5))
                     .shadow(color: on ? t.tint.opacity(0.5) : .clear, radius: 9)
@@ -227,7 +253,7 @@ struct TabBar: View {
             }
             Button { tab = .importer } label: {
                 IconView(Icons.plus, color: .black, lineWidth: 3).frame(width: 26, height: 26)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 50, height: 50)
                     .background(Circle().fill(FZ.violet.color))
                     .overlay(Circle().strokeBorder(.white.opacity(tab == .importer ? 0.9 : 0), lineWidth: 2))
                     .shadow(color: FZ.violet.opacity(0.55), radius: 10)
@@ -235,7 +261,7 @@ struct TabBar: View {
             .buttonStyle(.plain)
             .padding(.leading, 2)
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 5)
         .frame(height: Self.height)
         .background(Capsule().fill(RGB(0x111115).opacity(0.92)))
         .overlay(Capsule().strokeBorder(FZ.nav.color, lineWidth: 1))
@@ -251,6 +277,20 @@ struct PadRoot: View {
     @Environment(\.fizzInsets) private var insets
 
     var body: some View {
+        if tab == .play, let host = model.emulator {
+            // PLAY: the rail slims to its icons, the panel takes the rest (mock-up 33)
+            HStack(spacing: 0) {
+                SlimRail(tab: $tab).frame(width: 84).padding(.top, insets.top)
+                Rectangle().fill(FZ.line.color).frame(width: 1)
+                PlayView(model: model, host: host, tab: $tab, wide: true)
+            }
+            .background(Color.black)
+        } else {
+            tabs
+        }
+    }
+
+    private var tabs: some View {
         HStack(spacing: 0) {
             Rail(model: model, tab: $tab)
                 .frame(width: 204)
@@ -307,12 +347,16 @@ struct Rail: View {
 
 struct RailUnitCard: View {
     let model: UnitModel
+    @AppStorage("play.theme") private var themeName = PlayTheme.tangerine.rawValue
     var body: some View {
+        // (the emulated FIZZ: THIS iPAD in the emulator's colour)
+        let c = model.onEmulator ? (PlayTheme(rawValue: themeName) ?? .tangerine).accent : FZ.green
         VStack(alignment: .leading, spacing: 10) {
-            FM1Drawing(color: FZ.green, screen: .bubbles).frame(width: 146)
+            FM1Drawing(color: c, screen: .bubbles).frame(width: 146)
             HStack(spacing: 8) {
-                Circle().fill(FZ.green.color).frame(width: 10, height: 10).shadow(color: FZ.green.color, radius: 4)
-                Text(model.unit?.shortVersion ?? "").fz(15, 800).foregroundStyle(FZ.text.color).lineLimit(1)
+                Circle().fill(c.color).frame(width: 10, height: 10).shadow(color: c.color, radius: 4)
+                Text(model.onEmulator ? EmulatorHost.hereName : model.unit?.shortVersion ?? "").fz(15, 800)
+                    .foregroundStyle(FZ.text.color).lineLimit(1)
             }
             StoreMeter(use: model.storeUse, height: 14)
             HStack {
@@ -322,8 +366,10 @@ struct RailUnitCard: View {
             }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 20).fill(FZ.green.mix(6, FZ.panel).color))
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(FZ.green.mix(50, FZ.line).color, lineWidth: 1.5))
+        .background(RoundedRectangle(cornerRadius: 20).fill(c.mix(6, FZ.panel).color))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(c.mix(50, FZ.line).color, lineWidth: 1.5))
+        .contentShape(RoundedRectangle(cornerRadius: 20))
+        .onTapGesture { if model.onEmulator { model.goTo = .play } }
     }
 }
 

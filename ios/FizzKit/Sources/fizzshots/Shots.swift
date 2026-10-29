@@ -10,6 +10,7 @@
 #if os(macOS)
 import AppKit
 import FizzData
+import FizzEngine
 import FizzKit
 import FizzUI
 import ImageIO
@@ -82,6 +83,7 @@ struct Shots {
         m.stop()
         await projectShots(out)
         await keptShots(out)
+        await playShots(out)
     }
 
     // ---- KEPT (mock-ups 23-26, 28): the phone's presets, a kept preset's sheet, SELECT and SEND, EDIT on one, the iPad
@@ -121,6 +123,45 @@ struct Shots {
         save(PresetSheetShot(model: m, key: "mine:3"), phone, out, "preset-sheet-kept")
         await m.actions.setTrackOn(false)
         m.stop()
+    }
+
+    // ---- PLAY and the app with no FM-1 (mock-ups 23, 27, 29-33): the emulated FIZZ itself, its screen drawn by its core
+    @MainActor
+    static func playShots(_ out: URL) async {
+        let tmp = FileManager.default.temporaryDirectory
+        let e = FizzEmulator(storage: nil)
+        let host = EmulatorHost(emulator: e)
+        let m = UnitModel(source: NoPorts(), emulator: host, backups: tmp.appendingPathComponent("fizzshots-e-\(UUID().uuidString)"),
+                          projects: tmp.appendingPathComponent("fizzshots-ep-\(UUID().uuidString)"))
+        host.launch()
+        m.start()
+        await until { m.onEmulator && m.dumpsLoaded && m.layout != nil }
+        save(RootView(model: m, tab: .constant(.library), wide: false), phone, out, "offline-library")
+        save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "offline-backup")
+        save(RootView(model: m, tab: .constant(.library), wide: true), pad, out, "ipad-offline-library")
+        // the demo pattern playing: the core's own screen and LEDs
+        await host.serve(false)
+        e.tap(.home)
+        e.run(ms: 600)
+        e.tap(.play)
+        e.run(ms: 1450)
+        let p = host.play
+        p.theme = .tangerine
+        p.showNow()
+        for (v, name) in [(PlayViewKind.full, "play-full"), (.keys, "play-keys"), (.panel, "play-panel"), (.screen, "play-screen")] {
+            p.view = v
+            save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, name)
+        }
+        p.view = .full
+        p.sheet = true
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-sheet")
+        p.sheet = false
+        p.theme = .fizz
+        save(RootView(model: m, tab: .constant(.play), wide: false), CGSize(width: 844, height: 390), out, "play-landscape")
+        p.theme = .tangerine
+        save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play")
+        m.stop()
+        e.stop()
     }
 
     // ---- I6: PROJECTS (mock-ups 14, 18-20, 22): the demo unit's store read, changes waiting, kept projects

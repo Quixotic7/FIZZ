@@ -364,6 +364,20 @@ bulk channel FZBI / FZBR / FZSR, over the USB package's region (73 sectors at 0x
 record by record (`StoreImage`, fizzstore.js's convertImage), so backups move between the emulator and an FM-1; FZSR
 pulls the image twice (FZER 10 / 11 / 12 / 13 / 14 as app.c), then FIZZ starts again on it.
 
+**In the app (2026-10-28, branch ios-play; mock-ups 23, 27, 29-33).** `EmulatorHost` (FizzUI) keeps the one
+`FizzEmulator`, booted at launch from its saved flash; UnitModel's `fallback` is its port, so with no FM-1 the app
+opens straight to its tabs on THIS iPHONE (THIS iPAD; the pill in the emulator theme's colour) and every tab works on
+it, BACKUP / RESTORE included. The CoreMIDI probe keeps running: an FM-1 running FIZZ takes over (the emulator's link
+closed, everything read again as a connect; a write in flight finishes first), unplugged the app falls back. Update
+mode, not FIZZ and two units no longer block the app: the pill gets a dot and their card opens as a sheet. The clock:
+a timer while the emulator is the unit, the sound while it is heard (PLAY shown, TRACK on it, a keybed note, a pattern
+left playing), off otherwise. `-emulator` starts with no FM-1 (screenshots); `-demo` keeps its demo unit.
+PLAY (`PlayView`, `PlayParts`, `PlayPanel`, `PlayModel`, `PlayTheme`): the owner's RemoteFM1 panel with FIZZ's labels;
+FULL / PANEL / KEYS / SCREEN, iPhone landscape (the iPhone turns only on PLAY), iPad beside a slim rail; buttons
+pressed on touch-down and let go on touch-up, every finger its own (UIKit touches), knobs by drag with detent ticks,
+the keybed's velocity from where the finger lands; the pull-down sheet: SOUND (THIS iPHONE, or the FM-1's track over
+MIDI), VIEW, THEME (the five and FIZZ), version, MEMORY + RESET, the tab bar. Chakra Petch (SIL OFL 1.1) for its labels.
+
 **Licences of what is compiled in: no GPL** (checked from the compiler's dependency files, 2026-10-28).
 - FIZZ (`core/`, its glue `core/glue/core_quadrille*.c`): MPL-2.0. FM TONE, the effects and the output chain from
   ChoralRoot FM-1: relicensed MPL-2.0 by the owner (its Felucca-derived parts rewritten).

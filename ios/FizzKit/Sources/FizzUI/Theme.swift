@@ -71,12 +71,13 @@ public enum FizzTag: Int, CaseIterable, Sendable, Identifiable {
 // MARK: - Tabs
 
 public enum FizzTab: String, CaseIterable, Sendable, Identifiable {
-    case backup, library, edit, pool, projects, importer
+    case play, backup, library, edit, pool, projects, importer
 
     public var id: String { rawValue }
     public var title: String { self == .importer ? "IMPORT" : rawValue.uppercased() }
     public var tint: RGB {
         switch self {
+        case .play: PlayTheme.tangerine.accent
         case .backup: FZ.yellow
         case .library: FZ.cream
         case .edit: FZ.pink
@@ -87,6 +88,7 @@ public enum FizzTab: String, CaseIterable, Sendable, Identifiable {
     }
     public var icon: VectorArt {
         switch self {
+        case .play: PlayIcons.fm1
         case .backup: Icons.backup
         case .library: Icons.library
         case .edit: Icons.edit
@@ -95,8 +97,8 @@ public enum FizzTab: String, CaseIterable, Sendable, Identifiable {
         case .importer: Icons.plus
         }
     }
-    /// the five pills of the phone's bar (IMPORT is the "+")
-    public static let bar: [FizzTab] = [.backup, .library, .edit, .pool, .projects]
+    /// the six pills of the phone's bar, PLAY first (IMPORT is the "+")
+    public static let bar: [FizzTab] = [.play, .backup, .library, .edit, .pool, .projects]
 }
 
 // MARK: - Inter Tight
