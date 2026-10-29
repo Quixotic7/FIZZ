@@ -118,3 +118,52 @@
   #tab-pool .ptitle { flex-basis: 100%; }
   #tab-pool .pname { font-size: 26px; }
 }
+
+/* ---- NEON: a tile's move asked (PhonePool): the tile lifted (a yellow glow, a small bob), the place a dashed green
+   with ↓; the moving card where the foot was (a phone: fixed at the bottom, above KEEP / CANCEL: --lbh) */
+.ps.moving { z-index: 3; border-color: var(--yellow); background: color-mix(in srgb, var(--c) 22%, transparent); transform: translateY(-3px) scale(1.1);
+  box-shadow: 0 0 22px -2px var(--yellow), 0 12px 20px rgba(0, 0, 0, .7); animation: lift 1.6s ease-in-out infinite; }
+@keyframes lift { 0%, 100% { transform: translateY(-3px) scale(1.1) rotate(-3deg); } 50% { transform: translateY(-6px) scale(1.12) rotate(3deg); } }
+.ps.mvto { border: 1.5px dashed var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); box-shadow: 0 0 16px -4px var(--green); }
+.ps .dn { width: 18px; height: 18px; fill: none; stroke: var(--green); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; filter: drop-shadow(0 0 4px var(--green)); }
+.ps:not(.full) .dn { margin-top: 6px; }
+.ps.full .dn { position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; }
+#tab-pool .mvcard { --c: var(--yellow); flex: none; margin-top: auto; border-radius: 24px; padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  background: rgba(22, 18, 4, .94); animation: slideup .4s var(--snap) both; }
+#tab-pool .poolcard:has(.mvcard:not([hidden])) .pbar { display: none; }
+#tab-pool .mvtop { display: flex; align-items: center; gap: 12px; min-width: 0; }
+#tab-pool .mvtxt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#tab-pool .mvnm { color: var(--text); font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tab-pool .mvline { font-size: 12px; font-weight: 600; color: var(--body); }
+#tab-pool .mvline b { color: var(--green); }
+#tab-pool .mvundo { font-size: 11px; color: var(--muted); }
+#tab-pool .mvsteps { flex: none; display: flex; flex-direction: column; align-items: flex-end; line-height: 1; gap: 3px; }
+#tab-pool .mvsteps .num { font-size: 24px; color: var(--yellow); }
+#tab-pool .mvsteps .lbl { font-size: 11px; }
+#tab-pool .mvacts { display: flex; gap: 10px; }
+#tab-pool .mvacts .ol { height: 46px; flex: 1; font-size: 12px; }
+#tab-pool .mvacts .arc { height: 46px; flex: 1.4; font-size: 13px; }
+@media (min-width: 901px) {
+  #tab-pool .mvcard { flex-direction: row; align-items: center; gap: 18px; }
+  #tab-pool .mvtop { flex: 1; }
+  #tab-pool .mvacts { flex: 0 0 360px; }
+}
+@media (max-width: 900px) {
+  #tab-pool .mvcard { position: fixed; left: 12px; right: 12px; z-index: 7; margin: 0; bottom: calc(max(var(--lbh, 0px), env(safe-area-inset-bottom, 0px)) + 12px);
+    box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), 0 12px 30px rgba(0, 0, 0, .7); }
+  body:has(#p-move:not([hidden])) #tab-pool { padding-bottom: 190px; }
+}
+@media (max-width: 900px) and (orientation: landscape) {
+  #tab-pool .mvcard { left: calc(var(--navw) + 12px); right: max(12px, env(safe-area-inset-right, 0px)); flex-direction: row; align-items: center; padding: 10px 12px; }
+  #tab-pool .mvtop { flex: 1; }
+  #tab-pool .mvacts { flex: 0 0 260px; }
+  #tab-pool .mvacts .ol, #tab-pool .mvacts .arc { height: 42px; }
+  body:has(#p-move:not([hidden])) #tab-pool { padding-bottom: 100px; }
+}
+
+/* a sound's tag as its icon (ui.js TAG_ICON) where an untagged one has its ring */
+.ps .ti { width: 20px; height: 20px; flex: none; margin-top: 8px; fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--c) 70%, transparent)); }
+.ps.sel .ti { filter: drop-shadow(0 0 6px var(--c)); }
+@media (max-width: 900px) { .ps .ti { width: 17px; height: 17px; margin-top: 6px; } }
+@media (max-width: 900px) and (orientation: landscape) { .ps .ti { width: 13px; height: 13px; margin-top: 8px; stroke-width: 2.2; } }

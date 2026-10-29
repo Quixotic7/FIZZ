@@ -7,8 +7,8 @@
 //   - every tab at 1280 x 800 and 390 x 844: no console error, no horizontal scroll (at 1280 no page scroll at all: the
 //     cards' lists scroll; LIBRARY's IN POOL / NOT IN POOL; BACKUP's play button); the screenshots beside the
 //     mock-ups' (mockups/png/fizz-web-manager-0N-*.png) for the eye;
-//   - BACKUP: the STATUS numbers without a backup; BACK UP keeps the backup in this browser (no download), its save
-//     button writes it to a file (showSaveFilePicker, stubbed here), DELETE asks first; a stored backup and a dropped
+//   - BACKUP: the STATUS numbers without a backup; BACK UP keeps the backup in this browser (no download), its •••
+//     menu's SAVE TO FILE writes it to a file (showSaveFilePicker, stubbed here), DELETE asks first; a stored backup and a dropped
 //     file open the restore;
 //   - the Bluetooth package (2026-10-27): a Bluetooth backup restored onto this (USB) FIZZ, written in its layout;
 //     MY PRESETS with fewer places than a presets-only backup brings (as the Bluetooth package's 128): the ones to add
@@ -17,7 +17,7 @@
 //   - LIBRARY: one list, the filters ALL / FACTORY / MY PRESETS and the tags; a tag toggled, a preset renamed, moved,
 //     + POOL then − POOL (the pool's badge with its place), DELETE (a confirm, then gone);
 //   - POOL: the sounds beside with the same filters, a MY preset and a factory one put on empty places, a swap (its
-//     confirm says the undo is cleared), CLEAR (a confirm), SORT BY TAG cancelled;
+//     moving card says the undo is cleared), CLEAR (a confirm), SORT BY TAG cancelled;
 //   - IMPORT: synthetic Digitone files (never real presets): two Digitone II read, one refused (not FM TONE), a
 //     Digitone 1 version-4 sound (OS 1.42) read, sent;
 //   - EDIT (Manager P2-A): a preset opened from LIBRARY's EDIT, every group drawn (the screenshots beside the mock-ups'
@@ -40,6 +40,13 @@
 //     AUDITION); at 1280 x 800 and 390 x 844 (no horizontal scroll, screenshots manager-midi-edit-*.png);
 //   - bug fixes (2026-10-29): a project RENAME, + POOL and every other write with its reply lost, its request lost,
 //     replies late, or the first LIST after it stale: shown on every tab without a reload, nothing said failed.
+//   - NEON features (2026-10-29): EDIT's ALGO ‹ › (wrapping), the knob row (a drag, the same value elsewhere, the wiggle
+//     only while dragged), the tag chip's popover (SAVE writes the tag), the phone's save bar (fixed, the panel's end
+//     clear of it), the computer's fit (1440 x 900 every value, 1280 x 800 no scroll with the groups' pills where
+//     measured too tall; the keys hidden give their room back), the keys' toggle and a pill remembered over a reload;
+//     POOL's moving card (CANCEL, ESC, MOVE TO; at 390 fixed at the bottom), the tiles' tag icons; BACKUP's share
+//     (navigator.share with a File, or a save where the browser cannot share files, cancelled: nothing), the ••• menu
+//     (SAVE TO FILE, DELETE asks);
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -153,7 +160,8 @@ try {
   check(bk.dl === 0 && bk.saved === false && bk.size > 0 && bk.unsaved && /1 · /.test(bk.use), `BACK UP: kept in this browser, nothing downloaded (${bk.size} B; "${bk.use}")`);
   await sleep(300);
   await shot("manager-01-backup.png");
-  await click("#baks .bk [data-act='save']");
+  await click("#baks .bk [data-act='more']");          // (NEON: SAVE TO FILE and DELETE behind the row's ••• menu)
+  await click("#bk-menu [data-act='save']");
   await waitFor("window.__saved.length === 1 && __mgr.S.baks[0].saved === true");
   const sv = await evaluate("({ s: window.__saved[0], icon: !!document.querySelector('#baks .bk .icon.saved') })");
   check(sv.s && /\.fizzbak$/.test(sv.s.name) && sv.s.bytes === bk.size && sv.icon, `BACKUP: its save button wrote ${sv.s && sv.s.name} (${sv.s && sv.s.bytes} B) to the folder picked; marked saved`);
@@ -168,12 +176,14 @@ try {
   await click("#rs-cancel");
   await idle();
   const nb1 = await evaluate("__mgr.S.baks.length");
-  await click("#baks .bk [data-act='del']");
+  await click("#baks .bk [data-act='more']");
+  await click("#bk-menu [data-act='del']");
   await waitFor("!document.getElementById('cf').hidden");
   const cf = await evaluate("document.getElementById('cf-title').textContent");
   await click("#cf-no");
   check(cf === "DELETE BACKUP" && (await evaluate("__mgr.S.baks.length")) === nb1, "BACKUP: DELETE asks first; CANCEL keeps it");
-  await click("#baks .bk [data-act='del']");
+  await click("#baks .bk [data-act='more']");
+  await click("#bk-menu [data-act='del']");
   await waitFor("!document.getElementById('cf').hidden");
   await click("#cf-go");
   await waitFor(`__mgr.S.baks.length === ${nb1 - 1}`);
@@ -236,7 +246,7 @@ try {
   await evaluate("(() => { Object.assign(__mgr.S.unit, window.__keepUnit); })()");
   await idle();
   // (that backup out of the list again: BROWSER boots the newest full one)
-  await evaluate("(() => { const i = __mgr.S.baks.findIndex((b) => b.name === 'USB BIG.fizzbak'); document.querySelectorAll('#baks .bk')[i].querySelector('[data-act=del]').click(); })()");
+  await evaluate("(() => { const i = __mgr.S.baks.findIndex((b) => b.name === 'USB BIG.fizzbak'); document.querySelectorAll('#baks .bk')[i].querySelector('[data-act=more]').click(); document.querySelector('#bk-menu [data-act=del]').click(); })()");
   await waitFor("!document.getElementById('cf').hidden");
   await click("#cf-go");
   await waitFor("!__mgr.S.baks.some((b) => b.name === 'USB BIG.fizzbak')");
@@ -352,14 +362,14 @@ try {
   await click(`#p-list .cas[data-id='${facId}']`);
   await shot("manager-04-pool.png");
   check(await noScroll(), "POOL at 1280: no horizontal scroll");
-  // a swap (ALT + right onto the next place): it asks, saying the undo is cleared
+  // a swap (ALT + right onto the next place): it asks (NEON: the moving card), saying the undo is cleared
   await evaluate(`document.querySelector("#p-grid .ps[data-k='${free2}']").dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }))`);
-  await waitFor("!document.getElementById('cf').hidden");
-  const cfs = await evaluate("({ t: document.getElementById('cf-title').textContent, u: document.getElementById('cf-undo').textContent })");
-  await click("#cf-go");
+  await waitFor("!document.getElementById('p-move').hidden");
+  const cfs = await evaluate("({ t: document.querySelector('#p-move .mvline').textContent, u: document.querySelector('#p-move .mvundo').textContent })");
+  await click("#p-mv-go");
   await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free2 + 1} && r.id === ${facId})`, 20000);
   await idle();
-  check(/^(SWAP|MOVE) POOL/.test(cfs.t) && cfs.u === "UNDO ON THE FM-1 IS CLEARED" && await evaluate(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free2 + 1} && r.id === ${facId})`),
+  check(new RegExp(`^(Moving|Swapping) ${free2} `).test(cfs.t) && cfs.u === "UNDO ON THE FM-1 CLEARS" && await evaluate(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free2 + 1} && r.id === ${facId})`),
     `POOL: ALT + right: "${cfs.t}" · ${cfs.u}; confirmed: moved to ${free2 + 1}`);
   // SORT BY TAG asks; cancelled: nothing moves
   const before0 = await evaluate("JSON.stringify(__mgr.S.unit.rows.filter((r) => r.source === 'pool').map((r) => [r.slot, r.id]))");
@@ -408,7 +418,7 @@ try {
   const collect = () => evaluate(`[...document.querySelectorAll('#ed-stage [data-id], #ed-stage [data-x], #ed-stage [data-y], #ed-stage [data-pick], #ed-stage [data-set]')]
     .flatMap((e) => [e.dataset.id, e.dataset.x, e.dataset.y, e.dataset.pick, e.dataset.set && e.dataset.set.split(':')[0]]).filter((x) => x !== undefined).map(Number)`);
   const secs = await evaluate("[...document.querySelectorAll('#ed-stage .pn')].map((e) => e.dataset.sec).join()");
-  check(secs === "ops,openv,play,filter,amp,drive,lfo,mod", `EDIT: one panel, every section at once (${secs}), no groups to switch`);
+  check(secs === "ops,mod,openv,filter,amp,drive,lfo,play", `EDIT: one panel, every section at once (${secs}, in the fit's columns), no groups to switch`);
   (await collect()).forEach((i) => seen.add(i));
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");   // (every slot on: its cables)
   await sleep(150);
@@ -417,8 +427,9 @@ try {
   for (const m of [1, 0]) { await evaluate(`__mgr.editor.set(74, ${m})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
   const missing = Array.from({ length: 110 }, (_, i) => i).filter((i) => !seen.has(i));
   check(!missing.length, `EDIT: every one of FIZZ's 110 values is on the one panel${missing.length ? `: missing ${missing.join(", ")}` : ""}`);
-  const dupIds = await evaluate(`(() => { const n = new Map(); document.querySelectorAll('#ed-stage .vc[data-id], #ed-stage .dial[data-id], #ed-stage .vbar[data-id]').forEach((e) => n.set(e.dataset.id, (n.get(e.dataset.id) || 0) + 1)); return [...n].filter(([, c]) => c > 1).map(([k]) => k); })()`);
-  check(!dupIds.length, `EDIT: each value's chip, dial or bar once on the panel${dupIds.length ? ` (twice: ${dupIds.join(", ")})` : ""}`);
+  // (NEON: the knob row under OPERATORS shows DRIVE and LEVEL a second time, by design)
+  const dupIds = await evaluate(`(() => { const n = new Map(); document.querySelectorAll('#ed-stage .vc[data-id], #ed-stage .dial[data-id]:not(.knob[data-id="73"]):not(.knob[data-id="46"]), #ed-stage .vbar[data-id]').forEach((e) => n.set(e.dataset.id, (n.get(e.dataset.id) || 0) + 1)); return [...n].filter(([, c]) => c > 1).map(([k]) => k); })()`);
+  check(!dupIds.length, `EDIT: each value's chip, dial or bar once on the panel (the knob row's DRIVE and LEVEL apart)${dupIds.length ? ` (twice: ${dupIds.join(", ")})` : ""}`);
   check(await noScroll(), "EDIT at 1280: the panel drawn, no horizontal scroll");
   await fullShot("manager-p2-01-edit-panel.png");
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0)); __mgr.editor.set(36, 3)");
@@ -1175,6 +1186,237 @@ try {
   await size(1280, 800);
   await click("#live");
   await waitFor("!__mgr.live.on()");
+  // ---- NEON features: EDIT POOL BACKUP
+  // EDIT: ALGO's ‹ › (wrapping), the knob row (a drag, the same value elsewhere), the tag chip's popover (SAVE writes
+  // it), the phone's save bar; POOL: the moving card (CANCEL, MOVE TO, ESC); BACKUP: share (or a save when the browser
+  // cannot share a file), the ••• menu's DELETE
+  {                                                    // (a block of its own: its names)
+  await size(1280, 800);
+  await sleep(300);
+  await evaluate("__mgr.live.on() && __mgr.live.setOn(false)");
+  await idle();
+  await evaluate("__mgr.openInEditor(__mgr.S.unit.rows.find((q) => q.source === 'factory' && q.slot === 3))");
+  await waitFor("!document.getElementById('tab-edit').hidden && !__mgr.editor.sound().midi && document.querySelector('#ed-stage .algonav')", 8000);
+  await evaluate("__mgr.editor.set(0, 8)");
+  await sleep(120);
+  await realClick("#ed-stage .algonav [data-nav='next']");
+  await sleep(120);
+  const an1 = await evaluate("__mgr.editor.value(0)");
+  await realClick("#ed-stage .algonav [data-nav='prev']");
+  await sleep(120);
+  const an2 = await evaluate("__mgr.editor.value(0)");
+  await realClick("#ed-stage .algonav [data-nav='prev']");
+  await sleep(120);
+  const an3 = await evaluate("__mgr.editor.value(0)");
+  const alab = await evaluate("[...document.querySelectorAll('#ed-stage .algonav button')].map((b) => b.getAttribute('aria-label')).join('|')");
+  check(an1 === 1 && an2 === 8 && an3 === 7 && alab === "Previous algorithm|Next algorithm", `EDIT: ALGO's › from 8 wraps to ${an1}, ‹ back to ${an2}, ‹ again ${an3} (${alab})`);
+  await size(1100, 800);                               // (below the fit: DRIVE · CRUSH's dial and AMP's LEVEL bar shown too)
+  await sleep(400);
+  const krow = await evaluate("[...document.querySelectorAll('#ed-stage .pn-ops .knobs .knob')].map((e) => e.querySelector('small').textContent).join(' ')");
+  check(krow === "HARM DTUN FDBK MIX DRIVE LEVEL", `EDIT: the knob row under OPERATORS: ${krow}`);
+  await evaluate("__mgr.editor.set(73, 20)");
+  await sleep(120);
+  const kc = await centre("#ed-stage .knobs .knob[data-id='73']");
+  await mouse("mousePressed", kc.x, kc.y);
+  for (let k = 1; k <= 6; k++) { await mouse("mouseMoved", kc.x, kc.y - 10 * k, { buttons: 1 }); await sleep(25); }
+  const turning = await evaluate("(() => { const e = document.querySelector('#ed-stage .knobs .knob[data-id=\"73\"]'); return e.classList.contains('dragging') && getComputedStyle(e.querySelector('svg')).animationName === 'wiggle'; })()");
+  await mouse("mouseReleased", kc.x, kc.y - 60);
+  await sleep(150);
+  const kd = await evaluate(`({ v: __mgr.editor.value(73), knob: document.querySelector('#ed-stage .knobs .knob[data-id="73"] b').textContent,
+    other: document.querySelector('#ed-stage .pn-drive .dial[data-id="73"] b').textContent, still: getComputedStyle(document.querySelector('#ed-stage .knobs .knob[data-id="73"] svg')).animationName })`);
+  check(kd.v > 20 && kd.knob === kd.other && turning && kd.still === "none", `EDIT: the DRIVE knob dragged up: 20 -> ${kd.v}; DRIVE · CRUSH's dial the same (${kd.other}); it wiggles only while dragged`);
+  await evaluate("__mgr.editor.set(46, 90)");
+  await sleep(120);
+  await drag("#ed-stage .knobs .knob[data-id='46']", 0, 40);
+  await sleep(150);
+  const kl = await evaluate(`({ v: __mgr.editor.value(46), knob: document.querySelector('#ed-stage .knobs .knob[data-id="46"] b').textContent, bar: document.querySelector('#ed-stage .pn-amp .vbar[data-id="46"] b').textContent })`);
+  check(kl.v < 90 && kl.knob === kl.bar, `EDIT: the LEVEL knob dragged down: 90 -> ${kl.v}; AMP's LEVEL bar the same (${kl.bar})`);
+  await size(1280, 800);
+  await sleep(400);
+  // the computer's fit: every value without scrolling (every MOD slot on: the tallest case), a group too tall shown
+  // one part at a time (its pills, measured); 1440 x 900 all of it; the keys hidden give their room back
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");
+  const fitAt = async (w, h) => {
+    await size(w, h);
+    await sleep(700);
+    return evaluate(`(() => { const st = document.getElementById('ed-stage'), cols = [...st.querySelectorAll('.fcol')];
+      return { page: document.documentElement.scrollHeight <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1,
+        cols: cols.length === 3 && cols.every((c) => c.scrollHeight <= c.clientHeight + 1), stage: st.scrollHeight <= st.clientHeight + 1,
+        tight: [...st.querySelectorAll('.pn.tight')].map((e) => e.dataset.sec).join(',') || '-', fit: cols.map((c) => c.scrollHeight + '/' + c.clientHeight).join(' ') }; })()`);
+  };
+  for (const [w, h] of [[1440, 900], [1280, 800]]) {
+    const f = await fitAt(w, h);
+    check(f.page && f.cols && f.stage && (w < 1440 || f.tight === "-"), `EDIT fit at ${w} x ${h}, the keys shown: no scroll (columns ${f.fit}); one part at a time: ${f.tight}`);
+    await shot(`manager-neon-edit-fit-${w}.png`);
+  }
+  await click("#ed-kbtg");
+  const fk = await fitAt(1280, 800);
+  check(fk.page && fk.cols && fk.stage, `EDIT fit at 1280 x 800, the keys hidden: no scroll (columns ${fk.fit}); one part at a time: ${fk.tight}`);
+  await click("#ed-kbtg");
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0))");
+  await size(1280, 800);
+  await sleep(400);
+  // the tag: one chip beside the name, a popover of FIZZ's seven tags and NONE
+  check(await evaluate("!document.querySelector('#ed-head .edtags') && document.querySelectorAll('#ed-head #ed-tag').length === 1"), "EDIT: the tag one chip beside the name (no row of tag buttons)");
+  await click("#ed-tag");
+  await waitFor("!!document.querySelector('.tagpop')", 3000);
+  const tp = await evaluate("[...document.querySelectorAll('.tagpop [data-tag]')].map((b) => b.textContent).join(' ')");
+  await click(".tagpop [data-tag='-1']");
+  await sleep(100);
+  const tg0 = await evaluate("({ t: __mgr.editor.sound().tags, open: !!document.querySelector('.tagpop') })");
+  await click("#ed-tag");
+  await waitFor("!!document.querySelector('.tagpop')", 3000);
+  await shot("manager-neon-edit-tagpop.png");
+  await click(".tagpop [data-tag='3']");
+  await sleep(100);
+  const tg1 = await evaluate("({ t: __mgr.editor.sound().tags, open: !!document.querySelector('.tagpop'), chip: document.getElementById('ed-tag').textContent })");
+  check(tp === "BASS KEYS PLUCK PAD LEAD DRUMS FX NONE" && tg0.t === 0 && !tg0.open && tg1.t === 8 && !tg1.open && tg1.chip === "PAD",
+    `EDIT: the tag chip's popover (${tp}): NONE -> ${tg0.t}, PAD -> ${tg1.t}, closed after a pick; the chip says ${tg1.chip}`);
+  await evaluate("(() => { __mgr.editor.sound().tags = 3; __mgr.editor.renderHead(); })()");
+  await click("#ed-tag");
+  await waitFor("!!document.querySelector('.tagpop')", 3000);
+  await click(".tagpop [data-tag='3']");
+  await sleep(100);
+  const tg2 = await evaluate("({ t: __mgr.editor.sound().tags, open: !!document.querySelector('.tagpop'), chip: document.getElementById('ed-tag').textContent })");
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await sleep(100);
+  check(tg2.t === 11 && tg2.open && /^BASS\+2$/.test(tg2.chip) && !(await evaluate("!!document.querySelector('.tagpop')")),
+    `EDIT: a sound with two tags (BASS KEYS) keeps both: PAD toggled on (${tg2.t}), the popover stays open; the chip "${tg2.chip}"; ESC closes it`);
+  await evaluate("(() => { __mgr.editor.sound().tags = 0; __mgr.editor.renderHead(); })()");
+  await click("#ed-tag");
+  await waitFor("!!document.querySelector('.tagpop')", 3000);
+  await click(".tagpop [data-tag='4']");
+  await evaluate("(() => { const i = document.getElementById('ed-name'); i.value = 'TAG TEST'; i.dispatchEvent(new Event('input', { bubbles: true })); })()");
+  await click("#ed-savenew");
+  await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'TAG TEST')", 15000);
+  await idle();
+  const tsv = await evaluate(`(async () => { const { soundFromFrame } = await import('./sound.js'); const r = __mgr.S.unit.rows.find((x) => x.source === 'mine' && x.name === 'TAG TEST');
+    return { tags: soundFromFrame(await __mgr.S.link.dump('mine', r.slot)).tags, row: r.tags }; })()`);
+  check(tsv.tags === 16, `EDIT: LEAD picked in the popover, SAVE AS NEW: the stored preset's tags ${tsv.tags} (LEAD)`);
+  check(await evaluate("getComputedStyle(document.getElementById('ed-savebar')).position !== 'fixed'"), "EDIT at 1280: REVERT / SAVE AS NEW / SAVE stay in the head");
+  await shot("manager-neon-edit-1280.png");
+  // the phone: the save bar fixed at the bottom, the panel's end clear of it
+  await size(390, 844, true);
+  await sleep(500);
+  const sb = await evaluate(`(() => { window.scrollTo(0, document.documentElement.scrollHeight); const b = document.getElementById('ed-savebar'), r = b.getBoundingClientRect(), k = document.getElementById('ed-keys').getBoundingClientRect();
+    return { pos: getComputedStyle(b).position, gap: Math.round(innerHeight - r.bottom), top: Math.round(r.top), keys: Math.round(k.bottom), btns: [...b.querySelectorAll('button')].map((x) => x.id).join() }; })()`);
+  check(sb.pos === "fixed" && sb.gap >= 0 && sb.gap <= 40 && sb.keys <= sb.top && sb.btns === "ed-revert,ed-savenew,ed-save" && await noScroll(),
+    `EDIT at 390: the save bar fixed ${sb.gap} px from the bottom (${sb.btns}); scrolled to the end the keybed ends at ${sb.keys}, above it (${sb.top})`);
+  await shot("manager-neon-edit-390.png");
+  await evaluate("window.scrollTo(0, 0)");
+  await size(1280, 800);
+  await sleep(300);
+  // POOL: the moving card
+  await click("#t-pool");
+  await waitFor("document.querySelectorAll('#p-grid .ps').length === 128");
+  await idle();
+  const icons = await evaluate(`(async () => { const U = await import('./ui.js'); const rows = new Map(__mgr.S.unit.rows.filter((r) => r.source === 'pool').map((r) => [r.slot, r]));
+    return [...document.querySelectorAll('#p-grid .ps.full')].map((e) => { const t = U.tagsOf(rows.get(+e.dataset.k).tags)[0], i = e.querySelector('svg.ti');
+      return t ? !!i && i.dataset.tag === t && getComputedStyle(i).stroke !== 'none' : !i && !!e.querySelector('.ring'); }); })()`);
+  check(icons.length > 0 && icons.every(Boolean), `POOL: each of the ${icons.length} sounds' tiles shows its tag's icon (an untagged one its ring)`);
+  const poolNow = () => evaluate("JSON.stringify(__mgr.S.unit.rows.filter((r) => r.source === 'pool').map((r) => [r.slot, r.id]))");
+  const pab = await evaluate(`(() => { const t = [...document.querySelectorAll('#p-grid .ps')], a = t.find((e) => e.classList.contains('full'));
+    const b = a && t.find((e) => !e.classList.contains('full') && +e.dataset.k > +a.dataset.k); return a && b ? [+a.dataset.k, +b.dataset.k] : null; })()`);
+  const dnd = (a, b) => evaluate(`(() => { const dt = new DataTransfer(), g = (k) => document.querySelector('#p-grid .ps[data-k="' + k + '"]');
+    g(${a}).dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt })); g(${b}).dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    g(${b}).dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); g(${a}).dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt })); })()`);
+  if (pab) {
+    const [pa, pb] = pab, p0 = await poolNow(), ida = await evaluate(`__mgr.S.unit.rows.find((r) => r.source === 'pool' && r.slot === ${pa}).id`);
+    await dnd(pa, pb);
+    await waitFor("!document.getElementById('p-move').hidden", 3000);
+    const mc = await evaluate(`({ line: document.querySelector('#p-move .mvline').textContent, go: document.getElementById('p-mv-go').textContent, undo: document.querySelector('#p-move .mvundo').textContent,
+      lift: document.querySelector('#p-grid .ps[data-k="${pa}"]').classList.contains('moving'), dest: document.querySelector('#p-grid .ps[data-k="${pb}"]').classList.contains('mvto'), bar: getComputedStyle(document.querySelector('#tab-pool .pbar')).display })`);
+    check(mc.line === `Moving ${pa} → ${pb}. Its locks follow.` && mc.go === `MOVE TO ${pb}` && mc.undo === "UNDO ON THE FM-1 CLEARS" && mc.lift && mc.dest && mc.bar === "none",
+      `POOL: a tile dropped on place ${pb}: the moving card ("${mc.line}", ${mc.go}, ${mc.undo}), the tile lifted, the place marked`);
+    await shot("manager-neon-pool-moving-1280.png");
+    await click("#p-mv-no");
+    await sleep(200);
+    check(await evaluate("document.getElementById('p-move').hidden && !document.querySelector('#p-grid .ps.moving, #p-grid .ps.mvto')") && p0 === await poolNow(), "POOL: CANCEL: the card gone, the pool as it was");
+    await dnd(pa, pb);
+    await waitFor("!document.getElementById('p-move').hidden", 3000);
+    await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    await sleep(200);
+    check(await evaluate("document.getElementById('p-move').hidden") && p0 === await poolNow(), "POOL: ESC cancels the move too");
+    await dnd(pa, pb);
+    await waitFor("!document.getElementById('p-move').hidden", 3000);
+    await click("#p-mv-go");
+    await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${pb} && r.id === ${ida})`, 20000);
+    await idle();
+    check(await evaluate(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${pb} && r.id === ${ida}) && !__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${pa}) && document.getElementById('p-move').hidden`),
+      `POOL: MOVE TO ${pb}: the sound moved from ${pa} (SWAP on the unit)`);
+    await size(390, 844, true);
+    await sleep(500);
+    await dnd(pb, pa);
+    await waitFor("!document.getElementById('p-move').hidden", 3000);
+    await sleep(600);                                  // (its slide up done)
+    const mp = await evaluate("(() => { const r = document.getElementById('p-move').getBoundingClientRect(); return { pos: getComputedStyle(document.getElementById('p-move')).position, bottom: Math.round(innerHeight - r.bottom), w: Math.round(r.width) }; })()");
+    check(mp.pos === "fixed" && mp.bottom >= 0 && mp.bottom < 40 && await noScroll(), `POOL at 390: the moving card fixed at the bottom (${mp.bottom} px up, ${mp.w} px wide)`);
+    await shot("manager-neon-pool-moving-390.png");
+    await click("#p-mv-no");
+    await size(1280, 800);
+    await sleep(300);
+  } else check(false, "POOL: a sound and a free place after it to move it to");
+  // BACKUP: share (stubbed), the save when the browser cannot share files, ••• -> DELETE
+  await click("#t-backup");
+  await evaluate(`(() => { window.__shared = []; window.__saved = [];
+    Object.defineProperty(navigator, 'canShare', { configurable: true, writable: true, value: (d) => !!(d && d.files && d.files.length) });
+    Object.defineProperty(navigator, 'share', { configurable: true, writable: true, value: async (d) => { window.__shared.push(d); } });
+    window.showSaveFilePicker = async (opt) => ({ name: opt.suggestedName, createWritable: async () => { const parts = [];
+      return { write: async (x) => parts.push(x), close: async () => window.__saved.push({ name: opt.suggestedName, bytes: parts.reduce((a, p) => a + p.length, 0) }) }; } }); })()`);
+  const nbs = await evaluate("__mgr.S.baks.length");
+  check(nbs > 0 && await evaluate("document.querySelectorAll('#baks .bk').length === document.querySelectorAll('#baks .bk [data-act=share]').length && !document.querySelector('#baks .bk [data-act=del], #baks .bk [data-act=save]')"),
+    `BACKUP: each of the ${nbs} rows has its share button; save and delete only in the ••• menu`);
+  await click("#baks .bk [data-act='share']");
+  await waitFor("window.__shared.length === 1", 3000);
+  const sh = await evaluate("(() => { const f = window.__shared[0] && window.__shared[0].files && window.__shared[0].files[0], b = __mgr.S.baks[0]; return f ? { file: f instanceof File, name: f.name, type: f.type, size: f.size, want: b.bytes.length, nm: b.name, saved: window.__saved.length } : null; })()");
+  check(!!sh && sh.file && sh.name === sh.nm && sh.type === "application/octet-stream" && sh.size === sh.want && sh.saved === 0, `BACKUP: share: navigator.share got ${sh && sh.name} (${sh && sh.size} B) as a File`);
+  await evaluate("navigator.canShare = () => false");
+  await click("#baks .bk [data-act='share']");
+  await waitFor("window.__saved.length === 1", 3000);
+  check(await evaluate("window.__saved.length === 1 && window.__shared.length === 1 && /\\.fizzbak$/.test(window.__saved[0].name)"), "BACKUP: share where the browser cannot share a file: saved to a file instead");
+  await evaluate("(() => { navigator.canShare = () => true; navigator.share = async () => { throw new DOMException('cancelled', 'AbortError'); }; window.__toast0 = document.getElementById('toast').hidden ? '' : document.getElementById('toast').textContent; })()");
+  const e0 = errors.length;
+  await click("#baks .bk [data-act='share']");
+  await sleep(400);
+  check(await evaluate("window.__saved.length === 1") && errors.length === e0, "BACKUP: share cancelled (AbortError): nothing else happens");
+  await click("#baks .bk [data-act='more']");
+  await waitFor("!!document.getElementById('bk-menu')", 3000);
+  const menu = await evaluate("[...document.querySelectorAll('#bk-menu [data-act]')].map((b) => b.textContent.trim()).join('|')");
+  await shot("manager-neon-backup-menu-1280.png");
+  await click("#bk-menu [data-act='del']");
+  await waitFor("!document.getElementById('cf').hidden");
+  const dcf = await evaluate("document.getElementById('cf-title').textContent");
+  await click("#cf-go");
+  await waitFor(`__mgr.S.baks.length === ${nbs - 1}`, 5000);
+  check(menu === "SAVE TO FILE|DELETE" && dcf === "DELETE BACKUP" && (await evaluate("__mgr.S.baks.length")) === nbs - 1 && !(await evaluate("!!document.getElementById('bk-menu')")),
+    `BACKUP: ••• (${menu}) -> DELETE asks (${dcf}), then the row is gone`);
+  await size(390, 844, true);
+  await sleep(400);
+  if (await evaluate("__mgr.S.baks.length > 0")) {
+    await click("#baks .bk [data-act='more']");
+    await waitFor("!!document.getElementById('bk-menu')", 3000);
+    const mr = await evaluate("(() => { const r = document.getElementById('bk-menu').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; })()");
+    check(mr && await noScroll(), "BACKUP at 390: the ••• menu inside the window");
+    await shot("manager-neon-backup-menu-390.png");
+    await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  }
+  await size(1280, 800);
+  // the keys hidden and a pill picked: both remembered after a reload
+  await click("#t-edit");
+  await waitFor("!document.getElementById('tab-edit').hidden");
+  await click("#ed-kbtg");
+  const kh = await evaluate("({ hid: document.getElementById('ed-keys').hidden, p: document.getElementById('ed-kbtg').getAttribute('aria-pressed') })");
+  await evaluate("(() => { const b = document.querySelector('#ed-stage [data-view=\"lfo:2\"]'); if (b) b.click(); })()");
+  await send("Page.navigate", { url: URL0 });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.rows.length > 0", 30000);
+  await idle();
+  await click("#t-edit");
+  await waitFor("!document.getElementById('tab-edit').hidden && !!document.getElementById('ed-kbtg')", 8000);
+  const kr = await evaluate("({ hid: document.getElementById('ed-keys').hidden, p: document.getElementById('ed-kbtg').getAttribute('aria-pressed'), lfo: __mgr.editor.state.view.lfo })");
+  check(kh.hid && kh.p === "false" && kr.hid && kr.p === "false" && kr.lfo === 2, `EDIT: the keys hidden by their toggle, still hidden after a reload; LFO 3's pill remembered (${kr.lfo})`);
+  await click("#ed-kbtg");
+  check(await evaluate("!document.getElementById('ed-keys').hidden"), "EDIT: the toggle shows the keys again");
+  }
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

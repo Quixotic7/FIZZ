@@ -18,16 +18,30 @@
 #tab-edit .edname .bigname { font-size: 42px; line-height: 1.02; }
 #tab-edit .edited { margin-left: 8px; color: var(--pink); display: inline-flex; align-items: center; gap: 6px; }
 #tab-edit .edited::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); animation: led 1.4s ease-in-out infinite; }
-#tab-edit .edtags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
-#tab-edit .edtags .tag { height: 24px; padding: 0 8px; }
-#tab-edit .edtags .tag:not(.off) { background: color-mix(in srgb, var(--c) 12%, transparent); border-color: var(--c); box-shadow: 0 0 12px -3px var(--c); }
-#tab-edit .edtags .tag.off { color: var(--muted); opacity: .75; }
+/* the name and its tag: one chip beside it (a click: the popover of the seven tags) */
+#tab-edit .ednrow { display: flex; align-items: center; gap: 12px; min-width: 0; }
+#tab-edit .ednrow .bigname { field-sizing: content; width: auto; min-width: 4ch; max-width: 100%; flex: 0 1 auto; }
+#tab-edit .edtag { height: 24px; padding: 0 8px; background: transparent; cursor: pointer; flex: none; transition: box-shadow .16s, background .16s; }
+#tab-edit .edtag small { font-size: 11px; margin-left: 2px; opacity: .8; }
+#tab-edit .edtag:hover, #tab-edit .edtag[aria-expanded="true"] { background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: 0 0 12px -3px var(--c); }
+#tab-edit .edtag.none { border-style: dashed; }
+.tagpop { position: absolute; z-index: 9; display: flex; flex-wrap: wrap; gap: 6px; max-width: min(320px, calc(100vw - 24px)); padding: 10px; border-radius: 16px;
+  background: rgba(10, 10, 15, .97); border: 1.5px solid color-mix(in srgb, var(--pink) 42%, transparent); box-shadow: 0 0 18px -6px var(--pink), 0 12px 30px rgba(0, 0, 0, .6); animation: pop .2s var(--snap) both; }
+.tagpop .chip { height: 32px; padding: 0 10px; background: transparent; cursor: pointer; transition: background .16s, box-shadow .16s; }
+.tagpop .chip:hover { background: color-mix(in srgb, var(--c) 10%, transparent); }
+.tagpop .chip.on { background: color-mix(in srgb, var(--c) 16%, transparent); border-color: var(--c); box-shadow: 0 0 12px -3px var(--c); }
+.tagpop .chip:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.tagpop .chip.none { color: var(--muted); }
 #tab-edit .edacts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-left: auto; max-width: 760px; }
 #tab-edit .edwhere { flex: 1 1 100%; display: flex; justify-content: flex-end; min-width: 0; }
 #tab-edit .edwhere:empty { display: none; }
 #tab-edit .edacts .ol { height: 42px; padding: 0 16px; font-size: 11px; }
 #tab-edit .edacts .arc { height: 42px; padding: 0 30px; font-size: 13px; }
 #tab-edit .edacts .arc:disabled { box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000); }
+/* REVERT / SAVE AS NEW / SAVE: a bar of their own; in the head's row on a computer (EXPORT between SAVE AS NEW and SAVE) */
+#tab-edit .edsave { display: contents; }
+#tab-edit .edwhere { order: 0; } #tab-edit #ed-revert { order: 1; } #tab-edit #ed-savenew { order: 2; } #tab-edit #ed-export { order: 3; } #tab-edit #ed-save { order: 4; }
+#tab-edit #ed-revert svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 /* the track the editor follows: a roundel, filled pink when live, a dashed ring when only shown (TRACK off) */
 #tab-edit .trkbig { --c: var(--pink); width: 76px; height: 76px; border-radius: 50%; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   border: 2px solid var(--c); color: var(--c); background: #000; box-shadow: inset 0 0 0 5px #000, inset 0 0 0 6.5px color-mix(in srgb, var(--c) 45%, transparent); align-self: center; }
@@ -67,6 +81,7 @@
 #tab-edit .stage { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: stretch; user-select: none; -webkit-user-select: none; touch-action: pan-y;
   grid-template-areas: "ops ops ops ops ops ops openv openv openv openv openv openv" "filter filter filter filter filter filter filter amp amp amp amp amp"
     "lfo lfo lfo lfo lfo lfo lfo lfo lfo drive drive drive" "mod mod mod mod mod mod mod play play play play play"; }
+#tab-edit .fcol, #tab-edit .fpair { display: contents; }
 #tab-edit .pn { grid-area: var(--a); border-radius: 22px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
   border: 1.5px solid color-mix(in srgb, var(--c) 34%, transparent); background: color-mix(in srgb, var(--c) 4%, rgba(10, 10, 15, .7));
   transition: border-color .16s var(--snap), box-shadow .2s; }
@@ -158,14 +173,7 @@
 #tab-edit .algosvg .op.on .inner { stroke: var(--c); }
 #tab-edit .algosvg .op:focus { outline: none; }
 #tab-edit .algosvg .op:focus-visible .rim { stroke: var(--cyan); }
-#tab-edit .algosvg .algolab { fill: var(--pink); font: 800 20px "Inter Tight", sans-serif; letter-spacing: 3px; }
-#tab-edit .algosvg .algonum { fill: var(--kalg); font: 900 168px "Inter Tight", sans-serif; letter-spacing: -4px; filter: drop-shadow(0 0 14px rgba(255, 60, 160, .6));
-  transform-box: fill-box; transform-origin: left center; animation: throb 2.4s ease-in-out infinite; }
-#tab-edit .algosvg .algo.dragging .algonum, #tab-edit .algosvg .algo:hover .algonum { filter: drop-shadow(0 0 22px rgba(255, 60, 160, .9)); }
-#tab-edit .algosvg .algo:focus { outline: none; }
-#tab-edit .algosvg .algo:focus-visible .algonum { fill: var(--cyan); }
 @keyframes throb { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-#tab-edit .algosvg .algo { cursor: ns-resize; }
 #tab-edit .opcards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 /* an operator's card: its name, OFS (a HUD value, top right) and its 10-segment bar, the ratio big */
 #tab-edit .opc { position: relative; border-radius: 18px; padding: 11px 13px 24px; display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 104px; cursor: pointer;
@@ -195,11 +203,39 @@
 #tab-edit .opc .vbar:focus-visible { outline: none; }
 #tab-edit .opc .vbar:focus-visible i { outline: 2px solid var(--cyan); outline-offset: 2px; }
 #tab-edit .dials { display: flex; gap: 6px; justify-content: space-around; flex-wrap: wrap; border-top: 1.5px solid var(--line); padding-top: 10px; }
-#tab-edit .pn-ops .pnb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "algo cards" "dials dials"; gap: 10px 14px; align-items: center; }
+/* the knob row (NEON): six knobs, the one dragged wiggles (its phase kept across redraws: --wd) */
+#tab-edit .knobs .dial { flex: 1 1 0; min-width: 0; max-width: 96px; }
+#tab-edit .knobs .dial.dragging svg { animation: wiggle 1.6s ease-in-out infinite; animation-delay: var(--wd, 0ms); transform-origin: 50% 55%; }
+@keyframes wiggle { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
+/* ALGO: its name, the number big (dragged, clicked: the next), ‹ › under it */
+#tab-edit .algocol { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+#tab-edit .algo { display: flex; flex-direction: column; gap: 2px; cursor: ns-resize; touch-action: none; border-radius: 12px; outline: none; }
+#tab-edit .algo small { color: var(--pink); font-weight: 800; font-size: 12px; letter-spacing: .16em; }
+#tab-edit .algo b { color: var(--kalg); font-size: 104px; font-weight: 900; line-height: .9; letter-spacing: -.04em; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 26px rgba(255, 60, 160, .6); transform-origin: left center; animation: throb 2.4s ease-in-out infinite; }
+#tab-edit .algo:hover b, #tab-edit .algo.dragging b { text-shadow: 0 0 34px rgba(255, 60, 160, .95); }
+#tab-edit .algo:focus-visible b { color: var(--cyan); }
+#tab-edit .algonav { display: flex; gap: 6px; }
+#tab-edit .algonav .ol { --c: var(--kalg); width: 40px; height: 36px; padding: 0; }
+#tab-edit .algonav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#tab-edit .pn-ops .pnb { display: grid; grid-template-columns: auto minmax(0, .9fr) minmax(0, 1fr); grid-template-areas: "col algo cards" "dials dials dials"; gap: 10px 14px; align-items: center; }
 #tab-edit .pn-ops .ops { display: contents; }
-#tab-edit .pn-ops .algowrap { grid-area: algo; } #tab-edit .pn-ops .opcards { grid-area: cards; } #tab-edit .pn-ops .dials { grid-area: dials; }
+#tab-edit .pn-ops .algocol { grid-area: col; } #tab-edit .pn-ops .algowrap { grid-area: algo; min-width: 0; } #tab-edit .pn-ops .opcards { grid-area: cards; } #tab-edit .pn-ops .dials { grid-area: dials; }
 
-/* ---- the drawings: envelopes, the filter's curve, the waves; their handles */
+/* ---- the drawings: envelopes, the filter's curve, the waves; their handles. A drawing sits in a box (.dbox): its own
+   proportions, or (the computer's fit) the room left, drawn again in the box's proportions (editor.js measure) */
+#tab-edit .dbox { position: relative; aspect-ratio: var(--ar); min-width: 0; flex: none; }
+#tab-edit .stage .dbox > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#tab-edit .env .ghost { fill: none; stroke: var(--g); stroke-width: 3; opacity: .25; stroke-dasharray: 6 6; display: none; }
+/* the phone's pills (a group's part shown); a computer shows every part */
+#tab-edit .pills { display: none; gap: 6px; flex-wrap: wrap; }
+#tab-edit .pills button { --c: var(--muted); height: 32px; padding: 0 12px; border-radius: 11px; border: 1.5px solid color-mix(in srgb, var(--c) 35%, var(--line)); background: transparent;
+  color: var(--muted); font-weight: 800; font-size: 11px; letter-spacing: .12em; transition: border-color .16s, background .16s, box-shadow .16s, color .16s; }
+#tab-edit .pills button.on { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); box-shadow: 0 0 12px -3px var(--c); }
+/* the keys' toggle in the head */
+#tab-edit .kbtg { order: 1; width: 42px; height: 42px; border-radius: 50%; }
+#tab-edit .kbtg.on { border-color: color-mix(in srgb, var(--pink) 60%, transparent); }
+#tab-edit .kbtg.on svg { stroke: var(--pink); }
 #tab-edit .env .area, #tab-edit .curve .area { fill: color-mix(in srgb, var(--c) 14%, transparent); stroke: none; }
 #tab-edit .env .line, #tab-edit .curve .line, #tab-edit .wave .line, #tab-edit .crush .line, #tab-edit .glide .line { fill: none; stroke: var(--c); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--c) 70%, transparent)); }
@@ -288,7 +324,8 @@
   #tab-edit .pn { padding: 12px; border-radius: 20px; }
   #tab-edit .duo { grid-template-columns: minmax(0, 1fr); }
   #tab-edit .lfos { grid-template-columns: minmax(0, 1fr); }
-  #tab-edit .pn-ops .pnb { grid-template-columns: minmax(0, 1fr); grid-template-areas: "algo" "cards" "dials"; }
+  #tab-edit .pn-ops .pnb { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "col algo" "cards cards" "dials dials"; }
+  #tab-edit .algo b { font-size: 88px; }
   #tab-edit .opc .opv { font-size: 34px; }
   #tab-edit .opc { min-height: 96px; }
   #tab-edit .dial { width: 68px; }
@@ -316,7 +353,7 @@
 }
 /* a phone on its side: the operators' drawing beside their cards again */
 @media (max-width: 900px) and (orientation: landscape) {
-  #tab-edit .pn-ops .pnb { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "algo cards" "dials dials"; }
+  #tab-edit .pn-ops .pnb { grid-template-columns: auto minmax(0, .8fr) minmax(0, 1fr); grid-template-areas: "col algo cards" "dials dials dials"; }
   #tab-edit .duo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
@@ -348,3 +385,149 @@
 #tab-edit .msl .mx:hover, #tab-edit .msl .mx:focus-visible { opacity: 1; color: var(--text); border-color: var(--c); }
 #tab-edit .stage.locked .mbar { cursor: not-allowed; }
 @media (max-width: 900px) { #tab-edit .mbar { height: 120px; } }
+
+/* ---- a phone upright (NEON): the knob row six across; REVERT / SAVE AS NEW / SAVE a bar fixed at the bottom (above
+   the KEEP / CANCEL card when it shows: --lbh, editor.js), the page clear of it at its end */
+@media (max-width: 600px) {
+  #tab-edit .knobs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; justify-content: stretch; }
+  #tab-edit .knobs .dial { width: auto; max-width: none; padding: 2px 0 4px; }
+  #tab-edit .knobs .dial svg { width: 46px; }
+  #tab-edit .knobs .dial b { font-size: 14px; margin-top: -8px; }
+  #tab-edit .knobs .dial small { letter-spacing: .04em; }
+  #tab-edit .algonav { top: 50%; gap: 4px; }
+  #tab-edit .algonav .ol { width: 36px; height: 32px; }
+  #tab-edit .edsave { display: flex; gap: 8px; align-items: center; position: fixed; left: 12px; right: 12px; z-index: 7; padding: 10px; border-radius: 28px;
+    bottom: calc(max(var(--lbh, 0px), env(safe-area-inset-bottom, 0px)) + 12px);
+    background: rgba(10, 10, 15, .94); border: 1.5px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, .6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  #tab-edit .edsave .ol { height: 44px; padding: 0 14px; }
+  #tab-edit .edsave #ed-savenew { flex: 1; }
+  #tab-edit .edsave .arc { height: 44px; padding: 0 22px; margin-left: 0; }
+  #tab-edit { padding-bottom: calc(max(var(--lbh, 0px), env(safe-area-inset-bottom, 0px)) + 100px); }
+}
+
+/* ---- the computer's fit (the owner, 2026-10-29: every value seen without scrolling; editor.js FIT_MQ): the head one
+   row, the keys short, the sections a grid that fills the room left, each a column whose drawings give way first */
+@media (min-width: 1200px) and (min-height: 700px) {
+  #tab-edit { padding: 8px 14px 10px; }
+  #tab-edit .edcard { padding: 8px 12px; gap: 6px; border-radius: 20px; }
+  #tab-edit .edhead { flex-wrap: nowrap; align-items: center; gap: 12px; }
+  #tab-edit .edname { flex: 1 1 200px; gap: 0; }
+  #tab-edit .edname .bigname { font-size: 28px; line-height: 1.05; }
+  #tab-edit .trkbig { width: 52px; height: 52px; }
+  #tab-edit .trkbig b { font-size: 20px; }
+  #tab-edit .trkbig small { font-size: 11px; letter-spacing: .06em; }
+  #tab-edit .edacts { flex-wrap: nowrap; gap: 8px; max-width: none; flex: 0 1 auto; }
+  #tab-edit .edwhere { flex: 0 1 auto; }
+  #tab-edit .edacts .ol, #tab-edit .aud { height: 36px; padding: 0 12px; }
+  #tab-edit .edacts .arc { height: 36px; padding: 0 22px; }
+  #tab-edit .kbtg { width: 36px; height: 36px; }
+  #tab-edit .trk { height: 30px; min-width: 30px; }
+  #tab-edit .kbed { height: 48px; }
+  #tab-edit .kbed .octs { flex-direction: row; align-items: center; width: auto; }
+  #tab-edit .kbed .oct { height: 30px; width: 58px; }
+  #tab-edit .kbed .octv { width: 54px; }
+
+  #tab-edit .edcard .stage { display: flex; gap: 6px; align-items: stretch; overflow: hidden; }
+  #tab-edit .fcol { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; overflow: hidden; }
+  #tab-edit .fc1 { flex: 1 1 0; } #tab-edit .fc2 { flex: 1.15 1 0; } #tab-edit .fc3 { flex: 1 1 0; }
+  #tab-edit .fcol > .pn, #tab-edit .fpair { flex: 1 1 auto; }
+  #tab-edit .fpair { display: flex; gap: 6px; min-height: 0; }
+  #tab-edit .fpair > .pn { flex: 1 1 0; min-width: 0; }
+  #tab-edit .pn { padding: 7px 10px 8px; gap: 5px; border-radius: 16px; position: relative; }
+  #tab-edit .pnh { font-size: 11px; gap: 7px; }
+  #tab-edit .pdot { width: 9px; height: 9px; }
+  #tab-edit .pnb { gap: 6px; min-height: 0; }
+  #tab-edit div.sub { padding: 6px 8px; gap: 5px; border-radius: 12px; }
+  #tab-edit .row.wrap { gap: 5px; }
+  #tab-edit .dbox { aspect-ratio: auto; flex: 1 1 0; min-height: 30px; }
+  /* a value a small tile: its name over its value, a bar in its colour under them */
+  #tab-edit .vc { position: relative; flex-direction: column; justify-content: center; height: 36px; min-width: 50px; padding: 0 7px 3px; gap: 1px; border-radius: 9px; }
+  #tab-edit .stage .vc svg { display: none; }
+  #tab-edit .vc small { font-size: 11px; line-height: 1.05; letter-spacing: .06em; }
+  #tab-edit .vc b, #tab-edit .vc.big b { font-size: 13px; line-height: 1.1; }
+  #tab-edit .vc::after { content: ""; position: absolute; bottom: 3px; height: 2px; border-radius: 1px; left: calc(6px + var(--l, 0) * (100% - 12px)); width: calc(var(--w, 0) * (100% - 12px));
+    background: var(--c); box-shadow: 0 0 5px var(--c); }
+  #tab-edit .vc.pick { padding: 0 8px 3px; gap: 1px; }
+  #tab-edit .vc.pick::after { display: none; }
+  #tab-edit .vc.pick b::after { font-size: 11px; }
+  #tab-edit .vbar { padding: 4px 8px 5px; gap: 2px 8px; border-radius: 9px; min-width: 100px; flex-basis: 110px; }
+  #tab-edit .vbar b { font-size: 13px; }
+  #tab-edit .vbar i { height: 4px; }
+  #tab-edit .vseg { padding: 2px; border-radius: 10px; gap: 2px; }
+  #tab-edit .vseg button, #tab-edit .vseg.mach button, #tab-edit .lfoc .vseg button { height: 24px; padding: 0 6px; border-radius: 8px; letter-spacing: .05em; }
+  #tab-edit .vtog { height: 24px; padding: 0 8px; border-radius: 8px; }
+  #tab-edit .capt { gap: 6px; }
+  #tab-edit .dial { width: 60px; padding: 0 0 2px; }
+  #tab-edit .stage .dial svg { width: 44px; }
+  #tab-edit .dial b { font-size: 15px; margin-top: -8px; }
+  /* OPERATORS: ALGO, the drawing, the cards; the knobs under */
+  #tab-edit .pn-ops .pnb { grid-template-rows: minmax(0, 1fr) auto; gap: 6px 10px; align-items: stretch; }
+  #tab-edit .algo b { font-size: 64px; }
+  #tab-edit .algonav .ol { width: 32px; height: 28px; }
+  #tab-edit .pn-ops .algowrap { position: relative; min-height: 80px; }
+  #tab-edit .pn-ops .algowrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #tab-edit .opcards { gap: 6px; align-content: center; }
+  #tab-edit .opc { min-height: 0; padding: 6px 9px 14px; border-radius: 12px; gap: 0; }
+  #tab-edit .opc .opn { font-size: 11px; }
+  #tab-edit .opc .opv { font-size: 24px; }
+  #tab-edit .opc .opv small { font-size: 14px; }
+  #tab-edit .opc .vbar { inset: 6px 9px 6px; }
+  #tab-edit .dials { padding-top: 4px; gap: 2px; }
+  /* OP ENV, FILTER: their parts side by side, each a column */
+  #tab-edit .duo { gap: 6px; align-items: stretch; min-height: 0; flex: 1 1 auto; }
+  #tab-edit .duo > .sub { min-height: 0; }
+  #tab-edit .envc .row:first-child { gap: 6px; }
+  #tab-edit .lfos { gap: 6px; flex: 1 1 auto; min-height: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #tab-edit .lfoc { min-height: 0; }
+  #tab-edit .lfoc .vc { height: 36px; padding: 0 6px 3px; }
+  #tab-edit .lfoc .vc.pick { padding: 0 6px 3px; }
+  #tab-edit .lfoc .vseg.waves button { padding: 0 3px; }
+  #tab-edit .vseg.waves svg { width: 18px; height: 13px; }
+  /* PLAY: the phase and the bars, then PORTAMENTO and VOICE side by side */
+  #tab-edit .pn-play .pnb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 6px; }
+  #tab-edit .pn-play .pnb > .row, #tab-edit .pn-play .pnb > .bars { grid-column: 1 / 3; }
+  #tab-edit .pn-play .bars .vbar { flex-basis: 90px; }
+  #tab-edit .lfoc .wave { max-height: none; }
+  #tab-edit .bars { gap: 5px; }
+  #tab-edit .mrow { min-height: 28px; gap: 6px; }
+  #tab-edit .mrow .vc { height: 34px; }
+  #tab-edit .mrow .mx { width: 26px; height: 26px; }
+  #tab-edit .mrow.empty { min-height: 22px; }
+  #tab-edit .madd { height: 22px; }
+  #tab-edit .pn-mod .pnb { gap: 3px; }
+  #tab-edit .mrow .vc { flex-direction: row; height: 28px; padding: 0 8px 2px; gap: 5px; justify-content: space-between; }
+  #tab-edit .mrow .vc.pick small { display: none; }
+  #tab-edit .opc .vbar small { display: none; }
+  #tab-edit .fc1 { flex: .95 1 0; } #tab-edit .fc2 { flex: 1.25 1 0; }
+  /* AMP's ADSR / AHD and DRIVE's route in the section's head row; CRUSH's before / after beside its name */
+  #tab-edit .pn-amp .pnb > .row:first-child { position: absolute; top: 4px; right: 10px; }
+  #tab-edit .pn-drive .crush { --c: var(--pink); }
+  #tab-edit .mrow .cable { display: none; }
+  #tab-edit .mrow:not(.empty) { grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr) 26px; }
+  #tab-edit .crushc .crh { justify-content: space-between; gap: 6px; }
+}
+/* ---- the fit, where a group does not fit (editor.js fitPills: .tight): its parts one at a time, its pills */
+@media (min-width: 1200px) and (min-height: 700px) {
+  #tab-edit .pn.tight .pills { display: flex; position: absolute; top: 4px; right: 10px; gap: 4px; }
+  #tab-edit .pn.tight .pills button { height: 24px; padding: 0 9px; border-radius: 8px; }
+  #tab-edit .pn-openv.tight .envc:not(.on), #tab-edit .pn-filter.tight .filt > .sub:not(.on), #tab-edit .pn-lfo.tight .lfoc:not(.on) { display: none; }
+  #tab-edit .pn-openv.tight .duo, #tab-edit .pn-filter.tight .duo, #tab-edit .pn-lfo.tight .lfos { grid-template-columns: minmax(0, 1fr); }
+  #tab-edit .pn-openv.tight .env .ghost { display: inline; }
+}
+/* ---- a phone: a group's parts one at a time, chosen by its pills; the other envelope faint behind */
+@media (max-width: 900px) {
+  #tab-edit .pills { display: flex; }
+  #tab-edit .pn-openv .envc:not(.on), #tab-edit .pn-filter .filt > .sub:not(.on), #tab-edit .lfoc:not(.on) { display: none; }
+  #tab-edit .pn-openv .duo, #tab-edit .pn-filter .duo { grid-template-columns: minmax(0, 1fr); }
+  #tab-edit .env .ghost { display: inline; }
+  #tab-edit .dbox { max-height: 140px; }
+}
+@media (max-width: 900px) and (orientation: landscape) { #tab-edit .dbox { max-height: 110px; } }
+/* the fit on a narrower computer: the head's long parts shorter (SELECTED its icon, where it plays cut) */
+@media (min-width: 1200px) and (max-width: 1439px) and (min-height: 700px) {
+  #tab-edit .trk.sel { font-size: 0; letter-spacing: 0; gap: 0; padding: 0 9px; }
+  #tab-edit .trk { min-width: 28px; padding: 0 7px; }
+  #tab-edit .trks { flex-wrap: nowrap; }
+  #tab-edit .aud { max-width: 170px; }
+  #tab-edit .aud { overflow: hidden; text-overflow: ellipsis; }
+}

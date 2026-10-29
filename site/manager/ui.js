@@ -7,6 +7,18 @@ import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 
 export const $ = (id) => document.getElementById(id);
 export const TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
+// each tag's icon (24 x 24, stroked in currentColor): BASS a slow low wave, KEYS piano keys, PLUCK a plucked string,
+// PAD a soft cloud, LEAD a sharp saw, DRUMS a drum and its sticks, FX a sparkle
+export const TAG_ICON = {
+  BASS: '<path d="M2 12c3.3-8 6.7-8 10 0s6.7 8 10 0"/><path d="M2 20h20"/>',
+  KEYS: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 12.5V19M15 12.5V19"/><path d="M7.5 5v7.5h3V5M13.5 5v7.5h3V5"/>',
+  PLUCK: '<path d="M2 7h5l5 8 5-8h5"/><circle cx="12" cy="18.5" r="1.6"/>',
+  PAD: '<path d="M7 18h10a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6.6A3.7 3.7 0 0 0 7 18z"/>',
+  LEAD: '<path d="M2 18l6-12v12l6-12v12l6-12"/>',
+  DRUMS: '<ellipse cx="12" cy="11" rx="8" ry="3"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M7 3l4 6M17 3l-4 6"/>',
+  FX: '<path d="M11 3c.7 4.6 3.3 7.3 8 8-4.7.7-7.3 3.3-8 8-.7-4.7-3.3-7.3-8-8 4.7-.7 7.3-3.4 8-8z"/><path d="M19 3v4M17 5h4"/>',
+};
+export const tagIcon = (tag, cls = "ti") => (TAG_ICON[tag] ? `<svg class="${cls}" data-tag="${tag}" viewBox="0 0 24 24" aria-hidden="true">${TAG_ICON[tag]}</svg>` : "");
 export const DARK_TEXT_TAGS = new Set(["BASS", "PAD", "FX"]);   // (white letters on these)
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const tagsOf = (m) => FIZZ_TAGS.filter((_, k) => (m >> k) & 1);

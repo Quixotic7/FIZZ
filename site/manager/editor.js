@@ -17,10 +17,15 @@
 // the CC number types it, a double click (or DELETE, or ×) makes the slot untouched again. FIZZ's PARAM takes only a
 // slot's value (not its CC number or touched mark): each change goes to the target as the whole sound, target.sound(s)
 // (the FM-1's track: an AUDITION; the browser's FIZZ: its STORE6 with LOAD).
+// FIZZ NEON (2026-10-29): ALGO's ‹ ›; the knob row under OPERATORS (HARM DTUN FDBK MIX DRIVE LEVEL); the tag one chip
+// beside the name (a popover of the seven); REVERT / SAVE AS NEW / SAVE fixed at the bottom on a phone; the keys shown or
+// hidden (remembered). The computer's fit: from 1200 x 700 the panel fits the window (the sections in three columns,
+// values small tiles, the drawings drawn in the room left); a group still too tall shows one part at a time with its
+// pills (measured), as a phone always does (the last pill picked remembered).
 //   mountEditor(ctx) -> { open(sound, place), show(), sound(), setTarget(t), render() }
 import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, tickStep, isHundredths, isHi, frac, defaults, copySound, sameValues, tagNames } from "./sound.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
-import { esc, MIDI_I } from "./ui.js";
+import { esc, MIDI_I, TAGC } from "./ui.js";
 
 const K = { c1: "--k1", c2: "--k2", c3: "--k3", c4: "--k4", alg: "--kalg" };
 const OPS = [["C", Q.RC, Q.OFSC, K.c1], ["A", Q.RA, Q.OFSA, K.c2], ["B1", Q.RB1, Q.OFSB1, K.c3], ["B2", Q.RB2, Q.OFSB2, K.c4]];
@@ -40,8 +45,29 @@ const PC_WHITE = ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'"], PC_BLA
 export function mountEditor(ctx) {
   const { $, log = () => {} } = ctx;
   const E = { s: null, base: null, place: { label: "NEW SOUND" }, op: 1, oct: 0, held: new Map(), target: null,
-    drag: null, raf: 0, picker: null, rec: false, onChange: null, live: false };
+    drag: null, raf: 0, picker: null, rec: false, onChange: null, live: false, dims: new Map(), view: {} };
+  const VIEW_KEY = "fizz-manager-edit-view";        // (the pill last picked in each group, remembered)
+  try { Object.assign(E.view, JSON.parse(localStorage.getItem(VIEW_KEY) || "{}")); } catch (_) { /* (none) */ }
   const stage = $("ed-stage"), head = $("ed-head"), kb = $("ed-keys");
+  // the KEEP / CANCEL card (live.js) when it sits fixed at the bottom (a phone): its room as --lbh, for the save bar
+  // and POOL's moving card to sit above it
+  const lbar = $("loadbar");
+  const lbh = () => {
+    const fixed = lbar && !lbar.hidden && getComputedStyle(lbar).position === "fixed";
+    document.documentElement.style.setProperty("--lbh", fixed ? `${Math.max(0, Math.round(window.innerHeight - lbar.getBoundingClientRect().top))}px` : "0px");
+  };
+  if (lbar && typeof ResizeObserver === "function") new ResizeObserver(lbh).observe(lbar);
+  window.addEventListener("resize", lbh);
+  // the on-screen keys shown or hidden (remembered in this browser); hidden, the panel takes their room
+  const KB_KEY = "fizz-manager-keybed";
+  E.kbOn = (() => { try { return localStorage.getItem(KB_KEY) !== "0"; } catch (_) { return true; } })();
+  kb.hidden = !E.kbOn;
+  function showKeys(on) {
+    E.kbOn = !!on;
+    try { localStorage.setItem(KB_KEY, on ? "1" : "0"); } catch (_) { /* (no storage: this page only) */ }
+    kb.hidden = !on;
+    renderHead();
+  }
 
   // ---------------------------------------------------------------- values
   const v = (id) => E.s.values[id];
@@ -87,8 +113,10 @@ export function mountEditor(ctx) {
     return `<svg viewBox="${vb}" aria-hidden="true"><path d="${arcD(cx, cy, R, 0, 1)}" class="track"/>${Math.abs(f - z) > 0.002 ? `<path d="${arcD(cx, cy, R, Math.min(z, f), Math.max(z, f))}" class="fill"/>` : ""}</svg>`;
   };
   // a value chip: its ring, its name, its text; dragged up / down, the wheel, the arrows
+  // (--l, --w: the value's part of its range, for the computer's fit, where a chip is a small tile with a bar)
+  const span = (id) => { const r = info(id), f = frac(id, v(id)), z = r.min < 0 ? frac(id, 0) : 0; return `--l:${Math.min(z, f).toFixed(3)};--w:${Math.abs(f - z).toFixed(3)}`; };
   const chip = (id, label = info(id).name, c = "--text", cls = "") =>
-    `<span class="vc ${cls}" data-id="${id}" data-y="${id}" tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">${ringSvg(id, 12, 12, 8.5, "0 0 24 24")}<small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
+    `<span class="vc ${cls}" data-id="${id}" data-y="${id}" tabindex="0" style="--c:var(${c});${span(id)}" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">${ringSvg(id, 12, 12, 8.5, "0 0 24 24")}<small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
   // a picker chip (a long list: the destinations, the sources): a click opens the list
   const pick = (id, label, c = "--text", cls = "") =>
     `<span class="vc pick ${cls}" data-id="${id}" data-y="${id}" data-pick="${id}" tabindex="0" style="--c:var(${c})" role="button" aria-label="${esc(label)}: ${esc(text(id, v(id)))}"><small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
@@ -108,8 +136,9 @@ export function mountEditor(ctx) {
   const segOf = (id, c, pairs) => `<span class="vseg" style="--c:var(${c})" role="group" aria-label="${esc(info(id).name)}">${pairs.map(([x, l]) =>
     `<button data-set="${id}:${x}" class="${v(id) === x ? "on" : ""}" aria-pressed="${v(id) === x}">${esc(l)}</button>`).join("")}</span>`;
   // an arc (a dial): from the left end, or from the middle for a signed value
-  function dial(id, label, c) {
-    return `<span class="dial" data-id="${id}" data-y="${id}" tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">
+  // (kn: the knob row under OPERATORS, NEON: DRIVE and LEVEL there a second time; data-kn tells the two apart)
+  function dial(id, label, c, kn = false) {
+    return `<span class="dial${kn ? " knob" : ""}" data-id="${id}" data-y="${id}"${kn ? ' data-kn="1"' : ""} tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">
       ${ringSvg(id, 35, 34, 27, "0 0 70 62")}<b>${esc(text(id, v(id)))}</b><small>${esc(label)}</small></span>`;
   }
   // a horizontal bar, dragged sideways
@@ -123,6 +152,33 @@ export function mountEditor(ctx) {
   const handle = (x, y, { xid = -1, yid = -1, xs = 300, ys = 120, c = "--yellow", r = 9, label = "" } = {}) =>
     `<circle class="hd" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" style="--c:var(${c})" tabindex="0" role="slider" aria-label="${esc(label || [xid, yid].filter((i) => i >= 0).map((i) => info(i).name).join(" · "))}"` +
     `${xid >= 0 ? ` data-x="${xid}" data-xs="${xs}"` : ""}${yid >= 0 ? ` data-y="${yid}" data-ys="${ys}"` : ""} data-id="${yid >= 0 ? yid : xid}"/>`;
+
+  // ---------------------------------------------------------------- drawings that fit their box
+  // (NEON fit, the owner 2026-10-29: on a computer the whole panel fits the window: a drawing's box takes the room its
+  // section leaves (CSS), and the drawing is drawn again in the box's proportions: its viewBox follows the box, VB
+  // units a pixel, nothing stretched. Elsewhere a box keeps the drawing's own proportions, no taller than a phone
+  // allows.)
+  const FIT_MQ = window.matchMedia("(min-width: 1200px) and (min-height: 700px)");
+  const VB = 1.25;
+  const box = (key, w0, h0, draw) => {
+    const [w, h] = E.dims.get(key) || [w0, h0];
+    return `<div class="dbox" data-dk="${key}" style="--ar:${w0} / ${h0}">${draw(w, h)}</div>`;
+  };
+  // each box measured: a drawing whose box changed is drawn again (-> true)
+  function measure() {
+    let again = false;
+    stage.querySelectorAll(".dbox[data-dk]").forEach((b) => {
+      const k = b.dataset.dk, old = E.dims.get(k);
+      const w = Math.round(b.clientWidth * VB), h = Math.round(b.clientHeight * VB);
+      if (w < 40 || h < 24) return;
+      if (!old || Math.abs(old[0] - w) > 4 || Math.abs(old[1] - h) > 4) { E.dims.set(k, [w, h]); again = true; }
+    });
+    return again;
+  }
+  // the phone's pills: a group's part shown (ENV A / B, FILTER / ENV, LFO 1..3); on a computer every part shows
+  const pills = (key, list) => `<div class="pills" role="group">${list.map(([l, c], i) =>
+    `<button data-view="${key}:${i}" class="${(E.view[key] || 0) === i ? "on" : ""}" aria-pressed="${(E.view[key] || 0) === i}" style="--c:var(${c})">${l}</button>`).join("")}</div>`;
+  const shownCls = (key, i) => ((E.view[key] || 0) === i ? " on" : "");
 
   // ---------------------------------------------------------------- envelopes
   // ADSR: attack to the top, decay to the sustain level, held, released; handles on the corners
@@ -185,9 +241,7 @@ export function mountEditor(ctx) {
       parts.push(`<g class="op ${E.op === o ? "on" : ""}" data-y="${rid}" data-id="${rid}" data-op="${o}" tabindex="0" role="slider" aria-label="RATIO ${nm}" aria-valuetext="${esc(text(rid, v(rid)))}" style="--c:var(${c})">` +
         `<circle cx="${x[o]}" cy="${y[o]}" r="${R}" class="rim"/><circle cx="${x[o]}" cy="${y[o]}" r="${R - 8}" class="inner"/><text x="${x[o]}" y="${y[o] + 9}" text-anchor="middle">${nm}</text></g>`);
     });
-    parts.push(`<g class="algo" data-y="${Q.ALGO}" data-id="${Q.ALGO}" data-ys="240" data-step="1" tabindex="0" role="slider" aria-label="ALGO" aria-valuetext="${v(Q.ALGO)}">` +
-      `<text x="22" y="40" class="algolab">ALGO</text><text x="12" y="186" class="algonum">${v(Q.ALGO)}</text></g>`);
-    return `<svg class="algosvg" viewBox="0 0 600 400">${parts.join("")}</svg>`;
+    return `<svg class="algosvg" viewBox="100 0 500 400">${parts.join("")}</svg>`;
   }
   function opsPanel() {
     const card = ([nm, rid, oid, c], o) => {
@@ -196,26 +250,39 @@ export function mountEditor(ctx) {
         <span class="opv" data-y="${rid}" data-id="${rid}" tabindex="0" role="slider" aria-label="RATIO ${nm}" aria-valuetext="${esc(t)}">${esc(w)}${f ? `<small>.${esc(f)}</small>` : ""}</span>
         ${bar(oid, "OFS", c)}</div>`;
     };
-    return `<div class="ops"><div class="algowrap">${algoSvg()}</div><div class="opcards">${OPS.map(card).join("")}</div></div>
-      <div class="dials">${dial(Q.HARM, "HARM", K.c1)}${dial(Q.DTUN, "DTUN", K.c2)}${dial(Q.FDBK, "FDBK", K.c4)}${dial(Q.MIX, "MIX X·Y", K.c3)}</div>`;
+    // (NEON: ‹ › under ALGO, the previous / next algorithm, wrapping; the knob row under it all)
+    const a = v(Q.ALGO), arrow = (nav, to, d, l) => `<button class="ol" data-set="${Q.ALGO}:${to}" data-nav="${nav}" aria-label="${l}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg></button>`;
+    const nav = `<span class="algonav">${arrow("prev", (a + 6) % 8 + 1, "M15 5l-7 7 7 7", "Previous algorithm")}${arrow("next", a % 8 + 1, "M9 5l7 7-7 7", "Next algorithm")}</span>`;
+    const num = `<span class="algo" data-y="${Q.ALGO}" data-id="${Q.ALGO}" data-ys="240" tabindex="0" role="slider" aria-label="ALGO" aria-valuetext="${a}"><small>ALGO</small><b>${a}</b></span>`;
+    return `<div class="ops"><div class="algocol">${num}${nav}</div><div class="algowrap">${algoSvg()}</div><div class="opcards">${OPS.map(card).join("")}</div></div>
+      <div class="dials knobs" role="group" aria-label="Operator values">${dial(Q.HARM, "HARM", K.c1, true)}${dial(Q.DTUN, "DTUN", K.c2, true)}${dial(Q.FDBK, "FDBK", K.c4, true)}${dial(Q.MIX, "MIX", K.c3, true)}` +
+      `${dial(Q.DRIVE, "DRIVE", "--orange", true)}${dial(Q.LEVEL, "LEVEL", K.c2, true)}</div>`;
   }
 
   // OP ENV: the two operator envelopes (A: operator A; B: B1 and B2) as shapes, DELAY a handle at the start, LEVEL a
   // bar, the operators' TRIG and RESET
+  const OPENV = [[Q.AATK, Q.ADEC, Q.AEND, Q.ALEV, Q.ADLY, Q.ATRIG, Q.ARST], [Q.BATK, Q.BDEC, Q.BEND, Q.BLEV, Q.BDLY, Q.BTRIG, Q.BRST]];
+  // an operator envelope's line in w x h; the other one faint behind it (shown on a phone, one envelope at a time)
+  function envSvg(k, w, h) {
+    const X = (w - 30) * 0.3 / 127, top = 18, bot = h - 12, Y = (lv) => bot - (bot - top) * lv / 127;
+    const line = (j) => {
+      const [atk, dec, end, , dly] = OPENV[j], p0 = [12 + v(dly) * X, bot], p1 = [p0[0] + v(atk) * X, top], p2 = [p1[0] + v(dec) * X, Y(v(end))], p3 = [w - 12, Y(v(end))];
+      return { p0, p1, p2, p3, d: `M12 ${bot} L${p0[0].toFixed(1)} ${bot} L${p1[0].toFixed(1)} ${top} L${p2[0].toFixed(1)} ${p2[1].toFixed(1)} L${p3[0]} ${p3[1].toFixed(1)}` };
+    };
+    const [atk, dec, end, , dly] = OPENV[k], c = k ? K.c3 : K.c2, L = line(k), G = line(1 - k);
+    return `<svg class="env" viewBox="0 0 ${w} ${h}"><path d="${G.d}" class="ghost" style="--g:var(${k ? K.c2 : K.c3})"/><path d="${L.d} L${L.p3[0]} ${bot} Z" class="area"/><path d="${L.d}" class="line"/>
+      ${handle(L.p0[0], bot, { xid: dly, xs: 127 * X, c: "--muted", r: 8 })}${handle(L.p1[0], top, { xid: atk, xs: 127 * X, c, r: 10 })}${handle(L.p2[0], L.p2[1], { xid: dec, xs: 127 * X, yid: end, ys: bot - top, c: "--yellow", r: 10 })}</svg>`;
+  }
   function openvPanel() {
     const env = (k) => {
-      const [atk, dec, end, lev, dly, trg, rst] = k ? [Q.BATK, Q.BDEC, Q.BEND, Q.BLEV, Q.BDLY, Q.BTRIG, Q.BRST] : [Q.AATK, Q.ADEC, Q.AEND, Q.ALEV, Q.ADLY, Q.ATRIG, Q.ARST];
-      const c = k ? K.c3 : K.c2, w = 420, h = 150, X = (w - 30) * 0.3 / 127, top = 18, bot = h - 12, Y = (lv) => bot - (bot - top) * lv / 127;
-      const p0 = [12 + v(dly) * X, bot], p1 = [p0[0] + v(atk) * X, top], p2 = [p1[0] + v(dec) * X, Y(v(end))], p3 = [w - 12, Y(v(end))];
-      const path = `M12 ${bot} L${p0[0].toFixed(1)} ${bot} L${p1[0].toFixed(1)} ${top} L${p2[0].toFixed(1)} ${p2[1].toFixed(1)} L${p3[0]} ${p3[1].toFixed(1)}`;
-      return `<div class="sub envc" style="--c:var(${c})"><div class="row"><span class="cn">ENV ${k ? "B" : "A"}</span><span class="kv">${k ? "B1 · B2" : "A"}</span>
+      const [atk, dec, end, lev, dly, trg, rst] = OPENV[k], c = k ? K.c3 : K.c2;
+      return `<div class="sub envc${shownCls("openv", k)}" style="--c:var(${c})"><div class="row"><span class="cn">ENV ${k ? "B" : "A"}</span><span class="kv">${k ? "B1 · B2" : "A"}</span>
           <span class="tgs">${tog(trg, "TRIG", c)}${tog(rst, "RESET", c)}</span></div>
-        <svg class="env" viewBox="0 0 ${w} ${h}"><path d="${path} L${p3[0]} ${bot} Z" class="area"/><path d="${path}" class="line"/>
-          ${handle(p0[0], bot, { xid: dly, xs: 127 * X, c: "--muted", r: 8 })}${handle(p1[0], top, { xid: atk, xs: 127 * X, c, r: 10 })}${handle(p2[0], p2[1], { xid: dec, xs: 127 * X, yid: end, ys: bot - top, c: "--yellow", r: 10 })}</svg>
-        <div class="row wrap">${chip(atk, "ATK", c)}${chip(dec, "DEC", c)}${chip(end, "END", c)}${chip(dly, "DLY", c)}</div>
-        ${bar(lev, "LEVEL", c)}</div>`;
+        ${box(`env${k}`, 420, 150, (w, h) => envSvg(k, w, h))}
+        <div class="row wrap">${chip(atk, "ATK", c)}${chip(dec, "DEC", c)}${chip(end, "END", c)}${chip(dly, "DLY", c)}${FIT_MQ.matches ? chip(lev, "LEVEL", c) : ""}</div>
+        ${FIT_MQ.matches ? "" : bar(lev, "LEVEL", c)}</div>`;   // (the fit: LEVEL a tile in the row)
     };
-    return `<div class="duo">${env(0)}${env(1)}</div>`;
+    return `${pills("openv", [["ENV A", K.c2], ["ENV B", K.c3]])}<div class="duo">${env(0)}${env(1)}</div>`;
   }
 
   // FILTER: the machine as chips, its curve with FREQ and RESO (GAIN on the EQ) the handle; the filter envelope; the
@@ -234,15 +301,15 @@ export function mountEditor(ctx) {
       else if (ft === 7) d = (v(Q.FGAIN) / 64) * 15 * Math.exp(-lr * lr * (0.4 + 3 * sh));
       db.push(Math.max(-36, Math.min(20, d)));
     }
-    const Y = (d) => 30 + (h - 50) * (20 - d) / 56, xs = (i) => 10 + (w - 20) * i / N;
+    const t0 = Math.min(30, h * 0.14), sp = h - t0 - Math.min(20, h * 0.1), Y = (d) => t0 + sp * (20 - d) / 56, xs = (i) => 10 + (w - 20) * i / N;
     const path = db.map((d, i) => `${i ? "L" : "M"}${xs(i).toFixed(1)} ${Y(d).toFixed(1)}`).join(" ");
     const hx = xs(f * N), hy = Y(db[Math.round(f * N)]) - 2;
     const yid = ft === 7 ? Q.FGAIN : ft === 0 ? -1 : Q.RESO;
-    const tx = Math.min(w - 150, hx + 20), ty = hy > 80 ? hy - 38 : hy + 44;   // (the values beside the handle, clear of the curve)
+    const tx = hx > w - 170 ? Math.max(10, hx - 170) : hx + 20, ty = Math.max(24, Math.min(h - 34, hy > 80 ? hy - 38 : hy + 44));   // (the values beside the handle, clear of the curve)
     return `<svg class="curve" viewBox="0 0 ${w} ${h}" style="--c:var(${K.c4})">
       ${[1, 2, 3, 4, 5].map((k) => `<line x1="${(w * k / 6).toFixed(0)}" y1="20" x2="${(w * k / 6).toFixed(0)}" y2="${h - 18}" class="grid"/>`).join("")}
       <path d="${path} L${w - 10} ${h - 18} L10 ${h - 18} Z" class="area"/><path d="${path}" class="line"/>
-      ${handle(hx, Math.max(16, hy), { xid: Q.FREQ, xs: w - 20, yid, ys: (h - 50) * 0.8, r: 14, label: "FREQ" })}
+      ${handle(hx, Math.max(16, hy), { xid: Q.FREQ, xs: w - 20, yid, ys: sp * 0.8, r: 14, label: "FREQ" })}
       <text x="${tx.toFixed(0)}" y="${ty.toFixed(0)}" class="val">${esc(text(Q.FREQ, v(Q.FREQ)))}</text>
       ${yid >= 0 ? `<text x="${tx.toFixed(0)}" y="${(ty + 26).toFixed(0)}" class="sub">${ft === 7 ? "GAIN" : ft >= 5 ? "FDBK" : "RESO"} ${esc(text(yid, v(yid)))}</text>` : ""}</svg>`;
   }
@@ -253,9 +320,10 @@ export function mountEditor(ctx) {
     const legacy = m === 0 ? segOf(Q.FTYPE, K.c4, [[0, "OFF"], [1, "LP12"], [2, "HP12"]]) : "";
     const shape = m >= 2 ? chip(Q.FSHAPE, m === 2 ? "TYPE" : m === 5 ? "Q" : "LPF", K.c3) : "";
     return `<div class="row wrap">${machines}${legacy}</div>
-      <div class="duo filt"><div class="sub">${curve(600, 300)}
+      ${pills("filter", [["FILTER", K.c4], ["ENV", K.c4]])}
+      <div class="duo filt"><div class="sub fcurve${shownCls("filter", 0)}">${box("curve", 600, 300, curve)}
           <div class="row wrap">${m === 5 ? chip(Q.FGAIN, "GAIN", K.c2) : chip(Q.RESO, m >= 3 && m <= 4 ? "FDBK" : "RESO", K.c2)}${shape}${chip(Q.FKTRK, "KEY TRK", K.c3)}</div></div>
-        <div class="sub">${adsr([Q.FATK, Q.FDEC, Q.FSUS, Q.FREL], K.c4, { w: 420, h: 150, label: "ENV" })}
+        <div class="sub fenv${shownCls("filter", 1)}">${box("fenv", 420, 150, (w, h) => adsr([Q.FATK, Q.FDEC, Q.FSUS, Q.FREL], K.c4, { w, h, label: "ENV" }))}
           <div class="row wrap">${chip(Q.FDEPTH, "DEPTH", K.c4, "big")}${chip(Q.FDLY, "DLY", K.c4)}</div>
           <div class="row wrap">${chip(Q.FATK, "ATK", K.c4)}${chip(Q.FDEC, "DEC", K.c4)}${chip(Q.FSUS, "SUS", K.c4)}${chip(Q.FREL, "REL", K.c4)}</div></div></div>
       <div class="row wrap">${chip(Q.BASE, "BASE", K.c1)}${chip(Q.WIDTH, "WIDTH", K.c2)}${seg(Q.BWPOST, K.c3, ["BASE · WIDTH BEFORE", "AFTER"])}</div>`;
@@ -265,10 +333,10 @@ export function mountEditor(ctx) {
   function ampPanel() {
     const ahd = v(Q.AMOD) === 1;
     return `<div class="row">${seg(Q.AMOD, K.c3)}</div>
-      ${adsr([Q.EATK, Q.EDEC, Q.ESUS, Q.EREL], K.c3, { w: 520, h: 170, ahd })}
+      ${box(`amp${ahd ? 1 : 0}`, 520, 170, (w, h) => adsr([Q.EATK, Q.EDEC, Q.ESUS, Q.EREL], K.c3, { w, h, ahd }))}
       <div class="row wrap">${ahd ? chip(Q.EATK, "ATK", K.c3) + chip(Q.HOLD, "HOLD", "--yellow") + chip(Q.EDEC, "DEC", K.c3)
         : chip(Q.EATK, "ATK", K.c3) + chip(Q.EDEC, "DEC", K.c3) + chip(Q.ESUS, "SUS", K.c3) + chip(Q.EREL, "REL", K.c3)}</div>
-      ${bar(Q.LEVEL, "LEVEL", K.c3)}`;
+      ${FIT_MQ.matches ? "" : bar(Q.LEVEL, "LEVEL", K.c3)}`;   // (the computer's fit: LEVEL in the knob row only)
   }
 
   // DRIVE and its route; CRUSH (the bits, the rate, before / after)
@@ -282,9 +350,13 @@ export function mountEditor(ctx) {
     return `<svg class="crush" viewBox="0 0 ${w} ${h}" style="--c:var(--pink)"><path d="${d}" class="line"/></svg>`;
   }
   function drivePanel() {
-    return `<div class="row wrap drv">${dial(Q.DRIVE, "DRIVE", "--orange")}${seg(Q.DRPRE, "--orange", ["AFTER FILTER", "BEFORE"])}</div>
-      <div class="sub" style="--c:var(--pink)"><span class="cn">CRUSH</span>${crushSvg(380, 90)}
-        <div class="row wrap">${chip(Q.BITS, "BITS", "--pink")}${chip(Q.SRR, "SRR", "--pink")}${seg(Q.CRPOST, "--pink", ["BEFORE FILTER", "AFTER"])}</div></div>`;
+    // (the computer's fit: the drawing, then the two routes as pickers beside BITS and SRR; DRIVE in the knob row)
+    if (FIT_MQ.matches) return `${box("crush", 380, 90, crushSvg)}<div class="row wrap">${pick(Q.DRPRE, "DRIVE", "--orange")}${pick(Q.CRPOST, "CRUSH", "--pink")}` +
+      `${chip(Q.BITS, "BITS", "--pink")}${chip(Q.SRR, "SRR", "--pink")}</div>`;
+    // (the computer's fit: DRIVE in the knob row only)
+    return `<div class="row wrap drv">${FIT_MQ.matches ? "" : dial(Q.DRIVE, "DRIVE", "--orange")}${seg(Q.DRPRE, "--orange", ["AFTER FILTER", "BEFORE"])}</div>
+      <div class="sub crushc" style="--c:var(--pink)"><div class="row crh"><span class="cn">CRUSH</span>${FIT_MQ.matches ? seg(Q.CRPOST, "--pink", ["BEFORE FILTER", "AFTER"]) : ""}</div>${box("crush", 380, 90, crushSvg)}
+        <div class="row wrap">${chip(Q.BITS, "BITS", "--pink")}${chip(Q.SRR, "SRR", "--pink")}${FIT_MQ.matches ? "" : seg(Q.CRPOST, "--pink", ["BEFORE FILTER", "AFTER"])}</div></div>`;
   }
 
   // a wave's glyph (TRI SINE SQR SAW RAMP EXP RAND), for the wave's choice
@@ -312,14 +384,18 @@ export function mountEditor(ctx) {
     return pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
   }
   function lfoPanel() {
-    const card = (k) => {
-      const c = LFOC[k], d = wavePath(k, 420, 80);
-      return `<div class="sub lfoc" style="--c:var(${c})"><div class="row"><span class="cn">LFO ${k + 1}</span>${pick(lfo(k, LF.DEST), "DEST", c, "dest")}</div>
-        <svg class="wave" viewBox="0 0 420 80"><line x1="10" y1="40" x2="410" y2="40" class="axis"/><path d="${d}" class="line"/><circle r="6" class="spark"><animateMotion dur="${(3.2 - 2.4 * Math.abs(v(lfo(k, LF.SPEED))) / 6400).toFixed(2)}s" repeatCount="indefinite" path="${d}"/></circle></svg>
-        <div class="row wrap">${chip(lfo(k, LF.SPEED), "SPEED", c)}${chip(lfo(k, LF.DEPTH), "DEPTH", c)}${chip(lfo(k, LF.MULT), "MULT", c)}${chip(lfo(k, LF.FADE), "FADE", c)}${chip(lfo(k, LF.PHASE), "PHASE", c)}</div>
-        <div class="row wrap">${waveSeg(lfo(k, LF.WAVE), c)}${seg(lfo(k, LF.TRIG), c)}</div></div>`;
+    const wave = (k, w, h) => {
+      const d = wavePath(k, w, h);
+      return `<svg class="wave" viewBox="0 0 ${w} ${h}"><line x1="10" y1="${h / 2}" x2="${w - 10}" y2="${h / 2}" class="axis"/><path d="${d}" class="line"/><circle r="6" class="spark"><animateMotion dur="${(3.2 - 2.4 * Math.abs(v(lfo(k, LF.SPEED))) / 6400).toFixed(2)}s" repeatCount="indefinite" path="${d}"/></circle></svg>`;
     };
-    return `<div class="lfos">${[0, 1, 2].map(card).join("")}</div>`;
+    const card = (k) => {
+      const c = LFOC[k];
+      return `<div class="sub lfoc${shownCls("lfo", k)}" style="--c:var(${c})"><div class="row"><span class="cn">LFO ${k + 1}</span>${pick(lfo(k, LF.DEST), "DEST", c, "dest")}</div>
+        ${box(`lfo${k}`, 420, 80, (w, h) => wave(k, w, h))}
+        <div class="row wrap">${FIT_MQ.matches ? pick(lfo(k, LF.WAVE), "WAVE", c) + pick(lfo(k, LF.TRIG), "TRIG", c) : ""}${chip(lfo(k, LF.SPEED), "SPEED", c)}${chip(lfo(k, LF.DEPTH), "DEPTH", c)}${chip(lfo(k, LF.MULT), "MULT", c)}${chip(lfo(k, LF.FADE), "FADE", c)}${chip(lfo(k, LF.PHASE), "PHASE", c)}</div>
+        ${FIT_MQ.matches ? "" : `<div class="row wrap">${waveSeg(lfo(k, LF.WAVE), c)}${seg(lfo(k, LF.TRIG), c)}</div>`}</div>`;   // (the fit: WAVE, TRIG chips)
+    };
+    return `${pills("lfo", LFOC.map((c, k) => [`LFO ${k + 1}`, c]))}<div class="lfos">${[0, 1, 2].map(card).join("")}</div>`;
   }
 
   // MOD: the eight modulation slots as cables, each from its source to its destination, as thick as its depth
@@ -338,15 +414,18 @@ export function mountEditor(ctx) {
   const VO = 110;                                  // (the VOICE page's first value)
   // PLAY: the operators' phase reset, the key tracks and the velocity, the portamento (its glide drawn)
   function playPanel() {
-    const pt = v(Q.PTIM), on = v(Q.PORT), w = 380, h = 90, gx = 60 + 260 * (pt / 127);
-    const glide = `<svg class="glide" viewBox="0 0 ${w} ${h}" style="--c:var(--yellow)"><path d="M10 70 H60 ${on ? `C${(60 + gx) / 2} 70 ${(60 + gx) / 2} 20 ${gx.toFixed(1)} 20` : "V20"} H${w - 10}" class="line ${on ? "" : "dim"}"/>
-      ${on ? handle(gx, 20, { xid: Q.PTIM, xs: 260, c: "--yellow", r: 10 }) : ""}</svg>`;
+    const pt = v(Q.PTIM), on = v(Q.PORT);
+    const glide = box("glide", 380, 90, (w, h) => {
+      const gw = w - 120, gx = 60 + gw * (pt / 127), lo = h - 20, hi = Math.min(20, h * 0.25);
+      return `<svg class="glide" viewBox="0 0 ${w} ${h}" style="--c:var(--yellow)"><path d="M10 ${lo} H60 ${on ? `C${(60 + gx) / 2} ${lo} ${(60 + gx) / 2} ${hi} ${gx.toFixed(1)} ${hi}` : `V${hi}`} H${w - 10}" class="line ${on ? "" : "dim"}"/>
+      ${on ? handle(gx, hi, { xid: Q.PTIM, xs: gw, c: "--yellow", r: 10 }) : ""}</svg>`;
+    });
     return `<div class="row wrap">${cap("PHASE RESET", seg(Q.PHRT, K.c1))}</div>
-      <div class="bars">${bar(Q.AKEY, "A KEY", K.c2)}${bar(Q.B1KEY, "B1 KEY", K.c3)}${bar(Q.B2KEY, "B2 KEY", K.c4)}${bar(Q.VEL, "VEL", K.c1)}</div>
+      <div class="bars">${(FIT_MQ.matches ? chip : bar)(Q.AKEY, "A KEY", K.c2)}${(FIT_MQ.matches ? chip : bar)(Q.B1KEY, "B1 KEY", K.c3)}${(FIT_MQ.matches ? chip : bar)(Q.B2KEY, "B2 KEY", K.c4)}${(FIT_MQ.matches ? chip : bar)(Q.VEL, "VEL", K.c1)}</div>
       <div class="sub" style="--c:var(--yellow)"><span class="cn">PORTAMENTO</span>${glide}
         <div class="row wrap">${seg(Q.PORT, "--yellow")}${chip(Q.PTIM, "TIME", "--yellow")}${cap("SLOPE", seg(Q.PSLOPE, "--yellow"))}</div></div>
       <div class="sub" style="--c:var(--violet)"><span class="cn">VOICE</span>
-        <div class="row wrap">${seg(VO, K.c1)}${chip(VO + 1, "UNISON", K.c2)}${chip(VO + 2, "DETUNE", K.c3)}${chip(VO + 3, "SPREAD", K.c4)}${cap("PRIORITY", seg(VO + 4, K.alg))}</div></div>`;
+        <div class="row wrap">${seg(VO, K.c1)}${chip(VO + 1, "UNISON", K.c2)}${chip(VO + 2, "DETUNE", K.c3)}${chip(VO + 3, "SPREAD", K.c4)}${FIT_MQ.matches ? pick(VO + 4, "PRIORITY", K.alg) : cap("PRIORITY", seg(VO + 4, K.alg))}</div></div>`;
   }
   // 2026-10-26: the VOICE page's values (110..114: VOICE, UNISON, DETUNE, SPREAD, PRIORITY), with PLAY's portamento
   const PANELS = { ops: opsPanel, openv: openvPanel, filter: filterPanel, amp: ampPanel, drive: drivePanel, lfo: lfoPanel, mod: modPanel, play: playPanel };
@@ -370,21 +449,73 @@ export function mountEditor(ctx) {
     // something to save)
     function acts() {
       const where = `${strip}${strip && live ? "" : `<button class="aud ${live ? "live" : t && t.ready() ? "on" : ""}" id="ed-target" style="--c:var(${tc})" aria-label="Where the sound plays: ${esc(tl)}"><span class="dot"></span>${esc(tl)}</button>`}`;
-      return `<div class="edwhere">${where}</div>
-        <button class="ol" id="ed-revert" ${dirty && !locked ? "" : "disabled"}>↺ REVERT</button>
-        <button class="ol" id="ed-savenew" style="--c:var(--pink)" ${can.saveNew ? "" : "disabled"}>SAVE AS NEW</button>
+      // (NEON: REVERT, SAVE AS NEW, SAVE a bar of their own: fixed at the bottom on a phone upright)
+      const kbt = `<button class="icon kbtg${E.kbOn ? " on" : ""}" id="ed-kbtg" aria-pressed="${E.kbOn}" aria-label="On-screen keys" title="${E.kbOn ? "Hide the keys" : "Show the keys"}">` +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>';
+      return `<div class="edwhere">${where}</div>${kbt}
         <button class="ol" id="ed-export" style="--c:var(--violet)">EXPORT</button>
-        <button class="arc${can.save && dirty ? " breathe" : ""}" id="ed-save" style="--c:var(--pink)" ${can.save ? "" : "disabled"}>SAVE</button>`;
+        <div class="edsave" id="ed-savebar" role="group" aria-label="Save">
+        <button class="ol" id="ed-revert" ${dirty && !locked ? "" : "disabled"}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H4V2"/><path d="M4.5 7A8 8 0 1 1 4 12"/></svg>REVERT</button>
+        <button class="ol" id="ed-savenew" style="--c:var(--pink)" ${can.saveNew ? "" : "disabled"}>SAVE AS NEW</button>
+        <button class="arc${can.save && dirty ? " breathe" : ""}" id="ed-save" style="--c:var(--pink)" ${can.save ? "" : "disabled"}>SAVE</button></div>`;
     }
     const tk = E.place.track >= 0 && E.place.fromTarget ? E.place.track : -1;
     const pl = /^(.*\S)\s+(\d+)$/.exec(E.place.label || ""), plh = pl ? `${esc(pl[1])} <span class="hud">${pl[2]}</span>` : esc(E.place.label || "");
     head.innerHTML = `${tk >= 0 ? `<div class="trkbig ${live && !locked ? "live" : "view"}" aria-label="Track ${tk + 1}${locked ? ", shown only" : ", live"}"><small>TRACK</small><b>${tk + 1}</b></div>` : ""}
       <div class="edname"><div class="h">${E.s.midi ? '<span class="mchip">MIDI</span> ' : ""}${plh}${dirty ? ' <span class="edited">EDITED</span>' : ""}</div>
-        <input class="bigname" id="ed-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(E.s.name)}" aria-label="Name">
-        <div class="edtags">${FIZZ_TAGS.map((tg, k) => `<button class="tag t-${tg} ${(E.s.tags >> k) & 1 ? "" : "off"}" data-tag="${k}" aria-pressed="${!!((E.s.tags >> k) & 1)}">${tg}</button>`).join("")}</div></div>
+        <div class="ednrow"><input class="bigname" id="ed-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(E.s.name)}" aria-label="Name">${tagChip()}</div></div>
       <div class="row edacts" id="ed-acts">${acts()}</div>`;
     stage.classList.toggle("locked", locked);
   }
+  // ---------------------------------------------------------------- the tag (NEON: one chip beside the name)
+  // a click opens the seven tags and NONE; a sound with one tag (or none): a pick sets it and closes; with two or more
+  // (the mask allows it): a click toggles one, the popover stays
+  const nTags = (m) => tagNames(m).length;
+  function tagChip() {
+    const tg = tagNames(E.s.tags), t0 = tg[0];
+    return `<button class="chip edtag${t0 ? "" : " none"}" id="ed-tag" style="--c:var(${t0 ? TAGC[t0] : "--muted"})" aria-haspopup="menu" aria-expanded="${!!E.tagPop}" aria-label="Tag: ${esc(tg.join(", ") || "none")}">` +
+      `${t0 || "TAG"}${tg.length > 1 ? `<small>+${tg.length - 1}</small>` : ""}</button>`;
+  }
+  const tagPopHtml = () => FIZZ_TAGS.map((tg, k) => {
+    const on = !!((E.s.tags >> k) & 1);
+    return `<button class="chip${on ? " on" : ""}" data-tag="${k}" role="menuitemcheckbox" aria-checked="${on}" style="--c:var(${TAGC[tg]})">${tg}</button>`;
+  }).join("") + `<button class="chip none${E.s.tags ? "" : " on"}" data-tag="-1" role="menuitemcheckbox" aria-checked="${!E.s.tags}" style="--c:var(--muted)">NONE</button>`;
+  function openTags() {
+    closeTags();
+    const el = head.querySelector("#ed-tag");
+    if (!el || !E.s) return;
+    const p = document.createElement("div");
+    p.className = "tagpop";
+    p.setAttribute("role", "menu");
+    p.setAttribute("aria-label", "Tag");
+    p.innerHTML = tagPopHtml();
+    document.body.appendChild(p);
+    const b = el.getBoundingClientRect(), w = p.offsetWidth;
+    p.style.left = `${Math.max(12, Math.min(window.innerWidth - w - 12, b.left))}px`;
+    p.style.top = `${b.bottom + 8 + window.scrollY}px`;
+    E.tagPop = p;
+    p.addEventListener("click", (ev) => { const o = ev.target.closest("[data-tag]"); if (o) pickTag(+o.dataset.tag); });
+    (p.querySelector(".on") || p.firstElementChild).focus();
+    renderHead();
+  }
+  function closeTags(refocus = false) {
+    if (!E.tagPop) return;
+    E.tagPop.remove();
+    E.tagPop = null;
+    renderHead();
+    if (refocus) { const el = head.querySelector("#ed-tag"); if (el) el.focus(); }
+  }
+  function pickTag(k) {
+    if (!E.s) return;
+    const many = nTags(E.s.tags) >= 2;
+    if (k < 0) E.s.tags = 0;
+    else E.s.tags = many ? E.s.tags ^ (1 << k) : 1 << k;
+    if (many && k >= 0) { E.tagPop.innerHTML = tagPopHtml(); const o = E.tagPop.querySelector(`[data-tag="${k}"]`); if (o) o.focus(); renderHead(); }
+    else closeTags(true);
+  }
+  document.addEventListener("pointerdown", (ev) => { if (E.tagPop && !E.tagPop.contains(ev.target) && !ev.target.closest("#ed-tag")) closeTags(); }, true);
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && E.tagPop) { ev.preventDefault(); closeTags(true); } });
+
   // FIZZ MIDI (e): a MIDI sound's page n (0..6): its four slots, KNOB 1..4's colours
   const MK = [K.c1, K.c2, K.c3, K.c4];
   // (drawn once; then each slot changed in place: a bar dragged or clicked twice stays the same element)
@@ -425,14 +556,31 @@ export function mountEditor(ctx) {
   }
   // the panel: every section at once (a synth's front panel); a section drawn again only when its drawing changed
   const drawn = new Map();
+  // the computer's fit: a group that leaves the panel too tall shows its parts one at a time (its pills), LFO first,
+  // then FILTER, then OP ENV, only as many as it takes (measured: a window with room shows everything)
+  const COLS = [["ops", "mod"], ["openv", "filter", ["amp", "drive"]], ["lfo", "play"]];
+  const TIGHT = ["lfo", "filter", "openv"];
+  const over = () => [...stage.querySelectorAll(".fcol")].some((c) => c.scrollHeight > c.clientHeight + 1);
+  function fitPills() {
+    const secs = TIGHT.map((k) => stage.querySelector(`[data-sec="${k}"]`)).filter(Boolean);
+    secs.forEach((e) => e.classList.remove("tight"));
+    if (!FIT_MQ.matches || !E.s || E.s.midi) return;
+    for (const e of secs) { if (!over()) break; e.classList.add("tight"); }
+  }
+  const refit = () => { if (!E.s || E.s.midi) return; fitPills(); if (measure()) renderStage(); };
+  if (typeof ResizeObserver === "function") new ResizeObserver(refit).observe(stage);
+  FIT_MQ.addEventListener("change", () => { drawn.clear(); if (E.s && !E.s.midi) { measure(); renderStage(); } });
   function renderStage() {
     if (!E.s) return;
     const mode = E.s.midi ? "midi" : "fm";
     if (stage.dataset.mode !== mode) { stage.dataset.mode = mode; stage.classList.toggle("midi", mode === "midi"); stage.innerHTML = ""; drawn.clear(); }
     if (E.s.midi) { renderMidi(); return; }
     if (!stage.querySelector(".pn")) {
-      stage.innerHTML = SECTIONS.map(([k, nm, c]) => `<section class="pn pn-${k}" data-sec="${k}" style="--c:var(${c})" aria-label="${nm}">` +
-        `<div class="pnh"><i class="pdot" aria-hidden="true"></i>${nm}</div><div class="pnb"></div></section>`).join("");
+      // (in columns for the computer's fit: each column's sections share its height; elsewhere the columns are
+      // display: contents and the sections the grid's own items)
+      const sec = (k) => { const [, nm, c] = SECTIONS.find((x) => x[0] === k); return `<section class="pn pn-${k}" data-sec="${k}" style="--c:var(${c})" aria-label="${nm}">` +
+        `<div class="pnh"><i class="pdot" aria-hidden="true"></i>${nm}</div><div class="pnb"></div></section>`; };
+      stage.innerHTML = COLS.map((col, i) => `<div class="fcol fc${i + 1}">${col.map((x) => (Array.isArray(x) ? `<div class="fpair">${x.map(sec).join("")}</div>` : sec(x))).join("")}</div>`).join("");
       drawn.clear();
     }
     const keep = document.activeElement && stage.contains(document.activeElement) ? focusKey(document.activeElement) : null;
@@ -445,13 +593,17 @@ export function mountEditor(ctx) {
       any = true;
     }
     if (!any) return;
-    if (E.drag) { const el = findKey(E.drag.key); if (el) el.classList.add("dragging"); }
+    fitPills();
+    if (measure()) { renderStage(); return; }       // (a drawing's box changed: drawn again in it)
+    if (E.drag) { const el = findKey(E.drag.key); if (el) dragMark(el); }
     if (keep) { const el = findKey(keep); if (el && el.focus && el !== document.activeElement) el.focus({ preventScroll: true }); }
     if (E.picker) openPicker(E.picker.id, true);
   }
   // an element's identity across renders: its ids, its kind
-  const focusKey = (el) => [el.tagName, el.dataset.x || "", el.dataset.y || "", el.dataset.id || "", el.dataset.op || ""].join("|");
-  const findKey = (key) => [...stage.querySelectorAll("[data-id]")].find((e) => focusKey(e) === key);
+  const focusKey = (el) => [el.tagName, el.dataset.x || "", el.dataset.y || "", el.dataset.id || "", el.dataset.op || "", el.dataset.kn || "", el.dataset.nav || ""].join("|");
+  const findKey = (key) => [...stage.querySelectorAll("[data-id],[data-nav]")].find((e) => focusKey(e) === key);
+  // the element dragged: lit; a knob's wiggle goes on from where it was (the section is drawn again under the drag)
+  const dragMark = (el) => { el.classList.add("dragging"); if (E.drag) el.style.setProperty("--wd", `-${Math.round(performance.now() - E.drag.t0)}ms`); };
   function renderKeys() {
     const lo = 53 + 12 * E.oct, ph = (n) => E.held.has(n);
     const wk = WHITE.map((o, i) => `<button class="wk ${ph(lo + o) ? "down" : ""}" data-n="${lo + o}" style="left:${(i * 100 / 16).toFixed(3)}%;width:${(100 / 16).toFixed(3)}%" aria-label="${noteName(lo + o)}"></button>`).join("");
@@ -491,9 +643,9 @@ export function mountEditor(ctx) {
     ev.preventDefault();
     const sc = scaleOf(el);
     const ax = (k) => { const id = el.dataset[k]; if (id === undefined) return null; const r = info(+id); return { id: +id, v0: v(+id), span: r.max - r.min, px: (+(el.dataset[`${k}s`] || 0) || 0) * sc }; };
-    E.drag = { el, key: focusKey(el), x0: ev.clientX, y0: ev.clientY, x: ax("x"), y: ax("y"), moved: false, pid: ev.pointerId };
+    E.drag = { el, key: focusKey(el), x0: ev.clientX, y0: ev.clientY, x: ax("x"), y: ax("y"), moved: false, pid: ev.pointerId, t0: performance.now() };
     try { stage.setPointerCapture(ev.pointerId); } catch (_) { /* (gone) */ }
-    el.classList.add("dragging");
+    dragMark(el);
     if (el.dataset.op !== undefined) { E.op = +el.dataset.op; }
     if (el.focus) el.focus({ preventScroll: true });
   });
@@ -536,6 +688,14 @@ export function mountEditor(ctx) {
       const cc = ev.target.closest("[data-cc]"), ux = ev.target.closest("[data-untouch]");
       if (cc) { E.ccEdit = +cc.dataset.cc; renderStage(); }
       else if (ux) untouch(+ux.dataset.untouch);
+      return;
+    }
+    const pv = ev.target.closest("[data-view]");
+    if (pv) {
+      const [k, i] = pv.dataset.view.split(":");
+      E.view[k] = +i;
+      try { localStorage.setItem(VIEW_KEY, JSON.stringify(E.view)); } catch (_) { /* (this page only) */ }
+      renderStage();
       return;
     }
     const b = ev.target.closest("[data-set]");
@@ -644,7 +804,8 @@ export function mountEditor(ctx) {
     const b = ev.target.closest("button");
     if (!b || !E.s) return;
     if (b.dataset.trk !== undefined) { if (ctx.stripClick) await ctx.stripClick(b, E); renderHead(); return; }
-    if (b.dataset.tag !== undefined) { E.s.tags ^= 1 << +b.dataset.tag; renderHead(); return; }
+    if (b.id === "ed-kbtg") { showKeys(!E.kbOn); return; }
+    if (b.id === "ed-tag") { if (E.tagPop) closeTags(true); else openTags(); return; }
     if (b.id === "ed-revert") { revert(); renderHead(); return; }
     if (b.id === "ed-target") { if (E.target && E.target.click) await E.target.click(E, b); else if (E.target && !E.target.ready()) await startTarget(); renderHead(); return; }
     if (b.id === "ed-export" && ctx.exportSound) { ctx.exportSound(E.s); return; }
@@ -758,6 +919,7 @@ export function mountEditor(ctx) {
     E.ccEdit = undefined;
     E.place = { label: place.label || "", ...place };
     closePicker();
+    if (E.tagPop) { E.tagPop.remove(); E.tagPop = null; }
     if (E.target && !E.target.live && E.target.ready()) E.target.audition(E.s);   // (a track: live.js loads it, then the
                                                     // editor takes the track)
     log(`edit: ${E.s.name} (${E.place.label})`);
