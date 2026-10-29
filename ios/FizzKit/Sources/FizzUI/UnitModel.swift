@@ -550,6 +550,7 @@ public final class UnitModel {
     private func takeOver(_ p: FizzProbe) async {
         notice = nil; choices = []; switchWaiting = false
         if onEmulator, let l = link {
+            await editor.unitGoes()                         // (EDIT's borrow undone while the link is open)
             say("an FM-1 takes over from \(EmulatorHost.hereName)")
             link = nil
             forget()

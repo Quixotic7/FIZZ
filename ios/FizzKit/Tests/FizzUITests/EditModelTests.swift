@@ -3,8 +3,8 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // EDIT against the demo unit (phase I5): the editor on the unit's track (followed, read back, another track selected
-// on the unit), TRACK off (shown only: a turn refused, the switch nudged), TRACK on (PARAMs onto the track, REVERT puts
-// it back), a preset opened (TRACK off: here only; on: heard on the track), SAVE / SAVE AS NEW, a MIDI sound's slots.
+// on the unit), PARAMs onto the track (REVERT puts it back), a preset opened (heard on the track: EditBorrowTests),
+// SAVE / SAVE AS NEW, a MIDI sound's slots.
 
 import Foundation
 import Testing
@@ -42,7 +42,7 @@ private func trackValues(_ m: UnitModel, _ slot: Int) async -> [Int] {
 
 @Suite("EDIT", .serialized) @MainActor
 struct EditModelTests {
-    @Test func followsTheTrackShownOnly() async throws {
+    @Test func followsTheTrack() async throws {
         let (m, demo) = await connected()
         let e = m.editor
         await e.show()
@@ -51,16 +51,12 @@ struct EditModelTests {
         #expect(e.place.label == "MY PRESETS 3" && e.place.source == "mine" && e.place.slot == 3 && e.place.fromTarget)
         #expect(e.table?.count == 115)
 
-        // TRACK off: shown only, a turn refused and the switch nudged
-        #expect(e.locked && !e.live)
-        let fdbk = e.value(6)
-        #expect(!e.set(6, fdbk == 0 ? 1 : 0))
-        #expect(e.value(6) == fdbk && e.nudges == 1)
+        // the track edited live, whatever TRACK is (EDIT has no TRACK switch)
+        #expect(e.live && !m.actions.trackOn && e.heard == .track(2))
 
-        // the unit's knob turned: the read-back takes it (and it is the sound to go back to: shown only)
+        // the unit's knob turned: the read-back takes it
         demo.state.lock.withLock { demo.state.tracks[2].name = "KNOB" }
         #expect(await waitFor(seconds: 5) { e.sound?.name == "KNOB" })
-        #expect(e.base?.name == "KNOB" && !e.dirty)
 
         // another track selected on the unit: followed
         demo.state.lock.withLock { demo.state.selected = 4 }
@@ -69,12 +65,11 @@ struct EditModelTests {
         e.hide()
     }
 
-    @Test func trackOnParamsAndRevert() async throws {
+    @Test func paramsAndRevert() async throws {
         let (m, _) = await connected()
-        let e = m.editor, a = m.actions
-        await a.setTrackOn(true)
+        let e = m.editor
         await e.show()
-        #expect(e.live && !e.locked)
+        #expect(e.live)
         let before = await trackValues(m, 3)
         let fdbk = e.value(6), algo = e.value(0)
         #expect(e.set(6, fdbk == 77 ? 78 : 77))
@@ -99,12 +94,13 @@ struct EditModelTests {
     @Test func presetOpenedAndSaved() async throws {
         let (m, demo) = await connected()
         let e = m.editor, a = m.actions
+        let own = demo.trackSounds[2].name
         let r = try #require(m.mine.first)
         m.editTarget = .preset(r)
         await e.show()
         #expect(m.editTarget == nil)
-        #expect(!e.following && e.place.label == "MY PRESETS 1" && e.sound?.name == r.name)
-        #expect(!e.locked && e.canSave && e.canSaveNew)
+        #expect(a.borrowed && e.following && e.place.label == "MY PRESETS 1" && e.sound?.name == r.name)
+        #expect(e.canSave && e.canSaveNew)
         let lev = e.value(46)
         #expect(e.set(46, lev == 100 ? 101 : 100))
         e.setName("my new one")
@@ -114,23 +110,21 @@ struct EditModelTests {
         let x = await e.save(asNew: true)
         guard case .placed(let slot) = x else { Issue.record("SAVE AS NEW: \(x)"); return }
         #expect(m.mine.count == n + 1 && m.mine.contains { $0.slot == slot && $0.name == "MY NEW ONE" })
-        #expect(e.place.label == "MY PRESETS \(slot)" && !e.dirty)
+        #expect(e.place.label == "MY PRESETS \(slot)" && !e.dirty && e.opened == e.place && a.borrowed)
 
         // SAVE over it (the screen asked first)
         e.toggleTag(4)
         #expect(await e.save(asNew: false) == .placed(slot))
         #expect(demo.state.lock.withLock { demo.state.mine[slot]?.tags ?? 0 } & 16 != 0)
 
-        // TRACK on: a preset opened plays on the track (KEEP / CANCEL) and the editor follows the track
-        await a.setTrackOn(true)
+        // another preset opened: heard in its place, the editor on the track; EDIT left: the track's own back
         let r2 = m.mine[1]
         await e.open(.preset(r2))
-        #expect(a.pending?.name == r2.name)
+        #expect(a.pending?.name == r2.name && a.borrowed)
         #expect(e.following && e.sound?.name == r2.name)
-        #expect(await a.cancelAudition())
-        await e.auditionEnded()
-        #expect(e.sound?.name == demo.trackSounds[2].name)
         e.hide()
+        #expect(await waitFor { a.pending == nil })
+        #expect(demo.trackSounds[2].name == own)
     }
 
     @Test func midiSoundSlots() async throws {
