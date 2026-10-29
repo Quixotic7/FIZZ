@@ -1000,8 +1000,9 @@ static void sx_param(qd_app_t *a, const uint8_t *b, uint32_t n)
     id = b[1];
     if (t >= QD_NTRACK)
         st = QD_SX_BAD_TRACK;
-    else if (id >= QD_QUAD_NP || (qd_msnd_is(a->model.t[t].patch) && qd_msnd_slot(id) < 0))
-        st = QD_SX_NOT_FOUND;                           /* (FIZZ MIDI (e): a MIDI track's sound: its slots' values) */
+    else if (id >= QD_LK_N || (id < QD_QUAD_NP && qd_msnd_is(a->model.t[t].patch) && qd_msnd_slot(id) < 0))
+        st = QD_SX_NOT_FOUND;                           /* (FIZZ MIDI (e): a MIDI track's sound: its slots' values;
+                                                         * ids 115.. the track's mix: PAN, DELAY, REVERB, CHORUS, LEVEL) */
     else
         qd_player_live_edit(&a->player, t, id, (int)((uint32_t)b[2] << 14 | (uint32_t)b[3] << 7 | b[4]) - QD_SXP_OFS);
     if (st || (b[5] & QD_SXP_ACK))

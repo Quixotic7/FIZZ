@@ -611,8 +611,15 @@ static void p2b_tests(void)
           "PARAM: a negative value (HARM -26.01 -> -26.00), a value 74.. (BITS 40)");
     param(6, QD_QP_FREQ, 100, 0);
     CHECK(ack(QD_SX_PARAM) == QD_SX_BAD_TRACK, "PARAM onto track 7: BAD TRACK (answered without ACK)");
-    param(1, QD_QUAD_NP, 0, 0);
-    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND, "PARAM of value %d (past the sound's): NOT FOUND", QD_QUAD_NP);
+    param(1, QD_LK_N, 0, 0);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND, "PARAM of id %d (past the mix's): NOT FOUND", QD_LK_N);
+    param(1, QD_LK_PAN, -20, QD_SXP_ACK);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_OK && A.model.t[1].mix.pan == -20, "PARAM of PAN: the track's mix (-20)");
+    param(1, QD_LK_REVERB, 300, QD_SXP_ACK);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_OK && A.model.t[1].mix.reverb == 127, "PARAM of REVERB 300: clamped (127)");
+    param(1, QD_LK_CHORUS, 40, 0);
+    param(1, QD_LK_DELAY, 50, 0);
+    CHECK(A.model.t[1].mix.chorus == 40 && A.model.t[1].mix.delay == 50, "PARAM of CHORUS 40 and DELAY 50");
     param(1, QD_QP_UNI, 4, 0);
     CHECK(A.model.t[1].patch[QD_QP_UNI] == 4, "PARAM: the VOICE page's UNISON (4)");
     A.sel = 4;
@@ -821,6 +828,8 @@ static void msnd_tests(void)
           "PARAM of FREQ onto the MIDI track: NOT FOUND, the sound kept");
     param(3, QD_MSND_ID[1], 99, QD_SXP_ACK);
     CHECK(ack(QD_SX_PARAM) == QD_SX_OK && A.model.t[3].patch[QD_MSND_ID[1]] == 99, "PARAM of slot 2's value: 99");
+    param(3, QD_LK_PAN, 30, QD_SXP_ACK);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_OK && A.model.t[3].mix.pan == 30, "PARAM of PAN onto the MIDI track: the track's mix (30)");
     run(800);
 }
 
