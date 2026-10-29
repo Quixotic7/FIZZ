@@ -67,7 +67,7 @@ struct TurnModifier: ViewModifier {
 
     private func begin(_ overlayTop: Bool) {
         run = TurnRun(x0: x.map(e.value) ?? 0, y0: y.map(e.value) ?? 0)
-        if !e.locked { e.turning = EditTurn(id: y ?? x ?? 0, label: label, tint: tint, top: overlayTop) }
+        e.turning = EditTurn(id: y ?? x ?? 0, label: label, tint: tint, top: overlayTop)
     }
 
     /// t: the finger's travel since the turn began (screen points, down positive).

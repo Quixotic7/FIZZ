@@ -2,10 +2,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// The TRACK switch (live.js, fizz-ios.html .livesw; phase I5), for every screen that places it: the pink pill (off:
-// the tracks are left alone; on: EDIT edits the FM-1's track, LIBRARY and IMPORT audition on it), its number the track
-// followed (a tap on it: SELECTED or 1..6), its ring pulsing until first used (the "seen" flag); and the KEEP / CANCEL
-// bar while another sound is heard on a track.
+// The TRACK switch (live.js, fizz-ios.html .livesw; phase I5), for LIBRARY and IMPORT: the pink pill (off: the
+// tracks are left alone; on: LIBRARY and IMPORT audition on it), its number the track followed (a tap on it: SELECTED
+// or 1..6), its ring pulsing until first used (the "seen" flag); and the KEEP / CANCEL bar while another sound is
+// heard on a track. EDIT has the TRACK n chip instead (EditBorrow.swift: its sounds are borrowed, no bar).
 
 import SwiftUI
 import FizzKit
@@ -25,7 +25,6 @@ public struct TrackPill: View {
     /// the iPad's page list: as wide as it is
     var wide = false
     @State private var seen = TrackHint.seen
-    @State private var shake = 0.0
     @Environment(\.fizzSnapshot) private var snapshot
 
     public init(model: UnitModel, wide: Bool = false) {
@@ -77,11 +76,6 @@ public struct TrackPill: View {
             }
         }
         .opacity(cap ? 1 : 0.45)
-        .offset(x: 6 * sin(shake * .pi * 6) * (1 - shake))
-        .onChange(of: model.editor.nudges) { _, _ in
-            shake = 0
-            withAnimation(.linear(duration: 0.5)) { shake = 1 }
-        }
         .fixedSize(horizontal: !wide, vertical: false)
     }
 
@@ -120,7 +114,7 @@ public struct AuditionBar: View {
     public init(model: UnitModel) { self.model = model }
 
     public var body: some View {
-        if let p = model.actions.pending {
+        if let p = model.actions.pending, !model.actions.borrowed {
             HStack(spacing: 10) {
                 Text("\(p.track + 1)").fz(15, 800).foregroundStyle(.white)
                     .frame(width: 26, height: 26).background(Circle().fill(FZ.pink.color))
@@ -163,14 +157,15 @@ public struct AuditionBar: View {
     }
 }
 
-/// The top bar of the tabs that place the TRACK switch (mock-ups 09, 11): the logo, the pill, the unit.
+/// The top bar of the tabs that place the TRACK switch (mock-ups 09, 11): the logo, the pill (EDIT: the TRACK n
+/// chip, mock-up 37), the unit.
 struct TrackTopBar: View {
     let model: UnitModel
     var body: some View {
         HStack(spacing: 10) {
             BubbleLogo().frame(width: 32, height: 32)
             Spacer(minLength: 0)
-            TrackPill(model: model)
+            if model.editor.shown { TrackChip(model: model) } else { TrackPill(model: model) }
             if model.unit != nil { UnitBadge(model: model) }
         }
         .frame(height: 56)

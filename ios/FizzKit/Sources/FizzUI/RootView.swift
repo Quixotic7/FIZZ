@@ -96,6 +96,9 @@ public struct FizzAppView: View {
         .onChange(of: tab) { old, new in model.emulator?.play.remember(old); model.emulator?.play.remember(new) }
         // a screen asking for another tab (LIBRARY's EDIT: model.editTarget)
         .onChange(of: model.goTo) { _, t in if let t { tab = t; model.goTo = nil } }
+        // EDIT's borrow undone when EDIT is left or the app goes to the background (EditBorrow.swift)
+        .onChange(of: tab) { old, new in model.editor.tabChanged(from: old, to: new) }
+        .onChange(of: phase) { _, p in model.editor.scene(p, tab: tab) }
         // a .fizzbak / .bin opened from Files, AirDrop, Mail: kept with the backups, RESTORE offered; a sound file
         // (.fizzlib .fizzsnd .dnsnd .dn2pst .dn2snd): IMPORT
         .onOpenURL { url in

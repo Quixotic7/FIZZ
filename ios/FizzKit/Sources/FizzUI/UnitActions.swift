@@ -167,6 +167,10 @@ public final class UnitActions {
     public var trackSlot = 0
     /// The KEEP / CANCEL bar: the track's own sound kept while another is heard on it.
     public private(set) var pending: TrackAudition.Pending?
+    /// The audition is EDIT's borrow (EditBorrow.swift): no KEEP / CANCEL bar, undone when EDIT is left.
+    public internal(set) var borrowed = false
+    /// EDIT edits a track live (its PARAMs go out with TRACK off too).
+    public private(set) var editLive = false
 
     @ObservationIgnored weak var unit: UnitModel?
     @ObservationIgnored private var oneOff: [String: [UInt8]] = [:]
@@ -217,7 +221,7 @@ public final class UnitActions {
     func lost() {
         frames = [:]; oneOff = [:]; users = [:]
         browseWatch?.cancel(); browseWatch = nil; browsing = nil
-        pending = nil; trackOn = false; trackCapable = false
+        pending = nil; trackOn = false; trackCapable = false; borrowed = false; editLive = false
         liveLink = nil; _pump = nil; _audition = nil
         job = nil
     }
@@ -618,7 +622,8 @@ public final class UnitActions {
                 await p.setOnOld { [weak self] in Task { @MainActor in self?.cannotEditLive() } }
             }
             liveLink = link; _pump = p; _audition = a
-            pending = nil
+            pending = nil; borrowed = false
+            if trackOn || editLive { Task { await p.setOn(true) } }
         }
         return (_pump!, _audition!)
     }
@@ -643,56 +648,78 @@ public final class UnitActions {
         guard let (p, _) = live() else { trackOn = false; return }
         let v = on && trackCapable
         trackOn = v
-        await p.setOn(v)
-        if !v { pending = nil; await audition?.keep() }
+        await p.setOn(v || editLive)
+        unit?.emulator?.trackOn = v || editLive
+        // (EDIT's borrow is EDIT's to undo)
+        if !v && !borrowed { pending = nil; await audition?.keep() }
         say(v ? "TRACK on: EDIT edits the track, LIBRARY loads onto it" : "TRACK off: the Manager leaves the tracks alone")
     }
 
-    /// The followed track's DUMP (trackSlot) and its sound.
+    /// The followed track's DUMP (trackSlot; EDIT's borrow: its track) and its sound.
     public func readTrack() async -> (frame: [UInt8], dump: FizzDump)? {
-        await audition?.readTrack(slot: trackSlot)
+        await audition?.readTrack(slot: borrowed ? (pending?.track ?? trackSlot - 1) + 1 : trackSlot)
     }
 
-    /// A preset picked with TRACK on: heard on the track, nothing stored (KEEP / CANCEL).
-    public func pick(_ r: FizzListEntry) async -> UnitOutcome {
-        guard trackOn, canWrite, let a = audition, let f = await fetchFrame(of: r) else { return .notNow }
+    /// EDIT edits a track live (shown, the track followed): its PARAMs go out whatever TRACK is.
+    func setEditLive(_ on: Bool) async {
+        guard editLive != on else { return }
+        editLive = on
+        unit?.emulator?.trackOn = trackOn || on
+        await pump?.setOn(trackOn || on)
+    }
+
+    /// EDIT's borrow undone: the track's own sound back. Not answered: an ordinary audition left (KEEP / CANCEL).
+    @discardableResult func unborrow() async -> Bool {
+        guard borrowed else { return true }
+        if await cancelAudition() { return true }
+        borrowed = false
+        return false
+    }
+
+    /// A preset picked with TRACK on: heard on the track, nothing stored (KEEP / CANCEL; EDIT's borrow: none).
+    public func pick(_ r: FizzListEntry, borrow: Bool = false) async -> UnitOutcome {
+        guard trackOn || borrow, trackCapable || !borrow, canWrite, let a = audition, let f = await fetchFrame(of: r) else { return .notNow }
         let x = await a.pick(preset: f, id: r.id, name: r.name, trackSlot: trackSlot)
         pending = await a.pending
+        borrowed = borrow && pending != nil
         guard let x else { return .noAnswer }
         if !x.isOK { say("pick: \(Self.outcome(x).text("pick again"))") }
         return Self.outcome(x)
     }
 
-    /// A sound not on the unit (an IMPORT row) heard on the track the same way.
-    public func pickSound(_ s: FizzSound) async -> UnitOutcome {
-        guard trackOn, canWrite, let a = audition else { return .notNow }
+    /// A sound not on the unit (an IMPORT row) heard on the track the same way (EDIT's borrow: its id kept).
+    public func pickSound(_ s: FizzSound, borrow: Bool = false, id: Int = 0) async -> UnitOutcome {
+        guard trackOn || borrow, trackCapable || !borrow, canWrite, let a = audition else { return .notNow }
         let x = await a.play(name: s.name, trackSlot: trackSlot) { t in
             try FizzSysEx.storeSound(name: s.name, blob: s.blob, drive: s.drive, track: t, pan: s.pan, chorus: s.sends.chorus,
                                      delay: s.sends.delay, reverb: s.sends.reverb, audition: true,
-                                     extras: FizzTrackExtrasIn(id: 0, sound: 0, edited: true))
+                                     extras: FizzTrackExtrasIn(id: id, sound: 0, edited: true))
         }
         pending = await a.pending
+        borrowed = borrow && pending != nil
         return x.map { Self.outcome($0) } ?? .noAnswer
     }
 
-    /// KEEP: the track keeps what it plays.
+    /// KEEP (and KEEP ON Tn): the track keeps what it plays.
     public func keepAudition() async {
         await audition?.keep()
         pending = nil
+        borrowed = false
     }
 
     /// CANCEL: the track's own sound back. false: not yet (the bar stays: CANCEL again).
     public func cancelAudition() async -> Bool {
-        guard let a = audition else { pending = nil; return true }
+        guard let a = audition else { pending = nil; borrowed = false; return true }
         let ok = await a.cancel()
         pending = await a.pending
+        if pending == nil { borrowed = false }
         if !ok { say("the track's own sound did not go back yet: CANCEL again") }
         return ok
     }
 
     /// REVERT: the track put back exactly as `base` (its DUMP read when the editor took it).
     public func revert(to base: [UInt8]) async -> UnitOutcome {
-        guard trackOn, let a = audition else { return .notNow }
+        guard trackOn || editLive, let a = audition else { return .notNow }
         await pump?.clear()
         let x = await a.revert(to: base)
         await pump?.touch()
@@ -779,6 +806,7 @@ public final class UnitActions {
     /// restored), then the write (restoreRun shows it; CANCEL in the check pass only), then everything read again.
     public func restore(image: [UInt8], name: String) async -> UnitOutcome {
         guard canTransfer, let u = unit, let link else { return .notNow }
+        await u.editor.unitGoes()
         restoreFailure = nil
         if await link.viaBle { restoreFailure = .needsUSB; return .refused(.other(15)) }
         restoreRun = RestoreRun(phase: .saving, fraction: 0, name: name, started: Date())
@@ -797,6 +825,7 @@ public final class UnitActions {
     /// then `image` written as a restore.
     public func writeProjects(image: [UInt8], before: [UInt8]) async -> UnitOutcome {
         guard canTransfer, let u = unit, let link, let info = u.unit else { return .notNow }
+        await u.editor.unitGoes()
         restoreFailure = nil
         if await link.viaBle { restoreFailure = .needsUSB; return .refused(.other(15)) }
         let st = await link.status()
