@@ -58,6 +58,7 @@ public final class EmulatorHost {
     @ObservationIgnored private var wanted: FizzEmulator.ClockMode = .stopped
     @ObservationIgnored private let ops = DispatchQueue(label: "fizz.emulator.host", qos: .userInitiated)
     @ObservationIgnored private var launched = false
+    @ObservationIgnored private var closed = false
     @ObservationIgnored private var poke: (@Sendable () -> Void)?
     @ObservationIgnored private var lent = 0
 
@@ -105,7 +106,7 @@ public final class EmulatorHost {
     /// Power on from the saved flash, the clock on its timer until UnitModel says whether it is the unit; then its
     /// port is announced (UnitModel looks again). Once.
     public func launch() {
-        guard !launched else { return }
+        guard !launched, !closed else { return }
         launched = true
         wanted = .timer
         let e = engine, p = poke
@@ -168,7 +169,7 @@ public final class EmulatorHost {
     }
 
     func update() {
-        guard launched else { return }
+        guard launched, !closed else { return }
         let e = engine
         let c = Self.clock(playShown: playShown, serving: serving, trackOn: trackOn && serving, notes: notes,
                            playing: wanted == .audio && e.isPlaying, now: wanted)
@@ -183,6 +184,16 @@ public final class EmulatorHost {
             let m = e.mode
             Task { @MainActor [weak self] in self?.mode = m }
         }
+    }
+
+    /// Done with it (a test's end: the core is the process's one, and a clock change still queued here would start
+    /// this emulator again under the next one): nothing asked of the clock from now on, what was asked made, the
+    /// clock stopped.
+    public func close() async {
+        closed = true
+        let e = engine
+        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in ops.async { e.stop(); k.resume() } }
+        mode = .stopped
     }
 
     /// Returns when the clock changes asked for are made.
