@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The Manager's PROJECTS tab (the owner's request of 2026-10-26; mockups/fizz-projects.html, approved 2026-10-27):
 // the FM-1's slots on the left (eight; four in the Bluetooth package) (LOAD, RENAME, COPY TO, MOVE TO, KEEP, DELETE), a project's 64 patterns on the
-// right (click, SHIFT-click a range, CMD-click one more; COPY, PASTE, CLEAR, .fizzpat out and in), or the projects KEPT
+// right (click, SHIFT-click a range, CMD-click one more; COPY, PASTE, CLEAR, .fizzpat out and in; a pattern dragged onto
+// a pattern or a project copies it, ALT moves it; TO… or a phone's long press: the TO sheet), or the projects KEPT
 // in this browser (.fizzprj in and out, LOAD INTO a slot).
 //   - The slots' moves are the FM-1's own commands (PROJECT, RENAME): done at once.
 //   - The patterns are the store read in the browser (projects.js): pasted, cleared, a kept project loaded, each
@@ -14,7 +15,7 @@
 // A project from the other package comes in as a .fizzprj (KEEP there, LOAD INTO here): its MY presets come along;
 // those MY PRESETS has no room for stay in it as its own copies (projects.js derefPat), so it sounds the same.
 import { modelOf, imageOf, cloneModel, projects, project, patName, copyPatterns, pastePatterns, clearPatterns, keepProject,
-  loadProject, renameKept, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, limits } from "./projects.js";
+  loadProject, renameKept, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, limits, rkey, RK, DEMO_N } from "./projects.js";
 import { esc, confirmBox } from "./ui.js";
 
 const TC = ["--blue", "--green", "--cream", "--orange", "--pink", "--violet"];
@@ -55,6 +56,7 @@ export function mountProjects(ctx) {
     if (op.kind === "paste") return pastePatterns(m, op.q, op.j, op.clip);
     if (op.kind === "clear") return clearPatterns(m, op.q, op.ks);
     if (op.kind === "load") return loadProject(m, op.q, op.kept);
+    if (op.kind === "drop") return dropApply(m, op);
     return null;
   }
   function push(op) {
@@ -96,7 +98,7 @@ export function mountProjects(ctx) {
     if (!L.length && !m) return "";                   // (no FM-1: nothing to show)
     return Array.from({ length: nproj() }, (_, p) => {
       const e = L[p], there = e ? e.there : m ? project(m, p).there : false;
-      const info = m ? project(m, p) : null, changed = J.ops.some((o) => o.q === p);
+      const info = m ? project(m, p) : null, changed = J.ops.some((o) => o.q === p || (o.move && o.from.p === p));
       const target = J.arm && J.arm.from !== p;
       if (!there) return `<button class="slot empty ${target ? "target" : ""} ${J.sel === p && !J.arm ? "sel" : ""}" data-p="${p}" aria-pressed="${J.sel === p}"><span class="no hud">${p + 1}</span><span class="meta">${J.arm && J.arm.kind === "load" && target ? esc(J.arm.name) : "empty"}</span></button>`;
       const name = (e && e.name) || (info && info.name) || `PROJECT ${p + 1}`;
@@ -134,7 +136,7 @@ export function mountProjects(ctx) {
     const m = model(), ok = !!m && project(m, J.sel).there && !S.busy, n = J.pats.size;
     const b = (act, icon, label, en, cls = "") => `<button class="ol ${cls}" data-act="${act}" ${en ? "" : "disabled"}>${icon}${label}</button>`;
     return `${n ? `<span class="selname hud">${range(J.pats)}</span>` : ""}` + b("copy", IC.copy, "COPY", ok && n, "cyan") +
-      b("paste", IC.paste, "PASTE", ok && n && !!J.clip, J.clip ? "yellow" : "") + b("clear", IC.clear, "CLEAR", ok && n) +
+      b("paste", IC.paste, "PASTE", ok && n && !!J.clip, J.clip ? "yellow" : "") + b("clear", IC.clear, "CLEAR", ok && n) + b("to", IC.move, "TO…", ok && n === 1) +
       b("fizzpat", IC.down, ".fizzpat", ok && n, "fl") + b("import", IC.up, "IMPORT", ok);
   }
   function pendingHtml() {
@@ -142,11 +144,14 @@ export function mountProjects(ctx) {
     const last = J.ops[J.ops.length - 1], L = list();
     const pname = (q) => (L[q] && L[q].name) || (model() ? project(model(), q).name : "") || `PROJECT ${q + 1}`;
     const what = last.kind === "paste" ? `${last.result.at.length} pattern${last.result.at.length === 1 ? "" : "s"} into ${esc(pname(last.q))}`
-      : last.kind === "clear" ? `${last.ks.length} cleared in ${esc(pname(last.q))}` : `${esc(last.kept.name)} into slot ${last.q + 1}`;
+      : last.kind === "clear" ? `${last.ks.length} cleared in ${esc(pname(last.q))}`
+        : last.kind === "drop" ? `${patName(last.from.k)} ${last.move ? "moved" : "copied"} to ${last.from.p === last.q ? "" : `${esc(pname(last.q))} `}${patName(last.j)}`
+          : `${esc(last.kept.name)} into slot ${last.q + 1}`;
     const r = last.result;
-    const extra = r && (r.poolAdded || r.presetsAdded || r.copies)
+    const extra = r && (r.poolAdded || r.presetsAdded || r.copies || r.unfit)
       ? [r.poolAdded ? `+${r.poolAdded} pool` : "", r.presetsAdded ? `+${r.presetsAdded} MY PRESETS` : "",
-        r.copies ? `${r.copies} sound${r.copies === 1 ? "" : "s"} kept as the project's own (MY PRESETS full)` : ""].filter(Boolean).join(" · ") : "";
+        r.copies ? `${r.copies} sound${r.copies === 1 ? "" : "s"} kept as the project's own (MY PRESETS full)` : "",
+        r.unfit ? `${r.unfit} sound${r.unfit === 1 ? "" : "s"} left out (pool full)` : ""].filter(Boolean).join(" · ") : "";
     return `<span class="cnt num">${J.ops.length}</span><div class="what">${what}${extra ? `<small>${extra}</small>` : ""}</div>` +
       `<span class="pacts"><button class="ol yellow" data-act="undo">UNDO</button><button class="ol" data-act="discard">DISCARD</button>` +
       (viaBle() ? `<button class="arc breathe" data-act="usb" style="--c:var(--orange)">${IC.down}WRITE NEEDS USB</button>`
@@ -199,6 +204,7 @@ export function mountProjects(ctx) {
     pd.innerHTML = pendingHtml();
     const ri = $("pj-rename");
     if (ri) { ri.focus(); ri.select(); }
+    if (D && D.lifted) mark();
   }
 
   // ---------------------------------------------------------------- the slots' actions (the FM-1's own commands)
@@ -289,6 +295,7 @@ export function mountProjects(ctx) {
       if (!clip.pats.length) { say("Nothing to save there: empty patterns (or the demos' own).", "--orange"); return; }
       ctx.download(makeFizzpat(clip, { fizz: ctx.fizz() }), patFileName(clip));
     } else if (act === "import") { $("pj-file").click(); }
+    else if (act === "to") sheetOpen({ p: J.sel, k: ks[0] });
   }
   async function pendAct(act) {
     if (act === "undo") { J.ops.pop(); J.cache = null; render(); }
@@ -363,6 +370,199 @@ export function mountProjects(ctx) {
     }
     render();
   }
+
+  // ---------------------------------------------------------------- drag a pattern (the owner, 2026-10-29)
+  // A pattern dragged onto a pattern, or onto a project (its first free pattern), is copied there; ALT held: moved (its
+  // own place cleared). A phone lifts it with a long press; let go over nothing: the TO sheet (also TO… in the tools).
+  // A project row held under the drag for a moment shows its patterns. Each drop waits in the yellow bar like a paste.
+  let D = null, SH = null, dragEnd = 0;
+  const ghost = document.createElement("div");
+  ghost.className = "pt used pjghost";
+  ghost.hidden = true;
+  ghost.setAttribute("aria-hidden", "true");
+  document.body.appendChild(ghost);
+  const sheet = document.createElement("div");
+  sheet.className = "pjsheet";
+  sheet.id = "pj-sheet";
+  sheet.hidden = true;
+  document.body.appendChild(sheet);
+  const nameOf = (q) => { const e = list()[q], m = model(); return (e && e.there && e.name) || (m ? project(m, q).name : "") || `PROJECT ${q + 1}`; };
+  const thereAt = (q) => { const m = model(); return !!m && q >= 0 && q < nproj() && project(m, q).there; };
+  function dropApply(m, op) {
+    const r = pastePatterns(m, op.q, op.j, op.clip, { fit: true });
+    if (op.move && !(op.from.p === op.q && op.from.k === op.j)) clearPatterns(m, op.from.p, [op.from.k]);
+    return r;
+  }
+  // pattern from.k of project from.p to project q's pattern j (null: its first free one)
+  async function land(from, q, j, move) {
+    const m = model();
+    if (!m) return;
+    if (!thereAt(q)) { say(`Slot ${q + 1} is empty: a pattern needs a project there.`, "--orange"); return; }
+    const pr = project(m, q);
+    if (j === null) {
+      j = pr.pats.findIndex((s) => !s);
+      if (j < 0) { say(`${esc(nameOf(q))} has no free pattern: drop it on one to replace it.`, "--orange"); return; }
+    }
+    if (from.p === q && from.k === j) return;
+    if (move && project(m, from.p).demo && from.k < DEMO_N) { say("A demo's A01–A03 stay the demo's: drop it without ALT to copy it.", "--orange"); return; }
+    const clip = copyPatterns(m, from.p, [from.k]);
+    if (!clip.pats.length) { say("Nothing to copy there: an empty pattern (or the demo's own).", "--orange"); return; }
+    const dst = `${nameOf(q)} ${patName(j)}`, src = from.p === q ? patName(from.k) : `${nameOf(from.p)} ${patName(from.k)}`, old = pr.pats[j];
+    if (old) {
+      const ok = await confirmBox({ title: move ? "MOVE OVER" : "COPY OVER", what: `${src} → ${dst}`, go: "REPLACE", color: "--yellow",
+        sub: `${from.p === q ? patName(j) : esc(dst)} now${old.demo ? " plays the demo's own pattern" : ` holds ${old.trigs} trig${old.trigs === 1 ? "" : "s"}`}: it goes.` });
+      if (!ok) return;
+    }
+    const op = { kind: "drop", q, j, clip, from, move };
+    if (!push(op)) return;
+    toast(`${patName(from.k)} ${move ? "moved" : "copied"} to ${dst}`, move ? "--orange" : "--cyan");
+    const u = op.result.unfit;
+    if (u) say(`${esc(nameOf(q))}'s pool is full: ${u} sound${u === 1 ? "" : "s"} its steps lock did not fit. Those steps play the track's sound there.`, "--orange");
+  }
+  // the drag's look: the ghost's badge, the lifted tile, the target lit
+  function badge() {
+    if (!D || !D.lifted) return;
+    ghost.classList.toggle("move", D.move);
+    $("tab-projects").classList.toggle("dmove", D.move);
+    ghost.querySelector(".badge").textContent = D.move ? "MOVE" : "COPY";
+  }
+  function mark() {
+    document.querySelectorAll("#tab-projects .drop").forEach((e) => e.classList.remove("drop", "over"));
+    if (!D || !D.lifted) return;
+    const src = J.sel === D.p ? $("pj-grid").querySelector(`.pt[data-k="${D.k}"]`) : null;
+    if (src) src.classList.add("lifted");
+    const o = D.over, el = !o ? null : o.j === null ? $("pj-slots").querySelector(`.slot[data-p="${o.q}"]`) : $("pj-grid").querySelector(`.pt[data-k="${o.j}"]`);
+    if (el) el.classList.add("drop", ...(o.j !== null && el.classList.contains("used") ? ["over"] : []));
+  }
+  function spring(q) {
+    clearTimeout(D.springT);
+    D.springQ = q;
+    if (q >= 0 && q !== J.sel) D.springT = setTimeout(() => { if (D && D.springQ === q) { J.sel = q; J.pats.clear(); J.anchor = -1; render(); } }, 700);
+  }
+  function follow(x, y) {
+    D.x = x; D.y = y;
+    ghost.style.transform = `translate(${x - D.ox}px, ${y - D.oy}px)`;
+    const el = document.elementFromPoint(x, y);
+    const t = el && el.closest("#pj-grid .pt[data-k]"), s = el && el.closest("#pj-slots .slot[data-p]");
+    let o = null;
+    if (t) o = J.sel === D.p && +t.dataset.k === D.k ? null : { q: J.sel, j: +t.dataset.k };
+    else if (s && thereAt(+s.dataset.p)) o = { q: +s.dataset.p, j: null };
+    const sq = o && o.j === null ? o.q : -1;
+    if (sq !== D.springQ) spring(sq);
+    D.over = o;
+    mark();
+  }
+  function lift() {
+    const t = J.sel === D.p && $("pj-grid").querySelector(`.pt[data-k="${D.k}"]`);
+    if (!t) { end(); return; }
+    clearTimeout(D.timer);
+    D.lifted = true;
+    const r = t.getBoundingClientRect();
+    D.ox = D.x0 - r.left; D.oy = D.y0 - r.top;
+    ghost.innerHTML = `${t.innerHTML}<span class="badge hud"></span>`;
+    ghost.style.width = `${r.width}px`; ghost.style.height = `${r.height}px`;
+    ghost.hidden = false;
+    document.body.classList.add("pjdrag");
+    if (D.touch && navigator.vibrate) navigator.vibrate(12);
+    badge();
+    follow(D.x0, D.y0);
+    const tick = () => {                                 // (near the window's top or foot: scroll; a phone's slots are above)
+      if (!D || !D.lifted) return;
+      const v = D.y < 56 ? -1 : D.y > innerHeight - 56 ? 1 : 0, y0 = scrollY;
+      if (v) { scrollBy(0, v * 12); if (scrollY !== y0) follow(D.x, D.y); }
+      D.raf = requestAnimationFrame(tick);
+    };
+    D.raf = requestAnimationFrame(tick);
+  }
+  function end() {
+    if (!D) return;
+    clearTimeout(D.timer); clearTimeout(D.springT); cancelAnimationFrame(D.raf);
+    if (D.lifted) dragEnd = Date.now();
+    D = null;
+    ghost.hidden = true;
+    document.body.classList.remove("pjdrag");
+    $("tab-projects").classList.remove("dmove");
+    document.querySelectorAll("#tab-projects .lifted").forEach((e) => e.classList.remove("lifted"));
+    mark();
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onCancel);
+  }
+  function onMove(ev) {
+    if (!D || ev.pointerId !== D.id) return;
+    if (!D.lifted) {
+      const d = Math.hypot(ev.clientX - D.x0, ev.clientY - D.y0);
+      if (D.touch) { if (d > 10) end(); return; }      // (a finger moving before the long press: a scroll)
+      if (d < 6) return;
+      lift();
+      if (!D) return;
+    }
+    if (!D.touch && ev.altKey !== D.move) { D.move = ev.altKey; badge(); }
+    follow(ev.clientX, ev.clientY);
+  }
+  function onUp(ev) {
+    if (!D || ev.pointerId !== D.id) return;
+    if (!D.lifted) { end(); return; }
+    const from = { p: D.p, k: D.k }, o = D.over, move = D.move, touch = D.touch;
+    end();
+    if (o) land(from, o.q, o.j, move); else if (touch) sheetOpen(from);
+  }
+  function onCancel(ev) { if (D && ev.pointerId === D.id) end(); }
+  $("pj-grid").addEventListener("pointerdown", (ev) => {
+    const t = ev.target.closest(".pt[data-k]");
+    if (!t || ev.button !== 0 || D || J.arm || J.renaming || J.reading || S.busy) return;
+    const m = model(), k = +t.dataset.k;
+    if (!m || !m.prj.has(rkey(RK.PAT, J.sel, k))) return;   // (an empty pattern or a demo's own: nothing to carry)
+    D = { k, p: J.sel, id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY, touch: ev.pointerType !== "mouse",
+      lifted: false, move: ev.altKey, over: null, springQ: -1 };
+    if (D.touch) D.timer = setTimeout(lift, 400);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onCancel);
+  });
+  $("pj-grid").addEventListener("contextmenu", (ev) => { if (D) ev.preventDefault(); });   // (a long press)
+  document.addEventListener("touchmove", (ev) => { if (D && D.lifted) ev.preventDefault(); }, { passive: false });
+  $("tab-projects").addEventListener("click", (ev) => { if (Date.now() - dragEnd < 80) { ev.stopPropagation(); ev.preventDefault(); } }, true);   // (the click a drag's release makes)
+  const altKey = (ev) => {
+    if (!D || !D.lifted) return;
+    if (ev.key === "Alt") { ev.preventDefault(); D.move = ev.type === "keydown"; badge(); mark(); }
+    else if (ev.key === "Escape" && ev.type === "keydown") { ev.preventDefault(); ev.stopPropagation(); end(); }
+  };
+  document.addEventListener("keydown", altKey, true);
+  document.addEventListener("keyup", altKey, true);
+  window.addEventListener("blur", () => end());
+
+  // the TO sheet: COPY or MOVE, the project, the pattern (or its first free one)
+  function sheetOpen(from) {
+    if (!model()) return;
+    SH = { from, move: false, q: from.p };
+    sheetRender();
+    sheet.hidden = false;
+    const f = sheet.querySelector(".shp button.on");
+    if (f) f.focus();
+  }
+  function sheetClose() { SH = null; sheet.hidden = true; }
+  function sheetRender() {
+    const pr = project(model(), SH.q), self = (j) => SH.q === SH.from.p && j === SH.from.k;
+    const ps = Array.from({ length: nproj() }, (_, q) => q).filter(thereAt);
+    const seg = (v, icon, label) => `<button data-mode="${v}" class="${(v === "move") === SH.move ? "on" : ""}" aria-pressed="${(v === "move") === SH.move}">${icon}${label}</button>`;
+    sheet.innerHTML = `<div class="sh ${SH.move ? "move" : ""}" role="dialog" aria-modal="true" aria-label="${SH.move ? "MOVE" : "COPY"} ${patName(SH.from.k)} TO">` +
+      `<div class="shh"><span class="src hud">${patName(SH.from.k)}</span><span class="sfrom">${esc(nameOf(SH.from.p))}</span>` +
+      `<div class="seg" role="group">${seg("copy", IC.copy, "COPY")}${seg("move", IC.move, "MOVE")}</div></div>` +
+      `<div class="shp">${ps.map((q) => `<button data-q="${q}" class="${q === SH.q ? "on" : ""}" aria-pressed="${q === SH.q}"><span class="no hud">${q + 1}</span><span class="pn">${esc(nameOf(q))}</span></button>`).join("")}</div>` +
+      `<div class="shg">${pr.pats.map((s, j) => `<button data-j="${j}" class="hud ${s ? "u" : ""} ${self(j) ? "src" : ""}" ${self(j) ? "disabled" : ""} aria-label="${patName(j)}${s ? " (replace)" : ""}">${patName(j)}</button>`).join("")}</div>` +
+      `<div class="sha"><button class="ol" data-act="cancel">CANCEL</button><button class="arc" data-act="first">${SH.move ? IC.move : IC.copy}FIRST FREE</button></div></div>`;
+  }
+  sheet.addEventListener("click", async (ev) => {
+    if (ev.target === sheet) { sheetClose(); return; }
+    const b = ev.target.closest("button");
+    if (!b || b.disabled || !SH) return;
+    if (b.dataset.mode) { SH.move = b.dataset.mode === "move"; sheetRender(); sheet.querySelector(`[data-mode="${b.dataset.mode}"]`).focus(); }
+    else if (b.dataset.q) { SH.q = +b.dataset.q; sheetRender(); sheet.querySelector(`.shp [data-q="${SH.q}"]`).focus(); }
+    else if (b.dataset.j || b.dataset.act === "first") { const { from, q, move } = SH; sheetClose(); await land(from, q, b.dataset.j ? +b.dataset.j : null, move); }
+    else sheetClose();
+  });
+  sheet.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); sheetClose(); } });
 
   // ---------------------------------------------------------------- events
   $("pj-slots").addEventListener("click", async (ev) => {

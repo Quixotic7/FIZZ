@@ -140,6 +140,61 @@
 .kept .drop svg { width: 20px; height: 20px; }
 .kept .drop:hover, .kept .drop.over { border-color: var(--champagne); color: var(--champagne); background: transparent; }
 
+/* ---- a pattern dragged (2026-10-29): the tile lifted (a dashed ghost of itself), the ghost scaled with a glow and its
+   COPY (cyan) or MOVE (orange) badge, the target lit with a down arrow (yellow: it replaces a pattern) */
+.pt { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body.pjdrag, body.pjdrag * { cursor: grabbing !important; }
+.pt.lifted { opacity: .35; border-style: dashed; box-shadow: none; outline: none; }
+.pt.pjghost { --c: var(--cyan); position: fixed; left: 0; top: 0; z-index: 9; pointer-events: none; overflow: visible; border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, #0A0A0F);
+  box-shadow: 0 0 26px -2px color-mix(in srgb, var(--c) 75%, transparent), 0 14px 30px rgba(0, 0, 0, .65); outline: 1.5px solid color-mix(in srgb, var(--c) 40%, transparent); outline-offset: 3px;
+  scale: 1.12; transition: none; animation: pjlift .18s var(--snap) both; }
+.pt.pjghost[hidden] { display: none; }
+.pt.pjghost.move { --c: var(--orange); }
+.pjghost .no { color: var(--text); }
+.pjghost .badge { position: absolute; top: -13px; right: -16px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--c); color: #0A0A0A; font-size: 11px; line-height: 22px;
+  box-shadow: 0 0 14px -2px var(--c); }
+@keyframes pjlift { from { scale: 1; } }
+.pt.drop, .slot.drop { --c: var(--cyan); position: relative; border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); animation: none;
+  box-shadow: 0 0 18px -2px color-mix(in srgb, var(--c) 75%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent); outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 2px; }
+.dmove .pt.drop, .dmove .slot.drop { --c: var(--orange); }
+#tab-projects .pt.drop.over { --c: var(--yellow); }
+.pt.drop::after, .slot.drop::after { content: ""; position: absolute; background: var(--c);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 3v13M4.5 10.5 10 16l5.5-5.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 3v13M4.5 10.5 10 16l5.5-5.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 6px var(--c)); }
+.pt.drop::after { width: 22px; height: 22px; left: calc(50% - 11px); top: calc(50% - 8px); }
+.pt.drop .tr { opacity: .35; }
+.slot.drop::after { width: 24px; height: 24px; right: 14px; top: calc(50% - 12px); }
+.slot.drop .dots { visibility: hidden; }
+/* the TO sheet: COPY / MOVE, the project, the pattern (a phone: from the foot) */
+.pjsheet { position: fixed; inset: 0; z-index: 7; background: rgba(0, 0, 0, .72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.pjsheet[hidden] { display: none; }
+.pjsheet .sh { --c: var(--cyan); width: 600px; max-width: 100%; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 20px; border-radius: 24px;
+  border: 1.5px solid var(--c); background: rgba(10, 10, 15, .97); box-shadow: 0 0 30px -6px color-mix(in srgb, var(--c) 60%, transparent); animation: slideup .3s var(--snap) both; }
+.pjsheet .sh.move { --c: var(--orange); }
+.pjsheet svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.pjsheet .shh { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pjsheet .src { font-size: 22px; color: var(--c); text-shadow: 0 0 14px color-mix(in srgb, var(--c) 55%, transparent); flex: none; }
+.pjsheet .sfrom { font-weight: 800; font-size: 15px; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.pjsheet .seg { display: flex; gap: 6px; flex: none; }
+.pjsheet .seg button, .pjsheet .shp button { --cc: var(--muted); height: 38px; padding: 0 14px; border-radius: 999px; font-weight: 800; font-size: 11px; letter-spacing: .12em; color: var(--body);
+  border: 1.5px solid color-mix(in srgb, var(--cc) 42%, transparent); background: color-mix(in srgb, var(--cc) 5%, transparent); display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.pjsheet .seg button[data-mode="copy"] { --cc: var(--cyan); } .pjsheet .seg button[data-mode="move"] { --cc: var(--orange); }
+.pjsheet .seg button.on, .pjsheet .shp button.on { color: var(--text); border-color: var(--cc); background: color-mix(in srgb, var(--cc) 13%, transparent); box-shadow: 0 0 16px -3px color-mix(in srgb, var(--cc) 65%, transparent); }
+.pjsheet .shp { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; margin: -4px -2px; }
+.pjsheet .shp button { --cc: var(--c); max-width: 200px; letter-spacing: .04em; font-size: 12px; }
+.pjsheet .shp .no { font-size: 11px; color: var(--c); }
+.pjsheet .shp .pn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pjsheet .shg { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; }
+.pjsheet .shg button { height: 30px; border-radius: 7px; font-size: 11px; letter-spacing: 0; color: var(--dim); border: 1.5px solid var(--line); background: rgba(10, 10, 15, .6); padding: 0; min-width: 0; }
+.pjsheet .shg button.u { color: var(--text); border-color: color-mix(in srgb, var(--yellow) 45%, transparent); background: color-mix(in srgb, var(--yellow) 6%, transparent); }
+.pjsheet .shg button:not(:disabled):hover, .pjsheet .shg button:focus-visible { border-color: var(--c); color: var(--text); box-shadow: 0 0 12px -3px var(--c); outline: none; }
+.pjsheet .shg button.src { border-style: dashed; border-color: var(--c); color: var(--c); }
+.pjsheet .sha { display: flex; gap: 8px; justify-content: flex-end; }
+.pjsheet .sha .ol { height: 44px; padding: 0 18px; font-size: 12px; }
+.pjsheet .sha .arc { --c: var(--cyan); height: 48px; padding: 0 22px; font-size: 13px; }
+.pjsheet .sh.move .sha .arc { --c: var(--orange); }
+
 @media (max-width: 1380px) and (min-width: 901px) {
   #tab-projects { gap: 18px; }
   .pjslots { flex-basis: 340px; }
@@ -166,6 +221,14 @@
   #tab-projects .pending .pacts { flex: 1 1 100%; }
   #tab-projects .pending .pacts .arc { flex: 1; height: 48px; padding: 0 14px; font-size: 13px; }
   #tab-projects .pending .cnt { font-size: 32px; }
+  #tab-projects .pending .pacts .arc { min-width: 0; padding: 0 10px; letter-spacing: .04em; }   /* (WRITE TO BROWSER fits 390) */
+  #tab-projects .pending .pacts .arc svg { display: none; }
+  .pjsheet { align-items: flex-end; padding: 0; }
+  .pjsheet .sh { border-radius: 24px 24px 0 0; padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); width: 100%; }
+  .pjsheet .shh { flex-wrap: wrap; }
+  .pjsheet .shg { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 5px; }
+  .pjsheet .shg button { height: 34px; }
+  .pjsheet .sha .arc { flex: 1; }
 }
 @media (max-width: 900px) and (orientation: landscape) {
   .slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -46,7 +46,7 @@ import { SimFizz } from "../manager/simfizz.js";
 import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
 import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage, writeStore, RESERVE, magicsOf } from "../manager/fizzstore.js";
-import { modelOf, imageOf, projects, project, walkPat, rkey, RK, patName, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject,
+import { modelOf, imageOf, cloneModel, projects, project, walkPat, rkey, RK, patName, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject,
   renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, fitModel, fitChoice, limits } from "../manager/projects.js";
 import { backupFlash, isBackupFile } from "../js/backup-play.js";
 import { poolPlaces, shownRows, newFilter, listHtml } from "../manager/presets.js";
@@ -641,6 +641,29 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   const B = await fizz(convertImage(imageOf(m), "host"));
   B.open(1); const u2 = B.byId(); B.open(2); const u3 = B.byId();
   check(Object.keys(u2).length > 0 && eq(u2, u3), `FIZZ plays the pasted pattern the same in both: steps a sound ${JSON.stringify(u2)}`);
+  // ---- PROJECTS drag copy/move (2026-10-29): the drop's paste: the pool's own numbers kept, a full pool fitted
+  {
+    const mp = modelOf(img), src = mp.prj.get(rkey(RK.PAT, 0, k0)), dc = copyPatterns(mp, 0, [k0]);
+    const ws = walkPat(src), lockN = new Set(ws.soundAt.filter((o) => o < ws.sndAt).map((o) => src[o]));
+    const rs = pastePatterns(mp, 0, 40, dc);                  // (the same project: its own places, factory ones too)
+    check(rs.poolAdded === 0 && same(mp.prj.get(rkey(RK.PAT, 0, 40)), src),
+      `drop in the same project: ${patName(k0)} -> ${patName(40)} byte for byte, no pool place added (pool ${[...dc.pool.keys()].join(", ")})`);
+    const rx = pastePatterns(mp, 1, 5, dc), px = walkPat(mp.prj.get(rkey(RK.PAT, 1, 5)));
+    check(rx.poolAdded === [...dc.pool.values()].filter(Boolean).length && same(mp.prj.get(rkey(RK.PAT, 1, 5)), src) && px,
+      `drop into another project: its ${rx.poolAdded} pool sounds at the same numbers there, the record the same`);
+    const fullPool = (q, leave = 0) => { for (let n = 1; n <= 128 - leave; n++) { const r = new Uint8Array(4); r[0] = 0x52; r[1] = 1; r[2] = n; r[3] = 0x70; mp.prj.set(rkey(RK.SND, q, n), r); } };
+    fullPool(2);
+    let pf = null;
+    try { pastePatterns(cloneModel(mp), 2, 0, dc); } catch (x) { pf = x; }
+    const rf = pastePatterns(mp, 2, 0, dc, { fit: true }), wf = walkPat(mp.prj.get(rkey(RK.PAT, 2, 0)));
+    check(pf && pf.code === "poolfull" && rf.unfit === lockN.size && rf.poolAdded === 0 && wf && wf.soundAt.every((o) => o >= wf.sndAt) && wf.trigs === ws.trigs,
+      `a full pool: PASTE refused (${pf && pf.code}); the drop's fit: ${rf.unfit} locked sound(s) left out (their steps play the track's sound), the trigs kept (${wf && wf.trigs})`);
+    mp.prj.delete(rkey(RK.SND, 2, 128));                      // (one place free: a locked sound takes it first)
+    const r1 = pastePatterns(mp, 2, 1, dc, { fit: true }), w1 = walkPat(mp.prj.get(rkey(RK.PAT, 2, 1)));
+    const kept1 = w1 ? w1.soundAt.filter((o) => o < w1.sndAt).map((o) => mp.prj.get(rkey(RK.PAT, 2, 1))[o]) : [];
+    check(lockN.size >= 1 && r1.poolAdded === 1 && r1.unfit === lockN.size - 1 && kept1.length > 0 && kept1.every((n) => n === 128),
+      `one place free: a locked sound gets place 128 (${r1.unfit} left out)`);
+  }
   let refused = null;
   try { clearPatterns(m, 0, [k0 ? 0 : 1]); } catch (x) { refused = x; }
   clearPatterns(m, 1, [16]);

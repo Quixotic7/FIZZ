@@ -11,7 +11,7 @@
 //   project(model, p) -> {p, there, name, demo, pats: [patSummary | null] x 64, used, pool: n}
 //   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt} | null (a record it cannot read)
 //   copyPatterns(model, p, ks) -> a clip {from, names, pats: [{k, bytes}], pool: Map(n -> {id} | {rec}), presets: Map(id -> LIB record)}
-//   pastePatterns(model, q, j, clip) -> {at: [k], poolAdded, presetsAdded}   (throws {code: "poolfull" | "libfull" | "range"})
+//   pastePatterns(model, q, j, clip, {fit}) -> {at: [k], poolAdded, presetsAdded, copies, unfit}   (throws {code: "poolfull" | "range"})
 //   clearPatterns(model, q, ks)
 //   keepProject(model, p) -> a kept project {name, demo, recs: [{kind, i, bytes}], presets: Map, pats, sounds}
 //   loadProject(model, q, kept) -> {presetsAdded, copies}  (slot q's records replaced; throws {code: "range"})
@@ -263,36 +263,48 @@ export function copyPatterns(m, p, ks) {
   const presets = presetsOf(m, pats.map((x) => x.bytes), [...pool.values()].filter((e) => e && e.id).map((e) => e.id));
   return { from: info.name || `PROJECT ${p + 1}`, project: p, names: pats.map((x) => patName(x.k)), pats, pool, presets };
 }
-// the clip's patterns from pattern j on, in their order (a range keeps its gaps: A03, A05 -> j, j + 2)
-export function pastePatterns(m, q, j, clip) {
-  if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0 };
+// the clip's patterns from pattern j on, in their order (a range keeps its gaps: A03, A05 -> j, j + 2). A pool sound the
+// target has (same preset id, or the same copy) is reused, its own number first; else it goes to a free place, its own
+// number if free there. fit: a full pool is no refusal: the sounds the steps lock get the places first, the rest play
+// the track's sound there (unfit: how many locked sounds were left out; a track's own sound never needs a place)
+export function pastePatterns(m, q, j, clip, { fit = false } = {}) {
+  if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0, copies: 0, unfit: 0 };
   const k0 = clip.pats[0].k, at = clip.pats.map((x) => j + x.k - k0);
   if (at.some((k) => k < 0 || k >= NPAT)) throw err("range", `the patterns run past D16 from ${patName(j)}`);
   if (q < 0 || q >= limits(m).nproj) throw err("range", `slot ${q + 1}: this store has ${limits(m).nproj} projects`);
   const need = neededIds(clip.pats.map((x) => x.bytes), [...clip.pool.values()].filter((e) => e && e.id).map((e) => e.id));
   const { map: imap, added, lost } = relink(m, clip.presets, need);
-  let copies = 0;
-  const pmap = new Map();
-  let poolAdded = 0;
+  const locks = new Set();                              // (the pool numbers the steps lock, not only a track's source)
+  for (const x of clip.pats) { const w = walkPat(x.bytes); if (w) for (const o of w.soundAt) if (o < w.sndAt) locks.add(x.bytes[o]); }
+  let copies = 0, poolAdded = 0, unfit = 0;
+  const pmap = new Map(), want = [];
   const free = [];
   for (let n = 1; n <= NPOOL; n++) if (!poolEntry(m, q, n)) free.push(n);
+  const sameAs = (t, e) => !!t && ((e.id && t.id === (imap.get(e.id) ?? e.id)) ||
+    (e.rec && t.rec && t.rec.length === e.rec.length && t.rec.every((v, i) => v === e.rec[i])));
   for (const [n, e0] of clip.pool) {
     if (!e0) { pmap.set(n, 0); continue; }             // (a lock on an empty place: the track's sound, as FIZZ plays it)
     const e = e0.id && lost.has(e0.id) ? { rec: copyRecord(lost.get(e0.id)) } : e0;   // (MY PRESETS full: its own copy)
     if (e !== e0) copies++;
-    let hit = 0;
-    for (let x = 1; x <= NPOOL && !hit; x++) {
-      const t = poolEntry(m, q, x);
-      if (t && e.id && t.id === imap.get(e.id)) hit = x;
-      else if (t && e.rec && t.rec && t.rec.length === e.rec.length && t.rec.every((v, i) => v === e.rec[i])) hit = x;
-    }
+    let hit = sameAs(poolEntry(m, q, n), e) ? n : 0;
+    for (let x = 1; x <= NPOOL && !hit; x++) if (sameAs(poolEntry(m, q, x), e)) hit = x;
+    if (hit) pmap.set(n, hit); else want.push([n, e]);
+  }
+  if (fit) want.sort((a, b) => (locks.has(b[0]) ? 1 : 0) - (locks.has(a[0]) ? 1 : 0));
+  const placed = [];
+  for (const [n, e] of want) { const i = free.indexOf(n); if (i >= 0) { free.splice(i, 1); placed.push([n, e, n]); } else placed.push([n, e, 0]); }
+  for (const x of placed) {
+    if (!x[2] && free.length) x[2] = free.shift();
+    const [n, e, hit] = x;
     if (!hit) {
-      if (!free.length) throw err("poolfull", "the pool is full (128)", { need: [...clip.pool.values()].filter(Boolean).length });
-      hit = free.shift();
-      if (e.id) { const r = new Uint8Array(4); r[0] = 0x52; r[1] = 1; p16(r, 2, imap.get(e.id) ?? e.id); m.prj.set(rkey(RK.SND, q, hit), r); }
-      else m.prj.set(rkey(RK.SND, q, hit), e.rec);
-      poolAdded++;
+      if (!fit) throw err("poolfull", "the pool is full (128)", { need: [...clip.pool.values()].filter(Boolean).length });
+      pmap.set(n, 0);
+      if (locks.has(n)) unfit++;
+      continue;
     }
+    if (e.id) { const r = new Uint8Array(4); r[0] = 0x52; r[1] = 1; p16(r, 2, imap.get(e.id) ?? e.id); m.prj.set(rkey(RK.SND, q, hit), r); }
+    else m.prj.set(rkey(RK.SND, q, hit), e.rec);
+    poolAdded++;
     pmap.set(n, hit);
   }
   clip.pats.forEach((x, i) => {
@@ -300,7 +312,7 @@ export function pastePatterns(m, q, j, clip) {
     copies += d.n;
     m.prj.set(rkey(RK.PAT, q, at[i]), d.bytes);
   });
-  return { at, poolAdded, presetsAdded: added, copies };
+  return { at, poolAdded, presetsAdded: added, copies, unfit };
 }
 // cleared: no record, as a pattern never written. A demo project's A01..A03 without a record play the demos (compiled
 // in): those are refused ({code: "demo"}), nothing changed
