@@ -205,6 +205,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>FIZZ finds an FM-1 over Bluetooth MIDI.</string>
 	<key>UILaunchScreen</key>
