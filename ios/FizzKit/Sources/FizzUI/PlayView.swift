@@ -455,9 +455,28 @@ public final class FizzAppDelegate: NSObject, UIApplicationDelegate {
     @MainActor static func allowLandscape(_ on: Bool) {
         guard UIDevice.current.userInterfaceIdiom != .pad, landscape != on else { return }
         landscape = on
-        for case let s as UIWindowScene in UIApplication.shared.connectedScenes {
+        apply(on, tries: 10)
+    }
+
+    /// (PLAY shown with the phone already on its side, at launch too: turned at once, not on the next turn; the
+    /// window may not be there yet at launch, so tried again shortly)
+    @MainActor private static func apply(_ on: Bool, tries: Int) {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.filter { $0.keyWindow != nil }
+        if scenes.isEmpty {
+            if tries > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { MainActor.assumeIsolated { if landscape == on { apply(on, tries: tries - 1) } } }
+            }
+            return
+        }
+        let held = UIDevice.current.orientation
+        for s in scenes {
             s.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-            if !on { s.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in } }
+            if !on {
+                s.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
+            } else if held == .landscapeLeft || held == .landscapeRight {
+                // (the device's landscapeLeft is the interface's landscapeRight, and the other way round)
+                s.requestGeometryUpdate(.iOS(interfaceOrientations: held == .landscapeLeft ? .landscapeRight : .landscapeLeft)) { _ in }
+            }
         }
     }
 }
