@@ -1031,6 +1031,267 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .octcol span { flex: 1; border-radius: 11px; background: var(--t-key); box-shadow: inset 0 2px 0 var(--t-hi), 0 3px 0 var(--t-lo); color: var(--t-keyText); font: 700 15px/1.2 "Chakra Petch"; letter-spacing: .06em; display: grid; place-items: center; text-align: center; }
 .octcol b { font: 700 13px/1 "Chakra Petch"; color: var(--t-keyText); text-align: center; letter-spacing: .08em; opacity: .85; padding: 4px 0; }
 
+/* ================================================================ 41–48: the web-parity items (search, bulk, drag, backup play, pan / sends, + NEW) */
+/* two phones in one frame */
+.pair { display: flex; gap: 24px; }
+.cell.pr { width: 584px; }
+/* LIBRARY's search: a field under the source switch; while it holds text the switch counts the matches */
+.srow { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.srch { flex: 1; min-width: 0; height: 44px; border-radius: 22px; border: 2px solid var(--cream); background: color-mix(in srgb, var(--cream) 7%, #0b0b0e); display: flex; align-items: center; gap: 9px; padding: 0 6px 0 14px; color: var(--text); font-weight: 800; font-size: 17px; letter-spacing: .04em; box-shadow: 0 0 16px color-mix(in srgb, var(--cream) 20%, transparent); }
+.srch.idle { border: 1.5px solid var(--line); background: var(--raised); box-shadow: none; color: var(--muted); font-size: 15px; }
+.srch > svg { width: 19px; height: 19px; fill: none; stroke: var(--cream); stroke-width: 2.6; stroke-linecap: round; flex: none; }
+.srch.idle > svg { stroke: var(--muted); }
+.srch .caret { height: 22px; width: 2.5px; margin-left: -6px; vertical-align: 0; }
+.srch .x { margin-left: auto; width: 30px; height: 30px; border-radius: 15px; background: #2a2a33; display: grid; place-items: center; flex: none; }
+.srch .x svg { width: 13px; height: 13px; fill: none; stroke: var(--text); stroke-width: 3; stroke-linecap: round; }
+.srow .btn.small { height: 44px; border-radius: 22px; padding: 0 14px; font-size: 13px; gap: 6px; }
+.srow .btn.small svg { width: 16px; height: 16px; }
+.lhead.src .seg button em { font-style: normal; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #2a2a33; color: var(--text); font-size: 12px; display: inline-grid; place-items: center; letter-spacing: 0; }
+.lhead.src .seg button.on em { background: #000; color: var(--cream); }
+.lhead.src .seg button.phs em { color: var(--champagne); }
+.lsec { display: flex; align-items: center; gap: 8px; margin: 2px 2px 8px; font-size: 12px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
+.lsec b { font-size: 13px; letter-spacing: 0; }
+.lsec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.lsec .phg { width: 12px; height: 14px; color: var(--champagne); }
+.cas .nm u { text-decoration: none; color: #000; background: var(--cream); border-radius: 4px; padding: 0 2px; }
+.cas.kp .nm u { background: var(--champagne); }
+.cas.off { opacity: .32; }
+/* a ticked unit row (cream: LIBRARY's colour; the phone's own are champagne) */
+.cas.pk2 { border-color: var(--cream); background: color-mix(in srgb, var(--cream) 8%, var(--raised)); box-shadow: 0 0 14px color-mix(in srgb, var(--cream) 18%, transparent); }
+.cas.pk2 .ck { background: var(--cream); border-color: var(--cream); }
+.cas.pk2 .ck svg { opacity: 1; }
+.cas.pk2.last .ck { animation: ckpop 2.4s ease-out infinite; }
+/* the bulk bar (LIBRARY, a unit's presets ticked): takes the tab bar's place */
+.bulk { position: absolute; left: 12px; right: 12px; bottom: 28px; z-index: 55; border-radius: 26px; padding: 12px; background: color-mix(in srgb, var(--cream) 6%, #0e0e12); border: 2px solid var(--cream); box-shadow: 0 -12px 34px #000, 0 0 24px color-mix(in srgb, var(--cream) 18%, transparent); }
+.bulk .top { display: flex; align-items: center; gap: 8px; margin: 0 0 10px 6px; }
+.bulk .n { font-size: 46px; font-weight: 800; color: var(--cream); line-height: .9; font-variant-numeric: tabular-nums; }
+.bulk .rings { display: flex; margin: 0 auto 0 4px; }
+.bulk .rings i { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--c); background: #0e0e12; margin-left: -6px; }
+.bulk .rings i:first-child { margin-left: 0; }
+.bulk .top .btn { height: 40px; font-size: 13px; padding: 0 14px; }
+.bulk .icon.vi { border-color: color-mix(in srgb, var(--violet) 60%, transparent); } .bulk .icon.vi svg { stroke: var(--violet); }
+.bulk .icon.red { border-color: color-mix(in srgb, var(--red) 55%, transparent); } .bulk .icon.red svg { stroke: var(--red); }
+.btools { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-bottom: 10px; }
+.bto { height: 46px; border-radius: 23px; border: 1.5px solid color-mix(in srgb, var(--c) 60%, var(--line)); background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 800; font-size: 13px; letter-spacing: .07em; white-space: nowrap; }
+.bto b { min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--c); color: #000; display: grid; place-items: center; font-size: 13px; letter-spacing: 0; }
+.bto .chev { font-size: 11px; color: var(--c); }
+.bto.on { background: var(--c); color: #000; border-color: var(--c); box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent); }
+.bto.dis { opacity: .3; }
+.bsend { width: 100%; height: 56px; border-radius: 28px; --c: var(--emu); animation: breathe 2.2s ease-in-out infinite; }
+.bsend .phg { width: 17px; height: 20px; }
+.bsend .dst { margin-left: 2px; }
+/* the TAG chooser and the delete confirm (FizzSheets) */
+.tsh .shd { display: flex; align-items: center; gap: 10px; margin: 0 2px 14px; }
+.tsh .shd .big { font-size: 34px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: .02em; }
+.tsh .shd .rings { display: flex; gap: 0; margin-left: 4px; }
+.tsh .shd .rings i { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--c); background: #0d0d11; margin-left: -7px; }
+.tsh .shd .rings i:first-child { margin-left: 0; }
+.tsh .shd .n { font-size: 34px; font-weight: 800; color: var(--cream); line-height: 1; }
+.tgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.tg { height: 72px; border-radius: 20px; border: 2px solid color-mix(in srgb, var(--c) 65%, var(--line)); background: color-mix(in srgb, var(--c) 9%, #0d0d11); display: flex; align-items: center; gap: 12px; padding: 0 16px; font-weight: 800; font-size: 18px; letter-spacing: .08em; color: var(--text); position: relative; }
+.tg svg { width: 34px; height: 34px; fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.tg.on { background: var(--c); border-color: var(--c); color: var(--tx, #000); box-shadow: 0 0 26px color-mix(in srgb, var(--c) 55%, transparent); }
+.tg.on svg { stroke: var(--tx, #000); }
+.tg.on::after { content: ""; position: absolute; inset: -2px; border-radius: 20px; border: 2px solid var(--c); animation: utap 1.6s ease-out infinite; }
+.tg.none { --c: #6a6a74; border-style: dashed; color: var(--muted); background: transparent; }
+.tg .cnt2 { margin-left: auto; display: flex; gap: 3px; }
+.tg .cnt2 i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.tg.on .cnt2 i { background: var(--tx, #000); }
+.cfm { --c: var(--red); }
+.cfm .ctop { display: flex; align-items: center; gap: 14px; margin: 2px 2px 14px; }
+.cfm .cic { width: 58px; height: 58px; border-radius: 18px; border: 2px solid var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); display: grid; place-items: center; flex: none; }
+.cfm .cic svg { width: 30px; height: 30px; fill: none; stroke: var(--red); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.cfm .ct2 { font-size: 30px; font-weight: 800; color: var(--text); line-height: 1.02; letter-spacing: .01em; }
+.cfm .ct2 small { display: block; font-size: 13px; letter-spacing: .1em; color: var(--muted); margin-top: 4px; }
+.cfm .crow { height: 46px; border-radius: 12px; background: var(--raised); border: 1.5px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; margin-bottom: 6px; color: var(--text); font-weight: 800; font-size: 15px; letter-spacing: .03em; }
+.cfm .crow .algo { width: 26px; height: 26px; }
+.cfm .crow .sl { color: var(--muted); font-size: 13px; width: 20px; text-align: right; }
+.cfm .crow .uu { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; background: var(--yellow); display: grid; place-items: center; box-shadow: 0 0 10px color-mix(in srgb, var(--yellow) 50%, transparent); }
+.cfm .crow .uu svg { width: 13px; height: 13px; fill: none; stroke: #000; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.cwarn { border-radius: 16px; border: 2px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 9%, #0d0d11); padding: 11px 12px 12px; margin: 10px 0 14px; }
+.cwarn .wh { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; letter-spacing: .08em; color: var(--yellow); margin-bottom: 9px; }
+.cwarn .wh svg { width: 20px; height: 20px; fill: none; stroke: var(--yellow); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.cwarn .wh b { color: var(--yellow); font-size: 20px; letter-spacing: 0; }
+.cwarn .row { gap: 7px; flex-wrap: wrap; }
+.cwarn .uchip { height: 36px; font-size: 14px; }
+.cwarn .back { margin-top: 9px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; color: var(--body); letter-spacing: .04em; }
+.cwarn .back i { display: flex; gap: 3px; } .cwarn .back i s { width: 14px; height: 14px; border-radius: 4px; background: var(--c); text-decoration: none; }
+.cbtns { display: flex; gap: 8px; }
+.cbtns .btn { flex: 1; height: 56px; border-radius: 28px; }
+.cbtns .btn.go { --c: var(--red); flex: 1.4; color: #000; }
+/* PROJECTS: a pattern lifted */
+.pgr.dz .pp { border-color: color-mix(in srgb, var(--cyan) 30%, #1c1c22); }
+.pgr.dz .pp.u { border-color: color-mix(in srgb, var(--cyan) 38%, #2a2a33); }
+.pp.lifted { background: transparent; border: 1.5px dashed var(--cyan); }
+.pp.lifted > svg { opacity: .18; }
+.pp.lifted .no { color: var(--cyan); }
+.sc.dt { border: 1.5px dashed color-mix(in srgb, var(--cyan) 70%, transparent); color: var(--cyan); }
+.sc.dt.hit { background: var(--cyan); border-style: solid; color: #000; box-shadow: 0 0 18px color-mix(in srgb, var(--cyan) 60%, transparent); animation: hitc 1.4s ease-out infinite; }
+@keyframes hitc { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cyan) 75%, transparent); } 100% { box-shadow: 0 0 0 13px transparent; } }
+.spring { position: absolute; z-index: 40; width: 250px; border-radius: 20px; border: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 9%, #0b0b0e); padding: 11px 12px 12px; box-shadow: 0 18px 40px #000, 0 0 30px color-mix(in srgb, var(--cyan) 35%, transparent); animation: mpop .5s cubic-bezier(.2, 1.4, .4, 1) both; transform-origin: 30px 0; }
+.spring .sh1 { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.spring .sh1 i { width: 26px; height: 26px; border-radius: 13px; background: var(--green); color: #000; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 14px; }
+.spring .sh1 b { font-size: 19px; font-weight: 800; color: var(--text); }
+.spring .sh1 em { margin-left: auto; font-style: normal; font-size: 14px; font-weight: 800; color: #000; background: var(--cyan); border-radius: 9px; padding: 3px 8px; }
+.mgrid { display: grid; grid-template-columns: 12px repeat(16, 1fr); gap: 3px 3px; align-items: center; }
+.mgrid .bl { font-size: 11px; font-weight: 800; color: var(--muted); }
+.mgrid s { aspect-ratio: 1; border-radius: 50%; border: 1.5px solid #3a3a44; text-decoration: none; }
+.mgrid s.u { background: #6a6a74; border-color: #6a6a74; }
+.mgrid s.ff { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); animation: blink .6s infinite alternate; }
+.pghost { position: absolute; z-index: 46; width: 92px; height: 66px; border-radius: 11px; border: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 14%, var(--raised)); padding: 17px 5px 5px; transform: rotate(-5deg); box-shadow: 0 18px 30px #000, 0 0 26px color-mix(in srgb, var(--cyan) 55%, transparent); animation: gfloat 2.2s ease-in-out infinite; }
+@keyframes gfloat { 50% { transform: rotate(-3deg) translateY(-5px); } }
+.pghost .no { position: absolute; left: 6px; top: 1px; font-size: 13px; font-weight: 800; color: var(--cyan); }
+.pghost svg { display: block; width: 100%; height: 100%; }
+.pghost .gb { position: absolute; right: -10px; top: -12px; height: 24px; padding: 0 8px; border-radius: 12px; background: var(--cyan); color: #000; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 4px; letter-spacing: .03em; box-shadow: 0 0 0 2px #000; }
+.pghost .gb svg { width: 12px; height: 12px; fill: none; stroke: #000; stroke-width: 2.6; }
+/* the TO… sheet */
+.tosh { --c: var(--cyan); }
+.tosh .toh { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+.tosh .src { height: 40px; padding: 0 12px; border-radius: 12px; background: var(--cyan); color: #000; font-weight: 800; font-size: 20px; display: grid; place-items: center; box-shadow: 0 0 16px color-mix(in srgb, var(--cyan) 50%, transparent); }
+.tosh .sfrom { font-size: 15px; font-weight: 800; color: var(--muted); letter-spacing: .05em; }
+.tosh .seg { margin-left: auto; --c: var(--cyan); }
+.tosh .seg button { height: 40px; padding: 0 13px; }
+.tosh .seg button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.tprj { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 12px; }
+.tpj { height: 48px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--raised); display: flex; align-items: center; gap: 8px; padding: 0 9px 0 6px; font-weight: 800; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; position: relative; }
+.tpj i { width: 26px; height: 26px; border-radius: 13px; background: var(--green); color: #000; display: grid; place-items: center; font-style: normal; font-size: 13px; flex: none; }
+.tpj.on { border: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 16%, var(--raised)); box-shadow: 0 0 16px color-mix(in srgb, var(--cyan) 40%, transparent); }
+.tpj.on i { background: var(--cyan); }
+.tpj.full { border: 1.5px dashed color-mix(in srgb, var(--red) 70%, transparent); color: var(--muted); background: transparent; }
+.tpj.full i { background: #2a2a33; color: var(--muted); }
+.tpj.full em { position: absolute; right: 5px; top: 4px; font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #000; background: var(--red); border-radius: 5px; padding: 1px 4px; }
+.tpj.full .pf { position: absolute; left: 6px; right: 6px; bottom: 5px; height: 3px; border-radius: 2px; background: var(--red); opacity: .8; }
+.tgr { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.tgr .r { display: grid; grid-template-columns: 14px repeat(16, 1fr); gap: 3px; align-items: center; }
+.tgr .bl { font-size: 12px; font-weight: 800; color: var(--muted); }
+.tgr s { height: 24px; border-radius: 6px; background: #0f0f13; border: 1.5px solid #1f1f26; text-decoration: none; }
+.tgr s.u { background: #2c2c35; border-color: #3a3a44; }
+.tgr s.ff { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+.tgr s.rp { border: 2px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 25%, #2c2c35); }
+.tsnd { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.tsnd .pi { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; border: 1.5px solid color-mix(in srgb, var(--green) 60%, transparent); background: color-mix(in srgb, var(--green) 10%, transparent); flex: none; }
+.tsnd .pi svg { width: 18px; height: 18px; fill: var(--green); }
+.tsnd .sd { height: 36px; padding: 0 11px; border-radius: 18px; display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; color: var(--text); border: 1.5px solid var(--line); white-space: nowrap; }
+.tsnd .sd.add { border-color: var(--green); color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.tsnd .sd .dts { display: inline-flex; gap: 3px; } .tsnd .sd .dts i { width: 9px; height: 9px; border-radius: 3px; background: var(--c); }
+.tsnd .pm { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 12px; font-weight: 800; color: var(--muted); }
+.tsnd .pm b { font-size: 14px; }
+.tsnd .pm .meter { width: 74px; height: 8px; border-radius: 4px; }
+.tosh .cbtns .go { --c: var(--cyan); animation: breathe 2.2s ease-in-out infinite; }
+.tosh .cbtns .go b { color: #000; height: 28px; padding: 0 8px; border-radius: 9px; background: rgba(0, 0, 0, .14); display: grid; place-items: center; font-size: 16px; }
+/* BACKUPS: ▶ plays a backup on a throwaway phone FIZZ */
+.bk .bplay { width: 42px; height: 42px; border-radius: 21px; background: color-mix(in srgb, var(--emu) 16%, transparent); border: 2px solid var(--emu); display: grid; place-items: center; flex: none; margin-right: 2px; }
+.bk .bplay svg { width: 15px; height: 15px; fill: var(--emu); stroke: none; margin-left: 3px; }
+.bk .bplay.tap { background: var(--emu); box-shadow: 0 0 20px color-mix(in srgb, var(--emu) 60%, transparent); position: relative; }
+.bk .bplay.tap svg { fill: #000; }
+.bk .bplay.tap::after { content: ""; position: absolute; inset: -2px; border-radius: 22px; border: 2px solid var(--emu); animation: utap 1.6s ease-out infinite; }
+.bk:has(.bplay) { gap: 9px; }
+.bk:has(.bplay) .what { gap: 7px; white-space: nowrap; }
+.bk:has(.bplay) .ver { font-size: 11px; padding: 1px 5px; }
+.bk.ring { border-color: color-mix(in srgb, var(--emu) 70%, var(--line)); box-shadow: 0 0 18px color-mix(in srgb, var(--emu) 25%, transparent); }
+/* PLAY on a backup: the header's pill */
+.emul .me.bkp { background: var(--yellow); color: #000; padding: 0 3px 0 9px; gap: 5px; font-size: 12px; letter-spacing: .03em; box-shadow: 0 0 0 2px rgba(0, 0, 0, .25), 0 0 18px rgba(255, 210, 63, .5); }
+.emul .me.bkp svg { width: 16px; height: 16px; fill: none; stroke: #000; stroke-width: 2.3; flex: none; }
+.emul .me.bkp .xx { width: 26px; height: 26px; border-radius: 13px; background: #000; display: grid; place-items: center; margin-left: 3px; }
+.emul .me.bkp .xx svg { width: 11px; height: 11px; stroke: var(--yellow); stroke-width: 3.2; stroke-linecap: round; }
+/* EDIT · AMP: PAN and the sends beside LEVEL */
+.ampenv { display: block; width: 100%; height: 132px; overflow: visible; margin: 8px 0 10px; }
+.ampenv .af { fill: #26262c; }
+.ampenv .al { fill: none; stroke: var(--cream); stroke-width: 2.6; stroke-linejoin: round; }
+.aseg { display: inline-grid; grid-template-columns: 1fr 1fr; width: 200px; border: 1.5px solid var(--line); border-radius: 22px; overflow: hidden; }
+.aseg span { height: 38px; display: grid; place-items: center; font-weight: 800; font-size: 14px; letter-spacing: .06em; color: var(--muted); }
+.aseg span.on { background: var(--cream); color: #000; }
+.achips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.achips span { border-radius: 12px; border: 1.5px solid #4a4a52; background: #16161a; padding: 6px 10px 6px; font-size: 12px; font-weight: 800; color: var(--text); letter-spacing: .06em; line-height: 1.1; }
+.achips span b { display: block; font-size: 20px; letter-spacing: 0; }
+.mixc { margin-top: 12px; border-radius: 18px; border: 1.5px solid color-mix(in srgb, var(--cream) 30%, var(--line)); background: color-mix(in srgb, var(--cream) 3%, var(--panel)); padding: 10px 12px 12px; }
+.mixc .lv { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 800; letter-spacing: .08em; color: var(--text); margin-bottom: 7px; }
+.mixc .lv b { font-size: 18px; letter-spacing: 0; }
+.mixc .lbar { height: 10px; border-radius: 5px; background: #1d1d23; overflow: hidden; margin-bottom: 12px; }
+.mixc .lbar span { display: block; height: 100%; border-radius: 5px; background: var(--cream); }
+.pan { position: relative; height: 54px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--cream) 45%, var(--line)); background: #121216; margin-bottom: 8px; display: flex; align-items: center; padding: 0 12px; }
+.pan .pl { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--text); width: 40px; flex: none; }
+.pan .tr { position: relative; flex: 1; height: 26px; margin-top: 12px; }
+.pan .tr::before { content: ""; position: absolute; left: 0; right: 0; top: 12px; height: 2px; background: #33333b; }
+.pan .tr .tk { position: absolute; top: 4px; width: 2px; height: 18px; margin-left: -1px; background: #4a4a52; }
+.pan .tr .tk.c { background: var(--cream); height: 22px; top: 2px; }
+.pan .tr .tl { position: absolute; top: -13px; font-size: 12px; font-weight: 800; color: var(--muted); }
+.pan .tr .fill { position: absolute; top: 10px; height: 6px; border-radius: 3px; background: var(--cream); opacity: .85; }
+.pan .tr .kn { position: absolute; top: 3px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--cream); box-shadow: 0 0 0 3px #000, 0 0 14px color-mix(in srgb, var(--cream) 60%, transparent); }
+.pan .pv { width: 52px; text-align: right; font-size: 20px; font-weight: 800; color: var(--text); flex: none; font-variant-numeric: tabular-nums; }
+.pan .pv small { font-size: 13px; color: var(--muted); }
+.pan.hot { border-color: var(--cream); box-shadow: 0 0 18px color-mix(in srgb, var(--cream) 30%, transparent); }
+.sends { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.snd { border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); background: color-mix(in srgb, var(--c) 6%, #121216); padding: 7px 10px 9px; }
+.snd .st { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--c); }
+.snd .st b { font-size: 20px; color: var(--text); letter-spacing: 0; }
+.snd .sb2 { height: 8px; border-radius: 4px; background: #1d1d23; overflow: hidden; margin-top: 6px; }
+.snd .sb2 span { display: block; height: 100%; background: var(--c); border-radius: 4px; }
+.snd.zero { opacity: .62; }
+.snd.zero .st b { color: var(--muted); }
+/* + NEW: FM or MIDI */
+.newc { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nc { height: 236px; border-radius: 26px; border: 2px solid var(--c); background: color-mix(in srgb, var(--c) 9%, #0d0d11); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; position: relative; box-shadow: 0 0 24px color-mix(in srgb, var(--c) 22%, transparent); }
+.nc > svg { width: 96px; height: 96px; }
+.nc b { font-size: 21px; font-weight: 800; letter-spacing: .06em; color: var(--text); text-align: center; line-height: 1.1; }
+.nc small { height: 26px; padding: 0 10px; border-radius: 9px; display: grid; place-items: center; font-size: 13px; font-weight: 800; letter-spacing: .08em; color: var(--c); border: 1.5px dashed color-mix(in srgb, var(--c) 70%, transparent); }
+.nc.tap { background: color-mix(in srgb, var(--c) 18%, #0d0d11); }
+.nc.tap::after { content: ""; position: absolute; inset: -2px; border-radius: 26px; border: 2px solid var(--c); animation: utap 1.6s ease-out infinite; }
+.nc svg.din { fill: none; stroke: var(--c); stroke-width: 1.6; }
+.nc svg.din circle:not(:first-child) { fill: var(--c); stroke: none; }
+.nsub { display: flex; justify-content: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 800; letter-spacing: .08em; color: var(--muted); align-items: center; }
+.nsub .dst { height: 26px; min-width: 26px; padding: 0 7px; border-radius: 13px; background: var(--cream); color: #000; display: grid; place-items: center; font-size: 14px; letter-spacing: 0; }
+.lnew { height: 40px; padding: 0 14px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; letter-spacing: .08em; color: #000; background: var(--cream); box-shadow: 0 0 16px color-mix(in srgb, var(--cream) 40%, transparent); flex: none; }
+.lnew svg { width: 15px; height: 15px; fill: none; stroke: #000; stroke-width: 3; stroke-linecap: round; }
+.lnew.tap { animation: hitring 1.4s ease-out infinite; }
+.silent { margin-left: auto; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--line); color: var(--muted); font-weight: 800; font-size: 13px; letter-spacing: .1em; }
+.silent svg { width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.silent + .unit { margin-left: 0; }
+.mtag { height: 24px; padding: 0 9px; border-radius: 7px; background: var(--magenta); color: #000; font-size: 13px; font-weight: 800; letter-spacing: .06em; display: inline-grid; place-items: center; }
+.newl { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--champagne); display: inline-flex; align-items: center; gap: 6px; }
+.newl i { width: 8px; height: 8px; border-radius: 50%; background: var(--champagne); animation: blink .8s infinite alternate; }
+.mslots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+.ms { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.ms .bx { width: 100%; height: 300px; border-radius: 14px; border: 2px dashed color-mix(in srgb, var(--c) 45%, #3a3a44); background: #15151a; }
+.ms .cc { height: 34px; padding: 0 10px; border-radius: 17px; border: 1.5px solid color-mix(in srgb, var(--c) 50%, var(--line)); color: var(--c); font-size: 13px; font-weight: 800; letter-spacing: .06em; display: grid; place-items: center; }
+.ms .vv { font-size: 22px; font-weight: 800; color: var(--text); height: 30px; }
+.mpg { display: flex; gap: 7px; margin: 0 -16px; padding: 0 16px; overflow: hidden; }
+.mpg span { height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid var(--line); display: grid; place-items: center; font-weight: 800; font-size: 14px; letter-spacing: .04em; color: var(--muted); flex: none; }
+.mpg span.on { background: var(--magenta); border-color: var(--magenta); color: #000; box-shadow: 0 0 16px color-mix(in srgb, var(--magenta) 50%, transparent); }
+.btn.san { --c: var(--pink); animation: breathe 2s ease-in-out infinite; }
+.btn.san .dst { background: #000; color: var(--pink); }
+.btn.dimb { opacity: .3; }
+/* iPad: LIBRARY search + the bulk panel; PROJECTS: two projects side by side */
+.mtop .srch { flex: none; width: 250px; height: 40px; font-size: 15px; }
+.cols .list.wide2 { width: 420px; }
+.bpanel { flex: 1; border-color: var(--cream); background: color-mix(in srgb, var(--cream) 4%, var(--panel)); gap: 0; }
+.bpanel .top { display: flex; align-items: center; gap: 10px; }
+.bpanel .n { font-size: 60px; font-weight: 800; color: var(--cream); line-height: .9; }
+.bpanel .rings { display: flex; margin-right: auto; } .bpanel .rings i { width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--c); background: var(--panel); margin-left: -7px; } .bpanel .rings i:first-child { margin-left: 0; }
+.bpanel .icon.vi { border-color: color-mix(in srgb, var(--violet) 60%, transparent); } .bpanel .icon.vi svg { stroke: var(--violet); }
+.bpanel .icon.red { border-color: color-mix(in srgb, var(--red) 55%, transparent); } .bpanel .icon.red svg { stroke: var(--red); }
+.bklist2 { margin: 14px 0; display: flex; flex-direction: column; gap: 6px; }
+.bklist2 .crow { height: 44px; border-radius: 12px; background: var(--raised); border: 1.5px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; color: var(--text); font-weight: 800; font-size: 15px; }
+.bklist2 .crow .algo { width: 24px; height: 24px; }
+.bklist2 .crow .sl { color: var(--muted); font-size: 13px; width: 22px; text-align: right; }
+.bklist2 .crow .to { margin-left: auto; font-size: 13px; color: var(--emu); display: flex; align-items: center; gap: 5px; }
+.bklist2 .crow .to .phg { width: 11px; height: 13px; }
+.bpanel .btools { margin-top: 4px; }
+.bpanel .tagpop { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+.bpanel .tagpop .tag { height: 32px; padding: 0 11px; font-size: 13px; border-radius: 9px; gap: 6px; }
+.bpanel .tagpop .tag svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.bpanel .tagpop .tag.none { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1.5px #4a4a52; }
+.twop { display: flex; gap: 14px; flex: 1; min-height: 0; }
+.twop .card { flex: 1; padding: 14px 14px 16px; }
+.twop .card.tgt2 { border-color: color-mix(in srgb, var(--cyan) 60%, var(--line)); box-shadow: 0 0 26px color-mix(in srgb, var(--cyan) 18%, transparent); }
+.twop .pphead .big { font-size: 34px; }
+.twop .pphead .big.sun { color: var(--green); text-shadow: 0 0 22px color-mix(in srgb, var(--green) 40%, transparent); }
+.twop .pgr { gap: 9px; }
+.twop .pp { height: 36px; }
+.pp.land { border: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 22%, var(--raised)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 30%, transparent), 0 0 22px var(--cyan); }
+.pp.land .no { color: var(--cyan); }
+.spill.beside { border: 2px solid var(--green); background: color-mix(in srgb, var(--green) 14%, var(--raised)); }
+
 /* ================================================================ the page around the devices */
 body.shot { padding: 16px; width: fit-content; }
 body.sheet { width: 1640px; padding: 30px 34px 40px; }
@@ -1319,7 +1580,7 @@ const SCREENS = [
         <rect class="ph" x="142" y="448" width="106" height="148" rx="22"/><rect x="178" y="456" width="34" height="9" rx="4.5" fill="#1c1c22"/>
         <g transform="translate(176 504) scale(1.2)" fill="none" stroke-width="2.4"><circle cx="11" cy="20" r="7" stroke="var(--cyan)"/><circle cx="22" cy="10" r="5" stroke="var(--pink)"/><circle cx="23" cy="24" r="3" stroke="var(--yellow)"/></g>
       </svg>
-      <div class="lookrow"><span class="look"><i></i>LOOKING FOR FM-1</span><span class="bt">${IC.bt}</span></div>`) },
+      <div class="lookrow"><span class="look"><i></i>LOOKING FOR FM-1</span><span class="bto">${IC.bt}</span></div>`) },
   { id: "connect-found", title: "Found", cap: "The bubbles burst outwards into the card; the green ring ripples; the card pops in, then the app slides on to BACKUP by itself.",
     html: () => phone(bubbles(14, 5) + burst("var(--green)") + topBar() + `<div class="found" style="--c:var(--green)"><div class="ringw"><span class="ring"></span><span class="ring rip"></span>${fm1("var(--green)", LCD_BUB, 260)}</div>
       <div class="fz word">FIZZ</div><div class="vv">0.12.0-beta.11</div><span class="chip"><i></i>USB</span></div>`) },
@@ -1933,6 +2194,238 @@ SCREENS.push(
     html: () => ipad(emuStepsPad()).replace('<div class="scr">', `<div class="scr emus" style="${tv("Tangerine")};background:var(--t-body)">`) },
 );
 
+// ---------------------------------------------------------------- 41–48: the web-parity items (the web Manager's NEON features, drawn the iOS app's way)
+// the tags' icons (site/manager/ui.js TAG_ICON), drawn in each tag's colour; NONE: a struck circle
+const TAG_ICON = {
+  BASS: '<path d="M2 12c3.3-8 6.7-8 10 0s6.7 8 10 0"/><path d="M2 20h20"/>',
+  KEYS: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 12.5V19M15 12.5V19"/><path d="M7.5 5v7.5h3V5M13.5 5v7.5h3V5"/>',
+  PLUCK: '<path d="M2 7h5l5 8 5-8h5"/><circle cx="12" cy="18.5" r="1.6"/>',
+  PAD: '<path d="M7 18h10a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6.6A3.7 3.7 0 0 0 7 18z"/>',
+  LEAD: '<path d="M2 18l6-12v12l6-12v12l6-12"/>',
+  DRUMS: '<ellipse cx="12" cy="11" rx="8" ry="3"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M7 3l4 6M17 3l-4 6"/>',
+  FX: '<path d="M11 3c.7 4.6 3.3 7.3 8 8-4.7.7-7.3 3.3-8 8-.7-4.7-3.3-7.3-8-8 4.7-.7 7.3-3.4 8-8z"/><path d="M19 3v4M17 5h4"/>',
+  NONE: '<circle cx="12" cy="12" r="8.5"/><path d="M6 18L18 6"/>',
+};
+const tIcon = (t) => `<svg viewBox="0 0 24 24">${TAG_ICON[t]}</svg>`;
+// the MIDI mark (ui.js MIDI_I: a DIN socket)
+const MIDI_I = '<svg class="din" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M10 3.4h4"/><circle cx="6.5" cy="12" r="1.3"/><circle cx="17.5" cy="12" r="1.3"/><circle cx="8.2" cy="7.9" r="1.3"/><circle cx="15.8" cy="7.9" r="1.3"/><circle cx="12" cy="6.4" r="1.3"/></svg>';
+Object.assign(IC, {
+  move: '<svg viewBox="0 0 24 24"><path d="M4 12h14M13 6l6 6-6 6"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  pl: '<svg viewBox="0 0 12 12"><rect x="0" y="0" width="5" height="5" rx="1.5"/><rect x="7" y="0" width="5" height="5" rx="1.5"/><rect x="0" y="7" width="5" height="5" rx="1.5"/><rect x="7" y="7" width="5" height="5" rx="1.5"/></svg>',
+});
+const railP = (sel) => rail(sel).replace('<nav class="vtabs">', `<nav class="vtabs"><span class="vt" style="--c:var(--emu)">${IC.fm1}PLAY</span>`);
+const pair = (a, b) => `<div class="pair">${a}${b}</div>`;
+
+// LIBRARY searched for "GLASS": [slot, name, tag, algo, pool place]; KEPT: [name, tag, algo]
+const Q41 = "GLASS";
+const SMY = [[2, "GLASS BELL", "PLUCK", 2, 3], [19, "GLASS PAD", "PAD", 3, 0], [27, "SODA GLASS", "LEAD", 4, 0]];
+const SFAC = [[14, "GLASS HARP", "KEYS", 6, 0], [21, "GLASS FX", "FX", 8, 0]];
+const SKEPT = ["NIGHT GLASS", "PAD", 3];
+const hl = (s) => s.replace(Q41, `<u>${Q41}</u>`);
+function srow([n, name, t, al, pl], cls = "", tick = false) {
+  return `<div class="cas ${cls}" style="--c:${cv(t)}"><span class="stripe"></span>${tick ? `<span class="ck">${IC.tap}</span>` : ""}<span class="sl">${n}</span>${algo(al, cv(t))}<span class="nm">${hl(name)}</span><span class="mark">${pl ? '<span class="ptag">POOL</span>' : ""}${tag(t)}</span></div>`;
+}
+const keptRow = ([name, t, al], cls = "", tick = false) => `<div class="cas kp ${cls}" style="--c:${cv(t)}"><span class="stripe"></span>${tick ? `<span class="ck">${IC.tap}</span>` : ""}${algo(al, cv(t))}<span class="nm">${hl(name)}</span><span class="mark">${tag(t)}</span></div>`;
+const srch = (q = Q41) => q ? `<span class="srch">${IC.look.replace("<svg", "<svg")}<span>${q}</span><i class="caret"></i><span class="x">${IC.x}</span></span>` : `<span class="srch idle">${IC.look}</span>`;
+// the source switch, counting the matches while the field holds text
+const srcSeg = (q = true, on = "ALL") => `<div class="seg"><button class="phs ${on === "KEPT" ? "on" : ""}">${PHG(17)}${q ? "<em>1</em>" : ""}</button>` +
+  [["MY PRESETS", 3], ["FACTORY", 2], ["ALL", 6]].map(([n, c]) => `<button class="${n === on ? "on" : ""}">${n === "MY PRESETS" && q ? "MY" : n}${q ? `<em>${c}</em>` : ""}</button>`).join("") + "</div>";
+// the search results, grouped in the switch's order: KEPT, MY PRESETS, FACTORY (select: 3 MY ticked, KEPT greyed: one side at a time)
+function searchLib({ select = false } = {}) {
+  const sec = (n, c, ph = false) => `<div class="lsec">${ph ? PHG(12) : ""}${n} <b>${c}</b></div>`;
+  return topBar2({ on: true, track: 3 }) + `<div class="pg"><div class="lhead src">${srcSeg(true)}</div>
+    <div class="srow">${srch()}${select ? `<span class="btn small" style="--c:var(--cream)">${IC.tap}DONE</span>` : '<span class="btn small ghost">SELECT</span>'}</div>
+    <div class="tscroll">${tagChips()}</div>
+    ${sec("KEPT", 1, true)}${keptRow(SKEPT, select ? "off" : "", select)}
+    ${sec("MY PRESETS", 3)}${SMY.map((p, i) => srow(p, select ? `pk2 ${i === 2 ? "last" : ""}` : "", select)).join("")}
+    ${sec("FACTORY", 2)}${SFAC.map((p) => srow(p, "", select)).join("")}</div>`;
+}
+const RINGS3 = `<span class="rings">${SMY.map((p) => `<i style="--c:${cv(p[2])}"></i>`).join("")}</span>`;
+// the bulk bar: the count, ALL, EXPORT, DELETE; TAG / + POOL / − POOL; SEND n TO the other unit
+const bulkBar = (tagOn = false) => `<div class="bulk"><div class="top"><span class="n">3</span>${RINGS3}<span class="btn small ghost">ALL</span><span class="icon vi">${IC.share}</span><span class="icon red">${IC.trash}</span></div>
+  <div class="btools"><span class="bto ${tagOn ? "on" : ""}" style="--c:var(--cream)">TAG <span class="chev">▼</span></span><span class="bto" style="--c:var(--green)">+ POOL <b>2</b></span><span class="bto" style="--c:var(--green)">− POOL <b>1</b></span></div>
+  <span class="btn bsend">${PHG(17)}SEND 3 TO THIS iPHONE</span></div>`;
+// the bulk TAG chooser: the seven tags + NONE; the dots: how many of the three have it now
+function tagSheet() {
+  const has = { PLUCK: 1, PAD: 1, LEAD: 1 };
+  const tile = (t) => `<span class="tg ${t === "PAD" ? "on" : ""} ${t === "NONE" ? "none" : ""}" style="--c:${t === "NONE" ? "#6a6a74" : cv(t)};--tx:${t === "NONE" ? "#000" : tx(t)}">${tIcon(t)}${t}${has[t] ? `<span class="cnt2">${"<i></i>".repeat(has[t])}</span>` : ""}</span>`;
+  return `<div class="psheet tsh" style="top:360px;--c:var(--cream)"><div class="grab"></div>
+    <div class="shd"><span class="big">TAG</span>${RINGS3.replace("rings", "rings")}<span class="n" style="margin-left:auto">3</span></div>
+    <div class="tgrid">${[...TAGS, "NONE"].map(tile).join("")}</div></div>`;
+}
+// DELETE: asked once, naming how many and the projects that use them
+function delSheet() {
+  const used = [true, true, false];
+  return `<div class="psheet cfm" style="top:282px"><div class="grab"></div>
+    <div class="ctop"><span class="cic">${IC.trash}</span><span class="ct2">DELETE 3<small>MY PRESETS · FM-1</small></span></div>
+    ${SMY.map((p, i) => `<div class="crow"><span class="sl">${p[0]}</span>${algo(p[3], cv(p[2]))}${p[1]}${used[i] ? `<span class="uu">${IC.warn}</span>` : ""}</div>`).join("")}
+    <div class="cwarn"><div class="wh">${IC.warn}<b>2</b>USED BY</div>
+      <div class="row"><span class="uchip">NOIR<span class="dots"><i></i><i></i><i></i><i></i></span></span><span class="uchip">SUNDAY<span class="dots"><i></i></span></span></div>
+      <div class="back">5 STEPS → THEIR TRACK'S OWN SOUND</div></div>
+    <div class="cbtns"><span class="btn ghost">CANCEL</span><span class="btn go">${IC.trash}DELETE 3</span></div></div>`;
+}
+
+// PROJECTS: A07 lifted out of NOIR, held over SUNDAY's chip (it springs open: its patterns, the first free lit)
+const SUN_U = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 16, 17, 18, 32]);
+const NOIR_L = { used: NOIR_P.used, added: NOIR_P.added, gone: NOIR_P.gone, sel: [] };
+const LIFT = 6;   // A07
+function miniGrid(U, ff) {
+  return `<div class="mgrid">${[0, 1, 2, 3].map((b) => `<span class="bl">${"ABCD"[b]}</span>${Array.from({ length: 16 }, (_, i) => { const k = b * 16 + i; return `<s class="${U.has(k) ? "u" : ""} ${k === ff ? "ff" : ""}"></s>`; }).join("")}`).join("")}</div>`;
+}
+const pghost = (k, badge, style) => `<div class="pghost" style="${style}"><span class="no">${PN(k)}</span>${trigs(k * 7 + 3)}<span class="gb">${badge}</span></div>`;
+function liftGrid(P, { lift = -1, land = -1, dz = true, big = false } = {}) {
+  return `<div class="pgr ${dz ? "dz" : ""}">${[0, 1, 2, 3].map((b) => `<div class="bnk"><span class="bl">${"ABCD"[b]}</span>${Array.from({ length: 16 }, (_, i) => {
+    const k = b * 16 + i;
+    let t = ppTile(k, P, big);
+    if (k === lift) t = t.replace('class="pp', 'class="pp lifted');
+    if (k === land) t = t.replace('class="pp', 'class="pp land');
+    return t;
+  }).join("")}</div>`).join("")}</div>`;
+}
+function liftPhone() {
+  const chips = `<div class="sch">${PROJ.map((p, i) => `<span class="sc ${i === 0 ? "on" : p ? `dt ${i === 1 ? "hit" : ""}` : "empty"}">${i + 1}${i === 0 ? '<span class="chg"></span>' : ""}</span>`).join("")}<span class="sc kept">${IC.keep}6</span></div>`;
+  return topBar() + `<div class="pg"><div class="pphead"><span class="big">NOIR</span><span class="sm"><b>21</b> / 64</span></div>${chips}
+      ${liftGrid(NOIR_L, { lift: LIFT })}
+      <div class="spring" style="left:22px;top:118px"><div class="sh1"><i>2</i><b>SUNDAY</b><em>→ A10</em></div>${miniGrid(SUN_U, 9)}</div>
+      ${pghost(LIFT, `${IC.copy.replace("<svg", '<svg style="stroke:#000"')}COPY`, "left:60px;top:28px")}
+      <span class="tch" style="left:${16 + 56}px;top:${86}px;z-index:47"></span></div>
+    <div class="pend"><div class="top">${pendTop()}</div>${WRITE}</div>`;
+}
+// the TO… sheet: COPY / MOVE, the project, a pattern (or FIRST FREE), the sounds it brings; a full pool can't take it
+function toSheet() {
+  const P2 = [[0, "NOIR"], [1, "SUNDAY", "on"], [2, "FIZZ TOUR"], [3, "SKETCH"], [5, "ACID 3"], [6, "WINTER LP", "full"]];
+  return `<div class="psheet tosh" style="top:352px"><div class="grab"></div>
+    <div class="toh"><span class="src">${PN(LIFT)}</span><span class="sfrom">NOIR</span><div class="seg"><button class="on">${IC.copy}COPY</button><button>${IC.move}MOVE</button></div></div>
+    <div class="tprj">${P2.map(([q, n, c = ""]) => `<span class="tpj ${c}"><i>${q + 1}</i>${n}${c === "full" ? '<em>FULL</em><span class="pf"></span>' : ""}</span>`).join("")}</div>
+    <div class="tgr">${[0, 1, 2, 3].map((b) => `<div class="r"><span class="bl">${"ABCD"[b]}</span>${Array.from({ length: 16 }, (_, i) => { const k = b * 16 + i; return `<s class="${SUN_U.has(k) ? "u" : ""} ${k === 9 ? "ff" : ""}"></s>`; }).join("")}</div>`).join("")}</div>
+    <div class="tsnd"><span class="pi">${IC.pl}</span><span class="sd add">+2<span class="dts"><i style="--c:var(--blue)"></i><i style="--c:var(--orange)"></i></span></span><span class="sd">1<span class="dts"><i style="--c:var(--pink)"></i></span> THERE</span>
+      <span class="pm"><b>41 / 128</b><span class="meter"><span style="width:30%;background:var(--green)"></span><span style="width:2%;background:var(--green);opacity:.5"></span></span></span></div>
+    <div class="cbtns"><span class="btn ghost">CANCEL</span><span class="btn go">${IC.copy}FIRST FREE <b>A10</b></span></div></div>`;
+}
+
+// BACKUPS with ▶ (a full backup's rows; presets-only ones can't play)
+const BKROW2 = (cls, when, prj, pre, kb, ver = "", play = "") => `<div class="bkw"><div class="bk ${cls}"><span class="ic">${IC.backup}</span><div class="txt"><div class="when">${when}</div><div class="what">` +
+  (prj ? `<span><i style="background:var(--green)"></i>${prj}</span>` : "") + `<span><i style="background:var(--cream)"></i>${pre}</span><small>${kb}</small>${ver ? `<span class="ver">${ver}</span>` : ""}</div></div>` +
+  (play ? `<span class="bplay ${play}">${IC.play}</span>` : "") + `<span class="icon">${IC.share}</span></div></div>`;
+function backupPlayList() {
+  return topBar3({ src: "fm" }) + `<div class="pg"><div class="card this">
+      <div class="h">THIS FM-1</div>
+      <div class="vrow"><span class="vbig">0.12.0</span><span class="vb">BETA 11</span></div>
+      <div class="stats"><div class="kv"><b>6</b>projects</div><div class="kv"><b>143</b>my presets</div><div class="kv"><b>60<small> %</small></b>store used</div></div>
+      <div class="actions"><span class="btn huge" style="--c:var(--yellow);flex:1">● BACK UP</span><span class="btn ghost" style="font-size:13px;padding:0 16px;height:64px;border-radius:32px">PRESETS ONLY</span></div></div>
+    <div class="h" style="margin:20px 2px 12px">BACKUPS <span class="n">4</span><span class="r n">1.9 MB</span></div>
+    ${BKROW2("", "Today 14:02", 6, 143, "395 KB", "", "on")}
+    ${BKROW2("ring", "28 Oct 21:10", 6, 139, "392 KB", "", "tap")}
+    ${BKROW2("old", "24 Oct 09:15", 4, 128, "251 KB", "0.11.0", "on")}
+    ${BKROW2("presets", "20 Oct", 0, 96, "118 KB")}</div>`;
+}
+// PLAY on the backup: the header's pill says so, its × goes back to THIS iPHONE
+function emuBackup() {
+  return emuFull().replace(/<div class="hdr">.*?<\/div>/, `<div class="hdr"><span class="me bkp">${IC.backup}BACKUP · 28 OCT<span class="xx">${IC.x}</span></span><span class="egrab"><span></span></span><span class="efz">${BUB}<span class="word">FIZZ</span></span></div>`)
+    .replace("fizz-steps-drums", "fizz-steps-bars");
+}
+
+// EDIT · AMP: PAN and the sends (CHO / DEL / REV) in AMP's group, under LEVEL; heard live on track 3
+function panBar(v) {
+  const x = (v + 64) / 127 * 100, c = 64 / 127 * 100;
+  const lab = v === 0 ? "C" : v < 0 ? `L${-v}` : `R${v}`;
+  return `<div class="pan hot"><span class="pl">PAN</span><span class="tr">
+      <span class="tl" style="left:0">L</span><span class="tl" style="left:${c}%;margin-left:-3px">C</span><span class="tl" style="right:0">R</span>
+      ${[0, 25, 75, 100].map((p) => `<span class="tk" style="left:${p}%"></span>`).join("")}<span class="tk c" style="left:${c}%"></span>
+      <span class="fill" style="left:${Math.min(x, c)}%;width:${Math.abs(x - c)}%"></span><span class="kn" style="left:${x}%"></span></span>
+    <span class="pv">${lab}</span></div>`;
+}
+const sendC = (n, v, c) => `<div class="snd ${v ? "" : "zero"}" style="--c:var(${c})"><div class="st">${n}<b>${v}</b></div><div class="sb2"><span style="width:${v / 127 * 100}%"></span></div></div>`;
+function editAmp() {
+  const pg = [PAGES[2], PAGES[3], PAGES[4], PAGES[5]];
+  return topBar3({ src: "fm", track: 3, live: true }) + `<div class="pg ed">
+    <div class="edn"><div><div class="h" style="margin-bottom:5px">MY PRESETS 8</div><div class="nm2">ROUND BASS</div></div>${tag("BASS")}<span class="edited"></span></div>
+    <div class="pages">${pg.map(([n, c, ic], i) => `<span class="pgc ${i === 1 ? "on" : ""}" style="--c:var(${c})">${ic}${n}</span>`).join("")}</div>
+    <div style="margin-top:10px"><span class="aseg"><span class="on">ADSR</span><span>AHD</span></span></div>
+    <svg class="ampenv" viewBox="0 0 358 132" preserveAspectRatio="none"><path class="af" d="M6 128 L8 8 L60 58 L118 58 L150 128 Z"/><path class="al" d="M6 128 L8 8 L60 58 L118 58 L150 128"/>
+      <circle cx="8" cy="8" r="7" fill="#F1F0EA" stroke="#000" stroke-width="2"/><circle cx="60" cy="58" r="8" fill="var(--yellow)" stroke="#000" stroke-width="2"/><circle cx="150" cy="128" r="7" fill="#F1F0EA" stroke="#000" stroke-width="2"/></svg>
+    <div class="achips"><span>ATK<b>2</b></span><span>DEC<b>60</b></span><span>SUS<b>100</b></span><span>REL<b>42</b></span></div>
+    <div class="mixc"><div class="lv">LEVEL<b>101</b></div><div class="lbar"><span style="width:79.5%"></span></div>
+      ${panBar(-12)}
+      <div class="sends">${sendC("CHO", 0, "--cyan")}${sendC("DEL", 24, "--yellow")}${sendC("REV", 40, "--violet")}</div></div>
+    <div class="edacts"><span class="keysb">${IC.keys}</span><span class="btn ghost" style="flex:1;padding:0 8px">↺ REVERT</span><span class="btn" style="--c:var(--pink);flex:1;padding:0 8px">SAVE</span><span class="btn ghost" style="flex:1.45;padding:0 8px">SAVE AS NEW</span></div></div>
+    <span class="tch" style="left:170px;top:576px"></span>`;
+}
+
+// + NEW: LIBRARY asks FM SOUND or MIDI SOUND
+function newLib() {
+  return topBar2({ on: true, track: 3 }) + `<div class="pg"><div class="lhead src">${srcSeg(false, "MY PRESETS").replace(">MY<", ">MY PRESETS<")}</div>
+    <div class="srow">${srch("")}<span class="btn small ghost">SELECT</span><span class="lnew tap">${IC.plus}NEW</span></div>
+    <div class="tscroll">${tagChips()}</div>${MINE.slice(0, 8).map((p) => libRow(p)).join("")}</div>`;
+}
+function newSheet() {
+  return `<div class="psheet tsh" style="top:430px;--c:var(--cream)"><div class="grab"></div>
+    <div class="shd"><span class="big">NEW</span></div>
+    <div class="newc"><div class="nc" style="--c:var(--cyan)">${algo(1, "var(--cyan)")}<b>FM SOUND</b><small>INIT</small></div>
+      <div class="nc tap" style="--c:var(--magenta)">${MIDI_I}<b>MIDI SOUND</b><small>28 CC</small></div></div>
+    <div class="nsub">SAVE AS NEW → MY PRESETS <span class="dst">15</span></div></div>`;
+}
+// EDIT on the new MIDI sound: nothing stored yet; 28 slots, CC 16 + k, untouched
+function editNewMidi() {
+  return `<div class="tb"><span class="logo">${BUB}</span><span class="silent"><svg viewBox="0 0 24 24"><path d="M3 9.5h4l5-4.5v14l-5-4.5H3z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>SILENT</span><span class="unit"><span class="dot"></span>0.12.0-beta.11 <span class="via">USB</span></span></div>
+    <div class="pg ed">
+    <div class="edn"><div><div class="h" style="margin-bottom:6px;gap:8px"><span class="mtag">MIDI</span><span class="newl"><i></i>NEW</span></div><div class="nm2">MIDI</div></div><span class="tag off" style="border:1.5px dashed #4a4a52;box-shadow:none;margin-bottom:4px">TAG</span></div>
+    <div class="mpg">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<span class="${n === 1 ? "on" : ""}">MIDI ${n}</span>`).join("")}</div>
+    <div class="mslots">${["--k1", "--k2", "--k3", "--k4"].map((c, j) => `<div class="ms" style="--c:var(${c})"><span class="bx"></span><span class="cc">CC ${16 + j}</span><span class="vv">—</span></div>`).join("")}</div>
+    <div class="edacts" style="margin-top:14px"><span class="keysb">${IC.keys}</span><span class="btn ghost dimb" style="flex:1;padding:0 8px">↺ REVERT</span><span class="btn dimb" style="--c:var(--pink);flex:.9;padding:0 8px">SAVE</span><span class="btn san" style="flex:1.7;padding:0 10px;gap:7px">SAVE AS NEW<span class="dst">15</span></span></div></div>`;
+}
+
+// iPad: the search a small field at the head of the main column; the bulk panel takes the detail's place
+function ipadSearch() {
+  const sec = (n, c, ph = false) => `<div class="lsec">${ph ? PHG(12) : ""}${n} <b>${c}</b></div>`;
+  return ipad(railP("LIBRARY") + `<div class="main"><div class="mtop">${srch()}${tagChips()}${topBar({ word: false, unit: "", track: 3 }).replace('class="tb"', 'class="tb" style="padding:0;margin-left:auto"').replace('<span class="logo">' + BUB + "</span>", "")}</div>
+    <div class="cols">
+      <div class="card list wide2"><div class="lhead src" style="margin:0 0 12px">${srcSeg(true).replace(">MY<", ">MY PRESETS<")}</div>
+        ${sec("KEPT", 1, true)}${keptRow(SKEPT, "off", true)}
+        ${sec("MY PRESETS", 3)}${SMY.map((p, i) => srow(p, `pk2 ${i === 2 ? "last" : ""}`, true)).join("")}
+        ${sec("FACTORY", 2)}${SFAC.map((p) => srow(p, "", true)).join("")}</div>
+      <div class="card bpanel"><div class="top"><span class="n">3</span>${RINGS3}<span class="btn small ghost">ALL</span><span class="icon vi">${IC.share}</span><span class="icon red">${IC.trash}</span></div>
+        <div class="bklist2">${SMY.map((p, i) => `<div class="crow"><span class="sl">${p[0]}</span>${algo(p[3], cv(p[2]))}${p[1]}<span class="to">${PHG(11)}${15 + i}</span></div>`).join("")}</div>
+        <div class="btools"><span class="bto on" style="--c:var(--cream)">TAG <span class="chev" style="color:#000">▲</span></span><span class="bto" style="--c:var(--green)">+ POOL <b>2</b></span><span class="bto" style="--c:var(--green)">− POOL <b>1</b></span></div>
+        <div class="tagpop">${TAGS.map((t) => `<span class="tag t-${t}">${tIcon(t)}${t}</span>`).join("")}<span class="tag none">${tIcon("NONE")}NONE</span></div>
+        <span class="btn bsend" style="margin-top:auto">${PHG(17)}SEND 3 TO THIS iPAD</span></div>
+    </div></div>`);
+}
+// iPad PROJECTS: two projects side by side; A07 dragged from NOIR onto SUNDAY's A10
+function ipadDrag() {
+  const SUN_P = { used: SUN_U, added: [], gone: [], sel: [] };
+  return ipad(railP("PROJECTS") + `<div class="main">
+    <div class="spills">${PROJ.map((p, i) => !p ? `<span class="spill empty"><i>${i + 1}</i></span>` : `<span class="spill ${i === 0 ? "on" : i === 1 ? "beside" : ""} ${p[2] === "demo" ? "demo" : ""}"><i>${i + 1}</i>${p[0]}${i === 0 ? '<span class="chg"></span>' : ""}</span>`).join("")}</div>
+    <div class="twop" style="position:relative">
+      <div class="card"><div class="pphead" style="margin:0 0 12px"><span class="big">NOIR</span><span class="sm"><b>21</b> / 64</span></div>${liftGrid(NOIR_L, { lift: LIFT })}</div>
+      <div class="card tgt2"><div class="pphead" style="margin:0 0 12px"><span class="big sun">SUNDAY</span><span class="sm"><b>15</b> / 64</span><span class="clip" style="border-style:solid">${IC.pl.replace("<svg", '<svg style="fill:var(--cyan);stroke:none"')}+2 POOL</span></div>${liftGrid(SUN_P, { land: 9 })}</div>
+      ${pghost(LIFT, `${IC.copy.replace("<svg", '<svg style="stroke:#000"')}COPY`, "left:604px;top:34px")}
+      <span class="tch" style="left:614px;top:146px"></span>
+    </div>
+    <div class="pend inl">${pendTop().replace(">3<", ">4<")}${WRITE}</div></div>`);
+}
+
+SCREENS.push(
+  { id: "library-search-select", title: "LIBRARY: search, and SELECT on the FM-1's presets", cap: "A search field under the source switch (a proposal: the LIBRARY search is being built now). Typing filters by name across KEPT, MY PRESETS and FACTORY at once: the matches group in the switch's order, the matched letters light, and the switch counts them per source. × clears. SELECT (beside the field) now ticks MY PRESETS and FACTORY rows too; one side at a time, so KEPT greys while the FM-1's rows are ticked. The cream bar takes the tab bar's place: the count with the ticked sounds' colours, ALL, EXPORT, DELETE (MY only: greyed when only FACTORY rows are ticked; with both, it counts the MY ones). TAG opens the chooser. + POOL / − POOL carry how many they act on; + POOL asks once for the places when several are in use. SEND 3 TO THIS iPHONE (the other unit, from the picker) breathes. DELETE confirms once and warns when projects use them.",
+    html: () => phone(searchLib({ select: true }) + bulkBar()) },
+  { id: "bulk-tag-delete", title: "The TAG chooser and the DELETE confirm", pair: true, cap: "Left: TAG opens a sheet of the seven tags in their colours with the web's icons, plus NONE. The dots on a tile: how many of the ticked sounds have that tag now. One tap tags all three (each sound has one tag: it replaces theirs), the tile rings, the sheet drops, the toast says 3 · PAD. NONE clears them. Right: DELETE asks once. The three are named; the yellow mark shows the ones a project uses, and the box names the projects (their steps go back to their track's own sound). With FACTORY rows ticked too, the title still counts only MY PRESETS (the factory's stay).",
+    html: () => pair(phone(`<div class="under">${searchLib({ select: true })}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>${tagSheet()}`),
+      phone(`<div class="under">${searchLib({ select: true })}${bulkBar()}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>${delSheet()}`)) },
+  { id: "projects-lift-to", title: "PROJECTS: a pattern lifted, and the TO… sheet", pair: true, cap: "Left: a long press lifts A07. It floats under the finger with a COPY badge; its place goes dashed; the drop targets light cyan: the other patterns (dropping on one copies it there) and the other projects' chips. Held over a chip for a moment, the project springs open: SUNDAY's 64 patterns, the first free one (A10) blinking: let go and it lands there. Let go over nothing: the TO… sheet. Right: TO… (also in the selection's menu): COPY / MOVE (MOVE clears A07 here), the project (WINTER LP's pool is full: dashed red, it refuses), a pattern of SUNDAY (grey ones are used: tapping one asks first, COPY OVER … REPLACE), or FIRST FREE A10. The pool line: 2 sounds go into SUNDAY's pool (their colours), 1 is already there; the pool after: 41 / 128. Every drop waits in the yellow bar like a paste until WRITE TO FM-1.",
+    html: () => pair(phone3(liftPhone(), "PROJECTS"), phone(`<div class="under">${liftPhone().replace(/<div class="spring"[\s\S]*?<span class="tch"[^>]*><\/span>/, "")}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>${toSheet()}`)) },
+  { id: "backup-play", title: "▶ play a backup", pair: true, cap: "Left: every full backup row (FM-1's or THIS iPHONE's) gets ▶ in the emulator's tangerine; presets-only backups can't play (no projects). A tap loads it into a throwaway phone FIZZ: THIS iPHONE's own memory is untouched. PLAY opens on it at once. Right: PLAY on the backup. The header pill turns yellow and names it, BACKUP · 28 OCT: the same panel, the backup's projects and presets playing. Its × (or the unit picker) goes back to THIS iPHONE; the throwaway FIZZ and anything changed in it go with it. FIZZ (right) still goes back to the manager.",
+    html: () => pair(phone3(backupPlayList(), "BACKUP"), ephone(emuBackup())) },
+  { id: "edit-pan-sends", title: "EDIT · AMP: PAN and the sends", cap: "In AMP, in AMP's group under LEVEL: PAN and the three sends, CHO / DEL / REV. PAN runs L64 … C … R63 (−64..63, 0 = C): the bar fills from the centre to the knob, the value reads L12; a double tap snaps it to C. The sends run 0..127, each a bar in its own colour (chorus cyan, delay yellow, reverb violet); at 0 they dim. Drag any of them sideways (the turned one lights, as the other cards do); every change is heard live on track 3. The envelope drawing gives up height for them. A sound without sends reads pan 0, reverb 20, chorus 0, delay 0.",
+    html: () => phone3(editAmp(), "EDIT", false) },
+  { id: "new-fm-midi", title: "+ NEW: an FM sound or a MIDI sound", pair: true, cap: "Left: LIBRARY's NEW (beside SELECT, on the unit's lists) opens two big cards: FM SOUND (a new INIT: FIZZ's defaults, pan 0, reverb 20, chorus 0, delay 0) or MIDI SOUND (named MIDI: 28 slots, slot k's CC = 16 + k, value 0, untouched). Either opens in EDIT, unsaved. Right: the new MIDI sound in EDIT: the built MIDI slot editor, every slot untouched (dashed, —); the CC chips set the numbers. SAVE has nothing to save to; SAVE AS NEW breathes and names its place: the first free MY PRESETS place on the unit in use (15). Nothing is stored until then; leaving EDIT asks first.",
+    html: () => pair(phone(`<div class="under">${newLib()}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>${newSheet()}`), phone3(editNewMidi(), "EDIT", false)) },
+  { id: "ipad-library-search", title: "iPad: search and the bulk panel", ipad: true, cap: "iPad: the search field sits small at the head of the main column, before the tag chips; the matches group in one list (KEPT, MY PRESETS, FACTORY) with the switch counting them. The ticked sounds fill the detail's place with the bulk panel (as the web's): the count and colours, ALL, EXPORT, DELETE; the three named with where SEND puts them (THIS iPAD 15–17); TAG opens its row of tags in place (icons, NONE last); + POOL / − POOL; SEND 3 TO THIS iPAD.",
+    html: () => ipadSearch() },
+  { id: "ipad-projects-drag", title: "iPad: dragging a pattern between two projects", ipad: true, cap: "iPad: room for two projects side by side. The open one (NOIR, cyan) and the one beside it (SUNDAY, green ring in the strip; tap another pill to swap it). A07 is dragged straight across (no long press: a drag lifts it); SUNDAY's card lights, the pattern under the finger (A10) blinks where it lands, and the badge says COPY (⌥ held: MOVE). The pool line in SUNDAY's head: +2 sounds come along. The drop waits in the yellow bar with the others.",
+    html: () => ipadDrag() },
+);
+
 // ---------------------------------------------------------------- the page
 const out = document.getElementById("out");
 const inits = [];
@@ -1946,7 +2439,7 @@ if (SHOT) {
   out.appendChild($h(`<div class="sheetsub">The web Manager's tabs over USB (Camera / USB adapter) or Bluetooth MIDI. Captions describe the motion; they are not on screen.</div>`));
   const g = $h(`<div class="sgridp"></div>`); out.appendChild(g);
   SCREENS.forEach((s, i) => {
-    const el = $h(`<div class="cell ${s.ipad ? "wide" : s.land ? "land" : ""}"><div class="zf">${s.html()}</div><div class="ct"><span>${String(i + 1).padStart(2, "0")}</span>${s.id} · ${s.title}</div><p class="cap">${s.cap}</p></div>`);
+    const el = $h(`<div class="cell ${s.ipad ? "wide" : s.land ? "land" : s.pair ? "pr" : ""}"><div class="zf">${s.html()}</div><div class="ct"><span>${String(i + 1).padStart(2, "0")}</span>${s.id} · ${s.title}</div><p class="cap">${s.cap}</p></div>`);
     g.appendChild(el); if (s.init) inits.push([s, el]);
   });
 }
