@@ -69,6 +69,7 @@ only, L = local. "Same" = the iOS app does what the page does with the same call
 | EDIT | (as pick) | L / W track | sheet button → EDIT tab |
 | EXPORT one / EXPORT ALL | DUMP if missing | R + file | share sheet with the format cards (§1.7) |
 | Computer keys play the sound | Note On/Off on the track's channel (`extras.chan`, default 15) | W (notes) | on-screen keybed strip (pull up), hardware keyboard on iPad (`onKeyPress`, same key map) |
+| KEPT: the phone's own presets (mock-ups 23-26, 28; built 2026-10-28) | as SEND / pick / EDIT | L / W | `Documents/Presets/*.fizzsnd` read and written by FizzData `keptFile` / `keptRead` (js/library.js; the web tags as a `webTags` member, none: the web Manager's file byte for byte); `KeptPresets` caches the cards in Caches and watches the folder; LIBRARY's first source (chosen whenever there is no FM-1), SELECT bar, → KEPT on unit presets, EDIT SAVE writes the file, IMPORT's KEPT target, a `.fizzsnd` opened in FIZZ goes straight to KEPT |
 
 ### 1.4 EDIT (pink)
 

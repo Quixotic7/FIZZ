@@ -81,6 +81,46 @@ struct Shots {
         await i4(m, out)
         m.stop()
         await projectShots(out)
+        await keptShots(out)
+    }
+
+    // ---- KEPT (mock-ups 23-26, 28): the phone's presets, a kept preset's sheet, SELECT and SEND, EDIT on one, the iPad
+    @MainActor
+    static func keptShots(_ out: URL) async {
+        let tmp = FileManager.default.temporaryDirectory
+        let m = UnitModel(source: DemoLinkSource(.fizz, bulkMs: 0...0.2), backups: tmp.appendingPathComponent("fizzshots-b-\(UUID().uuidString)"),
+                          presets: tmp.appendingPathComponent("fizzshots-k-\(UUID().uuidString)"))
+        m.start()
+        await until { m.dumpsLoaded && m.layout != nil }
+        do { try await DemoKept.seed(m.kept) } catch { print("demo kept: \(error)") }
+        let ids = m.kept.items.map(\.id)
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "kept"), phone, out, "kept")
+        if let k = m.kept.items.first(where: { $0.name == "GLASS BELL" }) {
+            save(KeptSheetShot(model: m, id: k.id), phone, out, "kept-sheet")
+        }
+        m.kept.selecting = true
+        let pick = [0, 2, 3, 5].compactMap { ids.indices.contains($0) ? ids[$0] : nil }.joined(separator: ",")
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "kept-select:\(pick)"),
+             phone, out, "kept-select")
+        m.kept.selecting = false
+        if let k = m.kept.items.first(where: { $0.name == "RAIN FX" }) {
+            save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "kept:\(k.id)"),
+                 pad, out, "ipad-kept")
+        }
+        // EDIT on a kept preset, TRACK on (heard on the track, kept)
+        await m.actions.setTrackOn(true)
+        if let k = m.kept.items.first(where: { $0.name == "NIGHT GLASS" }) {
+            m.editTarget = .kept(k)
+            await m.editor.show()
+            await m.actions.keepAudition()
+            m.editor.set(6, m.editor.value(6) + 9)
+            save(RootView(model: m, tab: .constant(.edit), wide: false), phone, out, "kept-edit")
+            m.editor.hide()
+        }
+        // a unit preset's sheet with → KEPT; IMPORT's KEPT target
+        save(PresetSheetShot(model: m, key: "mine:3"), phone, out, "preset-sheet-kept")
+        await m.actions.setTrackOn(false)
+        m.stop()
     }
 
     // ---- I6: PROJECTS (mock-ups 14, 18-20, 22): the demo unit's store read, changes waiting, kept projects

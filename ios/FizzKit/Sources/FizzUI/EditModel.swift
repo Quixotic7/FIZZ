@@ -223,6 +223,8 @@ public final class EditorModel {
     private func openKept(_ s: EditSound, lib: FizzSound?, place p: EditPlace) async {
         if let a = actions, a.trackOn, let lib, await a.pickSound(lib).isOK, await attach() {
             place = p
+            // (an audition carries no tags: the file's)
+            if var x = sound { x.tags = s.tags; sound = x; base = x }
             say("edit: \(s.name) (KEPT, on TRACK \(track + 1))")
             return
         }
@@ -491,7 +493,6 @@ public final class EditorModel {
         sound = s
         base = s
         place = .kept(k.id)
-        store.reveal = k.id
         say("\(s.name) -> KEPT (\(k.id))")
         return .ok
     }

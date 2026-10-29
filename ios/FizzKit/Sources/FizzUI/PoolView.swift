@@ -243,6 +243,7 @@ struct PoolView: View {
                 Text("\(k)").fz(15, 800).foregroundStyle(FZ.cyan.color)
                 Text(e.name).fz(22, 800).foregroundStyle(FZ.text.color).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
+                RoundIcon(art: KeptArt.phone, color: FZ.champagne, enabled: r != nil) { if let r { keep(r) } }
                 RoundIcon(art: Icons.swap, color: FZ.yellow, enabled: can) { moving = k; selected = nil }
                 RoundIcon(art: Icons.trash, color: FZ.red, enabled: can) { askClear(k) }
                 VStack(alignment: .trailing, spacing: 0) {
@@ -255,6 +256,17 @@ struct PoolView: View {
             IconPill(title: "SOUNDS", icon: Icons.plus, color: FZ.green, height: 40, size: 14, enabled: can) {
                 if wide { return }
                 drawer = true
+            }
+        }
+    }
+
+    /// → KEPT: the place's preset copied onto the phone.
+    private func keep(_ r: FizzListEntry) {
+        Task {
+            switch await model.keep(r) {
+            case .kept(let k): note = .done("→ KEPT · \(k.name)", FZ.champagne)
+            case .already(let k): note = ScreenNote(text: "KEPT ALREADY · \(k.name)", color: FZ.champagne, kind: .note)
+            case .failed: note = ScreenNote(text: "NOT READ YET", color: FZ.muted, kind: .refused)
             }
         }
     }

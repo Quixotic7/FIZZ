@@ -252,6 +252,9 @@ struct PresetPanel: View {
             } else {
                 IconPill(title: "− POOL", color: FZ.green, ghost: true, enabled: can) { removeFromPool([]) }
             }
+            // → KEPT: a copy on the phone
+            IconPill(title: "KEPT", icon: KeptArt.phone, color: FZ.champagne, redline: true,
+                     enabled: !working && (actions.frame(of: entry) != nil || snapshot)) { keep() }
             IconPill(title: "EDIT", icon: Icons.pencil, color: FZ.pink, ink: .white, enabled: actions.frame(of: entry) != nil || snapshot) {
                 model.editTarget = .preset(entry)
                 model.goTo = .edit       // (the EDIT tab, I5's screen, opens on model.editTarget)
@@ -272,6 +275,19 @@ struct PresetPanel: View {
             }
             if mine {
                 IconPill(title: short ? "" : "DELETE", icon: Icons.trash, color: FZ.red, redline: true, enabled: can) { askDelete() }
+            }
+        }
+    }
+
+    private func keep() {
+        working = true
+        Task {
+            let o = await model.keep(entry)
+            working = false
+            switch o {
+            case .kept(let k): note = .done("→ KEPT · \(k.name)", FZ.champagne)
+            case .already(let k): note = ScreenNote(text: "KEPT ALREADY · \(k.name)", color: FZ.champagne, kind: .note)
+            case .failed: note = ScreenNote(text: "NOT READ YET", color: FZ.muted, kind: .refused)
             }
         }
     }

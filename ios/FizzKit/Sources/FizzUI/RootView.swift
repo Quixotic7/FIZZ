@@ -16,6 +16,8 @@ public struct FizzAppView: View {
     @State private var entered = false
     /// `-backup full|presets` (the demo unit only): that backup once connected (simulator screenshots)
     @State private var autoBackup: FizzBackupKind?
+    /// `-kept` (the demo unit only): KEPT's demo presets, LIBRARY on KEPT (simulator screenshots)
+    @State private var demoKept = false
     @Environment(\.scenePhase) private var phase
 
     public init(source: any LinkSource = LinkSources.fromArguments(),
@@ -25,6 +27,10 @@ public struct FizzAppView: View {
         // `-tab library` opens on that tab (simulator screenshots, UI tests)
         if let k = arguments.firstIndex(of: "-tab"), k + 1 < arguments.count, let t = FizzTab(rawValue: arguments[k + 1]) {
             _tab = State(initialValue: t)
+        }
+        if source is DemoLinkSource, arguments.contains("-kept") {
+            _demoKept = State(initialValue: true)
+            UserDefaults.standard.set(true, forKey: "fizz.library.kept")
         }
         if source is DemoLinkSource, let k = arguments.firstIndex(of: "-backup"), k + 1 < arguments.count {
             _autoBackup = State(initialValue: FizzBackupKind(rawValue: arguments[k + 1]))
@@ -59,7 +65,10 @@ public struct FizzAppView: View {
         .animation(.easeInOut(duration: 0.3), value: model.projectsTab.writing == nil)
         .background(Color.black)
         .preferredColorScheme(.dark)
-        .task { model.start() }
+        .task {
+            model.start()
+            if demoKept { try? await DemoKept.seed(model.kept) }
+        }
         .task(id: model.state.kind) {
             guard model.state.kind == "found" else { entered = false; return }
             try? await Task.sleep(for: .milliseconds(1600))
@@ -80,6 +89,12 @@ public struct FizzAppView: View {
                 // (a .fizzprj / .fizzpat: PROJECTS')
                 if await model.projectsTab.open(url) { tab = .projects; return }
                 let ext = url.pathExtension.lowercased()
+                // (a .fizzsnd: straight to KEPT, its sheet open)
+                if ext == "fizzsnd", let k = try? await model.kept.open(url) {
+                    model.kept.reveal = k.id
+                    tab = .library
+                    return
+                }
                 if importExtensions.contains(ext) && ext != "fizzbak" {
                     await model.importer.add(urls: [url])
                     tab = .importer
@@ -162,12 +177,18 @@ struct PhoneRoot: View {
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: Self.barBottom + TabBar.height + 12)
                 .allowsHitTesting(false)
+                .opacity(tab == .library && model.kept.selecting ? 0 : 1)
             if tab == .projects { ProjectsPhoneBar(model: model) }
-            TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, Self.barBottom)
+            // (KEPT's SELECT bar takes its place)
+            if !(tab == .library && model.kept.selecting) {
+                TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, Self.barBottom)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
             AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, Self.barBottom + TabBar.height + 10)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.kept.selecting)
         .ignoresSafeArea(edges: .bottom)
         .onChange(of: tab) { old, new in if new == .importer && old != .importer { model.importer.under = old } }
         .sheet(isPresented: Binding(get: { tab == .importer }, set: { if !$0 && tab == .importer { tab = model.importer.under } })) {

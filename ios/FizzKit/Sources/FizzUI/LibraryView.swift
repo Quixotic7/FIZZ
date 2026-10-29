@@ -29,6 +29,13 @@ struct LibraryView: View {
     @State private var moving: Int?
     /// the row swiped open (one at a time; a tap anywhere in the list shuts it)
     @State private var openRow: String?
+    /// KEPT, the phone's presets, shown (remembered; first whenever there is no FM-1)
+    @AppStorage("fizz.library.kept") private var keptOn = false
+    /// the iPad's KEPT column: a kept preset shown in the third column ("kept:<file>") and the drop target lit
+    @State private var keptDrop = false
+    @State private var unitDrop = false
+    @State private var padPicked: Set<String> = []
+    @State private var padTarget: KeptTarget = .mine
 
     struct SheetKey: Identifiable, Equatable { let id: String }
 
@@ -50,7 +57,17 @@ struct LibraryView: View {
         .sheet(item: $exporting) { box in
             ExportSheet(sounds: box.sounds) { exporting = nil }
         }
-        .onAppear { if snapshot, let s = shotSelection, s.hasPrefix("mine:") || s.hasPrefix("factory:") { selected = s } }
+        .onAppear {
+            if snapshot, let s = shotSelection, s.hasPrefix("mine:") || s.hasPrefix("factory:") || s.hasPrefix("kept:") { selected = s }
+            if snapshot { keptOn = shotSelection?.hasPrefix("kept") == true } else if model.noFM1 { keptOn = true }
+        }
+        .onChange(of: model.noFM1) { _, no in if no { keptOn = true } }
+        // (a .fizzsnd opened in FIZZ: KEPT, its sheet)
+        .onChange(of: model.kept.reveal) { _, id in
+            guard let id else { return }
+            keptOn = true
+            if wide { selected = "kept:\(id)"; model.kept.reveal = nil }
+        }
     }
 
     private func key(_ r: FizzListEntry) -> String { "\(r.source):\(r.slot)" }
@@ -109,7 +126,8 @@ struct LibraryView: View {
                    onTap: { tap(r) },
                    onPool: { togglePool(r) },
                    onDelete: { askDelete(r) },
-                   onDrop: { from in move(from, to: r.slot) })
+                   onDrop: { from in move(from, to: r.slot) },
+                   onKept: { id in sendDropped(id) })
             .padding(.bottom, 8)
     }
 
@@ -187,15 +205,50 @@ struct LibraryView: View {
     // MARK: iPhone
 
     private var phoneBody: some View {
-        let shown = filter.shown(model.rows)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                SourceSeg(selected: $filter.source)
-                Spacer(minLength: 0)
-                Count(n: filter.source == .factory ? model.factory.count : model.mine.count,
-                      of: filter.source == .factory ? nil : nlib)
+        VStack(alignment: .leading, spacing: 0) {
+            Group {
+                if keptOn {
+                    LibrarySourceSeg(kept: $keptOn, source: $filter.source)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            LibrarySourceSeg(kept: $keptOn, source: $filter.source).fixedSize()
+                            Spacer(minLength: 0)
+                            Count(n: filter.source == .factory ? model.factory.count : model.mine.count,
+                                  of: filter.source == .factory ? nil : nlib)
+                        }
+                        LibrarySourceSeg(kept: $keptOn, source: $filter.source)
+                    }
+                }
             }
             .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
+            if keptOn {
+                KeptList(model: model, tags: $filter.tags)
+                    .overlay(alignment: .bottom) {
+                        if model.editor.keysOpen && !model.kept.selecting {
+                            KeybedPanel(e: model.editor).transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+                    .clipped()
+            } else {
+                unitList
+            }
+            if model.actions.trackOn && !(keptOn && model.kept.selecting) {
+                KeybedGrip(open: Binding(get: { model.editor.keysOpen }, set: { model.editor.keysOpen = $0 }))
+                    .padding(.bottom, clearance - 4)
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: keptOn)
+        .sheet(item: $sheet) { s in
+            PresetSheet(model: model, entry: entry(s.id), note: $note, onExport: export, onMove: startMove) { sheet = nil }
+        }
+    }
+
+    /// The unit's MY PRESETS / FACTORY / ALL (the phone).
+    @ViewBuilder private var unitList: some View {
+        let shown = filter.shown(model.rows)
+        VStack(alignment: .leading, spacing: 0) {
             ChipScroll { chips }
                 .padding(.bottom, 14)
             ScreenScroll(bottom: clearance + 20 + (moving != nil ? 62 : 0), lazy: true, refresh: { await model.refresh() }) {
@@ -219,21 +272,16 @@ struct LibraryView: View {
                 }
             }
             .clipped()
-            if model.actions.trackOn {
-                KeybedGrip(open: Binding(get: { model.editor.keysOpen }, set: { model.editor.keysOpen = $0 }))
-                    .padding(.bottom, clearance - 4)
-            }
-        }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
-        .sheet(item: $sheet) { s in
-            PresetSheet(model: model, entry: entry(s.id), note: $note, onExport: export, onMove: startMove) { sheet = nil }
         }
     }
 
     // MARK: iPad
 
+    /// The unit's column (MY PRESETS / FACTORY / ALL), KEPT's, the preset; a row dragged from one list to the other
+    /// copies it (onto the unit: SEND to MY PRESETS; onto KEPT: → KEPT).
     private var padBody: some View {
-        let shown = LibraryFilter(source: .all, tags: filter.tags, pool: filter.pool).shown(model.rows)
+        let shown = filter.shown(model.rows)
+        let kshown = keptShown(model.kept.items, tags: filter.tags)
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 // (scrolls sideways: the iPad held upright has no room for them all)
@@ -242,34 +290,68 @@ struct LibraryView: View {
                 TrackPill(model: model, wide: true)
             }
             HStack(alignment: .top, spacing: 14) {
-                Card(padding: 18) {
-                    HStack(spacing: 10) {
-                        Heading(text: "MY PRESETS", count: "\(model.mine.count) / \(nlib)")
+                Card(padding: 16) {
+                    SourceSeg(selected: $filter.source).padding(.bottom, 14)
+                    HStack(spacing: 8) {
+                        if model.unitIsEmulated { PhoneGlyph(size: 13, color: FZ.orange) }
+                        Heading(text: model.unitName, count: filter.source == .factory ? "\(model.factory.count)" : "\(model.mine.count) / \(nlib)",
+                                color: model.unitIsEmulated ? FZ.orange : FZ.green)
                         Spacer(minLength: 0)
-                        Button { export(shown.mine) } label: {
+                        Button { export(shown.mine + shown.factory) } label: {
                             IconView(Icons.share, color: FZ.text.color, lineWidth: 2.2).frame(width: 18, height: 18)
                                 .frame(width: 36, height: 36)
                                 .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 1.5))
+                                .frame(width: 44, height: 44).contentShape(Circle())
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 8)
                     ScreenScroll(bottom: 10, refresh: { await model.refresh() }) {
-                        ForEach(shown.mine, id: \.slot) { row($0, compact: false) }
+                        if filter.source == .all && !shown.mine.isEmpty { group("MY PRESETS", shown.mine.count) }
+                        ForEach(shown.mine, id: \.slot) { row($0) }
+                        if filter.source == .all && !shown.factory.isEmpty { group("FACTORY", shown.factory.count) }
+                        ForEach(shown.factory, id: \.slot) { row($0) }
                     }
                 }
-                .frame(width: 362)
+                .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(FZ.violet.color, lineWidth: 2).opacity(unitDrop ? 1 : 0))
+                .modifier(KeptDrop(accept: { s in
+                    guard s.hasPrefix("kept:") else { return false }
+                    sendDropped(String(s.dropFirst(5)))
+                    return true
+                }, lit: $unitDrop))
+                .frame(width: 340)
                 Card(padding: 14) {
-                    Heading(text: "FACTORY", count: "\(model.factory.count)").padding(.bottom, 12)
-                    ScreenScroll(bottom: 10) { ForEach(shown.factory, id: \.slot) { row($0, compact: true) } }
+                    KeptHead(count: model.kept.items.count, selecting: model.kept.selecting, compact: true,
+                             select: { setPadSelecting(!model.kept.selecting) }, new: newKept)
+                        .padding(.bottom, 10)
+                    ScreenScroll(bottom: model.kept.selecting ? 220 : 10, refresh: { await model.kept.reload() }) {
+                        ForEach(kshown) { k in
+                            KeptRow(item: k, selecting: model.kept.selecting, picked: padPicked.contains(k.id),
+                                    selected: selected == "kept:\(k.id)", compact: true) { tapKept(k) }
+                                .modifier(KeptDrag(id: k.id, name: k.name))
+                                .padding(.bottom, 8)
+                        }
+                        if model.kept.loaded && model.kept.items.isEmpty { KeptEmpty(new: newKept) }
+                    }
                 }
-                .frame(width: 236)
+                .background(RoundedRectangle(cornerRadius: 22).fill(FZ.champagne.opacity(0.04)))
+                .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(FZ.champagne.opacity(keptDrop ? 1 : 0.45), lineWidth: keptDrop ? 2 : 1))
+                .modifier(KeptDrop(accept: { s in
+                    guard let r = entry(s), r.source != "pool" else { return false }
+                    keepRow(r)
+                    return true
+                }, lit: $keptDrop))
+                .frame(width: 272)
                 Card(padding: 18) {
                     if let r = entry(selected) {
                         PresetPanel(model: model, entry: r, wide: true, note: $note, ask: $ask, onExport: export, onMove: startMove) {
                             selected = nil
                         }
                         .id(key(r))
+                    } else if let s = selected, s.hasPrefix("kept:"), model.kept.item(String(s.dropFirst(5))) != nil {
+                        KeptPanel(model: model, id: Binding(get: { selected.map { String($0.dropFirst(5)) } },
+                                                            set: { selected = $0.map { "kept:\($0)" } }),
+                                  wide: true, note: $note, ask: $ask) { selected = nil }
                     } else {
                         TabPlaceholder(tab: .library)
                     }
@@ -281,7 +363,75 @@ struct LibraryView: View {
             if model.actions.trackOn { Keybed(e: model.editor, height: 104) }
         }
         .padding(.bottom, 26)
+        .overlay(alignment: .bottom) {
+            if model.kept.selecting {
+                KeptSelectBar(model: model, picked: padPicked, all: kshown.map(\.id), target: $padTarget, note: $note,
+                              toggleAll: {
+                                  let all = Set(kshown.map(\.id))
+                                  padPicked = padPicked.isSuperset(of: all) ? [] : all
+                              },
+                              delete: askDeleteKept, sent: { setPadSelecting(false) })
+                    .frame(maxWidth: 560).padding(.bottom, 26)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.kept.selecting)
+        .onDisappear { if model.kept.selecting { setPadSelecting(false) } }
+    }
+
+    // MARK: KEPT (both)
+
+    private func setPadSelecting(_ on: Bool) {
+        padPicked = []
+        model.kept.selecting = on
+    }
+
+    private func tapKept(_ k: KeptPreset) {
+        if model.kept.selecting {
+            if padPicked.contains(k.id) { padPicked.remove(k.id) } else { padPicked.insert(k.id) }
+            return
+        }
+        let key = "kept:\(k.id)"
+        selected = selected == key ? nil : key
+        hear(k, model: model) { note = $0 }
+    }
+
+    private func newKept() {
+        if model.kept.selecting { setPadSelecting(false) }
+        model.editTarget = .newKept
+        model.goTo = .edit
+    }
+
+    /// A unit preset dropped on KEPT (or its → KEPT): copied onto the phone.
+    private func keepRow(_ r: FizzListEntry) {
+        Task {
+            switch await model.keep(r) {
+            case .kept(let k): note = .done("KEPT · \(k.name)", FZ.champagne)
+            case .already(let k): note = ScreenNote(text: "KEPT ALREADY · \(k.name)", color: FZ.champagne, kind: .note)
+            case .failed: note = ScreenNote(text: "NOT READ YET", color: FZ.muted, kind: .refused)
+            }
+        }
+    }
+
+    /// A kept preset dropped on the unit's list: SEND to MY PRESETS.
+    private func sendDropped(_ id: String) {
+        guard let k = model.kept.item(id) else { return }
+        Task {
+            let out = await model.send(kept: [k], to: .mine)
+            note = keptSendNote(out, to: .mine, unit: model.unitName)
+        }
+    }
+
+    private func askDeleteKept() {
+        let ks = model.kept.items.filter { padPicked.contains($0.id) }
+        guard !ks.isEmpty else { return }
+        ask = ConfirmAsk(title: "DELETE · KEPT", what: ks.count == 1 ? ks[0].name : "\(ks.count) PRESETS",
+                         detail: "OFF THIS PHONE", go: "DELETE", color: FZ.red) {
+            model.kept.delete(ks.map(\.id))
+            padPicked = []
+            note = .done("DELETED \(ks.count == 1 ? ks[0].name : "\(ks.count)")", FZ.red)
+        }
     }
 }
 
@@ -347,6 +497,8 @@ struct LibraryRow: View {
     let onPool: () -> Void
     let onDelete: () -> Void
     let onDrop: (Int) -> Void
+    /// the iPad: a KEPT preset dropped on this row (SEND to MY PRESETS)
+    var onKept: ((String) -> Void)?
 
     @Environment(\.fizzSnapshot) private var snapshot
     @State private var dx: CGFloat = 0
@@ -381,7 +533,8 @@ struct LibraryRow: View {
         }
         .frame(height: 56)
         .sidewaysPan(enabled: canWrite && !compact && !snapshot, changed: swiped, ended: letGo)
-        .modifier(Reorder(entry: entry, enabled: dragReorder && mine && canWrite, target: $target, onDrop: onDrop))
+        .modifier(Reorder(entry: entry, enabled: dragReorder && mine && canWrite, target: $target, onDrop: onDrop, onKept: onKept))
+        .modifier(KeptDrag(id: nil, entry: entry, enabled: dragReorder && !(mine && canWrite)))
         .onChange(of: dx != 0) { _, o in if o != isOpen { setOpen(o) } }
         .onChange(of: isOpen) { _, o in if !o && dx != 0 { withAnimation(snap) { dx = 0 } } }
     }
@@ -457,6 +610,7 @@ private struct Reorder: ViewModifier {
     let enabled: Bool
     @Binding var target: Bool
     let onDrop: (Int) -> Void
+    var onKept: ((String) -> Void)?
     @Environment(\.fizzSnapshot) private var snapshot
 
     func body(content: Content) -> some View {
@@ -466,6 +620,10 @@ private struct Reorder: ViewModifier {
                     PresetRow(entry: entry, algorithm: 1, selected: true).frame(width: 300).opacity(0.9)
                 }
                 .dropDestination(for: String.self) { items, _ in
+                    if let s = items.first, s.hasPrefix("kept:"), let onKept {
+                        onKept(String(s.dropFirst(5)))
+                        return true
+                    }
                     guard let s = items.first, s.hasPrefix("mine:"), let from = Int(s.dropFirst(5)), from != entry.slot else { return false }
                     onDrop(from)
                     return true

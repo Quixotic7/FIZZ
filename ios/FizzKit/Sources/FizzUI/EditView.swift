@@ -161,7 +161,12 @@ struct EditView: View {
                     Text("MIDI").fz(11, 800, em: 0.08).foregroundStyle(.black)
                         .padding(.horizontal, 6).frame(height: 18).background(RoundedRectangle(cornerRadius: 5).fill(FZ.magenta.color))
                 }
-                Text(e.place.label).fz(13, 800, em: 0.12).foregroundStyle(FZ.muted.color).lineLimit(1)
+                if e.place.isKept {
+                    PhoneGlyph(size: 13)
+                    Text(e.place.kept == nil ? "KEPT · NEW" : "KEPT").fz(13, 800, em: 0.12).foregroundStyle(FZ.champagne.color)
+                } else {
+                    Text(e.place.label).fz(13, 800, em: 0.12).foregroundStyle(FZ.muted.color).lineLimit(1)
+                }
             }
             HStack(alignment: .center, spacing: 10) {
                 if e.naming {
@@ -308,7 +313,10 @@ struct EditView: View {
         HStack(spacing: 8) {
             action("↺ REVERT", ghost: true, on: e.dirty && !e.locked, fixed: fixed, height: height) { Task { await e.revert() } }
                 .frame(width: w[0])
-            action("SAVE", ghost: false, on: e.canSave && !e.saving, fixed: fixed, height: height) { confirmSave = true }
+            // (KEPT's SAVE writes the phone's file at once)
+            action("SAVE", ghost: false, on: e.canSave && !e.saving, fixed: fixed, height: height) {
+                if e.place.isKept { Task { await save(asNew: false) } } else { confirmSave = true }
+            }
                 .frame(width: w[1])
             action("SAVE AS NEW", ghost: true, on: e.canSaveNew && !e.saving, fixed: fixed, height: height) {
                 Task { await save(asNew: true) }
@@ -339,6 +347,7 @@ struct EditView: View {
     private func save(asNew: Bool) async {
         let x = await e.save(asNew: asNew)
         switch x {
+        case .ok where e.place.isKept: show("KEPT · \(e.sound?.name ?? "")")
         case .placed: break
         case .refused(.busy): show("THE FM-1 IS PLAYING")
         case .refused(.full): show("MY PRESETS FULL")
