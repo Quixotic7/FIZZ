@@ -15,11 +15,12 @@ struct UnitBadge: View {
 
     var body: some View {
         Group {
+            // (a tap: the unit picker, Units*.swift)
             if let u = model.unit {
                 if u.isEmulated {
-                    EmulatorPill().contentShape(Capsule()).onTapGesture { model.goTo = .play }
+                    EmulatorPill().contentShape(Capsule()).onTapGesture { model.openPicker() }
                 } else {
-                    UnitPill(info: u)
+                    UnitPill(info: u).contentShape(Capsule()).onTapGesture { model.openPicker() }
                 }
             }
         }

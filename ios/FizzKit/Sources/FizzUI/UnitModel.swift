@@ -79,8 +79,8 @@ public struct StoreUse: Sendable, Equatable {
 
 @MainActor @Observable
 public final class UnitModel {
-    public private(set) var state: ConnectState = .searching
-    public private(set) var choices: [UnitChoice] = []
+    public internal(set) var state: ConnectState = .searching
+    public internal(set) var choices: [UnitChoice] = []
     public private(set) var unit: UnitInfo?
     public private(set) var storeInfo: FizzStoreInfo?
     public private(set) var status: FizzStatus?
@@ -118,11 +118,33 @@ public final class UnitModel {
     public let emulator: EmulatorHost?
     /// An FM-1 found but not taken while the emulated FIZZ stays the unit: update mode, not FIZZ, two units
     /// (.updateMode / .notFizz / .choose; the pill shows it, its card opens as a sheet).
-    public private(set) var notice: ConnectState?
+    public internal(set) var notice: ConnectState?
     /// The notice's card shown (it opens by itself when a new notice comes)
     public var noticeOpen = false
     /// An FM-1 waits for a write on the emulated FIZZ to finish before it takes over.
     public private(set) var switchWaiting = false
+    /// The unit picked by hand (the picker's pin, Units.swift): it stays until it goes away or a new unit appears.
+    public internal(set) var pinned: UnitKey?
+    /// The unit picker shown (every unit pill opens it).
+    public var pickerOpen = false
+    /// The FM-1 ports seen besides the unit and the one kept beside it (the picker's rows; read while it shows).
+    public internal(set) var seen: [SeenPort] = []
+    /// The other unit SEND copies to: THIS iPHONE while an FM-1 is the unit, the FM-1 kept open while THIS iPHONE is.
+    public internal(set) var other: OtherUnit?
+    /// A SEND to the other unit running.
+    public internal(set) var sendingOther = false
+    /// A switch picked by hand running (the picker's card ripples).
+    public internal(set) var switching: UnitKey?
+    /// The picker opened from PLAY (PLAY's SOUND follows the pick).
+    @ObservationIgnored var pickerFromPlay = false
+    /// The FM-1 kept open beside THIS iPHONE (picked by hand while one is plugged in).
+    @ObservationIgnored var otherProbe: FizzProbe?
+    /// The unit's own probe (its port and identity: kept beside when THIS iPHONE is picked).
+    @ObservationIgnored var taken: FizzProbe?
+    /// The ports there when the pin was made, less the ones gone since: one not in it is a new unit.
+    @ObservationIgnored var pinSeen: Set<String> = []
+    /// The FIZZ version of the FM-1 kept beside.
+    @ObservationIgnored var otherVersion: String?
     /// The unit is the emulated FIZZ.
     public var onEmulator: Bool { unit?.isEmulated == true }
     /// The app has a unit of its own: it opens straight to its tabs.
@@ -142,13 +164,13 @@ public final class UnitModel {
     @ObservationIgnored let fallback: (any LinkSource)?
     @ObservationIgnored private var fallbackListener: Task<Void, Never>?
     @ObservationIgnored private var joiningFallback = false
-    @ObservationIgnored private(set) var link: FizzLink?
+    @ObservationIgnored var link: FizzLink?
     @ObservationIgnored private var started = false
-    @ObservationIgnored private var scanning = false
+    @ObservationIgnored var scanning = false
     @ObservationIgnored private var scanAgain = false
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var debounce: Task<Void, Never>?
-    @ObservationIgnored private var retry: Task<Void, Never>?
+    @ObservationIgnored var retry: Task<Void, Never>?
     @ObservationIgnored private var lastActive = -Double.infinity
 
     /// backups: the folder the backups are kept in (Documents/Backups in the app). emulator: the emulated FIZZ, the
@@ -195,14 +217,16 @@ public final class UnitModel {
             }
         }
         scan()
+        demoPicks()
     }
 
     public func stop() {
         listener?.cancel(); debounce?.cancel(); retry?.cancel(); fallbackListener?.cancel()
         kept.unwatch()
-        let l = link
+        let l = link, o = otherProbe?.link
         link = nil
-        Task { await l?.close() }
+        otherProbe = nil
+        Task { await l?.close(); await o?.close() }
         if case .choose(let ps) = state { for p in ps { Task { await p.link.close() } } }
         if case .choose(let ps) = notice { for p in ps { Task { await p.link.close() } } }
     }
@@ -213,6 +237,7 @@ public final class UnitModel {
         retry?.cancel()
         Task {
             await scanOnce()
+            if pickerOpen { await survey() }            // (the picker's rows: Units.swift)
             scanning = false
             if scanAgain { scanAgain = false; scan() }
         }
@@ -227,8 +252,10 @@ public final class UnitModel {
             report.destinations = s.destinations().map { $0.offline ? "\($0.name) (offline)" : $0.name }
         }
         #endif
-        report.probed = source.scanner.candidates().map(\.name)
-        let probes = await FizzLink.probe(scanner: source.scanner, clock: source.clock)
+        // (the FM-1 kept beside THIS iPHONE is open already: not probed again)
+        let scanner = PortSubset(source.scanner, without: otherProbe?.candidate)
+        report.probed = scanner.candidates().map(\.name)
+        let probes = await FizzLink.probe(scanner: scanner, clock: source.clock)
         report.answers = probes.map { PortReport.Answer(port: $0.candidate.name, id: $0.identity.text) }
         if report.probed != ports.probed || report.answers.map(\.id) != ports.answers.map(\.id)
             || report.sources != ports.sources {
@@ -290,7 +317,7 @@ public final class UnitModel {
         Task { await take(ps[index]) }
     }
 
-    private func take(_ p: FizzProbe) async {
+    func take(_ p: FizzProbe) async {
         if p.identity.isFizz { await attach(p); return }
         await p.link.close()
         say("\(p.identity.text) on \"\(p.candidate.name)\": \(p.identity.isOTA ? "update mode" : "not FIZZ")")
@@ -300,6 +327,7 @@ public final class UnitModel {
     private func attach(_ p: FizzProbe, emulated: Bool = false) async {
         let link = p.link
         self.link = link
+        taken = p
         await link.setOnLost { [weak self] in Task { @MainActor in self?.lost(link) } }
         do {
             let version = try await link.identity()
@@ -313,6 +341,7 @@ public final class UnitModel {
                              isEmulated: emulated)
             unit = u
             state = .found(u)
+            otherChanged()
             say("connected: \(u.idText) on \"\(u.portName)\", FIZZ \(version ?? "(no answer)"), \(mine.count) my presets")
             await loadDumps(link)
         } catch {
@@ -357,6 +386,8 @@ public final class UnitModel {
         link = nil
         forget()
         state = .lost
+        // (the FM-1 picked by hand gone: the pick with it; THIS iPHONE comes back at once)
+        if let w = was, !w.isEmulated, pinned == .port(w.portName) { pinned = nil }
         say(was?.isEmulated == true ? "\(EmulatorHost.hereName) went away" : "the FM-1 was disconnected")
         if was?.isEmulated == true { Task { await emulator?.serve(false) } }
         retry?.cancel()
@@ -369,11 +400,12 @@ public final class UnitModel {
     }
 
     /// What was read from the unit, dropped.
-    private func forget() {
+    func forget() {
         unit = nil
         rows = []; status = nil; projects = nil; storeInfo = nil; algos = [:]; dumpsLoaded = false
         layout = nil; storeTracks = nil
         actions.lost()
+        otherChanged()
     }
 
     private func portsChanged() {
@@ -385,6 +417,7 @@ public final class UnitModel {
     }
 
     private func afterPortChange() {
+        portsMoved()                                            // (a new unit ends a pick by hand: Units.swift)
         if case .choose(let ps) = notice {
             for p in ps { Task { await p.link.close() } }
             choices = []
@@ -395,6 +428,7 @@ public final class UnitModel {
             scan()                                              // (an FM-1 plugged in?)
         case .found(let u):
             if !source.scanner.candidates().contains(u.candidate), let l = link { Task { await l.close() }; lost(l) }
+            else if pickerOpen { scan() }                       // (the picker's rows read again)
         case .choose(let ps):
             for p in ps { Task { await p.link.close() } }
             choices = []
@@ -491,11 +525,14 @@ public final class UnitModel {
     /// Nothing is being written to the unit (a switch waits for it).
     var idle: Bool {
         !actions.busy && !backups.busy && actions.restoreRun == nil && projectsTab.writing == nil && !refreshing
+            && !sendingOther
     }
 
     /// With the emulated FIZZ to fall back on: an FM-1 running FIZZ takes over (once nothing is being written); none,
     /// or one in update mode, not FIZZ, or two to choose from: the emulated FIZZ stays the unit, the notice says why.
     private func offline(_ probes: [FizzProbe]) async {
+        // THIS iPHONE picked by hand: the FM-1s known stay beside it (one kept open for SEND), a new one ends the pick
+        if pinned == .here, await keepHere(probes) { return }
         var pick: Int?
         if probes.count == 1 {
             pick = 0
@@ -547,7 +584,7 @@ public final class UnitModel {
     }
 
     /// An FM-1 in place of the emulated FIZZ (its link closed first, as an unplug would).
-    private func takeOver(_ p: FizzProbe) async {
+    func takeOver(_ p: FizzProbe) async {
         notice = nil; choices = []; switchWaiting = false
         if onEmulator, let l = link {
             await editor.unitGoes()                         // (EDIT's borrow undone while the link is open)
@@ -562,7 +599,7 @@ public final class UnitModel {
     }
 
     /// The emulated FIZZ as the unit, when nothing else is.
-    private func useFallback() async {
+    func useFallback() async {
         guard let fallback, !joiningFallback else { return }
         if case .found = state { return }
         joiningFallback = true
@@ -578,7 +615,7 @@ public final class UnitModel {
         await attach(p, emulated: true)
     }
 
-    private func retryLater(ms: Int) {
+    func retryLater(ms: Int) {
         retry?.cancel()
         retry = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(ms))

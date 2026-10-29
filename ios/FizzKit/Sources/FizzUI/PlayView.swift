@@ -309,7 +309,7 @@ public struct PlayView: View {
         let p = play.theme.palette
         ZStack {
             HStack {
-                Button { play.sheet = true } label: {
+                Button { model.openPicker(fromPlay: true) } label: {    // (the unit picker; the handle drops the sheet)
                     HStack(spacing: b.s(7)) {
                         if play.soundNow == .fm1 {
                             Circle().fill(RGB(0x3BD47A).color).frame(width: b.s(8), height: b.s(8))

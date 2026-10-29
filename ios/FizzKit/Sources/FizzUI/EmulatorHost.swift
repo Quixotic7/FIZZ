@@ -59,6 +59,7 @@ public final class EmulatorHost {
     @ObservationIgnored private let ops = DispatchQueue(label: "fizz.emulator.host", qos: .userInitiated)
     @ObservationIgnored private var launched = false
     @ObservationIgnored private var poke: (@Sendable () -> Void)?
+    @ObservationIgnored private var lent = 0
 
     /// What the emulated FIZZ answers the update handshake (its backups carry it).
     public nonisolated static let identity = "FM-1_46999999"
@@ -143,6 +144,13 @@ public final class EmulatorHost {
         }
     }
 
+    /// A link of the app's own on it while an FM-1 is the unit (SEND between the units): the clock runs meanwhile.
+    public func lend(_ on: Bool) async {
+        lent = max(0, lent + (on ? 1 : -1))
+        update()
+        await settle()
+    }
+
     /// Its STATUS through a port of its own (PLAY's MEMORY while an FM-1 is the unit).
     public func readStatus() async {
         guard let e = emulator, e.isBooted, e.mode != .stopped else { return }
@@ -162,8 +170,9 @@ public final class EmulatorHost {
     func update() {
         guard launched else { return }
         let e = engine
-        let w = Self.clock(playShown: playShown, serving: serving, trackOn: trackOn && serving, notes: notes,
+        let c = Self.clock(playShown: playShown, serving: serving, trackOn: trackOn && serving, notes: notes,
                            playing: wanted == .audio && e.isPlaying, now: wanted)
+        let w = c == .stopped && lent > 0 ? .timer : c          // (lend: SEND's link needs its clock)
         guard w != wanted else { return }
         wanted = w
         ops.async { [weak self] in

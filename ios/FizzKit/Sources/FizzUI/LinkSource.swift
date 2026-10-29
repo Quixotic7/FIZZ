@@ -57,6 +57,7 @@ public enum LinkSources {
     public static func fromArguments(_ args: [String] = ProcessInfo.processInfo.arguments) -> any LinkSource {
         if args.contains("-emulator") { return NoPorts() }
         if let k = args.firstIndex(of: "-demo") {
+            if k + 1 < args.count, args[k + 1] == "units" { return DemoUnitsSource() }    // (the unit picker's)
             let v = k + 1 < args.count ? DemoVariant(rawValue: args[k + 1]) : nil
             return DemoLinkSource(v ?? .fizz)
         }
