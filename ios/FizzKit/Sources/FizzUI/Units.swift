@@ -134,6 +134,7 @@ extension UnitModel {
         switching = key
         defer { switching = nil }
         if actions.pending != nil { _ = await actions.cancelAudition() }     // (the track's own sound back first)
+        await editor.unitGoes()                                             // (EDIT's borrow undone while the link is open)
         switch key {
         case .here:
             guard hasFallback else { return false }
@@ -166,7 +167,8 @@ extension UnitModel {
         pinSeen = []
         if let h = otherProbe {
             otherProbe = nil
-            Task { await h.link.close() }
+            let editor = editor
+            Task { await editor.unitGoes(); await h.link.close() }     // (a new unit takes over next)
             otherChanged()
         }
     }
