@@ -163,7 +163,7 @@ struct Shots {
         if let k = m.kept.items.first(where: { $0.name == "NIGHT GLASS" }) {
             m.editTarget = .kept(k)
             await m.editor.show()
-            await m.actions.keepAudition()
+            await m.editor.keepOn()
             m.editor.set(6, m.editor.value(6) + 9)
             save(RootView(model: m, tab: .constant(.edit), wide: false), phone, out, "kept-edit")
             m.editor.hide()
@@ -201,6 +201,27 @@ struct Shots {
             p.view = v
             save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, name)
         }
+        // STEPS (mock-ups 38-40): step 1 held, C4 and G4 down (a render leaves PLAY, which lets go: held again each time)
+        p.view = .steps
+        e.run(ms: 100)
+        let hold = {
+            p.padDown(0)
+            e.run(ms: 300)
+            p.noteDown(60, velocity: 100)
+            p.noteDown(67, velocity: 96)
+            e.run(ms: 150)
+            p.showNow()
+        }
+        hold()
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-steps")
+        p.theme = .fizz
+        hold()
+        save(RootView(model: m, tab: .constant(.play), wide: false), CGSize(width: 844, height: 390), out, "play-steps-landscape")
+        p.theme = .tangerine
+        hold()
+        save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play-steps")
+        p.letGoAll()
+        e.run(ms: 50)
         p.view = .full
         p.sheet = true
         save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-sheet")
@@ -286,7 +307,7 @@ struct Shots {
         await m.actions.setTrackOn(true)
         m.editTarget = .preset(m.mine[7])
         await e.show()
-        await m.actions.keepAudition()
+        await e.keepOn()
         let edit = { (name: String) in save(RootView(model: m, tab: .constant(.edit), wide: false), phone, out, name) }
         edit("edit")
         for p in EditPage.allCases where p != .ops {
@@ -330,7 +351,20 @@ struct Shots {
         m.editTarget = .sound(FizzSound(name: "CC MOTION", blob: b), label: "cc motion.fizzsnd")
         await e.show()
         edit("edit-midi")
+        // mock-up 37: NIGHT PAD (MY PRESETS 3) borrowed on TRACK 2, no TRACK switch, no KEEP / CANCEL bar
+        m.actions.trackSlot = 2
+        if let r = m.mine.first(where: { $0.slot == 3 }) {
+            m.editTarget = .preset(r)
+            await e.show()
+            e.page = .openv
+            e.set(6, e.value(6) + 5)
+            edit("edit-borrow")
+            save(RootView(model: m, tab: .constant(.edit), wide: true), pad, out, "ipad-edit-borrow")
+            e.page = .ops
+        }
         e.hide()
+        await until { !m.actions.borrowed && m.actions.pending == nil }
+        m.actions.trackSlot = 0
     }
 
     /// I4: RESTORE's sheet (yesterday's backup), writing, a failure; IMPORT with the demo files (one heard on the

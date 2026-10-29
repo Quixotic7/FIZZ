@@ -205,13 +205,15 @@ struct KeptTests {
         let m = await connected()
         await m.kept.reload()
         let k = try await m.kept.add(sound("TAPE KEYS", 5, tags: ["KEYS"]))
-        await m.actions.setTrackOn(true)
         let e = m.editor
-        await e.open(.kept(k))
-        #expect(e.following && e.live, "heard on the track")
+        m.editTarget = .kept(k)
+        await e.show()
+        #expect(e.following && e.live, "heard on the track (EDIT's borrow: no TRACK switch)")
         #expect(e.place.source == "kept" && e.place.kept == k.id && e.sound?.name == "TAPE KEYS")
-        #expect(m.actions.pending != nil, "KEEP / CANCEL")
-        await m.actions.keepAudition()
+        #expect(m.actions.pending != nil && m.actions.borrowed, "a borrow: no KEEP / CANCEL bar")
+        await e.keepOn()
+        #expect(m.actions.pending == nil && e.place.isKept)
+        e.hide()
         m.stop()
     }
 

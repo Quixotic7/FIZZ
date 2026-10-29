@@ -601,7 +601,7 @@ struct MidiPage: View {
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) { e.untouch(k) }
                 .highPriorityGesture(DragGesture(minimumDistance: 0).onChanged { d in
-                    if e.turning == nil, !e.locked { e.turning = EditTurn(id: -1 - k, label: "CC \(x.cc)", tint: c) }
+                    if e.turning == nil { e.turning = EditTurn(id: -1 - k, label: "CC \(x.cc)", tint: c) }
                     let v = Int((max(0, min(1, (g.size.height - d.location.y) / max(1, g.size.height))) * 127).rounded())
                     e.setSlot(k, value: v, touched: true)
                 }.onEnded { _ in e.turning = nil })

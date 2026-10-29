@@ -3,11 +3,12 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // EDIT's state (site/manager/editor.js, live.js; phase I5): the sound edited, the place it came from, the track it
-// follows. What is edited: a preset (LIBRARY's EDIT), a file, or the FM-1's track (SELECTED or 1..6), read back twice
-// a second while EDIT shows (skipped while the PARAM pump is busy or within 0.7 s of a PARAM). TRACK on: each value
-// turned a PARAM through ParamPump (a MIDI sound: the whole sound as an AUDITION in the same queue); TRACK off: the
-// track only shown, a turn refused and the switch nudged. REVERT puts the track back exactly (its DUMP); SAVE / SAVE AS
-// NEW through actions.save. The values <-> the blob are sound.js's, in JavaScriptCore (EditSound.swift).
+// follows. What is edited: a preset (LIBRARY's EDIT), a file, a KEPT sound, or the unit's track (SELECTED or 1..6),
+// read back twice a second while EDIT shows (skipped while the PARAM pump is busy or within 0.7 s of a PARAM). A sound
+// opened is heard on the track at once as a borrow (mock-up 37, EditBorrow.swift), undone when EDIT is left; KEEP ON Tn
+// leaves it there. Each value turned is a PARAM to the track through ParamPump (a MIDI sound: the whole sound as an
+// AUDITION in the same queue). REVERT puts the track back exactly (its DUMP); SAVE / SAVE AS NEW through actions.save.
+// The values <-> the blob are sound.js's, in JavaScriptCore (EditSound.swift).
 
 import Foundation
 import FizzData
@@ -72,6 +73,13 @@ public enum EditPage: String, CaseIterable, Sendable, Identifiable {
     }
 }
 
+/// Where EDIT's sound is heard (the top bar's TRACK n chip): borrowed on a track, the track's own, not heard.
+public enum EditHeard: Sendable, Equatable {
+    case borrowed(Int)
+    case track(Int)
+    case silent
+}
+
 /// A value being turned (it takes the screen while the finger is down).
 public struct EditTurn: Sendable, Equatable {
     /// the value's id; a MIDI slot: -1 - k
@@ -113,9 +121,13 @@ public final class EditorModel {
     public private(set) var held: Set<Int> = []
     /// the phone's keybed strip pulled up
     public var keysOpen = false
-    /// a turn refused while TRACK is off: the switch pulses (counted)
-    public private(set) var nudges = 0
     public private(set) var saving = false
+    /// EDIT shows (the top bar's TRACK n chip in place of the TRACK switch)
+    public private(set) var shown = false
+    /// the sound opened here (a preset, a file, KEPT): borrowed on the track while EDIT shows; nil: the track's own
+    public internal(set) var opened: EditPlace?
+    /// why the opened sound is not heard (busy, a MIDI sound, no track); nil: heard
+    public internal(set) var silent: String?
     /// the name being typed (the read-back leaves it alone)
     public var naming = false
 
@@ -123,10 +135,11 @@ public final class EditorModel {
     @ObservationIgnored private var baseFrame: [UInt8]?
     @ObservationIgnored private(set) var chan = 14
     @ObservationIgnored private var poll: Task<Void, Never>?
-    @ObservationIgnored private(set) var shown = false
     @ObservationIgnored private var attaching = false
-    @ObservationIgnored private var lastNudge = Date.distantPast
-    @ObservationIgnored private let edits = SerialQueue()
+    @ObservationIgnored var borrowing = false
+    /// show / hide / a track picked, one after another
+    @ObservationIgnored private var chain: Task<Void, Never>?
+    @ObservationIgnored let edits = SerialQueue()
     @ObservationIgnored private let notes = SerialQueue()
     /// set by LIBRARY / a file (UnitModel.editTarget), taken when EDIT shows
     var request: EditTarget?
@@ -141,10 +154,8 @@ public final class EditorModel {
 
     /// The track can be read (live.js canRead): a FIZZ that edits a track live, connected, no transfer running.
     var canRead: Bool { (actions?.trackCapable ?? false) && unit?.link != nil && !(actions?.busy ?? true) }
-    /// Edits go to the track.
-    public var live: Bool { following && (actions?.trackOn ?? false) && canRead }
-    /// Shown only (TRACK off): a turn is refused.
-    public var locked: Bool { following && !(actions?.trackOn ?? false) }
+    /// Edits go to the track (the track itself, or the sound borrowed on it).
+    public var live: Bool { following && canRead }
     public var dirty: Bool {
         guard let s = sound, let b = base else { return false }
         return !s.sameValues(b) || s.name != b.name || s.tags != b.tags
@@ -156,8 +167,14 @@ public final class EditorModel {
     }
     /// (KEPT: another kept preset, no unit needed)
     public var canSaveNew: Bool { sound != nil && (place.isKept || (actions?.canWrite ?? false)) }
-    /// The track number the switch shows: the followed one, else the unit's selected one.
-    public var trackShown: Int { track >= 0 ? track : unitSelected }
+    /// The track number shown: the borrowed one, the one picked, the followed one, else the unit's selected one.
+    public var trackShown: Int {
+        if let a = actions {
+            if a.borrowed, let p = a.pending { return p.track }
+            if a.trackSlot > 0 { return a.trackSlot - 1 }
+        }
+        return track >= 0 ? track : unitSelected
+    }
 
     public func value(_ id: Int) -> Int { sound?.values.indices.contains(id) == true ? sound!.values[id] : 0 }
     public func text(_ id: Int) -> String { table?.text(id, value(id)) ?? "" }
@@ -169,67 +186,89 @@ public final class EditorModel {
         if table == nil { table = try? await engine()?.editTable() }
     }
 
-    /// EDIT shown (manager.js tab("edit"): editor.show, live.show): a target asked for is opened; else the track is
-    /// followed when it can be and nothing of the screen's own is open.
+    /// EDIT shown (manager.js tab("edit"): editor.show, live.show): a target asked for is opened (heard on the
+    /// track); else the sound opened here is heard again, or the track is followed.
     public func show() async {
+        let t = request
+        request = nil
+        guard !shown || t != nil else { return }
         shown = true
+        await enqueue { await self.showing(t) }.value
+    }
+
+    private func showing(_ t: EditTarget?) async {
+        guard shown else { return }
         await prepare()
-        if let t = request {
-            request = nil
+        if let t {
             await open(t)
-        } else if canRead && (following || (actions?.trackOn ?? false) || place.source == "new" || sound == nil) {
+        } else if opened != nil, sound != nil {
+            await borrowAgain()
+        } else if canRead {
             await attach()
         }
         if sound == nil, let t = table { open(blank(t), place: .new) }
-        if following { startPoll() }
+        if following && shown { startPoll() }
     }
 
+    /// EDIT left (another tab, the app in the background): the borrow undone, the track let go.
     public func hide() {
+        guard shown else { return }
         shown = false
         stopPoll()
         for n in held { noteOff(n) }
+        _ = enqueue { await self.letGo() }
     }
 
-    /// Something to edit: a preset (TRACK on: heard on the track at once, KEEP / CANCEL, the editor on the track),
-    /// a file, the track.
+    private func letGo() async {
+        guard !shown else { return }
+        await edits.drain()
+        await actions?.pump?.idle()
+        if actions?.borrowed == true { await actions?.unborrow() }
+        detach()
+        await actions?.setEditLive(false)
+    }
+
+    /// Runs after the show / hide / track change queued before it.
+    @discardableResult func enqueue(_ f: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        let prev = chain
+        let t = Task { @MainActor in
+            await prev?.value
+            await f()
+        }
+        chain = t
+        return t
+    }
+
+    /// Something to edit: a preset, a file, a KEPT sound (heard on the track at once: a borrow), the track.
     public func open(_ target: EditTarget) async {
         await prepare()
         guard let e = engine() else { return }
+        let a = actions
         switch target {
         case .track:
-            await attach()
+            await ownSound()
         case .preset(let r):
-            guard let a = actions, let f = await a.fetchFrame(of: r), var s = try? await e.editSound(frame: f) else { return }
-            if a.trackOn, await a.pick(r).isOK, await attach() { return }
-            detach()
+            guard let a, let f = await a.fetchFrame(of: r), var s = try? await e.editSound(frame: f) else { return }
             s.extras = EditExtras(id: r.id, sound: 0, edited: false)
-            open(s, place: EditPlace(label: "\(r.source == "mine" ? "MY PRESETS" : "FACTORY") \(r.slot)", source: r.source,
-                                     slot: r.slot, id: r.id))
+            let p = EditPlace(label: "\(r.source == "mine" ? "MY PRESETS" : "FACTORY") \(r.slot)", source: r.source, slot: r.slot, id: r.id)
+            await borrow(s, place: p) { await a.pick(r, borrow: true) }
         case .sound(let fs, let label):
             guard let s = try? await e.editSound(lib: fs) else { return }
-            detach()
-            open(s, place: EditPlace(label: String(label.uppercased().prefix(24)), source: "file"))
+            await borrow(s, place: EditPlace(label: String(label.uppercased().prefix(24)), source: "file")) {
+                await a?.pickSound(fs, borrow: true) ?? .notNow
+            }
         case .kept(let k):
             guard let f = await unit?.kept.full(k), let s = try? await e.editSound(lib: f.sound) else { return }
-            await openKept(s, lib: f.sound, place: .kept(k.id))
+            await borrow(s, place: .kept(k.id)) { await a?.pickSound(f.sound, borrow: true) ?? .notNow }
         case .newKept:
             guard let t = table else { return }
             let s = blank(t)
-            await openKept(s, lib: try? await e.libSound(s), place: .kept(nil))
+            let lib = try? await e.libSound(s)
+            await borrow(s, place: .kept(nil)) {
+                guard let lib else { return .notNow }
+                return await a?.pickSound(lib, borrow: true) ?? .notNow
+            }
         }
-    }
-
-    /// A KEPT sound opened: TRACK on, heard on the track at once (KEEP / CANCEL) and edited there live, its place KEPT.
-    private func openKept(_ s: EditSound, lib: FizzSound?, place p: EditPlace) async {
-        if let a = actions, a.trackOn, let lib, await a.pickSound(lib).isOK, await attach() {
-            place = p
-            // (an audition carries no tags: the file's)
-            if var x = sound { x.tags = s.tags; sound = x; base = x }
-            say("edit: \(s.name) (KEPT, on TRACK \(track + 1))")
-            return
-        }
-        detach()
-        open(s, place: p)
     }
 
     /// editor.js open: the sound and the one to go back to.
@@ -245,12 +284,13 @@ public final class EditorModel {
 
     // MARK: the track
 
-    /// The editor on the track: read, opened, followed (TRACK on or off; off: only shown).
+    /// The editor on the track: read, opened, followed (its edits PARAMs to it while EDIT shows).
     @discardableResult public func attach() async -> Bool {
         guard canRead, !attaching, let a = actions, let e = engine() else { return false }
         attaching = true
         defer { attaching = false }
         await prepare()
+        if shown { await a.setEditLive(true) }
         guard let r = await a.readTrack(), let s = try? await e.editSound(frame: r.frame) else { return false }
         took(s)
         baseFrame = r.frame
@@ -270,17 +310,23 @@ public final class EditorModel {
         Task { await actions?.pump?.clear() }
     }
 
-    /// The followed track changed (SELECTED, 1..6): a pending audition cancelled first.
+    /// The followed track changed (SELECTED, 1..6): EDIT's opened sound borrowed there instead; else a pending
+    /// audition cancelled first and the track followed (LIBRARY: the sound opened here left alone).
     public func follow(slot k: Int) async {
         guard let a = actions else { return }
         a.trackSlot = k
+        if opened != nil {
+            guard shown else { if a.pending != nil && !a.borrowed { _ = await a.cancelAudition() }; return }
+            await enqueue { await self.moveBorrow() }.value
+            return
+        }
         if a.pending != nil { _ = await a.cancelAudition() }
         await attach()
     }
 
-    /// TRACK switched (the pill): on, EDIT takes the track when it shows.
+    /// TRACK switched (LIBRARY's pill): EDIT, shown, follows the track.
     public func trackSwitched() async {
-        if shown, actions?.trackOn == true { await attach() }
+        if shown, opened == nil { await attach() }
     }
 
     /// After CANCEL put the track's own sound back: read again (live.js cancel).
@@ -328,10 +374,10 @@ public final class EditorModel {
     func readBack() async {
         guard shown, following else { return }
         guard unit?.link != nil else { following = false; stopPoll(); return }
-        guard canRead, !attaching, (actions?.editing ?? 1) == 0, turning == nil, !(await blocked()),
+        guard canRead, !attaching, !borrowing, (actions?.editing ?? 1) == 0, turning == nil, !(await blocked()),
               let a = actions, let e = engine() else { return }
         let t0 = track
-        guard let r = await a.readTrack(), let s = try? await e.editSound(frame: r.frame), following else { return }
+        guard let r = await a.readTrack(), let s = try? await e.editSound(frame: r.frame), following, !borrowing else { return }
         took(s)
         if s.track != t0 {
             baseFrame = r.frame
@@ -340,8 +386,7 @@ public final class EditorModel {
             return
         }
         if await blocked() || turning != nil { return }            // (an edit went out meanwhile: not the read's)
-        let on = a.trackOn
-        if follow(s, rebase: !on) && !on { baseFrame = r.frame }
+        follow(s, rebase: false)
         if place.fromTarget, let x = s.extras, place.id != x.id {   // (loaded on the unit)
             place = placeOf(s)
             baseFrame = r.frame
@@ -368,14 +413,125 @@ public final class EditorModel {
         return true
     }
 
+    // MARK: the borrow (mock-up 37)
+
+    /// Where the sound is heard, for the TRACK n chip.
+    public var heard: EditHeard {
+        if following, let a = actions, a.borrowed, let p = a.pending { return .borrowed(p.track) }
+        if following && track >= 0 { return .track(track) }
+        return .silent
+    }
+
+    /// Why a sound can't be borrowed now (nil: it can).
+    func cannotBorrow(_ s: EditSound) -> String? {
+        guard let a = actions, unit?.link != nil else { return "NO UNIT" }
+        if s.isMidi { return "MIDI" }
+        if !a.trackCapable { return "NO TRACK" }
+        if !a.canWrite { return "BUSY" }
+        return nil
+    }
+
+    /// A sound opened here, heard on the track at once (`how` puts it there: an AUDITION, the track's own sound kept);
+    /// then followed there, its edits PARAMs. Not heard (EDIT hidden, busy, a MIDI sound, no track): opened silently.
+    func borrow(_ s: EditSound, place p: EditPlace, _ how: () async -> UnitOutcome) async {
+        opened = p
+        silent = nil
+        guard shown else { return silence(s, p, nil) }
+        if let why = cannotBorrow(s) {
+            if actions?.borrowed == true { await actions?.unborrow() }
+            return silence(s, p, why)
+        }
+        borrowing = true
+        let x = await how()
+        borrowing = false
+        guard opened == p else { return }                       // (another sound opened meanwhile)
+        guard x.isOK, actions?.borrowed == true, shown, await attach() else {
+            if actions?.borrowed == true { await actions?.unborrow() }
+            let why: String? = switch x {
+            case .ok, .placed: shown ? "NO ANSWER" : nil
+            case .refused(.busy): "BUSY"
+            case .refused(let r): r.name
+            default: "NO ANSWER"
+            }
+            return silence(s, p, why)
+        }
+        place = p
+        // (an audition carries no tags: the sound's)
+        if var x = sound { x.tags = s.tags; sound = x; base = x }
+        say("edit: \(s.name) heard on TRACK \(track + 1)")
+    }
+
+    private func silence(_ s: EditSound, _ p: EditPlace, _ why: String?) {
+        detach()
+        open(s, place: p)
+        silent = why
+        if let why { say("edit: \(s.name) not heard (\(why))") }
+    }
+
+    /// The sound opened here heard again as it is now (EDIT shown again, another track picked): its edits and the
+    /// sound to go back to kept.
+    func borrowAgain() async {
+        guard let s = sound, let p = opened, let e = engine() else { return }
+        let b = base, fs = try? await e.libSound(s), a = actions
+        await borrow(s, place: p) {
+            guard let fs else { return .notNow }
+            return await a?.pickSound(fs, borrow: true, id: p.id) ?? .notNow
+        }
+        if let b { base = b }
+    }
+
+    /// The borrow onto the track picked (trackSlot): the first track's own sound back first.
+    private func moveBorrow() async {
+        guard shown else { return }
+        if actions?.borrowed == true { await actions?.unborrow() }
+        detach()
+        await borrowAgain()
+        if following { startPoll() }
+    }
+
+    /// EDIT on the track itself: the borrow undone, the track's own sound read.
+    public func ownSound() async {
+        if actions?.borrowed == true { await actions?.unborrow() }
+        opened = nil
+        silent = nil
+        detach()
+        await attach()
+    }
+
+    /// KEEP ON Tn: the borrowed sound stays on the track; it's the track's from now on (followed live).
+    public func keepOn() async {
+        guard let a = actions, a.borrowed else { return }
+        await a.keepAudition()
+        opened = nil
+        place.fromTarget = true
+        place.track = track
+        say("TRACK \(track + 1) keeps \(sound?.name ?? "")")
+    }
+
+    /// A unit ready to edit live (connected, the emulated FIZZ booted, an FM-1 taken over) while EDIT shows: the
+    /// sound opened here heard on it, else its track followed.
+    public func unitReady() async {
+        guard shown, !following, canRead else { return }
+        await enqueue {
+            guard self.shown, !self.following else { return }
+            if self.opened != nil, self.sound != nil { await self.borrowAgain() } else { await self.attach() }
+            if self.following && self.shown { self.startPoll() }
+        }.value
+    }
+
+    /// The unit about to change (another unit taking over, a restore): the borrow undone while its link is open.
+    public func unitGoes() async {
+        if actions?.borrowed == true { await actions?.unborrow() }
+        detach()
+    }
+
     // MARK: values
 
-    /// A value turned: clamped, kept, and on the track a PARAM. false: unchanged (or refused: TRACK off).
+    /// A value turned: clamped, kept, and on the track a PARAM. false: unchanged.
     @discardableResult public func set(_ id: Int, _ v: Int) -> Bool {
         guard var s = sound, let t = table, s.values.indices.contains(id) else { return false }
         let x = t.clamp(id, v)
         guard s.values[id] != x else { return false }
-        if locked { nudge(); return false }
         s.values[id] = x
         sound = s
         if live, let p = actions?.pump { edits.run { await p.param(id: id, value: x) } }
@@ -391,7 +547,6 @@ public final class EditorModel {
         let o = m[k], c7 = { (x: Int) in max(0, min(127, x)) }
         let n = EditMidiSlot(cc: c7(cc ?? o.cc), value: c7(value ?? o.value), touched: touched ?? o.touched)
         guard n != o else { return false }
-        if locked { nudge(); return false }
         m[k] = n
         s.midi = m
         sound = s
@@ -425,21 +580,15 @@ public final class EditorModel {
         sound = s
     }
 
-    private func nudge() {
-        guard Date().timeIntervalSince(lastNudge) > 0.9 else { return }
-        lastNudge = Date()
-        nudges += 1
-    }
-
     // MARK: REVERT, SAVE
 
-    /// The sound it came from again; on the track (TRACK on): the track put back exactly (its DUMP), a preset opened:
-    /// that preset again.
+    /// The sound it came from again; on the track: the track put back exactly (its DUMP), a sound borrowed: that
+    /// sound again.
     public func revert() async {
         guard let b = base else { return }
         sound = b
         guard live, let a = actions else { return }
-        if place.fromTarget, let f = baseFrame {
+        if place.fromTarget, opened == nil, let f = baseFrame {
             _ = await a.revert(to: f)
         } else if let e = engine(), let f = try? await e.storeFrame(b, track: track, audition: true,
                                                                   extras: FizzTrackExtrasIn(id: b.extras?.id ?? 0, sound: b.extras?.sound ?? 0,
@@ -448,21 +597,22 @@ public final class EditorModel {
         }
     }
 
-    /// SAVE (over the MY preset it came from: the screen asked first) or SAVE AS NEW (the first free place); TRACK on:
-    /// the track then plays it (LOAD) and the editor reads it again.
+    /// SAVE (over the MY preset it came from: the screen asked first) or SAVE AS NEW (the first free place); on the
+    /// track itself: the track then plays it (LOAD) and the editor reads it again (a borrow: it goes on as one).
     @discardableResult public func save(asNew: Bool) async -> UnitOutcome {
         if place.isKept { return await saveKept(asNew: asNew) }
         guard let s = sound, let a = actions, let e = engine(), !saving else { return .notNow }
         saving = true
         defer { saving = false }
         guard let fs = try? await e.libSound(s) else { return .refused(.badPatch) }
-        let onTrack = live && track >= 0
+        let onTrack = live && track >= 0 && opened == nil
         let x = await a.save(fs, slot: asNew ? 0 : place.slot, track: onTrack ? track : nil)
         guard case .placed(let n) = x else { return x }
         base = s
         if onTrack { await attach() } else {
             let row = unit?.mine.first { $0.slot == n }
             place = EditPlace(label: "MY PRESETS \(n)", source: "mine", slot: n, id: row?.id ?? 0)
+            if opened != nil { opened = place }
         }
         return x
     }
@@ -493,6 +643,7 @@ public final class EditorModel {
         sound = s
         base = s
         place = .kept(k.id)
+        if opened != nil { opened = place }
         say("\(s.name) -> KEPT (\(k.id))")
         return .ok
     }
@@ -548,8 +699,7 @@ public final class EditorModel {
 // MARK: - The edit target (LIBRARY's EDIT, a file)
 
 extension UnitModel {
-    /// What EDIT edits next: set by LIBRARY's EDIT (TRACK on: heard on the track first) or a file opened, taken when
-    /// EDIT shows.
+    /// What EDIT edits next: set by LIBRARY's EDIT or a file opened, taken (and heard on the track) when EDIT shows.
     public var editTarget: EditTarget? {
         get { editor.request }
         set { editor.request = newValue }
@@ -557,9 +707,9 @@ extension UnitModel {
 }
 
 extension UnitActions {
-    /// A sound onto the followed track, nothing stored (REVERT of a preset opened with TRACK on: live.js audition).
+    /// A sound onto the followed track, nothing stored (REVERT of a sound borrowed: live.js audition).
     func auditionOnTrack(_ frame: [UInt8]) async -> UnitOutcome {
-        guard canWrite, trackOn, let link else { return .notNow }
+        guard canWrite, trackOn || editLive, let link else { return .notNow }
         let r = try? await link.store(frame)
         await pump?.touch()
         return r.map { Self.outcome($0) } ?? .noAnswer

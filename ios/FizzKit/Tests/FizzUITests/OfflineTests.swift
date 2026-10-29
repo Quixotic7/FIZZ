@@ -232,8 +232,8 @@ struct OfflineTests {
 
     @Test func viewsBySwipe() {
         #expect(PlayModel.swiped(.full, by: 1) == .keys)
-        #expect(PlayModel.swiped(.panel, by: 1) == .screen)
-        #expect(PlayModel.swiped(.screen, by: -1) == .keys)
+        #expect(PlayModel.swiped(.panel, by: 1) == .steps)          // (STEPS between, mock-up 38)
+        #expect(PlayModel.swiped(.screen, by: -1) == .steps)
         #expect(PlayModel.swiped(.full, by: -1) == .full)
         #expect(PlayModel.swiped(.screen, by: 1) == .screen)
     }

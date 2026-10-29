@@ -2,10 +2,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// The EDIT tab (mock-ups 11, 12, 17; editor.js renderHead, the panel, the keybed; phase I5). iPhone: the place and the
-// name, the page chips, one page, REVERT / SAVE / SAVE AS NEW, the keybed's strip (swipe up). iPad: the TRACK switch
-// and the page list on the left, the page in a card with its actions, the keybed across the bottom, a hardware
-// keyboard plays it. A value turned takes the screen while the finger is down.
+// The EDIT tab (mock-ups 11, 12, 17, 37; editor.js renderHead, the panel, the keybed; phase I5). iPhone: the place
+// (KEEP ON Tn while the sound is borrowed on a track) and the name, the page chips, one page, REVERT / SAVE / SAVE AS
+// NEW, the keybed's strip (swipe up). iPad: the TRACK n chip and the page list on the left, the page in a card with
+// its actions, the keybed across the bottom, a hardware keyboard plays it. A value turned takes the screen while the
+// finger is down.
 
 import SwiftUI
 import FizzData
@@ -31,8 +32,14 @@ struct EditView: View {
             .overlay(alignment: .top) { flashView }
             // (the name typed: the keyboard covers the bottom, the page keeps its size)
             .ignoresSafeArea(.keyboard)
-            .task { await e.show() }
+            .task {
+                await BorrowLaunch.apply(model)
+                await e.show()
+            }
+            // (the borrow undone; RootView's tab hook does it too)
             .onDisappear { e.hide() }
+            // (a unit ready while EDIT shows: its track followed, or the sound opened here heard on it)
+            .onChange(of: model.actions.trackCapable) { _, on in if on { Task { await e.unitReady() } } }
             .onChange(of: e.request) { _, t in if t != nil { Task { await e.show() } } }
             .sheet(isPresented: Binding(get: { e.picking != nil }, set: { if !$0 { e.picking = nil } })) {
                 if let id = e.picking { EditPickerSheet(e: e, id: id) }
@@ -79,7 +86,7 @@ struct EditView: View {
             .turnDim(e, [])
         }
         // (above the tab bar, and above the KEEP / CANCEL bar while it shows)
-        .padding(.bottom, model.actions.pending == nil ? 96 : 96 + 66)
+        .padding(.bottom, auditionBar ? 96 + 66 : 96)
     }
 
     /// The keybed up over the page, or put away.
@@ -104,7 +111,7 @@ struct EditView: View {
         VStack(spacing: 14) {
             HStack(alignment: .top, spacing: 14) {
                 VStack(spacing: 6) {
-                    TrackPill(model: model, wide: true).padding(.bottom, 6)
+                    TrackChip(model: model, wide: true).padding(.bottom, 6)
                     if e.sound?.isMidi == true {
                         ForEach(0..<7, id: \.self) { n in pageItem("MIDI \(n + 1)", FZ.magenta, nil, on: e.midiPage == n) { e.midiPage = n } }
                     } else {
@@ -131,8 +138,11 @@ struct EditView: View {
             Keybed(e: e, height: 104).turnDim(e, [])
         }
         // (the KEEP / CANCEL bar floats over the bottom: the keybed above it)
-        .padding(.bottom, model.actions.pending == nil ? 20 : 20 + 66)
+        .padding(.bottom, auditionBar ? 20 + 66 : 20)
     }
+
+    /// LIBRARY's KEEP / CANCEL bar shows (EDIT's own borrow has none).
+    private var auditionBar: Bool { model.actions.pending != nil && !model.actions.borrowed }
 
     private func pageItem(_ title: String, _ c: RGB, _ art: VectorArt?, on: Bool, _ go: @escaping () -> Void) -> some View {
         Button(action: go) {
@@ -153,7 +163,8 @@ struct EditView: View {
 
     // MARK: the parts
 
-    /// The place, the name (a tap types it), its first tag (a tap: the tags), the EDITED dot.
+    /// The place (KEEP ON Tn while borrowed), the name (a tap types it), its first tag (a tap: the tags), the EDITED
+    /// dot.
     private func header(nameSize: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
@@ -167,7 +178,11 @@ struct EditView: View {
                 } else {
                     Text(e.place.label).fz(13, 800, em: 0.12).foregroundStyle(FZ.muted.color).lineLimit(1)
                 }
+                if !wide { Spacer(minLength: 4) }
+                KeepOnButton(model: model)
             }
+            .frame(height: 22)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: e.heard)
             HStack(alignment: .center, spacing: 10) {
                 if e.naming {
                     TextField("", text: $nameText)
@@ -311,7 +326,7 @@ struct EditView: View {
 
     private func actionRow(height: CGFloat, fixed: Bool, widths w: [CGFloat?]) -> some View {
         HStack(spacing: 8) {
-            action("↺ REVERT", ghost: true, on: e.dirty && !e.locked, fixed: fixed, height: height) { Task { await e.revert() } }
+            action("↺ REVERT", ghost: true, on: e.dirty, fixed: fixed, height: height) { Task { await e.revert() } }
                 .frame(width: w[0])
             // (KEPT's SAVE writes the phone's file at once)
             action("SAVE", ghost: false, on: e.canSave && !e.saving, fixed: fixed, height: height) {
