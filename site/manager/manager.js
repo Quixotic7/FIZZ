@@ -36,6 +36,7 @@ const DEPTH = Math.max(1, Math.min(4, +Q.get("depth") || 2)), GAP = Math.max(0, 
 const kb = (n) => `${Math.round(n / 1024)} KB`;
 const mmss = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
+const PAGE_T0 = Date.now(), seenBaks = new Set();   // (BACKUP: a backup made since the page opened is NEW; a row pops in once)
 const S = { mode: "fm1", access: null, link: null, unit: null, busy: false, baks: [], web: { tags: {} }, sel: null, filter: newFilter(), abort: null,
   editing: 0, users: new Map(), refreshing: false };
 
@@ -168,20 +169,35 @@ function setUnit(state, label, sub = "") {
 function renderUnit() {
   const u = S.unit, on = !!(u && S.link);
   const short = u && u.version ? u.version.replace(/-\d+-g[0-9a-f]+$/, "") : "";   // (a development build: git describe)
-  $("u-ver").textContent = u ? (short ? `FIZZ ${short}` : u.id) : "FM-1";
+  // the version big, its beta a chip beside it (0.12.0-beta.12: 0.12.0 and BETA 12)
+  const vm = short.match(/^(\d+\.\d+\.\d+)(?:-(beta|rc|alpha)\.?(\d+))?/i);
+  $("u-ver").textContent = u ? (vm ? vm[1] : short || u.id) : "FM-1";
   $("u-ver").classList.toggle("dim", !on);
+  $("u-ver").classList.toggle("long", !vm);
+  $("u-beta").hidden = !(vm && vm[2]);
+  if (vm && vm[2]) $("u-beta").textContent = `${vm[2].toUpperCase()} ${vm[3]}`;
+  $("u-led").style.setProperty("--c", on ? "var(--green)" : "var(--dim)");
+  $("u-pkg").textContent = on ? (S.mode === "browser" ? "BROWSER" : unitPkg().name.toUpperCase()) : "";
   const mine = u ? u.rows.filter((r) => r.source === "mine") : [];
   const sum = u && u.summary, st = u && u.status;
   $("u-pre").textContent = u && u.rows.length ? mine.length : "–";
   $("u-prj").textContent = st ? st.projects : sum ? sum.projects.length : "–";
   // the store's use: STATUS's pages (Phase 1: no backup needed), else the last backup's reading of it
   const use = st && st.lib[1] ? { lib: st.lib, prj: st.prj, all: (st.lib[0] + st.prj[0]) / (st.lib[1] + st.prj[1]) } : sum ? sum.used : null;
-  $("u-use").textContent = use ? `${use.all > 0 ? Math.max(1, Math.round(use.all * 100)) : 0} %` : "–";
+  $("u-use").innerHTML = use ? `${use.all > 0 ? Math.max(1, Math.round(use.all * 100)) : 0}<small>%</small>` : "–";
   const L = use && (st ? { lib: { nsec: st.lib[1] }, prj: { nsec: st.prj[1] } } : layoutOf(sum.size));
   const parts = L ? [use.lib[0] / use.lib[1] * L.lib.nsec, (1 - use.lib[0] / use.lib[1]) * L.lib.nsec,
     use.prj[0] / use.prj[1] * L.prj.nsec, (1 - use.prj[0] / use.prj[1]) * L.prj.nsec] : [0, 0, 0, 0];
   const tot = parts.reduce((a, b) => a + b, 0) || 1;
-  [...$("u-meter").children].forEach((s, i) => { s.style.width = `${parts[i] / tot * 100}%`; });
+  // the store as 32 LED cells: MY PRESETS used (cream), their room (grey), PROJECTS used (green), their room (dark)
+  const ends = parts.map((_, i) => parts.slice(0, i + 1).reduce((a, b) => a + b, 0) / tot * 32);
+  const cells = Array.from({ length: 32 }, (_, i) => { const k = L ? ends.findIndex((e) => i + 0.5 < e) : -1; return ["lp", "lf", "lj", ""][k] ?? ""; });
+  const sig = cells.join(",");
+  if ($("u-meter").dataset.sig !== sig) {
+    $("u-meter").dataset.sig = sig;
+    $("u-meter").innerHTML = cells.map((c, i) => `<i class="${c}" style="--i:${i}"></i>`).join("");
+  }
+  $("u-meter").setAttribute("aria-label", use ? `The store ${Math.round(use.all * 100)} % used` : "The store");
   $("u-kb").textContent = u && u.info ? kb(u.info.size) : "";
   $("go-backup").disabled = !on || S.busy || !u.info;
   $("go-presets").disabled = !on || S.busy || !u.version;
@@ -358,7 +374,7 @@ async function backup(kind, { safety = false } = {}) {
       projects: r.summary ? r.summary.projects.map((p) => p.name) : null, presets: r.presets.length });
     if (r.stats) showSpeed(r.stats);
     log(`kept ${name} in this browser (${file.length} B)`);
-    if (!safety) toast("Backed up · kept in this browser");
+    if (!safety) { toast("Backed up · kept in this browser"); fizzUp(); }
     return { file, ...r };
   } catch (e) {
     log(`backup: ${e.code || ""} ${e.message}`);
@@ -372,6 +388,15 @@ async function backup(kind, { safety = false } = {}) {
     S.busy = false; S.abort = null;
     renderUnit(); renderLibrary(); renderBaks();
   }
+}
+// a backup done: bubbles rise from BACK UP for a few seconds
+function fizzUp() {
+  const a = $("b-acts");
+  a.classList.remove("fizz");
+  void a.offsetWidth;
+  a.classList.add("fizz");
+  clearTimeout(fizzUp.t);
+  fizzUp.t = setTimeout(() => a.classList.remove("fizz"), 4200);
 }
 function showSpeed(st) {
   const el = $("speed");
@@ -401,21 +426,25 @@ function renderBaks() {
     const old = b.kind === "full" && ((ul && b.layout && ul.name !== b.layout && !(pkgs.includes(ul.name) && pkgs.includes(b.layout))) ||
       (b.tracks && unitTracks() && b.tracks !== unitTracks()) || (b.tracks === 8));
     const what = b.kind === "presets" ? `presets only · ${b.presets}` : `${b.projects ? b.projects.length : "?"} project${b.projects && b.projects.length === 1 ? "" : "s"} · ${b.presets} preset${b.presets === 1 ? "" : "s"} · ${kb(b.size)}${b.tracks === 8 ? " · 8 tracks" : ""}${b.layout === "ble" ? " · Bluetooth" : ""}`;
-    return `<div class="bk ${b.kind === "presets" ? "presets" : old ? "old" : b.safety ? "safety" : ""}" data-i="${i}">
-      <span class="ic">${ICON}</span><div class="txt"><div class="when">${esc(whenText(b.date))}</div><div class="what">${esc(what)}</div></div>
-      ${b.fizz ? `<span class="ver ${old ? "old" : ""}">${esc(b.fizz.replace(/-\d+-g[0-9a-f]+$/, ""))}</span>` : ""}
-      <button class="icon ${isSaved(b) ? "saved" : "unsaved"}" data-act="save" aria-label="Save ${esc(b.name)} to a file${isSaved(b) ? " (saved before)" : " (not saved to a file yet)"}" title="${isSaved(b) ? "Save to a file again" : "Save to a file"}">${SAVE_I}</button>
+    // (a tube each: the newest lit; NEW on one made since the page opened; an older FIZZ's orange)
+    const ver = b.fizz ? b.fizz.replace(/-\d+-g[0-9a-f]+$/, "").replace(/-(beta|rc|alpha)\.?(\d+)$/i, (_, k, n) => ` ${k[0].toUpperCase()}${n}`) : "";
+    const fresh = !seenBaks.has(b.id ?? b.name);
+    return `<div class="bk tube ${fresh ? "pop" : ""} ${i === 0 ? "on" : ""} ${b.kind === "presets" ? "presets" : old ? "old" : b.safety ? "safety" : ""}" data-i="${i}" style="--i:${Math.min(i, 12)}">
+      <span class="ic">${ICON}</span><div class="txt"><div class="when">${esc(whenText(b.date))}${b.date >= PAGE_T0 ? '<span class="new hud">NEW</span>' : ""}</div><div class="what">${esc(what)}</div></div>
+      ${ver ? `<span class="ver hud ${old ? "old" : ""}">${esc(ver)}</span>` : ""}
+      <div class="bka"><button class="icon ${isSaved(b) ? "saved" : "unsaved"}" data-act="save" aria-label="Save ${esc(b.name)} to a file${isSaved(b) ? " (saved before)" : " (not saved to a file yet)"}" title="${isSaved(b) ? "Save to a file again" : "Save to a file"}">${SAVE_I}</button>
       <button class="icon" data-act="del" aria-label="Delete from this browser" title="Delete from this browser">${DEL_I}</button>
       ${b.kind === "full" && typeof b.id === "number" ? `<button class="icon play" data-act="play" aria-label="Play ${esc(b.name)} in the browser's FIZZ" title="Play in the browser's FIZZ">${PLAY_I}</button>` : ""}
-      <button class="btn small ghost" data-act="restore" ${S.link && !S.busy ? "" : "disabled"}>RESTORE</button></div>`;
+      <button class="ol rsb" data-act="restore" ${S.link && !S.busy ? "" : "disabled"}>RESTORE</button></div></div>`;
   }).join("");
+  for (const b of S.baks) seenBaks.add(b.id ?? b.name);   // (a row pops in once, when it first shows)
   renderUse();
 }
 const mb = (n) => (n >= 1073741824 ? `${+(n / 1073741824).toFixed(1)} GB` : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : kb(n));
 let quota = null;
 function renderUse() {
   const n = S.baks.length, sum = S.baks.reduce((a, b) => a + (b.size || 0), 0);
-  $("b-use").innerHTML = n ? `${n} · ${mb(sum)}${quota ? `<small>${esc(quota)}</small>` : ""}` : "";
+  $("b-use").innerHTML = n ? `<b>${String(n).padStart(2, "0")}</b><i> · </i><span>${mb(sum)}${quota ? `<small> ${esc(quota)}</small>` : ""}</span>` : "";
 }
 if (navigator.storage && navigator.storage.estimate) {
   navigator.storage.estimate().then((e) => { if (e && e.quota) { quota = `of ${mb(e.quota)}`; renderUse(); } }).catch(() => {});

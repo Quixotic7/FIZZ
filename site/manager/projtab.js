@@ -98,21 +98,22 @@ export function mountProjects(ctx) {
       const e = L[p], there = e ? e.there : m ? project(m, p).there : false;
       const info = m ? project(m, p) : null, changed = J.ops.some((o) => o.q === p);
       const target = J.arm && J.arm.from !== p;
-      if (!there) return `<button class="slot empty ${target ? "target" : ""} ${J.sel === p && !J.arm ? "sel" : ""}" data-p="${p}"><span class="no">${p + 1}</span><span class="meta">${J.arm && J.arm.kind === "load" && target ? esc(J.arm.name) : "empty"}</span></button>`;
+      if (!there) return `<button class="slot empty ${target ? "target" : ""} ${J.sel === p && !J.arm ? "sel" : ""}" data-p="${p}" aria-pressed="${J.sel === p}"><span class="no hud">${p + 1}</span><span class="meta">${J.arm && J.arm.kind === "load" && target ? esc(J.arm.name) : "empty"}</span></button>`;
       const name = (e && e.name) || (info && info.name) || `PROJECT ${p + 1}`;
       const n = info ? info.used : null;
       const dots = info ? `<span class="dots">${info.pats.slice(0, 32).map((x) => `<i class="${x ? "u" : ""}"></i>`).join("")}</span>` : "";
       const nameEl = J.renaming && J.sel === p ? `<input class="slotname" id="pj-rename" maxlength="12" value="${esc(name)}" spellcheck="false" autocomplete="off">` : `<div class="sname">${esc(name)}</div>`;
-      return `<button class="slot ${e && e.current ? "cur" : ""} ${J.sel === p && !J.arm ? "sel" : ""} ${target ? "target" : ""}" data-p="${p}"><span class="no">${p + 1}</span>` +
-        `<div class="pt0">${nameEl}<div class="meta">${n !== null ? `${n} pattern${n === 1 ? "" : "s"}` : ""}${e && e.current ? `${n !== null ? " · " : ""}open` : ""}</div></div>${changed ? '<span class="chg"></span>' : ""}${dots}</button>`;
+      return `<button class="slot ${e && e.current ? "cur" : ""} ${J.sel === p && !J.arm ? "sel" : ""} ${target ? "target" : ""}" data-p="${p}" aria-pressed="${J.sel === p}"><span class="no hud">${p + 1}</span>` +
+        `<div class="pt0">${nameEl}<div class="meta">${e && e.current ? '<span class="led" aria-hidden="true"></span>' : ""}${n !== null ? `${n} pattern${n === 1 ? "" : "s"}` : ""}${e && e.current ? `${n !== null ? " · " : ""}open` : ""}</div></div>${changed ? '<span class="chg"></span>' : ""}${dots}</button>`;
     }).join("");
   }
   function actsHtml() {
     const L = list(), e = L[J.sel], there = e && e.there, idle = on() && !J.ops.length && !J.arm;
-    const b = (act, icon, label, ok, cls = "ghost") => `<button class="btn small ${cls}" data-act="${act}" ${ok ? "" : "disabled"}>${icon}${label}</button>`;
+    const b = (act, icon, label, ok, cls = "") => `<button class="${cls === "go" ? "arc" : "ol"} ${cls}" data-act="${act}" ${ok ? "" : "disabled"}>${icon}${label}</button>`;
     if (J.arm) return `<div class="armed">${J.arm.kind === "load" ? IC.load : J.arm.kind === "move" ? IC.move : IC.copy}<b>${esc(J.arm.name)}</b></div>${b("disarm", IC.clear, "CANCEL", true)}`;
-    return b("load", IC.load, "LOAD", idle && there && !e.current, "go") + b("rename", IC.ren, "RENAME", idle && there) + b("copyto", IC.copy, "COPY TO", idle && there) +
-      b("moveto", IC.move, "MOVE TO", idle && there) + b("keep", IC.keep, "KEEP", on() && there && !!J.base, "ghost keepb") + b("delete", IC.del, "DELETE", idle && there, "ghost red");
+    // (LOAD the screen's fill while nothing waits to be written; then WRITE in the yellow bar is)
+    return b("load", IC.load, "LOAD", idle && there && !e.current, J.ops.length ? "cyan" : "go") + b("rename", IC.ren, "RENAME", idle && there) + b("copyto", IC.copy, "COPY TO", idle && there) +
+      b("moveto", IC.move, "MOVE TO", idle && there) + b("keep", IC.keep, "KEEP", on() && there && !!J.base, "champ") + b("delete", IC.del, "DELETE", idle && there, "red");
   }
 
   // ---------------------------------------------------------------- the patterns
@@ -120,21 +121,21 @@ export function mountProjects(ctx) {
     const cls = ["pt", s ? "used" : "", J.pats.has(k) ? "sel" : "", J.ops.some((o) => o.q === J.sel && o.result && o.result.at && o.result.at.includes(k)) ? "new" : ""];
     const rows = TC.map((c, t) => `<div class="tr">${Array.from({ length: 16 }, (_, x) => `<i${s && s.rows[t] && s.rows[t][x] ? ` style="background:var(${c})"` : ""}></i>`).join("")}</div>`).join("");
     const demo = TC.map(() => `<div class="tr demo">${"<i></i>".repeat(16)}</div>`).join("");   // (the demos' own, compiled in)
-    return `<button class="${cls.join(" ")}" data-k="${k}" aria-pressed="${J.pats.has(k)}"><span class="no">${patName(k)}</span>${s && s.demo ? demo : rows}</button>`;
+    return `<button class="${cls.join(" ")}" data-k="${k}" aria-pressed="${J.pats.has(k)}"><span class="no hud">${patName(k)}</span>${s && s.demo ? demo : rows}</button>`;
   }
   function gridHtml() {
     const m = model();
-    if (!m) return `<div class="pjwait">${J.reading ? "" : on() ? `<button class="btn" id="pj-read" style="--c:var(--cyan)">${IC.down}READ</button>` : ""}</div>`;
+    if (!m) return `<div class="pjwait">${J.reading ? "" : on() ? `<button class="ol cyan" id="pj-read">${IC.down}READ</button>` : ""}</div>`;
     const pr = project(m, J.sel);
     if (!pr.there) return '<div class="pjwait"></div>';
-    return [0, 1, 2, 3].map((b) => `<div class="bankrow"><span class="bank">${"ABCD"[b]}</span><div class="pgrid">${Array.from({ length: 16 }, (_, x) => tile(pr.pats[b * 16 + x], b * 16 + x)).join("")}</div></div>`).join("");
+    return [0, 1, 2, 3].map((b) => `<div class="bankrow"><span class="bank hud">${"ABCD"[b]}</span><div class="pgrid">${Array.from({ length: 16 }, (_, x) => tile(pr.pats[b * 16 + x], b * 16 + x)).join("")}</div></div>`).join("");
   }
   function toolsHtml() {
     const m = model(), ok = !!m && project(m, J.sel).there && !S.busy, n = J.pats.size;
-    const b = (act, icon, label, en, cls = "ghost", extra = "") => `<button class="btn small ${cls}" data-act="${act}" ${en ? "" : "disabled"} ${extra}>${icon}${label}</button>`;
-    return `${n ? `<span class="selname">${range(J.pats)}</span>` : ""}` + b("copy", IC.copy, "COPY", ok && n, "cyan") +
-      b("paste", IC.paste, "PASTE", ok && n && !!J.clip, J.clip ? "yellow" : "ghost") + b("clear", IC.clear, "CLEAR", ok && n) +
-      b("fizzpat", IC.down, ".fizzpat", ok && n, "ghost", 'style="margin-left:auto"') + b("import", IC.up, "IMPORT", ok);
+    const b = (act, icon, label, en, cls = "") => `<button class="ol ${cls}" data-act="${act}" ${en ? "" : "disabled"}>${icon}${label}</button>`;
+    return `${n ? `<span class="selname hud">${range(J.pats)}</span>` : ""}` + b("copy", IC.copy, "COPY", ok && n, "cyan") +
+      b("paste", IC.paste, "PASTE", ok && n && !!J.clip, J.clip ? "yellow" : "") + b("clear", IC.clear, "CLEAR", ok && n) +
+      b("fizzpat", IC.down, ".fizzpat", ok && n, "fl") + b("import", IC.up, "IMPORT", ok);
   }
   function pendingHtml() {
     if (!J.ops.length) return "";
@@ -146,10 +147,10 @@ export function mountProjects(ctx) {
     const extra = r && (r.poolAdded || r.presetsAdded || r.copies)
       ? [r.poolAdded ? `+${r.poolAdded} pool` : "", r.presetsAdded ? `+${r.presetsAdded} MY PRESETS` : "",
         r.copies ? `${r.copies} sound${r.copies === 1 ? "" : "s"} kept as the project's own (MY PRESETS full)` : ""].filter(Boolean).join(" · ") : "";
-    return `<span class="cnt">${J.ops.length}</span><div class="what">${what}${extra ? `<small>${extra}</small>` : ""}</div>` +
-      `<button class="btn small ghost" data-act="undo" style="margin-left:auto">UNDO</button><button class="btn small ghost" data-act="discard">DISCARD</button>` +
-      (viaBle() ? `<button class="btn" data-act="usb" style="--c:var(--orange)">${IC.down}WRITE NEEDS USB</button>`
-        : `<button class="btn" data-act="write" style="--c:var(--yellow)" ${on() ? "" : "disabled"}>${IC.down}WRITE TO ${S.mode === "browser" ? "BROWSER" : "FM-1"}</button>`);
+    return `<span class="cnt num">${J.ops.length}</span><div class="what">${what}${extra ? `<small>${extra}</small>` : ""}</div>` +
+      `<span class="pacts"><button class="ol yellow" data-act="undo">UNDO</button><button class="ol" data-act="discard">DISCARD</button>` +
+      (viaBle() ? `<button class="arc breathe" data-act="usb" style="--c:var(--orange)">${IC.down}WRITE NEEDS USB</button>`
+        : `<button class="arc breathe" data-act="write" style="--c:var(--yellow)" ${on() ? "" : "disabled"}>${IC.down}WRITE TO ${S.mode === "browser" ? "BROWSER" : "FM-1"}</button>`) + "</span>";
   }
 
   // ---------------------------------------------------------------- kept in this browser
@@ -157,15 +158,15 @@ export function mountProjects(ctx) {
   const saveKept = () => ctx.kv.put("keptProjects", J.kept);
   function keptHtml() {
     const K = J.kept || [];
-    return `<div class="kgrid">${K.map((k, i) => `<button class="bp ${J.ksel === i ? "sel" : ""}" data-i="${i}"><span class="row"><span class="sname">${esc(k.name)}</span><span class="kv" style="margin-left:auto">${ago(k.date)}</span></span>` +
+    return `<div class="kgrid">${K.map((k, i) => `<button class="bp ${J.ksel === i ? "sel" : ""}" data-i="${i}" aria-pressed="${J.ksel === i}"><span class="bpt"><span class="sname">${esc(k.name)}</span><span class="ago">${ago(k.date)}</span></span>` +
       `<span class="meta">${k.pats} pattern${k.pats === 1 ? "" : "s"} · ${k.sounds} sound${k.sounds === 1 ? "" : "s"}</span><span class="snd">${(k.colours || []).map((c) => `<i style="background:var(${c})"></i>`).join("")}</span></button>`).join("")}</div>` +
       `<label class="drop" for="pj-file">${IC.up}.fizzprj</label>`;
   }
   function keptTools() {
     const k = J.kept && J.kept[J.ksel];
-    const b = (act, icon, label, en, cls = "ghost", extra = "") => `<button class="btn small ${cls}" data-act="${act}" ${en ? "" : "disabled"} ${extra}>${icon}${label}</button>`;
+    const b = (act, icon, label, en, cls = "") => `<button class="ol ${cls}" data-act="${act}" ${en ? "" : "disabled"}>${icon}${label}</button>`;
     return b("kload", IC.load, "LOAD INTO", !!k && on() && !!J.base, "champ") + b("kfile", IC.down, ".fizzprj", !!k) + b("kren", IC.ren, "RENAME", !!k) +
-      b("kdel", IC.del, "DELETE", !!k, "ghost red", 'style="margin-left:auto"');
+      b("kdel", IC.del, "DELETE", !!k, "red fl");
   }
 
   // ---------------------------------------------------------------- render
@@ -175,7 +176,8 @@ export function mountProjects(ctx) {
     $("pj-n").textContent = L.length ? `${L.filter((x) => x.there).length} / ${nproj()}` : "";
     $("pj-on").textContent = S.mode === "browser" ? "IN THE BROWSER'S FIZZ" : "ON THE FM-1";
     const st = S.unit && S.unit.status;
-    $("pj-use").innerHTML = st && st.prj[1] ? `<span class="bar"><span style="width:${Math.round(st.prj[0] / st.prj[1] * 100)}%"></span></span>${Math.round(st.prj[0] / st.prj[1] * 100)} %` : "";
+    const pu = st && st.prj[1] ? st.prj[0] / st.prj[1] : -1;   // (the projects' store: 12 LED cells and its %)
+    $("pj-use").innerHTML = pu >= 0 ? `<span class="cells">${Array.from({ length: 12 }, (_, i) => `<i class="${(i + 0.5) / 12 < pu ? "u" : ""}"></i>`).join("")}</span>${Math.round(pu * 100)}<small>%</small>` : "";
     $("pj-slots").innerHTML = slotsHtml();
     $("pj-acts").innerHTML = actsHtml();
     const kept = J.view === "kept";
@@ -184,7 +186,7 @@ export function mountProjects(ctx) {
     $("pj-kn").textContent = K.length ? String(K.length) : "";
     const pr = m ? project(m, J.sel) : null, e = L[J.sel];
     $("pj-name").textContent = kept ? "IN THIS BROWSER" : (e && e.there && e.name) || (pr && pr.name) || (e && !e.there ? `SLOT ${J.sel + 1}` : "");
-    $("pj-count").innerHTML = !kept && pr && pr.there ? `<b>${pr.used}</b> / ${NPAT}` : "";
+    $("pj-count").innerHTML = !kept && pr && pr.there ? `<b>${pr.used}</b>/${NPAT}` : "";
     const c = $("pj-clip");
     c.hidden = !J.clip || kept;
     if (J.clip) c.innerHTML = `${IC.copy}${J.clip.pats.length} <small>${esc(J.clip.from)} ${esc(range(J.clip.pats.map((x) => x.k)))}</small>`;
