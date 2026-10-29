@@ -391,6 +391,8 @@ public final class FizzEmulator: @unchecked Sendable {
     // MARK: - the service (its queue, every 4 ms while the clock runs)
 
     private func service() {
+        // (a clock started while another emulator took the core: stopped here, the core left to its owner)
+        guard Self.ownerLock.withLock({ Self.owner === self }) else { stopClock(); return }
         if lock.withLock({ clock == .timer }) {
             // the timer clock: the device ms due by the wall clock (a late timer catches up 100 ms at most)
             let now = Self.nowMs

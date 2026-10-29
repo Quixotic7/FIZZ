@@ -62,6 +62,6 @@ extension EmulatorTests {
         await ed.enqueue {}.value
         #expect(await until { !a.borrowed && a.pending == nil && !ed.following })
         m.stop()
-        e.stop()
+        await host.close()
     }
 }

@@ -34,6 +34,6 @@ extension EmulatorTests {
         #expect(host.mode != .stopped)
         host.playShown = false
         m.stop()
-        e.stop()
+        await host.close()
     }
 }

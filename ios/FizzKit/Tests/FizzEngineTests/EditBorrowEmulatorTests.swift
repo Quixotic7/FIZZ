@@ -76,6 +76,6 @@ extension EmulatorTests {
         #expect(kept?.name == r.name)
 
         m.stop()
-        e.stop()
+        await host.close()
     }
 }
