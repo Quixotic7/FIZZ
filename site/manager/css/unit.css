@@ -85,6 +85,7 @@
 .usb { --c: var(--green); display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 6px; border: 1.5px solid color-mix(in srgb, var(--c) 70%, transparent);
   color: var(--c); font-weight: 800; font-size: 11px; letter-spacing: .1em; }
 .usb svg { width: 12px; height: 12px; }
+.usb.ble { --c: var(--blue); }
 .drawer { --c: var(--browser); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; margin-top: -4px; }
 .drawer .lbl { color: var(--browser); }
 .drawer .cells { flex: 1; display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; }

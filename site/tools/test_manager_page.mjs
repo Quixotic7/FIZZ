@@ -56,6 +56,8 @@
 //     POOL's moving card (CANCEL, ESC, MOVE TO; at 390 fixed at the bottom), the tiles' tag icons; BACKUP's share
 //     (navigator.share with a File, or a save where the browser cannot share files, cancelled: nothing), the ••• menu
 //     (SAVE TO FILE, DELETE asks);
+//   - parity with the iOS app (2026-10-29, last): the FM-1's port, USB or BLUETOOTH (?sim&bt), in the picker, on ⇄ FM-1
+//     and the pill; NEW on an empty PROJECTS slot (the FM-1 and THIS BROWSER); LOAD ON FM-1 onto a track 1..6 (kept);
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -1717,6 +1719,89 @@ try {
   check(fb && (await evaluate("document.getElementById('fm1').dataset.state === 'absent'")), "offline: the FM-1 unplugged: back on THIS BROWSER, a toast");
   }
   // ---- (end of the offline mode)
+  // ---- parity: USB/BLUETOOTH, NEW project, LOAD to a track
+  // (the iOS app's: the FM-1's port named in the picker and on ⇄ FM-1; NEW on an empty PROJECTS slot, the unit's
+  // PROJECT NEW; LIBRARY's LOAD ON FM-1 onto a track 1..6, remembered for the tab's session. ?sim&bt names the simulated
+  // port "FM-1 C1F0 Bluetooth", as the Bluetooth package's)
+  {
+  const via = () => evaluate(`({ fm1: (document.querySelector('#fm1 small') || {}).textContent || '', pill: (document.querySelector('#unit small') || {}).textContent || '',
+    row: ((document.querySelector("#upick-pop .urow[data-u='fm1'] .usb") || {}).textContent || '').trim(), ble: !!document.querySelector("#upick-pop .urow[data-u='fm1'] .usb.ble") })`);
+  for (const bt of [false, true]) {
+    await send("Page.navigate", { url: URL0.replace("?sim&", `?sim=away${bt ? "&bt" : ""}&`) + "#library" });
+    await waitFor("window.__mgr && __mgr.S.mode === 'browser' && !!__mgr.S.link && typeof window.__simPlug === 'function'", 40000);
+    await evaluate("__simPlug(true)");
+    const found = await waitFor("document.getElementById('fm1').dataset.state === 'found'", 15000);
+    await click("#unit");
+    await sleep(300);
+    const v = await via(), want = bt ? "BLUETOOTH" : "USB";
+    if (bt) await shot("manager-parity-picker-bluetooth.png");
+    await click("#upick-scrim");
+    check(found && v.fm1 === want && v.row === want && v.ble === bt, `parity: an FM-1 found on "${await evaluate("__mgr.FM.found && __mgr.FM.found.port")}": ⇄ FM-1 says ${v.fm1}, the picker's row ${v.row}`);
+  }
+  await realClick("#fm1");
+  const bOn = await waitFor("__mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0 && __mgr.S.unit.status", 40000);
+  await click("#unit");
+  await sleep(300);
+  const v2 = await via();
+  await click("#upick-scrim");
+  check(bOn && / · BLUETOOTH$/.test(v2.pill) && v2.row === "BLUETOOTH" && v2.ble && (await evaluate("__mgr.S.link.viaBle")),
+    `parity: the FM-1 the unit over Bluetooth: the pill "${v2.pill}", the picker's row ${v2.row}`);
+
+  // NEW on the FM-1: an empty slot's NEW (in LOAD's place) makes an empty project there, open; the lists show it
+  await idle();
+  const p = await evaluate("__mgr.S.unit.projects.list.findIndex((x) => !x.there)");
+  await evaluate(`(() => { for (const t of ['backup', 'library', 'edit', 'pool', 'projects', 'import']) document.getElementById('tab-' + t).hidden = t !== 'projects';
+    __mgr.projtab.state.sel = ${p}; __mgr.projtab.render(); })()`);
+  const n0 = await evaluate("({ nw: !!document.querySelector('#pj-acts [data-act=new]:not(:disabled)'), load: !!document.querySelector('#pj-acts [data-act=load]'), arc: !!document.querySelector('#pj-acts .arc[data-act=new]') })");
+  await click('#pj-acts [data-act="new"]');
+  const made = await waitFor(`__mgr.S.unit.projects.list[${p}].there && __mgr.S.unit.projects.list[${p}].current && !__mgr.S.editing && !__mgr.S.writing`, 20000);
+  await sleep(200);
+  const n1 = await evaluate(`({ empty: document.querySelector('#pj-slots .slot[data-p="${p}"]').classList.contains('empty'), load: !!document.querySelector('#pj-acts [data-act=load]'),
+    nw: !!document.querySelector('#pj-acts [data-act=new]'), toast: document.getElementById('toast').textContent, st: __mgr.S.unit.status.project })`);
+  check(p > 0 && n0.nw && n0.arc && !n0.load && made && !n1.empty && n1.load && !n1.nw && n1.st === p + 1 && /new project/i.test(n1.toast),
+    `parity: NEW on the FM-1's empty slot ${p + 1}: a new project, open (STATUS project ${n1.st}); the slot drawn full, LOAD back ("${n1.toast}")`);
+
+  // LOAD ON FM-1 onto a track: the choice starts on the unit's selected track, a pick is kept; OCT+ loads it there
+  await evaluate("window.__sim.selectTrack(2)");
+  await evaluate("__mgr.refreshRows()");
+  await click("#t-library");
+  await click("#l-filter [data-src='all']");
+  await click("#l-list .cas[data-src='factory'][data-slot='6']");
+  await waitFor("!!document.getElementById('l-unit') && !document.getElementById('l-unit').disabled", 8000);
+  const sel0 = await evaluate("__mgr.S.unit.status.sel");
+  const on = () => evaluate("[...document.querySelectorAll('#l-sel .ltrk button.on')].map((b) => +b.dataset.ltrk).join()");
+  const d0 = await on();
+  await click("#l-sel [data-ltrk='3']");
+  const d1 = await on();
+  await shot("manager-parity-load-track.png");
+  const f6 = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'factory' && r.slot === 6)");
+  await click("#l-unit");
+  const opened = await waitFor("!!__mgr.live.browsing() && __mgr.live.browsing().t === 3 && document.getElementById('l-unit').classList.contains('on')", 5000);
+  await evaluate("window.__sim.press('OCT+')");
+  const loaded = await waitFor(`!__mgr.live.browsing() && document.getElementById('toast').textContent.includes(${JSON.stringify(f6.name)})`, 8000);
+  const t4 = await evaluate(`(async () => { const { soundFromFrame } = await import('./sound.js'); const s = soundFromFrame(await __mgr.S.link.dumpTrack(4)); return { id: s.extras.id, name: s.name }; })()`);
+  check(sel0 === 2 && d0 === "2" && d1 === "3" && opened && loaded && t4.id === f6.id,
+    `parity: LOAD ON FM-1's track: ${+d0 + 1} at first (the unit's selected), 4 picked; ${f6.name} opened on track 4, OCT+: track 4 plays ${t4.name}`);
+  await send("Page.navigate", { url: URL0 + "#library" });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await click("#l-filter [data-src='all']");
+  await click("#l-list .cas[data-src='factory'][data-slot='2']");
+  await waitFor("!!document.querySelector('#l-sel .ltrk')", 8000);
+  check((await on()) === "3", "parity: the track picked is kept over a reload (this tab's session)");
+  await evaluate("sessionStorage.removeItem('fizz-manager-load-track')");
+
+  // NEW in THIS BROWSER: the empty slot's patterns area offers NEW PROJECT; after it the store is read again (its grid)
+  await send("Page.navigate", { url: URL0.replace("?sim&", "?sim=nomidi&") + "#projects" });
+  await waitFor("window.__mgr && __mgr.S.mode === 'browser' && !!__mgr.S.link && !!__mgr.projtab.state.base && !__mgr.S.busy", 60000);
+  const q = await evaluate("__mgr.S.unit.projects.list.findIndex((x) => !x.there)");
+  await click(`#pj-slots .slot[data-p="${q}"]`);
+  const offered = await waitFor("!!document.getElementById('pj-new') && !!document.querySelector('#pj-acts [data-act=new]')", 5000);
+  await click("#pj-new");
+  const bmade = await waitFor(`__mgr.S.unit.projects.list[${q}].there && document.querySelectorAll('#pj-grid .pt').length === 64 && !__mgr.S.editing && !__mgr.S.writing && !__mgr.S.busy`, 30000);
+  check(q > 0 && offered && bmade && !(await evaluate("!!document.getElementById('pj-new')")),
+    `parity: NEW PROJECT in THIS BROWSER's empty slot ${q + 1}: made, its 64 patterns shown (the store read again)`);
+  }
+  // ---- (end of parity)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

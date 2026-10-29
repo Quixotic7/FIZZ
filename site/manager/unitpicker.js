@@ -2,9 +2,9 @@
 // The header's unit (the offline mode, 2026-10-29): the unit pill (THIS BROWSER orange, or the FM-1 green), the sound
 // pill while the browser's FIZZ is the unit, the FM-1 beside it (a dashed circle when absent; found: a green ⇄ FM-1),
 // and the unit picker (a popover from the pill; a bottom sheet on a phone): THIS BROWSER (its ••• a MEMORY drawer with
-// RESET), the FM-1 over USB, CONNECT FM-1.
+// RESET), the FM-1 (its port: USB or BLUETOOTH), CONNECT FM-1.
 //   const u = mountUnit({ $, view, pick(unit), connect(), sound(), reset() }); u.render(); u.open(); u.close()
-//   view() -> { mode: "fm1" | "browser", look, bver, fver, fsub, found, sound: null | "off" | "look" | "on" | "mute",
+//   view() -> { mode: "fm1" | "browser", look, bver, fver, fsub, found, via: "usb" | "ble", sound: null | "off" | "look" | "on" | "mute",
 //               mem: { lib: [used, all], prj: [used, all], all } | null }
 import { esc } from "./ui.js";
 
@@ -15,6 +15,7 @@ const IC = {
   check: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   swap: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg>',
   usb: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v15M12 3l-2.5 3h5zM12 14l-5-3V8.5M12 16.5l5-3V11"/><circle cx="12" cy="19.5" r="1.8" fill="currentColor"/><rect x="15.5" y="9" width="3" height="2.5" fill="currentColor"/><circle cx="7" cy="7.8" r="1.4" fill="currentColor"/></svg>',
+  bt: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>',
   plug: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6.5 8h11v3.5a5.5 5.5 0 0 1-11 0zM12 17v4"/></svg>',
 };
 // the browser: a window with FIZZ's bubbles inside; the FM-1: its screen, four knobs, the keys
@@ -27,6 +28,8 @@ const G = {
   fm1Small: '<svg class="g" viewBox="0 0 26 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="24" height="16" rx="2.5"/><rect x="3.5" y="3.5" width="6" height="5" rx="1"/><circle cx="13.5" cy="5.5" r="1.4"/><circle cx="17.5" cy="5.5" r="1.4"/><circle cx="21.5" cy="5.5" r="1.4"/><path d="M4 12.5h18" stroke-dasharray="1.6 1.4" stroke-width="3"/></svg>',
 };
 const NONE = "– – –";
+const VIA = { usb: "USB", ble: "BLUETOOTH" };
+const viaChip = (v) => `<span class="usb ${v === "ble" ? "ble" : ""}">${v === "ble" ? IC.bt : IC.usb}${VIA[v] || "USB"}</span>`;
 const phone = () => window.matchMedia("(max-width: 900px)").matches;
 
 export function mountUnit(ctx) {
@@ -55,10 +58,10 @@ export function mountUnit(ctx) {
         <span class="hud">${pct(v.mem)}</span><button class="ol reset" id="up-reset">RESET</button></div>` : "";
     const fmRow = fmFound
       ? `<div class="urow fm tube ${fmOn ? "on" : ""}" data-u="fm1" role="button" tabindex="0" aria-pressed="${fmOn}">${G.fm1Big}
-          <div class="nm"><b>FM-1 <span class="usb">${IC.usb}USB</span></b><span class="hud">${esc(v.fver ? `FIZZ ${v.fver.replace(/-.*$/, "")}` : "FIZZ")}</span></div>
+          <div class="nm"><b>FM-1 ${viaChip(v.via)}</b><span class="hud">${esc(v.fver ? `FIZZ ${v.fver.replace(/-.*$/, "")}` : "FIZZ")}</span></div>
           <span class="radio ${fmOn ? "y" : ""}">${fmOn ? IC.check : ""}</span></div>`
       : `<div class="urow fm ants off" data-u="fm1" role="button" tabindex="0" aria-disabled="true">${G.fm1Big}
-          <div class="nm"><b>FM-1 <span class="usb">${IC.usb}USB</span></b><span class="hud">${NONE}</span></div><span class="radio"></span></div>`;
+          <div class="nm"><b>FM-1 ${viaChip("usb")}</b><span class="hud">${NONE}</span></div><span class="radio"></span></div>`;
     const go = fmFound ? "" : `<button class="arc breathe connect" id="up-connect">${IC.plug}CONNECT FM-1</button>`;
     put(pop, `${phone() ? '<div class="grab" aria-hidden="true"></div>' : ""}<div class="uphead"><span class="lbl">UNIT</span><span class="hud">2</span></div>${brRow}${drawer}${fmRow}${go}`);
   }
@@ -94,7 +97,7 @@ export function mountUnit(ctx) {
     fm1.hidden = !br;
     fm1.dataset.state = v.found ? "found" : "absent";
     put(fm1, v.found
-      ? `<span class="bubs" aria-hidden="true"><i></i><i></i><i></i></span>${IC.swap}<span>FM-1</span><small>USB</small>`
+      ? `<span class="bubs" aria-hidden="true"><i></i><i></i><i></i></span>${IC.swap}<span>FM-1</span><small>${VIA[v.via] || "USB"}</small>`
       : G.fm1Small);
     fm1.setAttribute("aria-label", v.found ? `Use the FM-1 (FIZZ ${v.fver || ""})` : "FM-1: not connected");
     fm1.title = v.found ? "Use the FM-1" : "FM-1: connect";

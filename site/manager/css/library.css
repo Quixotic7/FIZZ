@@ -102,6 +102,19 @@
 .selgo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .selgo .ol { height: 42px; padding: 0 10px; font-size: 11px; }
 .selgo .ol svg { width: 16px; height: 16px; fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+/* LOAD ON FM-1 and its track, 1..6 (a pink tube; the unit's selected track a yellow dot) */
+.loadon { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.loadon .onunit { flex: 1 1 150px; min-width: 0; }
+.ltrk { --c: var(--pink); flex: 1 1 180px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; padding: 3px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent);
+  background: color-mix(in srgb, var(--c) 5%, transparent); }
+.ltrk button { position: relative; min-width: 0; height: 34px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--body); font: 400 14px/1 var(--hud);
+  transition: background .16s, color .16s, box-shadow .16s; }
+.ltrk button:hover:not(:disabled) { color: var(--text); }
+.ltrk button.on { background: var(--c); color: #000; box-shadow: 0 0 14px -3px var(--c); }
+.ltrk button:disabled { cursor: default; }
+.ltrk button:disabled:not(.on) { opacity: .4; }
+.ltrk button.usel::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.ltrk button.on.usel::after { background: #000; box-shadow: none; }
 .ol.onunit.on { --c: var(--green); border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent); animation: pulse-g 1s ease-in-out infinite alternate; }
 @keyframes pulse-g { from { box-shadow: 0 0 10px -4px var(--green); } to { box-shadow: 0 0 26px -2px var(--green); } }
 .okeys { display: inline-flex; gap: 4px; }
@@ -251,6 +264,8 @@
   .selgo { gap: 6px; }
   .selgo .ol { height: 36px; font-size: 11px; letter-spacing: .06em; }
   .selgo .ol svg { display: none; }
+  .loadon { gap: 6px; }
+  .ltrk button { height: 28px; font-size: 13px; }
   .selvals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ltitle { font-size: 22px; }
   /* (a row: the ring, the name, the tag a dot in its colour) */

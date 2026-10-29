@@ -9,8 +9,9 @@
 // alone. The owner's fixes (2026-10-25): LIBRARY's EXPORT and EXPORT ALL, LOAD ON FM-1 (the unit's own browser), the
 // pool's changes shown at once (then read back until the unit agrees), IMPORT takes FIZZ's own files.
 //   ?sim        a simulated FM-1 (simfizz.js: the browser FIZZ for its SysEx) instead of Web MIDI: headless checks
+//   &bt         (with ?sim) its port named "FM-1 C1F0 Bluetooth", as the Bluetooth package's
 //   ?depth=N    the backup's requests outstanding (1, the default: one at a time); &gap=MS their spacing
-import { findFizz, FZER } from "./fizzlink.js";
+import { findFizz, FZER, isBlePort } from "./fizzlink.js";
 import { makeFizzbak, readBackup, backupFileName, soundKey } from "./fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS, PACKAGE_NAME, convertImage } from "./fizzstore.js";
 import { modelOf, imageOf, fitModel, fitChoice, projects as projectsOf } from "./projects.js";
@@ -1117,6 +1118,15 @@ function usedStrips(id, browserRow = false) {
   return `<div class="selsec"><div class="lbl ubh">Used by${age}</div><div class="ubs" id="l-users">${x.rows.length ? x.rows.map(strip).join("") +
     (x.more ? `<span class="hud ubmore">+${x.more}</span>` : "") : '<span class="pchip ghost">—</span>'}</div></div>`;
 }
+// LOAD ON FM-1's track (0..5): the one picked in this tab's session, else the unit's selected track
+const LT_KEY = "fizz-manager-load-track";
+let loadT = (() => { try { const v = sessionStorage.getItem(LT_KEY); return v !== null && +v >= 0 && +v < 6 ? +v : null; } catch (_) { return null; } })();
+function unitSel() {   // (STATUS's, read after each write and REFRESH; the live editor's while it follows the unit)
+  const st = S.unit && S.unit.status, ls = live && live.state;
+  const u = ls && ls.usel >= 0 && (live.following() || !st || st.sel === undefined) ? ls.usel : st && st.sel !== undefined ? st.sel : -1;
+  return u >= 0 && u < 6 ? u : -1;
+}
+const loadTrack = () => (loadT !== null ? loadT : Math.max(0, unitSel()));
 function renderSel() {
   if (keys) keys.render();
   if (S.sel && S.sel.source === "browser") { renderBrowserSel(); return; }
@@ -1146,13 +1156,15 @@ function renderSel() {
       ${mineSel && can ? `<input class="bigname" id="l-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(r.name)}" aria-label="Name">` : `<div class="big">${esc(r.name)}</div>`}
       <div class="selchips">${tg[0] ? `<span class="tag t-${tg[0]}">${tg[0]}</span>` : ""}${poolBadge(pl, "pbadge big")}</div></div></div>
     <div class="selgo">
-      <button class="ol onunit ${onUnit ? "on" : ""}" id="l-unit" style="--c:var(--cream)" ${S.link && !S.busy && u.status && r.id ? "" : "disabled"} aria-pressed="${!!onUnit}" aria-label="${onUnit ? `On the FM-1, track ${br.t + 1}: OCT minus cancels, OCT plus loads` : "Load on the FM-1"}">${onUnit
+      <div class="loadon wide"><button class="ol onunit ${onUnit ? "on" : ""}" id="l-unit" style="--c:var(--cream)" ${S.link && !S.busy && u.status && r.id ? "" : "disabled"} aria-pressed="${!!onUnit}" aria-label="${onUnit ? `On the FM-1, track ${br.t + 1}: OCT minus cancels, OCT plus loads` : "Load on the FM-1"}">${onUnit
         ? `<span class="okeys" aria-hidden="true"><i class="no">OCT−</i><i class="yes">OCT+</i></span>TRACK ${br.t + 1}`
         : '<svg viewBox="0 0 22 20" aria-hidden="true"><rect x="1.5" y="3" width="19" height="13" rx="3"/><path d="M6 19h10M9 7.5l4 2.5-4 2.5z"/></svg>LOAD ON FM-1'}</button>
+      <span class="ltrk" role="radiogroup" aria-label="The track to load on">${[0, 1, 2, 3, 4, 5].map((t) => { const on = onUnit ? br.t === t : loadTrack() === t;
+        return `<button class="${on ? "on" : ""}${unitSel() === t ? " usel" : ""}" data-ltrk="${t}" role="radio" aria-checked="${on}" aria-label="Track ${t + 1}" ${S.link && !S.busy && u.status && r.id && !onUnit ? "" : "disabled"}>${t + 1}</button>`; }).join("")}</span></div>
       <button class="ol" id="l-edit" style="--c:var(--pink)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15l9-9 3 3-9 9H3zM13 5l2-2 3 3-2 2"/></svg>EDIT</button>
       <button class="ol pooltog ${pl.length ? "out" : ""}" id="l-pool" style="--c:var(--green)" ${can && r.id ? "" : "disabled"} aria-pressed="${!!pl.length}">${pl.length ? "− POOL" : "+ POOL"}</button>
-      <button class="ol" id="l-export" style="--c:var(--violet)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT</button>
-      ${browserShown() ? `<button class="ol wide" id="l-keep" style="--c:var(--cream)" ${f ? "" : "disabled"}>${BROWSER_I}KEEP IN BROWSER</button>` : ""}</div>
+      <button class="ol ${browserShown() ? "" : "wide"}" id="l-export" style="--c:var(--violet)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT</button>
+      ${browserShown() ? `<button class="ol" id="l-keep" style="--c:var(--cream)" ${f ? "" : "disabled"}>${BROWSER_I}KEEP IN BROWSER</button>` : ""}</div>
     <div class="selsec"><div class="lbl">Tags</div><div class="row tags">
       ${FIZZ_TAGS.map((t, k) => `<button class="tag t-${t} ${(r.tags >> k) & 1 ? "on" : "off"}" data-dtag="${k}" aria-pressed="${!!((r.tags >> k) & 1)}" ${can ? "" : "disabled"}>${t}</button>`).join("")}
       ${web.map((t) => `<button class="tag web" data-web="${esc(t)}" aria-label="${esc(t)}, remove">${esc(t)}</button>`).join("")}
@@ -1223,7 +1235,12 @@ function renderSel() {
   const kb = $("l-keep");
   if (kb && f) kb.addEventListener("click", () => keepInBrowser([r]));
   const lu = $("l-unit");                                // (the unit's own browser on it: OCT- cancels, OCT+ loads)
-  if (lu) lu.addEventListener("click", async () => { if (live) { await live.loadOnUnit(r); renderSel(); } });
+  if (lu) lu.addEventListener("click", async () => { if (live) { await live.loadOnUnit(r, loadTrack()); renderSel(); } });
+  el.querySelectorAll("[data-ltrk]").forEach((b) => b.addEventListener("click", () => {
+    loadT = +b.dataset.ltrk;
+    try { sessionStorage.setItem(LT_KEY, String(loadT)); } catch (_) { /* (no storage: this page only) */ }
+    renderSel();
+  }));
   // + POOL: the first free place references it; − POOL: every place that does is cleared (a used one asks first)
   const tog = $("l-pool");
   if (tog) tog.addEventListener("click", async () => {
@@ -2015,6 +2032,8 @@ const unitUi = mountUnit({
       fver: short(br ? FM.found && FM.found.version : u && u.version),
       fsub: !br && u ? `${fv ? `FIZZ ${fv} · ` : ""}${S.link.viaBle ? "BLUETOOTH" : "USB"}` : "",
       found: br && !!FM.found,
+      // the FM-1's port: its name ends in " Bluetooth" (fizzlink.js isBlePort) or it is USB; none yet: USB
+      via: (br ? FM.found && isBlePort(FM.found.port) : !!(S.link && S.link.viaBle)) ? "ble" : "usb",
       sound: br ? (!BU || !BU.engine ? "off" : BU.waking ? "look" : BU.running ? (muted ? "mute" : "on") : "off") : null,
       mem: memView(),
     };
@@ -2025,7 +2044,8 @@ const unitUi = mountUnit({
 async function simAccess() {
   const [{ SimFizz }, { createEngine }, { storeSound }] = await Promise.all([import("./simfizz.js"), import("../engine/engine.js"), import("../js/fizz_sysex.js")]);
   const module = await WebAssembly.compileStreaming(fetch("../fizz.wasm"));
-  const sim = new SimFizz({ createEngine, module, frameMs: Math.max(0, +(Q.get("frame") ?? 1)), playing: Q.has("playing") });
+  const sim = new SimFizz({ createEngine, module, frameMs: Math.max(0, +(Q.get("frame") ?? 1)), playing: Q.has("playing"),
+    ...(Q.has("bt") ? { name: "FM-1 C1F0 Bluetooth" } : {}) });   // (?sim&bt: the port named as the Bluetooth package's)
   await sim.boot();
   const demo = [["SUB DROP", 0], ["GLASS BELL", 2], ["NIGHT PAD", 3], ["WIRE LEAD", 4], ["TIN KICK", 5], ["DUSTY EP", 1], ["BUBBLE FX", 6], ["ROUND BASS", 0],
     ["SODA PLUCK", 2], ["SLOW CLOUD", 3], ["ZAP SNARE", 5], ["TOY ORGAN", 1], ["HOLLOW LD", 4], ["FIZZ HAT", 5]];

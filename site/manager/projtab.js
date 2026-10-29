@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The Manager's PROJECTS tab (the owner's request of 2026-10-26; mockups/fizz-projects.html, approved 2026-10-27):
-// the FM-1's slots on the left (eight; four in the Bluetooth package) (LOAD, RENAME, COPY TO, MOVE TO, KEEP, DELETE), a project's 64 patterns on the
+// the FM-1's slots on the left (eight; four in the Bluetooth package) (LOAD, RENAME, COPY TO, MOVE TO, KEEP, DELETE; NEW on an
+// empty one), a project's 64 patterns on the
 // right (click, SHIFT-click a range, CMD-click one more; COPY, PASTE, CLEAR, .fizzpat out and in; a pattern dragged onto
 // a pattern or a project copies it, ALT moves it; TO… or a phone's long press: the TO sheet), or the projects KEPT
 // in this browser (.fizzprj in and out, LOAD INTO a slot).
@@ -30,6 +31,7 @@ const IC = {
   keep: '<svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="10" r="2"/><circle cx="12.5" cy="10" r="2"/></svg>',
   del: '<svg viewBox="0 0 20 20"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>',
   clear: '<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg>',
+  plus: '<svg viewBox="0 0 20 20"><path d="M10 3v14M3 10h14"/></svg>',
 };
 const range = (ks) => { const a = [...ks].sort((x, y) => x - y); return !a.length ? "" : a.length === 1 ? patName(a[0]) : a[a.length - 1] - a[0] === a.length - 1 ? `${patName(a[0])}–${patName(a[a.length - 1])}` : a.length <= 3 ? a.map(patName).join(" ") : `${patName(a[0])} +${a.length - 1}`; };
 const ago = (t) => { const d = (Date.now() - t) / 86400000; return d < 1 ? "today" : d < 2 ? "yesterday" : d < 14 ? `${Math.floor(d)} days` : d < 60 ? `${Math.floor(d / 7)} weeks` : `${Math.floor(d / 30)} months`; };
@@ -114,7 +116,9 @@ export function mountProjects(ctx) {
     const b = (act, icon, label, ok, cls = "") => `<button class="${cls === "go" ? "arc" : "ol"} ${cls}" data-act="${act}" ${ok ? "" : "disabled"}>${icon}${label}</button>`;
     if (J.arm) return `<div class="armed">${J.arm.kind === "load" ? IC.load : J.arm.kind === "move" ? IC.move : IC.copy}<b>${esc(J.arm.name)}</b></div>${b("disarm", IC.clear, "CANCEL", true)}`;
     // (LOAD the screen's fill while nothing waits to be written; then WRITE in the yellow bar is)
-    return b("load", IC.load, "LOAD", idle && there && !e.current, J.ops.length ? "cyan" : "go") + b("rename", IC.ren, "RENAME", idle && there) + b("copyto", IC.copy, "COPY TO", idle && there) +
+    // (an empty slot: NEW in LOAD's place, the unit's own PROJECT NEW)
+    const first = e && !there ? b("new", IC.plus, "NEW", idle, J.ops.length ? "cyan" : "go") : b("load", IC.load, "LOAD", idle && there && !e.current, J.ops.length ? "cyan" : "go");
+    return first + b("rename", IC.ren, "RENAME", idle && there) + b("copyto", IC.copy, "COPY TO", idle && there) +
       b("moveto", IC.move, "MOVE TO", idle && there) + b("keep", IC.keep, "KEEP", on() && there && !!J.base, "champ") + b("delete", IC.del, "DELETE", idle && there, "red");
   }
 
@@ -129,7 +133,7 @@ export function mountProjects(ctx) {
     const m = model();
     if (!m) return `<div class="pjwait">${J.reading ? "" : on() ? `<button class="ol cyan" id="pj-read">${IC.down}READ</button>` : ""}</div>`;
     const pr = project(m, J.sel);
-    if (!pr.there) return '<div class="pjwait"></div>';
+    if (!pr.there) return `<div class="pjwait">${on() && !J.ops.length && !J.arm ? `<button class="ol cyan" id="pj-new">${IC.plus}NEW PROJECT</button>` : ""}</div>`;
     return [0, 1, 2, 3].map((b) => `<div class="bankrow"><span class="bank hud">${"ABCD"[b]}</span><div class="pgrid">${Array.from({ length: 16 }, (_, x) => tile(pr.pats[b * 16 + x], b * 16 + x)).join("")}</div></div>`).join("");
   }
   function toolsHtml() {
@@ -220,6 +224,11 @@ export function mountProjects(ctx) {
     if (act === "load") {
       const x = await sure("LOAD", (l) => l.project("load", p + 1), (pl) => !!pl[p] && pl[p].current);
       if (x && x.status === 0) await after(`${e.name} open on the ${S.mode === "browser" ? "browser's FIZZ" : "FM-1"}`); else render();
+    } else if (act === "new") {
+      // (an empty project in slot p, opened on the unit: PROJECT NEW, as the iOS app's NEW)
+      if (e && e.there) return;
+      const x = await sure("NEW", (l) => l.project("new", p + 1), (pl) => !!pl[p] && pl[p].there);
+      if (x && x.status === 0) await after(`Slot ${p + 1}: a new project, open`, { reread: true }); else render();
     } else if (act === "rename") { J.renaming = true; render(); }
     else if (act === "copyto" || act === "moveto") { J.arm = { kind: act === "copyto" ? "copy" : "move", from: p, name: e.name }; render(); }
     else if (act === "disarm") { J.arm = null; render(); }
@@ -595,6 +604,7 @@ export function mountProjects(ctx) {
   $("pj-acts").addEventListener("click", (ev) => { const b = ev.target.closest("button[data-act]"); if (b && !b.disabled) slotAct(b.dataset.act); });
   $("pj-grid").addEventListener("click", (ev) => {
     if (ev.target.closest("#pj-read")) { read({ force: true }); return; }
+    if (ev.target.closest("#pj-new")) { slotAct("new"); return; }
     const t = ev.target.closest(".pt[data-k]");
     if (!t) return;
     const k = +t.dataset.k;

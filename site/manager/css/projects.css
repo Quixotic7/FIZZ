@@ -106,7 +106,7 @@
 .pt.new .no { color: var(--yellow); }
 .pt.sel:focus-visible { outline: 2px solid var(--cyan); }
 .pjwait { flex: 1; display: grid; place-items: center; }
-#pj-read { height: 52px; padding: 0 28px; font-size: 14px; }
+#pj-read, #pj-new { height: 52px; padding: 0 28px; font-size: 14px; }
 /* the tools under the patterns */
 .pjtools { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex: none; flex-wrap: wrap; min-height: 40px; }
 .pjtools .selname { font-size: 20px; color: var(--cyan); margin-right: 6px; text-shadow: 0 0 14px color-mix(in srgb, var(--cyan) 55%, transparent); white-space: nowrap; }

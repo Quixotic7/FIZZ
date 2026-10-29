@@ -17,7 +17,7 @@
 // FIZZ MIDI (e): a MIDI track's sound (PARAM takes a slot's value only, not its CC number or touched mark): each change
 // the whole sound as an AUDITION (target.sound), the latest one, in the same queue as the PARAMs.
 //   mountLive(ctx) -> { target, on(), probe(), lost(), pick(row), show(), hide(), strip(E), stripClick(b), nudge(),
-//                       loadOnUnit(row), browsing(), saveOpts(), afterSave(), detach() }
+//                       loadOnUnit(row, track), browsing(), saveOpts(), afterSave(), detach() }
 import { soundFromFrame, storeFrameOf, copySound } from "./sound.js";
 import { parseDump, storeSound, trackFrame } from "../js/fizz_sysex.js";
 import { esc, refusal } from "./ui.js";
@@ -277,10 +277,11 @@ export function mountLive(ctx) {
   }
 
   // ---------------------------------------------------------------- LOAD ON FM-1: the unit's own sound browser
-  async function loadOnUnit(row) {
+  // (track 0..5: LIBRARY's choice; none: the editor's track)
+  async function loadOnUnit(row, track = null) {
     if (!S.link || S.busy || !row || !row.id) return null;
     if (L.pending) await cancel();                      // (the track's own sound back first: the browser starts from it)
-    const tr = L.track === "selected" ? "selected" : L.track;
+    const tr = track !== null && track >= 0 && track < 6 ? track : L.track === "selected" ? "selected" : L.track;
     const x = await S.link.browse(tr, row.id).catch(() => null);
     if (!x || x.status) {
       say(x && x.old ? 'This FIZZ cannot open its browser from here yet: <a href="../install/">update FIZZ</a>.'
