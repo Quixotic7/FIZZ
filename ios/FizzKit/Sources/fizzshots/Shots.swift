@@ -152,6 +152,27 @@ struct Shots {
             p.view = v
             save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, name)
         }
+        // STEPS (mock-ups 38-40): step 1 held, C4 and G4 down (a render leaves PLAY, which lets go: held again each time)
+        p.view = .steps
+        e.run(ms: 100)
+        let hold = {
+            p.padDown(0)
+            e.run(ms: 300)
+            p.noteDown(60, velocity: 100)
+            p.noteDown(67, velocity: 96)
+            e.run(ms: 150)
+            p.showNow()
+        }
+        hold()
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-steps")
+        p.theme = .fizz
+        hold()
+        save(RootView(model: m, tab: .constant(.play), wide: false), CGSize(width: 844, height: 390), out, "play-steps-landscape")
+        p.theme = .tangerine
+        hold()
+        save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play-steps")
+        p.letGoAll()
+        e.run(ms: 50)
         p.view = .full
         p.sheet = true
         save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-sheet")

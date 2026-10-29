@@ -2,9 +2,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// PLAY's state and input (mock-ups 29-33): the emulated FIZZ's screen and LEDs as they come (frames()), the buttons
-// pressed on touch-down and let go on touch-up as the hardware's are, the knobs (MASTER absolute, the others detents
-// from a drag), the 27 keys with a velocity from where the finger lands; the view, the theme and SOUND remembered.
+// PLAY's state and input (mock-ups 29-33; STEPS, 38-40, in PlaySteps.swift): the emulated FIZZ's screen and LEDs as
+// they come (frames()), the buttons pressed on touch-down and let go on touch-up as the hardware's are, the knobs
+// (MASTER absolute, the others detents from a drag), the 27 keys with a velocity from where the finger lands; the view,
+// the theme and SOUND remembered.
 // The pure parts (labels, detents, velocity, the keybed's geometry) are PlayInput's and KeyLayout's, for the tests.
 
 import CoreGraphics
@@ -16,9 +17,9 @@ import Observation
 import UIKit
 #endif
 
-/// PLAY's four views (the sheet's VIEW; or a swipe sideways).
+/// PLAY's five views (the sheet's VIEW; or a swipe sideways).
 public enum PlayViewKind: String, CaseIterable, Sendable {
-    case full, panel, keys, screen
+    case full, panel, keys, steps, screen
     public var title: String { rawValue.uppercased() }
 }
 
@@ -46,7 +47,12 @@ public final class PlayModel {
                                                           .k3: 0, .k4: 40]
     public private(set) var master = 800
 
-    public var view: PlayViewKind { didSet { defaults.set(view.rawValue, forKey: "play.view") } }
+    public var view: PlayViewKind {
+        didSet {
+            defaults.set(view.rawValue, forKey: "play.view")
+            if view == .steps && oldValue != .steps { stepsEntered() }
+        }
+    }
     public var theme: PlayTheme { didSet { defaults.set(theme.rawValue, forKey: "play.theme") } }
     public var sound: PlaySound = .here
     /// The linked views' knob row: MAIN (false) or KN 1-4 (true)
@@ -60,12 +66,27 @@ public final class PlayModel {
     /// The manager's tab last shown (the FIZZ badge goes back to it; PlayNav.swift)
     public private(set) var lastTab: FizzTab?
 
+    // STEPS (PlaySteps.swift)
+    /// The pads held (0..15) and the keyboard's notes held (MIDI)
+    public internal(set) var pads: Set<Int> = []
+    public internal(set) var notes: Set<Int> = []
+    /// The notes in the order FIZZ takes them into a held step (its slots; a fresh press after all let go starts again)
+    public internal(set) var chord: [Int] = []
+    /// The notes popped on each pad (they fade a moment after it is let go)
+    public internal(set) var padNotes: [Int: [Int]] = [:]
+    /// The keyboard's lowest C (its octave, 2..5)
+    public var stepsOctave: Int { didSet { defaults.set(stepsOctave, forKey: "play.stepsOctave") } }
+    @ObservationIgnored var padFade: [Int: Int] = [:]
+    @ObservationIgnored var fm1Sends: Task<Void, Never>?
+
     init(host: EmulatorHost?, defaults: UserDefaults = .standard) {
         self.host = host
         self.defaults = defaults
         view = PlayViewKind(rawValue: defaults.string(forKey: "play.view") ?? "") ?? .full
         theme = PlayTheme(rawValue: defaults.string(forKey: "play.theme") ?? "") ?? .tangerine
         if defaults.object(forKey: "play.master") != nil { master = defaults.integer(forKey: "play.master") }
+        let o = defaults.object(forKey: "play.stepsOctave") != nil ? defaults.integer(forKey: "play.stepsOctave") : 4
+        stepsOctave = max(StepsInput.octaves.lowerBound, min(StepsInput.octaves.upperBound, o))
     }
 
     var emulator: FizzEmulator? { host?.emulator }
@@ -144,9 +165,11 @@ public final class PlayModel {
     }
 
     /// Everything let go (PLAY hidden, the app to the background, the sheet down).
-    func letGoAll() {
+    public func letGoAll() {
         for b in pressed { release(b) }
         for k in held { keyUp(k) }
+        for n in notes { noteUp(n) }
+        for i in pads { padUp(i) }
     }
 
     /// PLAY left: everything let go, the sheet up, the LCD back in its place.
@@ -171,9 +194,9 @@ public final class PlayModel {
 
     // MARK: the views
 
-    /// The view after a swipe (FULL, PANEL / KEYS, SCREEN; -1 left, +1 right).
+    /// The view after a swipe (FULL, PANEL / KEYS, STEPS, SCREEN; -1 left, +1 right).
     static func swiped(_ v: PlayViewKind, by d: Int) -> PlayViewKind {
-        let order: [PlayViewKind] = [.full, .keys, .screen]
+        let order: [PlayViewKind] = [.full, .keys, .steps, .screen]
         let at = v == .panel ? 1 : order.firstIndex(of: v) ?? 0
         return order[max(0, min(order.count - 1, at + d))].with(deck: v)
     }
