@@ -23,14 +23,15 @@ CHROMIUM = '/Applications/Chromium.app/Contents/MacOS/Chromium'
 PHONE = (446, 900)        # 414 x 868 frame + 16 px around
 IPAD = (1248, 888)        # 1216 x 856 frame + 16 px around
 LAND = (900, 446)         # the phone on its side: 868 x 414 frame + 16 px around
-SHEET = (1640, 11000)   # trimmed to its content afterwards
+PAIR = (884, 900)         # two phones side by side: 414 + 24 + 414 + 16 px around
+SHEET = (1640, 15000)   # trimmed to its content afterwards
 
 
 def screens():
     """The screen ids, in order, read from the page's SCREENS list, with their device size."""
     src = open(PAGE, encoding='utf-8').read()
     body = src[src.index('const SCREENS = ['):]
-    return [(m.group(1), IPAD if 'ipad: true' in m.group(0) else LAND if 'land: true' in m.group(0) else PHONE)
+    return [(m.group(1), IPAD if 'ipad: true' in m.group(0) else LAND if 'land: true' in m.group(0) else PAIR if 'pair: true' in m.group(0) else PHONE)
             for m in re.finditer(r'\{ id: "([a-z0-9-]+)"[^\n]*', body)]
 
 
