@@ -68,6 +68,7 @@ public struct FizzAppView: View {
                 .presentationBackground(RGB(0x0d0d11).color)
                 .preferredColorScheme(.dark)
         }
+        .unitPicker(model)                          // (every unit pill opens it: UnitsPicker.swift)
         .animation(.easeInOut(duration: 0.3), value: model.backups.run == nil)
         .animation(.easeInOut(duration: 0.3), value: model.projectsTab.writing == nil)
         .background(Color.black)
@@ -374,7 +375,7 @@ struct RailUnitCard: View {
         .background(RoundedRectangle(cornerRadius: 20).fill(c.mix(6, FZ.panel).color))
         .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(c.mix(50, FZ.line).color, lineWidth: 1.5))
         .contentShape(RoundedRectangle(cornerRadius: 20))
-        .onTapGesture { if model.onEmulator { model.goTo = .play } }
+        .onTapGesture { model.openPicker() }        // (the unit picker)
     }
 }
 

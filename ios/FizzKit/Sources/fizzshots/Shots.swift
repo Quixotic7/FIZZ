@@ -28,6 +28,8 @@ struct Shots {
         let out = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "shots")
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
         if !FizzFont.register() { print("Inter Tight not registered: the system font is used") }
+        // (`fizzshots OUTDIR units`: the unit picker's alone)
+        if CommandLine.arguments.dropFirst(2).contains("units") { await unitShots(out); return }
 
         // looking: a model never started
         let looking = UnitModel(source: DemoLinkSource(.fizz))
@@ -84,6 +86,53 @@ struct Shots {
         await projectShots(out)
         await keptShots(out)
         await playShots(out)
+        await unitShots(out)
+    }
+
+    // ---- the unit picker and SEND between the units (mock-ups 34-36): the demo FM-1 on USB, a silent one over
+    // Bluetooth, the emulated FIZZ
+    @MainActor
+    static func unitShots(_ out: URL) async {
+        let tmp = FileManager.default.temporaryDirectory
+        let e = FizzEmulator(storage: nil)
+        let host = EmulatorHost(emulator: e)
+        let m = UnitModel(source: DemoUnitsSource(bulkMs: 0...0.2), emulator: host,
+                          backups: tmp.appendingPathComponent("fizzshots-u-\(UUID().uuidString)"),
+                          projects: tmp.appendingPathComponent("fizzshots-up-\(UUID().uuidString)"),
+                          presets: tmp.appendingPathComponent("fizzshots-uk-\(UUID().uuidString)"))
+        host.launch()
+        m.start()
+        await until { m.unitKey == .port("FIZZ FM-1") && m.dumpsLoaded && m.other?.taken != nil }
+        // (the emulated FIZZ starts empty: the FM-1's first fourteen sent to it, as SEND TO THIS iPHONE does)
+        _ = await m.sendToOther(rows: Array(m.mine.prefix(14)))
+        // 34: THIS iPHONE picked by hand, the FM-1 beside it, the Bluetooth one asleep
+        await m.pick(.here)
+        await until { m.onEmulator && m.dumpsLoaded && m.other?.taken != nil }
+        m.openPicker()
+        for _ in 0..<3 { await until { m.seen.contains { $0.name == DemoUnitsSource.silentName } } }
+        save(UnitPickerShot(model: m), phone, out, "units-picker")
+        m.pickerClosed()
+        // 36: a preset's sheet with SEND TO FM-1, then the toast; KEPT's SELECT with SEND n TO FM-1; the iPad
+        save(PresetSheetShot(model: m, key: "mine:2"), phone, out, "units-send-sheet")
+        save(SendToastShot(model: m, key: "mine:2"), phone, out, "units-send-toast")
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "mine:2"),
+             pad, out, "units-ipad-send")
+        do { try await DemoKept.seed(m.kept) } catch { print("demo kept: \(error)") }
+        m.kept.selecting = true
+        let pick = m.kept.items.prefix(3).map(\.id).joined(separator: ",")
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "kept-select:\(pick)"),
+             phone, out, "units-kept-select")
+        m.kept.selecting = false
+        // 35: from PLAY, the FM-1 picked: PLAY's keys play its track
+        m.openPicker(fromPlay: true)
+        await m.pick(.port("FIZZ FM-1"))
+        await until { m.dumpsLoaded && m.other?.taken != nil }
+        save(UnitPickerShot(model: m, tab: .play), phone, out, "units-picker-play")
+        m.pickerClosed()
+        // the other way round: SEND TO THIS iPHONE
+        save(PresetSheetShot(model: m, key: "mine:2"), phone, out, "units-send-here")
+        m.stop()
+        e.stop()
     }
 
     // ---- KEPT (mock-ups 23-26, 28): the phone's presets, a kept preset's sheet, SELECT and SEND, EDIT on one, the iPad

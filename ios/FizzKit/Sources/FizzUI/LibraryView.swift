@@ -62,6 +62,16 @@ struct LibraryView: View {
             if snapshot { keptOn = shotSelection?.hasPrefix("kept") == true } else if model.noFM1 { keptOn = true }
         }
         .onChange(of: model.noFM1) { _, no in if no { keptOn = true } }
+        // (`-preset mine:2` with a demo unit: that preset's sheet open, for the simulator's screenshots)
+        .task(id: model.dumpsLoaded) {
+            let a = ProcessInfo.processInfo.arguments
+            guard !snapshot, model.dumpsLoaded, model.source is DemoUnitsSource || model.source is DemoLinkSource,
+                  let k = a.firstIndex(of: "-preset"), k + 1 < a.count, entry(a[k + 1]) != nil else { return }
+            try? await Task.sleep(for: .milliseconds(1200))
+            keptOn = false
+            selected = a[k + 1]
+            if !wide { sheet = SheetKey(id: a[k + 1]) }
+        }
         // (a .fizzsnd opened in FIZZ: KEPT, its sheet)
         .onChange(of: model.kept.reveal) { _, id in
             guard let id else { return }

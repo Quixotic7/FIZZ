@@ -353,6 +353,7 @@ struct KeptSelectBar: View {
     @Environment(\.fizzSnapshot) private var snapshot
     @State private var share: URL?
     @State private var sending = false
+    @AppStorage("play.theme") private var theme = PlayTheme.tangerine.rawValue
 
     private var items: [KeptPreset] { model.kept.items.filter { picked.contains($0.id) } }
     private var n: Int { items.count }
@@ -377,6 +378,11 @@ struct KeptSelectBar: View {
             }
             KeptTargetSeg(target: $target, track: model.sendTrack, trackOn: trackOn)
             SendButton(n: n, progress: sending ? model.actions.job : nil, enabled: canSend, to: model.unitName) { send() }
+            // (another unit there: SEND n TO it too, into its MY PRESETS: UnitsSend.swift)
+            if let o = model.other {
+                IconPill(title: "SEND \(n) TO \(o.name)", icon: TransferIcons.down, color: unitTint(o.key, theme: theme),
+                         redline: true, height: 50, size: 15, enabled: n > 0 && !sending && !model.sendingOther) { sendOther(o) }
+            }
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 26).fill(FZ.violet.mix(14, RGB(0x0d0d11)).color))
@@ -409,6 +415,17 @@ struct KeptSelectBar: View {
             let out = await model.send(kept: go, to: dest)
             sending = false
             note = keptSendNote(out, to: dest, unit: model.unitName)
+            if !out.isEmpty && out.allSatisfy(\.isOK) { sent() }
+        }
+    }
+
+    private func sendOther(_ o: OtherUnit) {
+        let go = items
+        sending = true
+        Task {
+            let out = await model.sendToOther(kept: go)
+            sending = false
+            note = keptSendNote(out, to: .mine, unit: o.name)
             if !out.isEmpty && out.allSatisfy(\.isOK) { sent() }
         }
     }

@@ -23,6 +23,8 @@ struct PresetPanel: View {
     var onMove: ((FizzListEntry) -> Void)?
     /// the preset went (deleted) or the screen moved on (EDIT)
     var onClose: () -> Void = {}
+    /// (fizzshots: SEND's toast shown)
+    var shotLanded: Landed?
 
     @Environment(\.fizzSnapshot) private var snapshot
     @State private var naming = false
@@ -34,8 +36,14 @@ struct PresetPanel: View {
     @FocusState private var tagFocus: Bool
     @State private var working = false
     @State private var lastBrowse: Browsing?
+    /// SEND TO the other unit: the toast, and the name flying up to it
+    @State private var landed: Landed?
+    @State private var flying: Landed?
+    @AppStorage("play.theme") private var theme = PlayTheme.tangerine.rawValue
 
     private var actions: UnitActions { model.actions }
+    /// The other unit SEND copies to (UnitsSend.swift), when there is one.
+    private var other: OtherUnit? { model.other }
     private var mine: Bool { entry.source == "mine" }
     private var can: Bool { actions.canWrite && !working }
     private var tint: RGB { FizzTag.tint(mask: entry.tags) }
@@ -71,9 +79,18 @@ struct PresetPanel: View {
                 }
             }
         }
+        .overlay(alignment: .top) { LandedToast(landed: shotLanded.map { .constant($0) } ?? $landed) }
+        .overlay(alignment: .bottom) {
+            if let f = flying {
+                FlyName(name: f.name, color: unitTint(f.to.key, theme: theme)).id(f.id).padding(.bottom, 90)
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: landed)
         .task(id: "\(entry.source):\(entry.slot):\(entry.id):\(entry.name):\(actions.frame(of: entry) != nil)") {
             webKey = await actions.soundKey(of: entry)
         }
+        // (where SEND lands: the other unit's MY PRESETS read when not yet)
+        .task(id: other?.key) { if other != nil && other?.taken == nil { await model.readOther() } }
         .onChange(of: actions.browsing) { old, new in
             guard let old, new == nil, old.id == entry.id, let loaded = actions.browseLoaded else { return }
             note = loaded ? .done("TRACK \(old.track + 1) · \(old.name)") : .done("TRACK \(old.track + 1) KEPT ITS OWN", FZ.muted)
@@ -245,36 +262,99 @@ struct PresetPanel: View {
 
     // MARK: buttons
 
-    private var mainButtons: some View {
-        HStack(spacing: 10) {
-            if places.isEmpty {
-                IconPill(title: "+ POOL", color: FZ.green, enabled: can && entry.id != 0) { addToPool() }
+    private var read: Bool { actions.frame(of: entry) != nil || snapshot }
+
+    @ViewBuilder private var poolButton: some View {
+        if places.isEmpty {
+            IconPill(title: "+ POOL", color: FZ.green, enabled: can && entry.id != 0) { addToPool() }
+        } else {
+            IconPill(title: "− POOL", color: FZ.green, ghost: true, enabled: can) { removeFromPool([]) }
+        }
+    }
+
+    private var editButton: some View {
+        // (the iPad's column beside SEND: the pencil alone)
+        IconPill(title: wide && other != nil ? "" : "EDIT", icon: Icons.pencil, color: FZ.pink, ink: .white, enabled: read) {
+            model.editTarget = .preset(entry)
+            model.goTo = .edit       // (the EDIT tab, I5's screen, opens on model.editTarget)
+            onClose()
+        }
+    }
+
+    /// → KEPT: a copy on the phone
+    private var keptButton: some View {
+        IconPill(title: "KEPT", icon: KeptArt.phone, color: FZ.champagne, redline: true, enabled: !working && read) { keep() }
+    }
+
+    @ViewBuilder private var mainButtons: some View {
+        if let o = other {
+            // (another unit there: SEND TO it beside → KEPT; the rest folds below, mock-up 36)
+            let send = SendOtherButton(other: o, enabled: !working && !model.sendingOther && read && o.freeSlot != nil || snapshot,
+                                       compact: wide) { sendOther(o) }
+            if wide {
+                // (the iPad's narrow column: SEND on its own line, → KEPT and POOL under it)
+                VStack(spacing: 10) {
+                    send
+                    HStack(spacing: 10) { keptButton; poolButton }
+                }
             } else {
-                IconPill(title: "− POOL", color: FZ.green, ghost: true, enabled: can) { removeFromPool([]) }
+                HStack(spacing: 10) {
+                    keptButton.frame(width: 128)
+                    send
+                }
             }
-            // → KEPT: a copy on the phone
-            IconPill(title: "KEPT", icon: KeptArt.phone, color: FZ.champagne, redline: true,
-                     enabled: !working && (actions.frame(of: entry) != nil || snapshot)) { keep() }
-            IconPill(title: "EDIT", icon: Icons.pencil, color: FZ.pink, ink: .white, enabled: actions.frame(of: entry) != nil || snapshot) {
-                model.editTarget = .preset(entry)
-                model.goTo = .edit       // (the EDIT tab, I5's screen, opens on model.editTarget)
-                onClose()
+        } else {
+            HStack(spacing: 10) {
+                poolButton
+                keptButton
+                editButton
             }
         }
     }
 
-    private var lastButtons: some View {
-        // (the iPad's narrow column has no room for three words: the icons alone)
-        let short = wide && mine && onMove != nil
-        return HStack(spacing: 10) {
-            IconPill(title: short ? "" : "EXPORT", icon: Icons.share, ghost: true, enabled: actions.frame(of: entry) != nil || snapshot) {
-                onExport([entry])
+    @ViewBuilder private var lastButtons: some View {
+        if other != nil {
+            HStack(spacing: 8) {
+                if !wide { poolButton }
+                editButton
+                GlyphPill(icon: Icons.share, ghost: true, enabled: read) { onExport([entry]) }
+                if mine, let onMove { GlyphPill(icon: Icons.swap, color: FZ.yellow, enabled: can) { onMove(entry) } }
+                if mine { GlyphPill(icon: Icons.trash, color: FZ.red, enabled: can) { askDelete() } }
             }
-            if mine, let onMove {
-                IconPill(title: short ? "" : "MOVE", icon: Icons.swap, color: FZ.yellow, redline: true, enabled: can) { onMove(entry) }
+        } else {
+            // (the iPad's narrow column has no room for three words: the icons alone)
+            let short = wide && mine && onMove != nil
+            HStack(spacing: 10) {
+                IconPill(title: short ? "" : "EXPORT", icon: Icons.share, ghost: true, enabled: read) { onExport([entry]) }
+                if mine, let onMove {
+                    IconPill(title: short ? "" : "MOVE", icon: Icons.swap, color: FZ.yellow, redline: true, enabled: can) { onMove(entry) }
+                }
+                if mine {
+                    IconPill(title: short ? "" : "DELETE", icon: Icons.trash, color: FZ.red, redline: true, enabled: can) { askDelete() }
+                }
             }
-            if mine {
-                IconPill(title: short ? "" : "DELETE", icon: Icons.trash, color: FZ.red, redline: true, enabled: can) { askDelete() }
+        }
+    }
+
+    /// SEND TO <the other unit>: copied there at once (nothing kept on the way); the name flies up, the toast drops.
+    private func sendOther(_ o: OtherUnit) {
+        working = true
+        Task {
+            let out = await model.sendToOther(rows: [entry])
+            working = false
+            guard let first = out.first else {
+                note = ScreenNote(text: "NOT READ YET", color: FZ.muted, kind: .refused)
+                return
+            }
+            if case .placed(let k) = first {
+                let l = Landed(name: entry.name, to: o, slot: k)
+                flying = l
+                try? await Task.sleep(for: .milliseconds(280))
+                landed = l
+                try? await Task.sleep(for: .milliseconds(600))
+                if flying?.id == l.id { flying = nil }
+            } else if let n = ScreenNote.of(first) {
+                note = n
             }
         }
     }
@@ -342,7 +422,7 @@ struct PresetPanel: View {
         let here = b?.id == entry.id ? b : nil
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Heading(text: "LOAD ON FM-1", color: FZ.pink)
+                Heading(text: "LOAD ON \(model.unitName)", color: FZ.pink)
                 Spacer(minLength: 0)
                 if here != nil {
                     OctCap(text: "OCT−", color: FZ.muted)
