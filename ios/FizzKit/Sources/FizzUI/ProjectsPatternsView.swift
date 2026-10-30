@@ -19,6 +19,8 @@ struct ProjectsPatternsView: View {
     @Binding var sharing: SharedFile?
     /// the screen's height under the top bar (the tiles made shorter when the grid would reach the yellow bar)
     @State private var screenH: CGFloat = 760
+    /// the view's width: wide (the phone on its side) puts a bank in one row of 16
+    @State private var screenW: CGFloat = 390
     @Environment(\.fizzBarClearance) private var clearance
 
     var body: some View {
@@ -49,7 +51,7 @@ struct ProjectsPatternsView: View {
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: pm.clip)
             SlotChips(model: pm)
             if let pr = s.model, pr.there {
-                PatternGrid(model: pm, project: pr, tileH: tileH)
+                PatternGrid(model: pm, project: pr, cols: wide ? 16 : 8, tileH: tileH)
                     .opacity(pm.reading ? 0.3 : 1)
                     .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }
             } else if pm.reading || (s.there && pm.view == nil) {
@@ -74,7 +76,7 @@ struct ProjectsPatternsView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16).padding(.top, 4)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { screenH = $0 }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenH = $0.height; screenW = $0.width }
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: pm.ops.isEmpty)
         .contentShape(Rectangle())
         // a swipe right from the screen's edge (left of the bank letters, never a tile's drag): back to the slots
@@ -86,12 +88,19 @@ struct ProjectsPatternsView: View {
         )
     }
 
-    private var tileH: CGFloat { Self.tileH(screenH, pending: !pm.ops.isEmpty, clearance: ProjectsPhoneBar.room(clearance)) }
+    /// The phone on its side (projects.css phone landscape: 16 a row): a bank in one row.
+    private var wide: Bool { Self.wide(screenW) }
+    static func wide(_ width: CGFloat) -> Bool { width >= 560 }
 
-    /// The tiles' height: 40, less when the grid would reach under the selection's bar and the yellow bar (or the tab
-    /// bar), never under 28.
-    static func tileH(_ screenH: CGFloat, pending: Bool, clearance: CGFloat = 100) -> CGFloat {
-        min(40, max(28, ((screenH - 4 - 61 - 53 - below(pending: pending, clearance: clearance)) - 4 * 5 - 3 * 12) / 8))
+    private var tileH: CGFloat {
+        Self.tileH(screenH, pending: !pm.ops.isEmpty, clearance: ProjectsPhoneBar.room(clearance), wide: wide)
+    }
+
+    /// The tiles' height: 40 (wide: 48), less when the grid would reach under the selection's bar and the yellow bar
+    /// (or the tab bar), never under 28.
+    static func tileH(_ screenH: CGFloat, pending: Bool, clearance: CGFloat = 100, wide: Bool = false) -> CGFloat {
+        let room = screenH - 4 - 61 - 53 - below(pending: pending, clearance: clearance) - 3 * 12
+        return wide ? min(48, max(28, room / 4)) : min(40, max(28, (room - 4 * 5) / 8))
     }
 
     /// What the bars take from the screen's bottom (above the grid: the title 61, the chips 53; below it: the
