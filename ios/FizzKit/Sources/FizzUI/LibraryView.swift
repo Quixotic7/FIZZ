@@ -21,10 +21,13 @@ import FizzKit
 struct LibraryView: View {
     let model: UnitModel
     var wide = false
+    /// the iPhone on its side: the phone's list, the preset beside it (LandscapeRoot.swift)
+    var sideways = false
     @Environment(\.fizzSnapshot) private var snapshot
     @Environment(\.fizzShotSelection) private var shotSelection
     @Environment(\.fizzBarClearance) private var clearance
-    @State private var filter = LibraryFilter()
+    /// (the side last shown while the app runs; ALL at launch: LibrarySide)
+    @State private var filter = LibraryFilter(source: LibrarySide.shown.source ?? .all)
     @State private var selected: String?
     @State private var sheet: SheetKey?
     @State private var note: ScreenNote?
@@ -34,8 +37,8 @@ struct LibraryView: View {
     @State private var moving: Int?
     /// the row swiped open (one at a time; a tap anywhere in the list shuts it)
     @State private var openRow: String?
-    /// KEPT, the phone's presets, shown (remembered; first whenever there is no FM-1)
-    @AppStorage("fizz.library.kept") private var keptOn = false
+    /// KEPT, the phone's presets, shown (the switch's last side; LIBRARY opens on ALL, with an FM-1 or without)
+    @State private var keptOn = LibrarySide.shown == .kept
     /// the iPad's KEPT column: a kept preset shown in the third column ("kept:<file>") and the drop target lit
     @State private var keptDrop = false
     @State private var unitDrop = false
@@ -53,7 +56,7 @@ struct LibraryView: View {
 
     var body: some View {
         Group {
-            if wide { padBody } else { phoneBody }
+            if wide { padBody } else if sideways { sideBody } else { phoneBody }
         }
         .overlay(alignment: .bottom) {
             if let m = moving {
@@ -73,7 +76,11 @@ struct LibraryView: View {
         .sheet(item: $deleting) { a in BulkDeleteSheet(flow: bulk, ask: a) { deleting = nil } }
         .onAppear {
             if snapshot, let s = shotSelection, s.hasPrefix("mine:") || s.hasPrefix("factory:") || s.hasPrefix("kept:") { selected = s }
-            if snapshot { keptOn = shotSelection?.hasPrefix("kept") == true } else if model.noFM1 { keptOn = true }
+            if snapshot {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { keptOn = shotSelection?.hasPrefix("kept") == true }
+            }
             // (fizzshots: "select:mine:2,factory:14" ticks those, " search:<name>" after it types a search too)
             if snapshot, let s = shotSelection, s.hasPrefix("select:") {
                 let ks = s.dropFirst(7).prefix { $0 != " " }.split(separator: ",").map(String.init)
@@ -101,14 +108,14 @@ struct LibraryView: View {
             closeSearch()
             if !snapshot { model.picks.clear() }
         }
-        .onChange(of: model.noFM1) { _, no in if no { keptOn = true } }
+        .onChange(of: side) { _, s in if !snapshot { LibrarySide.shown = s } }
         // (one side at a time: KEPT shown on the phone ends the unit's SELECT; another unit too)
         .onChange(of: keptOn) { _, k in if k && !wide { model.picks.clear() } }
         .onChange(of: model.unitKey) { _, _ in model.picks.clear() }
         // (`-select mine:2,mine:19` with a demo unit: SELECT on ALL with those ticked, for the simulator's screenshots)
         .task(id: model.dumpsLoaded) {
             let a = ProcessInfo.processInfo.arguments
-            guard !snapshot, model.dumpsLoaded, model.source is DemoUnitsSource || model.source is DemoLinkSource,
+            guard !snapshot, model.dumpsLoaded, shotHooks,
                   let k = a.firstIndex(of: "-select"), k + 1 < a.count else { return }
             try? await Task.sleep(for: .milliseconds(1200))
             keptOn = false
@@ -121,7 +128,7 @@ struct LibraryView: View {
         // (`-preset mine:2` with a demo unit: that preset's sheet open, for the simulator's screenshots)
         .task(id: model.dumpsLoaded) {
             let a = ProcessInfo.processInfo.arguments
-            guard !snapshot, model.dumpsLoaded, model.source is DemoUnitsSource || model.source is DemoLinkSource,
+            guard !snapshot, model.dumpsLoaded, shotHooks,
                   let k = a.firstIndex(of: "-preset"), k + 1 < a.count, entry(a[k + 1]) != nil else { return }
             try? await Task.sleep(for: .milliseconds(1200))
             keptOn = false
@@ -131,7 +138,7 @@ struct LibraryView: View {
         // (`-search bass` with a demo unit: the search open on ALL with that typed, for the simulator's screenshots)
         .task(id: model.dumpsLoaded) {
             let a = ProcessInfo.processInfo.arguments
-            guard !snapshot, model.dumpsLoaded, model.source is DemoUnitsSource || model.source is DemoLinkSource,
+            guard !snapshot, model.dumpsLoaded, shotHooks,
                   let k = a.firstIndex(of: "-search"), k + 1 < a.count else { return }
             try? await Task.sleep(for: .milliseconds(1200))
             if !a.contains("-kept") { keptOn = false; filter.source = .all }
@@ -147,6 +154,9 @@ struct LibraryView: View {
     }
 
     private func key(_ r: FizzListEntry) -> String { "\(r.source):\(r.slot)" }
+    private var side: LibrarySide { LibrarySide(kept: keptOn, source: filter.source) }
+    /// the simulator's screenshot arguments (-select, -preset, -search) act: a demo unit, or THIS iPHONE
+    private var shotHooks: Bool { model.source is DemoUnitsSource || model.source is DemoLinkSource || model.onEmulator }
     private var picks: LibraryPicks { model.picks }
     private var bulk: BulkFlow { BulkFlow(model: model, note: $note, ask: $ask, deleting: $deleting, exporting: $exporting) }
 
@@ -214,7 +224,7 @@ struct LibraryView: View {
             return
         }
         let k = key(r)
-        if wide {
+        if wide || sideways {
             selected = selected == k ? nil : k
         } else {
             selected = k
@@ -326,7 +336,7 @@ struct LibraryView: View {
                     Count(n: filter.source == .factory ? model.factory.count : model.mine.count,
                           of: filter.source == .factory ? nil : nlib)
                     Spacer(minLength: 0)
-                    SelectPill(selecting: picks.active, enabled: model.unit != nil) { toggleSelect() }
+                    SelectPill(selecting: picks.active, enabled: model.canSelect(on: side)) { toggleSelect() }
                     NewSoundButton(model: model)
                 }
                 .padding(.horizontal, 16).padding(.bottom, 12)
@@ -370,7 +380,7 @@ struct LibraryView: View {
                 chips
             }
                 .padding(.bottom, 14)
-            ScreenScroll(bottom: (picks.active ? bulkHeight + 10 : clearance) + 20 + (moving != nil ? 62 : 0), lazy: true,
+            ScreenScroll(bottom: (picks.active && !sideways ? bulkHeight + 10 : clearance) + 20 + (moving != nil ? 62 : 0), lazy: true,
                          refresh: { await model.refresh() }) {
                 if filter.source == .all && !shown.mine.isEmpty { group("MY PRESETS", shown.mine.count) }
                 ForEach(shown.mine, id: \.slot) { row($0) }
@@ -396,7 +406,7 @@ struct LibraryView: View {
         }
         // (SELECT's bar in the tab bar's place, as KEPT's)
         .overlay(alignment: .bottom) {
-            if picks.active {
+            if picks.active && !sideways {
                 BulkBar(flow: bulk, shown: shown.mine + shown.factory) { tagging = BulkTagAsk() }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bulkHeight = $0 }
                     .padding(.horizontal, 12).padding(.bottom, PhoneRoot.barBottom - 6)
@@ -404,6 +414,41 @@ struct LibraryView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.active)
+    }
+
+    // MARK: iPhone on its side
+
+    /// The phone's list; beside it the preset tapped, or SELECT's panel (as the iPad's third column). KEPT: its list
+    /// alone, as wide as the screen.
+    private var sideBody: some View {
+        // (the preset's column 40 % of the width, 260..330 pt: the names keep their room on a 844-pt iPhone)
+        GeometryReader { g in sideColumns(detail: min(330, max(260, g.size.width * 0.4))) }
+    }
+
+    private func sideColumns(detail: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            phoneBody
+            if !keptOn {
+                Card(padding: 14) {
+                    let shown = filter.shown(model.rows)
+                    if picks.active {
+                        ScreenScroll(bottom: 4) { BulkPanel(flow: bulk, shown: shown.mine + shown.factory) }
+                    } else if let r = entry(selected) {
+                        ScreenScroll(bottom: 4) {
+                            PresetPanel(model: model, entry: r, wide: true, note: $note, ask: $ask, onExport: export, onMove: startMove) {
+                                selected = nil
+                            }
+                        }
+                        .id(key(r))
+                    } else {
+                        TabPlaceholder(tab: .library)
+                    }
+                }
+                .frame(width: detail)
+                .frame(maxHeight: .infinity)
+                .padding(.top, 4).padding(.bottom, clearance)
+            }
+        }
     }
 
     // MARK: iPad
@@ -431,7 +476,7 @@ struct LibraryView: View {
                                 color: model.unitIsEmulated ? FZ.orange : FZ.green)
                         Spacer(minLength: 0)
                         // SELECT (cream while on); Part E's + NEW beside it
-                        RoundIcon(art: KeptArt.check, color: picks.active ? FZ.cream : FZ.text, enabled: model.unit != nil, size: 36) {
+                        RoundIcon(art: KeptArt.check, color: picks.active ? FZ.cream : FZ.text, enabled: model.canSelect(on: LibrarySide(kept: false, source: filter.source)), size: 36) {
                             toggleSelect()
                         }
                         .background(Circle().fill(picks.active ? FZ.cream.opacity(0.18) : .clear).frame(width: 36, height: 36))
@@ -816,12 +861,12 @@ struct MoveBar: View {
     }
 }
 
-/// ALL / MY PRESETS / FACTORY (.seg), the mock-up's two first.
+/// ALL / MY PRESETS / FACTORY (.seg): ALL first, as the phone's switch.
 struct SourceSeg: View {
     @Binding var selected: LibraryFilter.Source
     var body: some View {
         HStack(spacing: 0) {
-            ForEach([LibraryFilter.Source.mine, .factory, .all], id: \.self) { s in
+            ForEach(LibraryFilter.Source.allCases, id: \.self) { s in
                 Button { selected = s } label: {
                     Text(s == .mine ? "MY PRESETS" : s == .factory ? "FACTORY" : "ALL").fz(13, 800, em: 0.07)
                         .foregroundStyle(s == selected ? Color.black : FZ.muted.color)

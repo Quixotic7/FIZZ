@@ -16,45 +16,23 @@ public struct ImportSheet: View {
     let model: UnitModel
     /// the iPad's tab (no close button)
     var inline = false
+    /// the iPhone on its side (a tab, inline): the sounds at the left, the file tabs and SEND beside them
+    var sideways = false
     @Environment(\.fizzSnapshot) private var snapshot
     @Environment(\.fizzInsets) private var insets
     @State private var picking = false
     @State private var over = false
     @Environment(\.dismiss) private var dismiss
 
-    public init(model: UnitModel, inline: Bool = false) {
+    public init(model: UnitModel, inline: Bool = false, sideways: Bool = false) {
         self.model = model
-        self.inline = inline
+        self.inline = inline || sideways
+        self.sideways = sideways
     }
 
     public var body: some View {
         let im = model.importer
-        ZStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 0) {
-                head
-                FileTabs(formats: im.formats) { picking = true }
-                    .padding(.top, 14).padding(.bottom, 14)
-                if im.rows.isEmpty {
-                    EmptyImport(reading: im.reading, over: over) { picking = true }
-                    Spacer(minLength: 0)
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("\(im.rows.count)").fz(46, 800).foregroundStyle(FZ.text.color).contentTransition(.numericText())
-                        Text(im.rows.count == 1 ? "sound" : "sounds").fz(22, 800).foregroundStyle(FZ.muted.color)
-                        Spacer(minLength: 0)
-                        if !im.refused.isEmpty { NameChip(text: "\(im.refused.count) NOT SOUNDS", fill: FZ.orange) }
-                    }
-                    .padding(.bottom, 12)
-                    rows
-                }
-            }
-            .padding(.horizontal, 16)
-            // (clear of the sheet's grab handle)
-            .padding(.top, inline ? 4 : snapshot ? 8 : 20)
-            if !im.rows.isEmpty { footer }
-        }
-        .frame(maxWidth: inline ? 760 : .infinity)
-        .frame(maxWidth: .infinity)
+        Group { if sideways { sideBody } else { stacked } }
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: im.rows.map(\.id))
         .fileImporter(isPresented: $picking, allowedContentTypes: UTType.importable, allowsMultipleSelection: true) { r in
             guard case .success(let urls) = r else { return }
@@ -71,6 +49,66 @@ public struct ImportSheet: View {
             }
         }
         .modifier(DropFiles(on: !snapshot, over: $over) { files in await im.add(files: files) })
+    }
+
+    /// The iPhone on its side: the sounds (or the empty drop) at the left; the file tabs, the target and SEND in a
+    /// column beside them, nothing over the rows.
+    private var sideBody: some View {
+        let im = model.importer
+        return HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
+                head
+                if im.rows.isEmpty {
+                    EmptyImport(reading: im.reading, over: over) { picking = true }
+                    Spacer(minLength: 0)
+                } else {
+                    count.padding(.bottom, 8)
+                    rows
+                }
+            }
+            VStack(spacing: 0) {
+                FileTabs(formats: im.formats) { picking = true }.padding(.top, 52)
+                Spacer(minLength: 0)
+                if !im.rows.isEmpty { footer }
+            }
+            .frame(width: 300)
+        }
+        .padding(.horizontal, 6)
+    }
+
+    /// n sounds (NOT SOUNDS refused)
+    private var count: some View {
+        let im = model.importer
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(im.rows.count)").fz(46, 800).foregroundStyle(FZ.text.color).contentTransition(.numericText())
+            Text(im.rows.count == 1 ? "sound" : "sounds").fz(22, 800).foregroundStyle(FZ.muted.color)
+            Spacer(minLength: 0)
+            if !im.refused.isEmpty { NameChip(text: "\(im.refused.count) NOT SOUNDS", fill: FZ.orange) }
+        }
+    }
+
+    private var stacked: some View {
+        let im = model.importer
+        return ZStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 0) {
+                head
+                FileTabs(formats: im.formats) { picking = true }
+                    .padding(.top, 14).padding(.bottom, 14)
+                if im.rows.isEmpty {
+                    EmptyImport(reading: im.reading, over: over) { picking = true }
+                    Spacer(minLength: 0)
+                } else {
+                    count.padding(.bottom, 12)
+                    rows
+                }
+            }
+            .padding(.horizontal, 16)
+            // (clear of the sheet's grab handle)
+            .padding(.top, inline ? 4 : snapshot ? 8 : 20)
+            if !im.rows.isEmpty { footer }
+        }
+        .frame(maxWidth: inline ? 760 : .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     private var head: some View {
@@ -119,9 +157,9 @@ public struct ImportSheet: View {
             SendButton(n: n, progress: im.sendProgress, enabled: im.canSend, to: im.target == .kept ? "KEPT" : model.unitName,
                        color: im.target == .kept ? FZ.champagne : FZ.violet) { Task { await im.send() } }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, sideways ? 0 : 16)
         .padding(.top, 40)
-        .padding(.bottom, max(24, insets.bottom))
+        .padding(.bottom, sideways ? 16 : max(24, insets.bottom))
         .background(
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: RGB(0x0d0d11).color, location: 0.3)],
                            startPoint: .top, endPoint: .bottom)

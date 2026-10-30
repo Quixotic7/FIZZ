@@ -66,6 +66,8 @@
 //   - nf-units (2026-10-29): two FM-1s (?sim=two) in the picker, each by its port with USB or BLUETOOTH; RemoteFM1 and
 //     the update loader greyed and named, not to pick; the second picked answers alone; PORTS from the picker and the
 //     LOG (every port, what answered); the second unplugged: its row gone at once; a phone with no horizontal scroll;
+//   - nf-speed (2026-10-29): THIS BROWSER's PROJECTS LOAD, WRITE and BACK UP read and written in the page, each under a
+//     threshold, the moved pattern there after a re-read and in the running browser FIZZ; the FM-1 (?sim) still paced;
 //   - nf-askload (2026-10-29): LOAD ON FM-1 of an IN THIS BROWSER preset the FM-1 lacks asks ADD · MY PRESETS n (the
 //     first free place): CANCEL sends nothing, ADD stores it there and opens the unit's browser; one it has opens at
 //     once; MY PRESETS full: FULL, nothing sent;
@@ -73,6 +75,9 @@
 //     preset selected; PROJECTS: empty, no-trig and ghost-only patterns drag (an empty one clears the target); CLEAR at
 //     once (dashed, waiting); DELETE / BACKSPACE clear; CTRL / CMD + X cut, + V paste; a click is not a drag; the
 //     drag's ghost keeps the grabbed point under the pointer;
+//   - nf-play2 (2026-10-29): PLAY flat (no glow around the board, no gradient on its buttons and keys), no THIS
+//     BROWSER chip on it, key 11's longer LED; Shift-click latches (THIS BROWSER's panel; the FM-1's CC 127 held, 0 on
+//     the second click; leaving the tab lets go); 1440 x 900 and 844 x 390 screenshots in .build/test/play2;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -2065,6 +2070,92 @@ try {
   await sleep(300);
   }
   // ---- (end of nf-play)
+  // ---- nf-play2 (the owner's fixes, 2026-10-29): the board flat (no glow around it, no gradient on its buttons and
+  // keys); no THIS BROWSER chip on it; key 11 (B11) with the longer LED; Shift-click latches a button (the FM-1: CC 127
+  // once, held while other buttons are clicked; a click again CC 0), a plain click does not, leaving the tab lets go
+  {
+  const SHOTS2 = path.join(OUT, "play2");
+  fs.mkdirSync(SHOTS2, { recursive: true });
+  const shiftClick = async (sel) => { const c = await centre(sel); await mouse("mousePressed", c.x, c.y, { modifiers: 8 }); await mouse("mouseReleased", c.x, c.y, { modifiers: 8 }); };
+  await size(1440, 900);
+  await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#play" });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.rows.length > 0 && __mgr.S.mode === 'fm1' && __mgr.play.state.shown", 40000);
+  await realClick("#pl-tgt [data-tg='browser']");
+  await realClick("#pl-views [data-v='full']");
+  await waitFor("__mgr.play.state.cur === 'browser' && __mgr.play.state.lay === 'full'", 3000);
+  await sleep(300);
+  const look = await evaluate(`(() => { const b = document.getElementById('pl-board');
+    const bg = (sel) => [...b.querySelectorAll(sel)].map((e) => getComputedStyle(e).backgroundImage);
+    const led = (k) => parseFloat(getComputedStyle(b.querySelector('.k[data-key="' + k + '"]'), '::after').height);
+    const pb = bg('.pb'), k = bg('.k');
+    return { glow: getComputedStyle(b).boxShadow, pb: pb.length === 14 && pb.every((x) => x === 'none'), k: k.length === 27 && k.every((x) => x === 'none'),
+      chip: /THIS BROWSER/.test(b.textContent) || !!b.querySelector('.bpill'), l11: led(25), near: [22, 24, 26].map(led) }; })()`);
+  check(look.glow === "none" && look.pb && look.k, `PLAY flat: no glow around the board (${look.glow}), no gradient on its 14 buttons (${look.pb}) and 27 keys (${look.k})`);
+  check(!look.chip, "PLAY → THIS BROWSER: no THIS BROWSER chip on the board");
+  check(look.l11 > Math.max(...look.near) + 8, `PLAY: key 11 (B11, F#5) has the longer LED (${look.l11} px; B10, W15, W16: ${look.near.join(", ")})`);
+  await shot(path.join("play2", "play-1440-browser-full.png"));
+  // THIS BROWSER: a key Shift-clicked stays down in its FIZZ's panel until clicked again
+  await realClick("#pl-board .bezel");
+  await waitFor("!__mgr.bu().quiet && __mgr.bu().running", 20000);
+  await sleep(1200);
+  await realClick("#pl-board .pb[data-b='6']");
+  await sleep(600);
+  await evaluate("(() => { const p = __mgr.bu().player; window.__pk = []; const o = p.panel.bind(p); p.panel = (m) => { window.__pk.push(m.keys); o(m); }; })()");
+  await shiftClick("#pl-board .k[data-key='7']");
+  await sleep(500);
+  const bl = await evaluate("({ held: __mgr.play.controls.keyLatched(7), last: window.__pk[window.__pk.length - 1], cls: document.querySelector('#pl-board .k[data-key=\"7\"]').classList.contains('latched') })");
+  await shot(path.join("play2", "play-1440-browser-latched.png"));
+  await realClick("#pl-board .k[data-key='7']");
+  await sleep(200);
+  const bu = await evaluate("({ held: __mgr.play.controls.keyHeld(7), last: window.__pk[window.__pk.length - 1] })");
+  check(bl.held && bl.cls && (bl.last & (1 << 7)) && !bu.held && !(bu.last & (1 << 7)),
+    `PLAY → THIS BROWSER: a Shift-clicked key stays down in its FIZZ's panel (${bl.last}) until clicked again (${bu.last})`);
+  // the FM-1: SHIFT (QD_B 5) Shift-clicked: CC 25 127 once and held; HOME clicked meanwhile: momentary; SHIFT again: CC 25 0
+  await realClick("#pl-tgt [data-tg='fm1']");
+  await waitFor("__mgr.play.state.cur === 'fm1'", 3000);
+  await sleep(300);
+  check(await evaluate("getComputedStyle(document.getElementById('pl-board')).boxShadow === 'none'"), "PLAY → FM-1: no glow around the board either");
+  await evaluate("window.__pout = []; window.__sim.hooks.midi = (d) => window.__pout.push(Array.from(d).join(' '))");
+  await shiftClick("#pl-board .pb[data-b='5']");
+  await sleep(250);
+  const l1 = await evaluate("({ out: window.__pout.join('|'), held: __mgr.play.controls.btnHeld(5), cls: document.querySelector('#pl-board .pb[data-b=\"5\"]').classList.contains('latched') })");
+  await evaluate("window.__pout = []");
+  await realClick("#pl-board .pb[data-b='6']");
+  await sleep(250);
+  const l2 = await evaluate("({ out: window.__pout.join('|'), shift: __mgr.play.controls.btnHeld(5), home: __mgr.play.controls.btnHeld(6) || __mgr.play.controls.btnLatched(6) })");
+  await shot(path.join("play2", "play-1440-fm1-latched.png"));
+  await evaluate("window.__pout = []");
+  await realClick("#pl-board .pb[data-b='5']");
+  await sleep(250);
+  const l3 = await evaluate("({ out: window.__pout.join('|'), held: __mgr.play.controls.btnHeld(5), cls: document.querySelector('#pl-board .pb[data-b=\"5\"]').classList.contains('latched') })");
+  check(l1.out === "191 25 127" && l1.held && l1.cls, `PLAY → FM-1: Shift-click latches SHIFT: CC 25 127 sent once, held, ringed (${l1.out})`);
+  check(l2.out === "191 26 127|191 26 0" && l2.shift && !l2.home, `PLAY → FM-1: a plain click on HOME meanwhile is momentary (${l2.out}), SHIFT still held`);
+  check(l3.out === "191 25 0" && !l3.held && !l3.cls, `PLAY → FM-1: a second click lets SHIFT go: CC 25 0 (${l3.out})`);
+  // latched, then the tab left: let go (CC 25 0, then CC 123)
+  await shiftClick("#pl-board .pb[data-b='5']");
+  await sleep(200);
+  await evaluate("window.__pout = []");
+  await realClick("#t-library");
+  await sleep(250);
+  const l4 = await evaluate("({ out: window.__pout.join('|'), held: __mgr.play.controls.btnHeld(5) })");
+  check(/^191 25 0\|.*191 123 0/.test(l4.out) && !l4.held, `PLAY → FM-1: leaving the tab lets a latched SHIFT go (${l4.out})`);
+  await realClick("#t-play");
+  await waitFor("__mgr.play.state.shown", 3000);
+  await sleep(300);
+  await shot(path.join("play2", "play-1440-fm1-full.png"));
+  await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true, screenOrientation: { type: "landscapePrimary", angle: 90 } });
+  await sleep(700);
+  await shot(path.join("play2", "play-844x390-fm1.png"));
+  await realClick("#pl-tgpill");
+  await waitFor("__mgr.play.state.cur === 'browser'", 3000);
+  await sleep(400);
+  await shot(path.join("play2", "play-844x390-browser.png"));
+  await evaluate("window.__sim.hooks.midi = null");
+  await realClick("#pl-back");
+  await size(1280, 800);
+  await sleep(300);
+  }
+  // ---- (end of nf-play2)
   // ---- nf-new (parity 2026-10-29): LIBRARY's + NEW (FM / MIDI, into the FM-1 or IN THIS BROWSER), the IN THIS BROWSER
   // card (rename, tags, web tags, DUPLICATE, EDIT -> SAVE into the browser's store, SEND, LOAD), pan and sends kept
   // through each, RESET then + NEW, LOAD ON FM-1's track under the name, a phone
@@ -2684,6 +2775,82 @@ try {
   await size(1280, 800);
   }
   // ---- (end of nf-proj2)
+  // ---- nf-speed: THIS BROWSER's store read and written in the page (the owner, 2026-10-29: "loading and writing to
+  // browser take the same long time as writing to the FM-1"). The FM-1 (?sim) first: its PROJECTS read FZBR by FZBR,
+  // its WRITE pulled twice by FZSR's 512-byte reads, as before. Then THIS BROWSER (the sound on: the worklet): a LOAD
+  // and a WRITE of a pasted pattern dropped (moved) elsewhere each under SPEED_MS (measured ~16 ms and ~95 ms here;
+  // before: ~9 s and ~6.5 s over the SysEx), no FZBR or FZSR read sent; the moved pattern there after a re-read, in the
+  // running browser FIZZ's own flash and in the one kept in this browser
+  {
+    const SPEED_MS = { read: 1000, write: 1500 };   // (load-proof: well over the measured, far under the SysEx's)
+    const PJ = "__mgr.projtab.state";
+    const editDemo = (who) => `(() => { const s = ${who}, e = s.engine, t = e.info().panelTable;
+      const set = (b, k) => { e.setPanel({ keys: k >>> 0, buttons: b >>> 0, enc: new Int32Array(7), keyVel: new Uint8Array(27) }); s.run(80); };
+      set(1 << t.btnId[6], 0); set(0, 0); set(0, 1 << 2); set(0, 0); set(0, 1 << 4); set(0, 0); s.run(2500); return true; })()`;   // (HOME, two keys: the demo's A01 its own record)
+    const timedRead = `(async () => { ${PJ}.base = null; const t = performance.now(); await __mgr.projtab.show(); return Math.round(performance.now() - t); })()`;
+    const timedWrite = `(async () => { const t = performance.now(); document.querySelector('#pj-pending [data-act="write"]').click(); await new Promise((r) => setTimeout(r, 20));
+      while (${PJ}.ops.length || __mgr.S.busy || __mgr.S.writing || __mgr.S.editing) await new Promise((r) => setTimeout(r, 5)); return Math.round(performance.now() - t); })()`;
+    const logHas = (re) => evaluate(`${re}.test(document.getElementById('log').textContent)`);
+    await size(1280, 800);
+    await send("Page.navigate", { url: URL0 + "#projects" });
+    await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.status", 60000);
+    await waitFor(`!!${PJ}.base && !__mgr.S.busy`, 60000);
+    await evaluate(editDemo("__sim"));
+    await idle();
+    // the FM-1: the paced SysEx
+    const f0 = await evaluate("({ r: __sim.counts.fzbr, w: __sim.counts.fzsrReads, size: __mgr.S.unit.info.size })");
+    const fmRead = await evaluate(timedRead);
+    const f1 = await evaluate("({ r: __sim.counts.fzbr, w: __sim.counts.fzsrReads })");
+    const fk = await evaluate(`(async () => { const P = await import('./projects.js'), m = ${PJ}.base.model;
+      const k = [...m.prj.keys()].filter((x) => x >>> 24 === P.RK.PAT && ((x >>> 16) & 255) === 0).map((x) => x & 0xFFFF).find((x) => P.copyPatterns(m, 0, [x]).pats.length);
+      if (k === undefined) return null;
+      const j = P.project(m, 0).pats.findIndex((s, i) => !s && i > 8);
+      ${PJ}.ops.push({ kind: 'drop', q: 0, j, clip: P.copyPatterns(m, 0, [k]), from: { p: 0, k }, move: false }); ${PJ}.cache = null; __mgr.projtab.render();
+      return { k, j, rec: Array.from(m.prj.get(P.rkey(P.RK.PAT, 0, k))).join() }; })()`);
+    const fmWrite = fk ? await evaluate(timedWrite) : -1;
+    const f2 = await evaluate("({ r: __sim.counts.fzbr, w: __sim.counts.fzsrReads })");
+    await evaluate(timedRead);
+    const fmBack = fk && (await evaluate(`(async () => { const P = await import('./projects.js'), b = ${PJ}.base.model.prj.get(P.rkey(P.RK.PAT, 0, ${fk.j})); return !!b && Array.from(b).join() === ${JSON.stringify(fk.rec)}; })()`));
+    check(fk && f1.r - f0.r >= Math.ceil(f0.size / 256) && f2.w - f1.w >= 2 * Math.ceil(f0.size / 512) && fmBack && (await logHas("/restore: FZOK/")) && !(await logHas("/THIS BROWSER's store/")),
+      `nf-speed: the FM-1 (?sim) still paced: its read ${f1.r - f0.r} FZBR (${fmRead} ms), its WRITE ${f2.w - f1.w} FZSR reads (${fmWrite} ms), the drop there after a re-read`);
+    // THIS BROWSER, the sound on: the clip of the FM-1's pattern pasted at A10, then dropped (moved) to A12, one WRITE
+    const clip = fk ? await evaluate(`(async () => { const P = await import('./projects.js'); window.__nfClip = P.copyPatterns(${PJ}.base.model, 0, [${fk.k}]); return true; })()`) : false;
+    await realClick("#unit");
+    await waitFor("!document.getElementById('upick').hidden", 3000);
+    await realClick("#upick-pop .urow[data-u='browser']");
+    const bOn = await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && !!__mgr.bu() && !__mgr.bu().quiet && !__mgr.bu().waking", 40000);
+    await waitFor(`!!${PJ}.base && !__mgr.S.busy`, 60000);
+    await idle();
+    const b0 = await evaluate("({ r: __mgr.bu().counts.fzbr, w: __mgr.bu().counts.fzsrReads })");
+    const bRead = await evaluate(timedRead);
+    const staged = clip && (await evaluate(`(async () => { const P = await import('./projects.js'), J = ${PJ}, m = P.cloneModel(J.base.model);
+      P.pastePatterns(m, 0, 9, window.__nfClip);
+      const drop = { kind: 'drop', q: 0, j: 11, clip: P.copyPatterns(m, 0, [9]), from: { p: 0, k: 9 }, move: true };
+      P.pastePatterns(m, 0, 11, drop.clip); P.clearPatterns(m, 0, [9]);
+      J.ops.push({ kind: 'paste', q: 0, j: 9, clip: window.__nfClip }, drop); J.cache = null; __mgr.projtab.render();
+      window.__nfWant = Array.from(m.prj.get(P.rkey(P.RK.PAT, 0, 11))).join(); return J.ops.length === 2 && !document.getElementById('pj-pending').hidden; })()`));
+    const bWrite = staged ? await evaluate(timedWrite) : -1;
+    const wsay = await evaluate("document.getElementById('say').textContent");
+    const bBack = await evaluate(`(async () => { const t = performance.now(); ${PJ}.base = null; await __mgr.projtab.show(); const P = await import('./projects.js'), { convertImage } = await import('./fizzstore.js');
+      const at = (m) => { const b = m.prj.get(P.rkey(P.RK.PAT, 0, 11)); return { moved: !!b && Array.from(b).join() === window.__nfWant, left: !m.prj.has(P.rkey(P.RK.PAT, 0, 9)) }; };
+      const fizz = await __mgr.bu().hostFlash();
+      return { reread: at(${PJ}.base.model), running: at(P.modelOf(convertImage(fizz, 'device'))), kept: at(P.modelOf(convertImage(__mgr.S.brow.img, 'device'))),
+        a12: !!(${PJ}.base.model && P.project(${PJ}.base.model, 0).pats[11]), ms: Math.round(performance.now() - t) }; })()`);
+    const b1 = await evaluate("({ r: __mgr.bu().counts.fzbr, w: __mgr.bu().counts.fzsrReads })");
+    const ok3 = (x) => x && x.moved && x.left;
+    check(bOn && bRead >= 0 && bRead < SPEED_MS.read && b1.r === b0.r && (await logHas("/read: THIS BROWSER's store, \\d+ B in the page/")),
+      `nf-speed: THIS BROWSER (the worklet): a PROJECTS LOAD in ${bRead} ms (under ${SPEED_MS.read}; the FM-1's ${fmRead}), no FZBR sent`);
+    check(staged && bWrite >= 0 && bWrite < SPEED_MS.write && b1.w === b0.w && !/did not finish|cut off|could not/i.test(wsay),
+      `nf-speed: THIS BROWSER: WRITE of a paste and a drop in ${bWrite} ms (under ${SPEED_MS.write}; the FM-1's ${fmWrite}), no FZSR read pulled${wsay ? ` ("${wsay}")` : ""}`);
+    check(ok3(bBack.reread) && ok3(bBack.running) && ok3(bBack.kept) && bBack.a12,
+      `nf-speed: THIS BROWSER: A10 moved to A12 after a re-read (${bBack.ms} ms), in the running FIZZ's flash and in the one kept here (${JSON.stringify(bBack)})`);
+    // BACK UP of THIS BROWSER: the same read, kept in BACKUP
+    const nb = await evaluate("__mgr.S.baks.length");
+    const bk = await evaluate("(async () => { const t = performance.now(); const r = await __mgr.backup('full'); return { ms: Math.round(performance.now() - t), ok: !!r && !!r.image } })()");
+    check(bk.ok && bk.ms < SPEED_MS.write && (await evaluate(`__mgr.S.baks.length === ${nb + 1}`)), `nf-speed: THIS BROWSER: BACK UP in ${bk.ms} ms, kept in BACKUP`);
+    await idle();
+  }
+  // ---- (end of nf-speed)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

@@ -9,8 +9,11 @@
 // input.js's Keyboard plays it from the computer keys. The views: FULL, PANEL, KEYS, SCREEN (the chips, or a swipe
 // sideways on the screen; a double click on it: SCREEN and back); six themes; a phone on its side shows the board
 // under a strip (the Manager's bar gives way), upright it stacks. Everything held is let go (and the FM-1's CC 123)
-// when PLAY is left, the target changes, or the page loses focus. The view, the target, the theme, the knob sets and
-// MASTER are remembered in this browser.
+// when PLAY is left, the target changes, or the page loses focus. A latch (the emulator's, input.js / RemoteFM1
+// ceb0025): Shift-click, right-click or ctrl-click on a key or button holds it after the mouse lets go (the FM-1: its
+// CC stays 127, its note on); any click on a latched one lets it go, Shift-click on an empty spot of the board, Escape
+// and everything that lets go above let them all go; a latched one has a ring and a dot in the target's colour. The
+// view, the target, the theme, the knob sets and MASTER are remembered in this browser.
 //   mountPlay({ $, log, bu, buNow, fm1, fm1Track, octave, bver, back, blocked }) -> { show(), hide(), render(), state }
 import { Controls, SRC, NKEY, labelToMatrix, roleToMatrix, ledIndexOf, ledAlpha } from "../js/panel.js";
 import { Keyboard } from "../js/input.js";
@@ -23,6 +26,8 @@ const keep = (k, v) => { try { localStorage.setItem(`${KEY}-${k}`, JSON.stringif
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const DEG = Math.PI / 180;
 const LED = ledIndexOf(null);
+// key 11: the FM-1 counts its black keys B1..B11 left to right; B11 (F#5, the rightmost) has the longer LED
+const B11 = 25;
 
 // ---------------------------------------------------------------- the glyphs (unitpicker.js's, the mock-ups')
 const G = {
@@ -242,10 +247,11 @@ export function mountPlay(ctx) {
     }
     return `<div class="bseg petch" style="${pos};top:${p.y}px"><button data-deck="panel" class="${P.view === "panel" ? "on" : ""}">BUTTONS</button><button data-deck="keys" class="${P.view === "keys" ? "on" : ""}">KEYS</button></div>`;
   }
+  // (THIS BROWSER has no chip on the board: the tiles, the strip and the header say it)
   function pillHtml(p) {
+    if (P.cur !== "fm1") return "";
     const f = ctx.fm1();
-    const inner = P.cur === "fm1" ? `<span class="dot"></span>FM-1<span class="hud">TRACK ${P.track.t >= 0 ? P.track.t + 1 : "–"} · ${f && f.viaBle ? "BLUETOOTH" : "USB"}</span>` : `${G.browser}THIS BROWSER`;
-    return `<div class="bpill" style="left:${p.x}px;top:${p.y}px">${inner}</div>`;
+    return `<div class="bpill" style="left:${p.x}px;top:${p.y}px"><span class="dot"></span>FM-1<span class="hud">TRACK ${P.track.t >= 0 ? P.track.t + 1 : "–"} · ${f && f.viaBle ? "BLUETOOTH" : "USB"}</span></div>`;
   }
   function screenHtml() {
     if (P.cur === "fm1") { const f = ctx.fm1(); return fm1Screen(P.track.t, P.track.chan, f && f.viaBle ? "BLUETOOTH" : "USB"); }
@@ -273,8 +279,8 @@ export function mountPlay(ctx) {
         }
         case "bed": {
           bed = { p, L: keyLayout({ w: p.w - 2 * p.pad, h: p.h - 2 * p.pad, visible: p.visible, offset: P.offset, gap: p.gap }) };
-          const keys = bed.L.frames().map((f) => `<div class="k${f.black ? " blk" : ""}" data-key="${f.key}"></div>`).join("");
-          html.push(`<div class="bed" data-p="bed" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px;--pad:${p.pad}px"><div class="kstage">${keys}</div></div>`);
+          const keys = bed.L.frames().map((f) => `<div class="k${f.black ? " blk" : ""}${f.key === B11 ? " b11" : ""}" data-key="${f.key}"></div>`).join("");
+          html.push(`<div class="bed${p.visible >= 16 ? " all" : ""}" data-p="bed" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px;--pad:${p.pad}px"><div class="kstage">${keys}</div></div>`);
           break;
         }
         case "ovw":
@@ -341,6 +347,7 @@ export function mountPlay(ctx) {
     for (const el of board.querySelectorAll(".pb")) {
       const b = +el.dataset.b, a = lv ? ledAlpha(lv[LED[labelToMatrix(b)]] || 0) : 0;
       el.classList.toggle("down", C.btnHeld(b));
+      el.classList.toggle("latched", C.btnLatched(b));
       el.classList.toggle("lit", a > 0.3 && b !== 10);
       el.classList.toggle("on", b === 10 && lv ? P.green > 12 : false);
     }
@@ -348,6 +355,7 @@ export function mountPlay(ctx) {
       for (const el of bed.el.children) {
         const k = +el.dataset.key, held = C.keyHeld(k), a = lv ? ledAlpha(lv[LED[14 + k]] || 0) : 0;
         el.classList.toggle("held", held);
+        el.classList.toggle("latched", C.keyLatched(k));
         el.classList.toggle("lit", a > 0.04 && a <= 0.75);
         el.classList.toggle("hot", a > 0.75);
         el.style.setProperty("--a", a.toFixed(2));
@@ -380,11 +388,18 @@ export function mountPlay(ctx) {
     return bed.L.keyAt(q.x - bed.p.x - bed.p.pad, q.y - bed.p.y - bed.p.pad);
   }
   const stillHeld = (kind, idx, but) => [...P.fingers.entries()].some(([id, f]) => id !== but && f.kind === kind && f.idx === idx);
+  // a latch (Shift-click, right-click, ctrl-click; any click on a latched one): true when the press was one
+  const latchy = (e, on) => on || e.shiftKey || e.button === 2 || e.ctrlKey;
+  function latch(kind, idx, on, vel) {
+    if (kind === "btn") C.holdBtn(idx, SRC.LATCH, !on); else C.holdKey(idx, SRC.LATCH, !on, vel);
+    if (on && kind === "btn" && idx === 1 && P.cur === "fm1") setTimeout(readTrack, 300);   // (TRACKS let go: maybe another track)
+  }
   board.addEventListener("pointerdown", (e) => {
     const el = e.target.closest("[data-p]");
-    if (!el || e.button > 0) return;
-    if (P.cur === "browser") wake();
+    if (!el) { if (e.shiftKey && C.anyLatched() && !e.target.closest("button")) C.releaseLatches(); return; }   // (Shift-click on an empty spot)
     const kind = el.dataset.p;
+    if (e.button > 0 && !(e.button === 2 && (kind === "btn" || kind === "bed"))) return;
+    if (P.cur === "browser") wake();
     if (kind === "screen") { P.fingers.set(e.pointerId, { kind, x0: e.clientX, y0: e.clientY }); return; }
     e.preventDefault();
     try { el.setPointerCapture(e.pointerId); } catch (_) { /* (a synthetic event) */ }
@@ -394,11 +409,13 @@ export function mountPlay(ctx) {
       draw();
     } else if (kind === "btn") {
       const b = +el.dataset.b;
+      if (latchy(e, C.btnLatched(b))) { latch("btn", b, C.btnLatched(b)); return; }
       P.fingers.set(e.pointerId, { kind, idx: b });
       C.holdBtn(b, SRC.POINTER, true);
     } else if (kind === "bed") {
       const h = keyUnder(e);
       if (!h) return;
+      if (latchy(e, C.keyLatched(h.key))) { latch("key", h.key, C.keyLatched(h.key), velocity(h.depth)); return; }
       P.fingers.set(e.pointerId, { kind: "key", idx: h.key, depth: h.depth });
       C.holdKey(h.key, SRC.POINTER, true, velocity(h.depth));
     } else if (kind === "strip") {

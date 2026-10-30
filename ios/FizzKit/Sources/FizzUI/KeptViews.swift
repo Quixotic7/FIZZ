@@ -217,30 +217,12 @@ struct KeptHead: View {
                         .frame(width: 44, height: 44).contentShape(Circle())
                 }
                 .buttonStyle(PressStyle(scale: 0.9))
-            } else if selecting {
-                small("DONE", icon: KeptArt.check, filled: true, action: select)
             } else {
-                small("SELECT", icon: nil, filled: false, action: select)
-                NewButton(action: new)
+                // (the unit's SELECT's pill, in champagne)
+                SelectPill(selecting: selecting, color: FZ.champagne, action: select)
+                if !selecting { NewButton(action: new) }
             }
         }
-    }
-
-    private func small(_ t: String, icon: VectorArt?, filled: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if let icon { IconView(icon, color: .black, lineWidth: 2.6, backdrop: FZ.champagne.color).frame(width: 15, height: 15) }
-                Text(t).fz(14, 800, em: 0.08)
-            }
-            .foregroundStyle(filled ? Color.black : FZ.text.color)
-            .padding(.horizontal, 16).frame(height: 44)
-            .background(Capsule().fill(filled ? FZ.champagne.color : .clear))
-            .overlay(Capsule().strokeBorder(filled ? .clear : FZ.line.color, lineWidth: 1.5))
-            .shadow(color: filled ? FZ.champagne.opacity(0.45) : .clear, radius: 10)
-            .contentShape(Capsule())
-            .fixedSize()
-        }
-        .buttonStyle(PressStyle(scale: 0.95))
     }
 }
 
@@ -814,30 +796,34 @@ struct KeptPanel: View {
 
 // MARK: - LIBRARY's sources
 
-/// The phone's KEPT, then MY PRESETS / FACTORY / ALL (the unit's): the phone lit champagne.
+/// ALL, MY PRESETS, FACTORY (the unit's), then the phone's KEPT last, lit champagne (LibrarySide's order).
 struct LibrarySourceSeg: View {
     @Binding var kept: Bool
     @Binding var source: LibraryFilter.Source
     var body: some View {
         HStack(spacing: 0) {
-            Button { kept = true } label: {
-                PhoneGlyph(size: 17, color: kept ? RGB(0x000000) : FZ.champagne)
-                    .frame(width: 48, height: 38)
-                    .background(kept ? FZ.champagne.color : .clear)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            ForEach([LibraryFilter.Source.mine, .factory, .all], id: \.self) { s in
-                let on = !kept && s == source
-                Button { kept = false; source = s } label: {
-                    Text(s == .mine ? "MY PRESETS" : s == .factory ? "FACTORY" : "ALL").fz(13, 800, em: 0.06)
-                        .foregroundStyle(on ? Color.black : FZ.muted.color)
-                        .lineLimit(1).fixedSize()
-                        .padding(.horizontal, 9).frame(maxWidth: .infinity).frame(height: 38)
-                        .background(on ? FZ.cream.color : .clear)
-                        .contentShape(Rectangle())
+            ForEach(LibrarySide.allCases, id: \.self) { side in
+                if let s = side.source {
+                    let on = !kept && s == source
+                    Button { kept = false; source = s } label: {
+                        Text(side.title).fz(13, 800, em: 0.06)
+                            .foregroundStyle(on ? Color.black : FZ.muted.color)
+                            .lineLimit(1).fixedSize()
+                            .padding(.horizontal, 9).frame(maxWidth: .infinity).frame(height: 38)
+                            .background(on ? FZ.cream.color : .clear)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button { kept = true } label: {
+                        PhoneGlyph(size: 17, color: kept ? RGB(0x000000) : FZ.champagne)
+                            .frame(width: 52, height: 38)
+                            .background(kept ? FZ.champagne.color : .clear)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("KEPT")
                 }
-                .buttonStyle(.plain)
             }
         }
         .clipShape(Capsule())

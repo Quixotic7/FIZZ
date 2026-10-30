@@ -1292,6 +1292,169 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .pp.land .no { color: var(--cyan); }
 .spill.beside { border: 2px solid var(--green); background: color-mix(in srgb, var(--green) 14%, var(--raised)); }
 
+/* ================================================================ 49–54: PLAY as an exact copy of RemoteFM1 for iOS (each frame beside the real screen) */
+/* Drawn from RemoteFM1's own screens (simctl shots, FIZZ's core loaded) and measured in points; no RemoteFM1 code.
+   The type follows RemoteFM1: Chakra Petch on the faceplate, DM Sans for the chip and the sheet, Unbounded for the
+   sheet's title (all OFL, fonts/). Prefix .c = the copy. */
+@font-face { font-family: "DM Sans"; src: url("fonts/DMSans.ttf") format("truetype"); font-weight: 100 1000; }
+@font-face { font-family: "Unbounded"; src: url("fonts/Unbounded.ttf") format("truetype"); font-weight: 200 900; }
+.cmp { display: flex; gap: 24px; align-items: flex-start; }
+.cmp.col { flex-direction: column; gap: 20px; }
+.cmp .who { height: 30px; display: flex; align-items: center; gap: 10px; margin-bottom: 0; font: 800 15px "Inter Tight"; letter-spacing: .06em; color: #ECECEF; white-space: nowrap; }
+.cmp .who .tg { height: 24px; padding: 0 10px; border-radius: 12px; background: #2a2a31; color: #c9c9d1; font: 800 12px/24px "Inter Tight"; letter-spacing: .1em; }
+.cmp .who .tg.fz { background: #FF8A4C; color: #000; }
+.cmp .who i { font-style: normal; font-weight: 600; color: #8D8D96; letter-spacing: .01em; }
+.cmp .side { flex: none; }
+.ref .scr > img.rimg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* the faceplate's parts, as RemoteFM1 draws them */
+.cp { position: absolute; inset: 0; background: var(--t-body); overflow: hidden; }
+.cp .a { position: absolute; }
+.cchip { height: 28px; padding: 0 13px 0 11px; border-radius: 14px; background: rgba(0, 0, 0, .14); display: flex; align-items: center; gap: 9px; color: var(--t-label); font: 500 13.5px/1 "DM Sans"; white-space: nowrap; box-sizing: border-box; }
+.cchip i { width: 7px; height: 7px; border-radius: 50%; background: var(--t-label); flex: none; }
+.cchip.lnk i { background: #3BD47A; }
+.cchip.bk { background: #FFD23F; color: #1b1300; padding-right: 3px; gap: 7px; font-weight: 600; }
+.cchip.bk i { background: #1b1300; }
+.cchip.bk .xx { width: 22px; height: 22px; border-radius: 11px; background: rgba(0, 0, 0, .82); display: grid; place-items: center; margin-left: 2px; }
+.cchip.bk .xx svg { width: 9px; height: 9px; fill: none; stroke: #FFD23F; stroke-width: 3.4; stroke-linecap: round; }
+.cgrab { height: 5px; border-radius: 3px; background: var(--t-label); opacity: .55; }
+.cfz { height: 28px; display: flex; align-items: center; gap: 5px; padding: 0 11px 0 5px; border-radius: 14px; background: #0b0b0e; box-sizing: border-box; }
+.cfz .bub { width: 20px; height: 20px; stroke-width: 2.8; }
+.cfz .word { font-size: 14px; letter-spacing: .1em; }
+.cfz.round { width: 40px; height: 40px; padding: 0; border-radius: 20px; justify-content: center; }
+.cfz.round .bub { width: 26px; height: 26px; }
+.ckl { position: absolute; transform: translateX(-50%); font: 700 9px/1 "Chakra Petch"; letter-spacing: .08em; color: var(--t-label); white-space: nowrap; text-transform: uppercase; }
+.ckn { position: absolute; border-radius: 50%; }
+.ckn svg { display: block; }
+.cled { position: absolute; border-radius: 2px; background: #FF3B2F; box-shadow: 0 0 8px #FF3B2F; }
+.cwell { position: absolute; background: var(--t-bed); box-sizing: border-box; display: grid; }
+.cbt { position: relative; background: var(--t-key); box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo); color: var(--t-keyText); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+.cbt .lg { font: 700 var(--bf)/1.1 "Chakra Petch"; letter-spacing: .06em; white-space: nowrap; padding-left: .06em; }
+.cbt .gl { width: var(--gl); height: var(--gl); margin-bottom: 2px; }
+.cbt.on { background: var(--t-hi); }
+.cbt.on .lg { color: var(--t-led); text-shadow: 0 0 8px var(--t-led); }
+.cbt .sled { display: block; border-radius: 3px; background: var(--t-ledOff); }
+.cbt .sled.on { background: var(--t-led); opacity: .6; }
+.cbt .sled.hd { background: var(--t-led); opacity: 1; box-shadow: 0 0 10px var(--t-led), 0 0 3px var(--t-led); }
+.cbt .sn { font: 700 var(--nf, 11px)/1 "Chakra Petch"; color: var(--t-keyText); margin-top: 5px; }
+.cbt.held { background: var(--t-hi); box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo), 0 0 0 2px var(--t-led), 0 0 16px color-mix(in srgb, var(--t-led) 55%, transparent); }
+.cbt .nd { display: flex; gap: 3px; margin-top: 4px; }
+.cbt .nd i { width: 6px; height: 6px; border-radius: 50%; }
+.cdots { position: absolute; left: 0; right: 0; display: flex; justify-content: center; }
+.cdots span { width: 36px; height: 24px; display: grid; place-items: center; }
+.cdots span i { width: 8px; height: 8px; border-radius: 4px; background: var(--t-label); opacity: .35; }
+.cdots span.on i { width: 22px; opacity: 1; }
+.cword { font: 700 12px/1 "Chakra Petch"; letter-spacing: .14em; color: var(--t-label); }
+.csw { display: flex; gap: 4px; justify-content: center; }
+.csw span { height: 32px; padding: 0 12px; border-radius: 16px; color: var(--t-label); font: 700 11px/32px "Chakra Petch"; letter-spacing: .12em; }
+.csw span.on { background: rgba(0, 0, 0, .14); }
+.cdeck { display: flex; height: 36px; padding: 3px; border-radius: 18px; background: rgba(0, 0, 0, .14); box-sizing: border-box; }
+.cdeck span { flex: 1; border-radius: 15px; color: var(--t-label); font: 700 12.5px/30px "Chakra Petch"; letter-spacing: .12em; text-align: center; }
+.cdeck span.on { background: var(--t-key); color: var(--t-keyText); }
+/* the pull-down, as RemoteFM1's sheet: Unbounded title, DM Sans, its browns */
+.csheet { position: absolute; left: 0; right: 0; top: 0; z-index: 70; padding: 54px 20px 0; background: #17140F; border-radius: 0 0 34px 34px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); color: #F3EBDC; font-family: "DM Sans"; }
+.csheet .ttl { display: flex; align-items: center; justify-content: space-between; height: 48px; }
+.csheet .ttl b { font: 700 24px/1 "Unbounded"; color: #F3EBDC; letter-spacing: -.01em; }
+.csheet .done { height: 44px; padding: 0 15px; border-radius: 22px; background: #2A251F; font: 600 15px/44px "DM Sans"; color: #F3EBDC; }
+.csheet h4 { margin: 21.5px 0 11px; font: 600 11px/1 "DM Sans"; letter-spacing: .19em; color: #A69C8A; text-transform: uppercase; }
+.csheet .ttl + h4 { margin-top: 18px; }
+.csheet .srcs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.csheet .src { height: 80px; border-radius: 20px; border: 1px solid #3A352D; padding: 0 13px; display: flex; flex-direction: column; justify-content: center; gap: 6px; box-sizing: border-box; }
+.csheet .src b { display: flex; align-items: center; gap: 9px; font: 600 16.5px/1.1 "DM Sans"; color: #F3EBDC; }
+.csheet .src b i { width: 8px; height: 8px; border-radius: 50%; background: #6E6557; flex: none; }
+.csheet .src small { font: 400 13.5px/1.2 "DM Sans"; color: #B5AB99; white-space: nowrap; }
+.csheet .src.on { border: 1.5px solid #FF8A4C; background: #2A251F; }
+.csheet .src.on b i { background: #FF8A4C; }
+.csheet .src.fm b i { background: #3BD47A; }
+.csheet .views { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.csheet .vw { height: 98px; border-radius: 20px; border: 1px solid #3A352D; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font: 600 13.5px "DM Sans"; color: #F3EBDC; box-sizing: border-box; }
+.csheet .vw.on { border: 1.5px solid #FF8A4C; background: #2A251F; }
+.csheet .vw .g { width: 44px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.csheet .vw .g s { display: block; border-radius: 3px; text-decoration: none; }
+.csheet .thm { display: flex; gap: 10px; align-items: center; }
+.csheet .sw { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.csheet .sw.on { box-shadow: inset 0 0 0 4px #FF8A4C; }
+.csheet .sw > span { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; }
+.csheet .sw > span > span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+.csheet .sw > span > span > span { width: 9px; height: 9px; border-radius: 50%; }
+.csheet .list { margin-top: 20px; background: #211E19; border-radius: 20px; overflow: hidden; }
+.csheet .li { min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 17px; border-bottom: 1px solid #2E2A23; font: 500 15.5px "DM Sans"; color: #F3EBDC; }
+.csheet .li:last-child { border-bottom: 0; }
+.csheet .li .v { margin-left: auto; color: #A69C8A; display: flex; align-items: center; gap: 8px; }
+.csheet .li .v svg { width: 15px; height: 15px; fill: none; stroke: #B5AB99; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.csheet .li.mem { min-height: 70px; }
+.csheet .li .mm { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+.csheet .li .mm .meter { height: 10px; border-radius: 5px; background: #15120F; display: flex; overflow: hidden; }
+.csheet .li .mm small { font: 400 13px "DM Sans"; color: #B5AB99; }
+.csheet .rst { height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid color-mix(in srgb, #FF6464 60%, transparent); color: #FF6464; font: 600 14px/34px "DM Sans"; }
+.csheet .nav { position: relative; left: auto; right: auto; bottom: auto; margin: 16px -4px 0; }
+.csheet .close { height: 34px; display: flex; align-items: center; justify-content: center; }
+.csheet .close span { width: 40px; height: 5px; border-radius: 3px; background: #6E6557; }
+
+/* ================================================================ 55-57: MIDI & audio, MIDI learn, a RemoteFM1 unit as the panel */
+.cmpg { display: grid; gap: 20px 24px; }
+.csheet.pg { height: 772px; display: flex; flex-direction: column; box-sizing: border-box; padding-bottom: 0; }
+.csheet .m-bk { height: 30px; margin-top: 8px; display: flex; align-items: center; gap: 6px; font: 500 16px "DM Sans"; color: #B5AB99; }
+.csheet .m-bk svg { width: 15px; height: 15px; fill: none; stroke: #B5AB99; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.csheet .m-pt { font: 700 23px/1 "Unbounded"; color: #F3EBDC; letter-spacing: -.01em; margin: 9px 0 0; height: 30px; }
+.csheet .m-pgb { flex: 1; overflow: hidden; margin: 0 -20px; padding: 0 20px; position: relative; }
+.csheet .m-pgb .m-pgi { position: relative; }
+.csheet .m-pgb + .nav { margin-top: 10px; }
+.csheet .list.m-r { margin-top: 0; }
+.csheet .li.m-r52 { min-height: 52px; }
+.csheet .m-nt { font: 400 13px/1.38 "DM Sans"; color: #A69C8A; margin: 9px 0 0; }
+.csheet .m-tgl2 { margin-left: auto; width: 51px; height: 31px; border-radius: 16px; background: #FF8A4C; position: relative; flex: none; }
+.csheet .m-tgl2::after { content: ""; position: absolute; top: 2px; right: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .25); }
+.csheet .m-tgl2.off { background: #4A453E; } .csheet .m-tgl2.off::after { right: auto; left: 2px; }
+.csheet .m-stp { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.csheet .m-stp b { font: 500 15.5px "DM Sans"; color: #A69C8A; }
+.csheet .m-stp span { display: flex; height: 34px; border-radius: 17px; background: #2A251F; }
+.csheet .m-stp span i { width: 46px; display: grid; place-items: center; font: 500 20px/34px "DM Sans"; color: #F3EBDC; font-style: normal; }
+.csheet .m-stp span i + i { box-shadow: inset 1px 0 0 #3A352D; }
+.csheet .m-seg2 { margin-left: auto; display: flex; height: 34px; padding: 0; border-radius: 17px; background: #2A251F; }
+.csheet .m-seg2 span { width: 50px; display: grid; place-items: center; border-radius: 17px; font: 600 14px "DM Sans"; color: #F3EBDC; }
+.csheet .m-seg2 span.on { background: #FF8A4C; color: #17140F; }
+.csheet .m-acc { margin-left: auto; height: 44px; padding: 0 18px; border-radius: 22px; background: #FF8A4C; color: #17140F; font: 600 15.5px/44px "DM Sans"; flex: none; }
+.csheet .m-acc.gh { background: #2A251F; color: #F3EBDC; }
+.csheet .m-two { display: flex; flex-direction: column; gap: 3px; } .csheet .m-two small { font: 400 12.5px "DM Sans"; color: #B5AB99; }
+.csheet .m-mp { font: 500 15px "DM Sans"; color: #B5AB99; white-space: nowrap; } .csheet .m-mp b { font-weight: 700; color: #F3EBDC; } .csheet .m-mp em { font-style: normal; color: #8A8172; margin: 0 3px; }
+.csheet .m-mode { margin-left: auto; height: 30px; padding: 0 10px; border-radius: 15px; background: #2A251F; font: 600 13.5px/30px "DM Sans"; color: #F3EBDC; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.csheet .m-mode svg, .csheet .m-xm svg { width: 11px; height: 11px; fill: none; stroke: #F3EBDC; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.csheet .m-xm { width: 32px; display: grid; place-items: center; flex: none; } .csheet .m-xm svg { stroke: #B5AB99; width: 15px; height: 15px; stroke-width: 2.4; }
+.csheet .m-mode + .m-xm { margin-left: 0; } .csheet .m-mp + .m-xm { margin-left: auto; }
+.csheet .m-pk { height: 22px; padding: 0 8px; border-radius: 11px; border: 1px solid #3A352D; font: 600 11.5px/20px "DM Sans"; color: #B5AB99; margin-left: 8px; box-sizing: border-box; }
+.csheet .m-clr { display: flex; justify-content: flex-end; margin-top: 10px; } .csheet .m-clr span { height: 44px; padding: 0 17px; border-radius: 22px; border: 1px solid #3A352D; font: 600 14px/42px "DM Sans"; color: #F3EBDC; box-sizing: border-box; }
+.csheet .m-pp { font: 400 14.5px/1.4 "DM Sans"; color: #B5AB99; margin: 0 0 12px; }
+.csheet .m-st { display: flex; align-items: center; gap: 10px; font: 500 15px "DM Sans"; color: #3BD47A; margin-top: 12px; } .csheet .m-st i { width: 9px; height: 9px; border-radius: 50%; background: #3BD47A; box-shadow: 0 0 8px #3BD47A; }
+.csheet .m-acc.inl { margin-left: 0; display: inline-block; }
+.csheet .m-ck { margin-left: auto; width: 16px; height: 16px; fill: none; stroke: #FF8A4C; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+/* MIDI learn on the faceplate (RemoteFM1's LearnRing / LearnOutline / LearnBar / PotMark / ToastView, redrawn) */
+.lring { position: absolute; border-radius: 50%; pointer-events: none; box-sizing: border-box; }
+.lring svg { display: block; overflow: visible; }
+.lring .bd { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--t-body); display: grid; place-items: center; }
+.lring .bd::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--t-label); }
+.lring.s svg circle { animation: lpulse 1.2s ease-in-out infinite; }
+@keyframes lpulse { 0%, 100% { stroke-width: 2.5; opacity: .6; } 50% { stroke-width: 4; opacity: 1; } }
+.cbt.lrn { outline: 1.2px dashed color-mix(in srgb, var(--t-led) 55%, transparent); outline-offset: 3px; overflow: visible; }
+.cbt.lrn.b { outline: 2px solid color-mix(in srgb, var(--t-led) 95%, transparent); }
+.cbt.lrn.s { outline: 3px solid var(--t-led); box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo), 0 0 14px var(--t-led); }
+.clbar { position: absolute; left: 16px; right: 16px; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 18px; background: #17140F; border: 1px solid #FF8A4C; box-shadow: 0 6px 0 rgba(0, 0, 0, .18), 0 14px 36px rgba(0, 0, 0, .45); z-index: 60; box-sizing: border-box; }
+.clbar .ld { width: 9px; height: 9px; border-radius: 50%; background: #FF8A4C; box-shadow: 0 0 10px #FF8A4C; flex: none; animation: breathe 1.2s ease-in-out infinite; }
+.clbar .lt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.clbar .lt b { font: 700 11px "Chakra Petch"; letter-spacing: .14em; color: #FF8A4C; }
+.clbar .lt span { font: 500 13.5px/1.3 "DM Sans"; color: #F3EBDC; }
+.clbar .pl { height: 36px; padding: 0 14px; border-radius: 18px; background: #2A251F; color: #F3EBDC; font: 700 13px/36px "DM Sans"; flex: none; }
+.clbar .pl.ac { background: #FF8A4C; color: #17140F; }
+.ctoast { position: absolute; left: 50%; transform: translateX(-50%); width: max-content; max-width: 358px; padding: 10px 16px; border-radius: 14px; background: rgba(23, 20, 15, .97); border: 1px solid #3A352D; box-shadow: 0 8px 28px rgba(0, 0, 0, .45); font: 500 13px/1.3 "DM Sans"; color: #F3EBDC; z-index: 60; text-align: center; box-sizing: border-box; }
+.ctoast.ok { border-color: color-mix(in srgb, #3BD47A 55%, transparent); }
+.potm { position: absolute; width: 5.2px; height: 5.2px; margin: -2.6px 0 0 -2.6px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--t-label) 75%, transparent); box-sizing: border-box; }
+/* the unit picker: a RemoteFM1 unit, offered as the panel */
+.urow.pan { border-color: color-mix(in srgb, var(--c) 70%, var(--line)); height: auto; flex-wrap: wrap; padding: 12px 14px 14px 12px; row-gap: 10px; }
+.urow.pan .usep { flex: 1 0 100%; height: 46px; border-radius: 23px; background: var(--c); color: #000; display: flex; align-items: center; justify-content: center; gap: 9px; font: 800 16px "Inter Tight"; letter-spacing: .06em; box-shadow: 0 0 18px color-mix(in srgb, var(--c) 45%, transparent); animation: breathe 2.2s ease-in-out infinite; }
+.urow.pan .usep svg { width: 20px; height: 20px; fill: none; stroke: #000; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.urow .rfmv { height: 22px; padding: 0 8px; border-radius: 6px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); font: 800 12px/22px "Inter Tight"; letter-spacing: .06em; }
+.cell.full { width: 1572px; }
+.cell.full .zf { zoom: .89; }
+
 /* ================================================================ the page around the devices */
 body.shot { padding: 16px; width: fit-content; }
 body.sheet { width: 1640px; padding: 30px 34px 40px; }
@@ -1904,7 +2067,7 @@ function buttons(bw, bh, gap, { on = [], bf = 12, ic = 9 } = {}) {
 }
 // the LED keybed (Keys.dc): FIZZ's white keys are the 16 steps (their LEDs the trigs), the black keys B1..B11
 const STEP = 60 / 122 / 4;   // a sixteenth at 122 BPM
-function keybed({ x, y, W, H, layout = "scroll", keyW = 40, mode = "seq", steps, head = -1, offset = null, nums = false }) {
+function keybed({ x, y, W, H, layout = "scroll", keyW = 40, mode = "seq", steps, head = -1, offset = null, nums = false, held = [], wave = true }) {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), rd = (v) => Math.round(v * 10) / 10;
   const scroll = layout === "scroll", seq = mode === "seq";
   const pad = clamp(Math.round(Math.min(W, H) * 0.05), 8, 18), g = clamp(Math.round(W * 0.008), 3, 10);
@@ -1920,7 +2083,7 @@ function keybed({ x, y, W, H, layout = "scroll", keyW = 40, mode = "seq", steps,
   let k = "";
   for (let i = 0; i < 16; i++) {
     const on = !!steps[i], hd = !live && i === head;
-    k += `<span class="ky ${on ? "on" : ""} ${hd ? "hd" : ""} ${live ? "ewave" : ""}" style="left:${rd(ox + i * p)}px;top:${rd(oy + bh + vg)}px;width:${rd(kw)}px;height:${wh}px;--r:${r}px;gap:${Math.round(wh * 0.08)}px;--cyc:${cyc.toFixed(3)}s;--dl:${(-(cyc - i * STEP)).toFixed(3)}s">` +
+    k += `<span class="ky ${on ? "on" : ""} ${hd ? "hd" : ""} ${held.includes(i) ? "held" : ""} ${live && wave ? "ewave" : ""}" style="left:${rd(ox + i * p)}px;top:${rd(oy + bh + vg)}px;width:${rd(kw)}px;height:${wh}px;--r:${r}px;gap:${Math.round(wh * 0.08)}px;--cyc:${cyc.toFixed(3)}s;--dl:${(-(cyc - i * STEP)).toFixed(3)}s">` +
       `<i style="width:${lw}px;height:${Math.round(wh * (seq ? 0.34 : 0.42))}px"></i>${nums ? `<b>${i + 1}</b>` : ""}</span>`;
   }
   for (const a of [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14]) {
@@ -2426,6 +2589,312 @@ SCREENS.push(
     html: () => ipadDrag() },
 );
 
+// ---------------------------------------------------------------- 49–54: PLAY as an exact copy of RemoteFM1 for iOS
+// Each frame stands beside the RemoteFM1 screen it copies (screens/rfm1: RemoteFM1 for iOS in the simulator with FIZZ's
+// own core loaded, Tangerine, same moment). The numbers are measured on those screens, in points; nothing of
+// RemoteFM1's code is used (it is GPL-3.0; the app reimplements the look). FIZZ keeps its own names (the 12 buttons,
+// F1 / F2), its screen, and its extras: the STEPS view, the FIZZ badge (back to the manager), the backup pill.
+const RFM_DOTS = (n, on, bottom = 18) => `<div class="cdots" style="bottom:${bottom}px">${Array.from({ length: n }, (_, i) => `<span class="${i === on ? "on" : ""}"><i></i></span>`).join("")}</div>`;
+// a knob (RemoteFM1's: the dark body, the knurled ring, the cap, a white pointer, the hard shadow), centred at cx;
+// its label (Chakra Petch, max(9, 17 % of the knob)) above, its line top lf + 6 pt over the knob
+function cknob(label, cx, top, size, angle = 0) {
+  const lf = Math.max(9, Math.round(size * 0.17 * 2) / 2), sh = Math.max(3, Math.round(size * 0.06));
+  return `<span class="ckl" style="left:${cx}px;top:${top - lf - 6}px;font-size:${lf}px">${label}</span>` +
+    `<span class="ckn" style="left:${cx - size / 2}px;top:${top}px;width:${size}px;height:${size}px;box-shadow:0 ${sh}px 0 rgba(0,0,0,.28)"><svg width="${size}" height="${size}" viewBox="0 0 100 100">` +
+    `<circle cx="50" cy="50" r="50" style="fill:var(--t-knob)"/><circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="8" stroke-dasharray="3.2 3.9"/>` +
+    `<circle cx="50" cy="50" r="36" style="fill:var(--t-knob)"/><circle cx="50" cy="50" r="36" fill="rgba(255,255,255,.07)"/>` +
+    `<g style="transform:rotate(${angle}deg);transform-origin:50px 50px"><line x1="50" y1="10" x2="50" y2="30" style="stroke:var(--t-mark)" stroke-width="7" stroke-linecap="round"/></g></svg></span>`;
+}
+// a well of buttons (the button well, the OCT / F1-F2 tray, the STEPS pads): cols x rows, each bw x bh, gap, padding
+function cwell(x, y, cols, bw, bh, gap, pad, items, { bf = Math.max(10, Math.round(bh * 0.26 * 2) / 2), r = null, wr = null } = {}) {
+  const w = cols * bw + (cols - 1) * gap + 2 * pad, rows = Math.ceil(items.length / cols), h = rows * bh + (rows - 1) * gap + 2 * pad;
+  const rad = r ?? Math.round(bh * 0.24), wrad = wr ?? Math.round(bh * 0.34) + 6;
+  return `<div class="cwell" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;padding:${pad}px;gap:${gap}px;grid-template-columns:repeat(${cols},${bw}px);border-radius:${wrad}px">` +
+    items.map((it) => `<span class="cbt ${it.cls || ""}" style="height:${bh}px;border-radius:${rad}px;--bf:${bf}px;--gl:${Math.max(6, Math.round(bh * 0.15))}px">${it.html}</span>`).join("") + "</div>";
+}
+const GL_PLAY = '<svg class="gl" viewBox="0 0 10 10"><path d="M2 1l7 4-7 4z" fill="#4FE08A"/></svg>';
+const GL_REC = '<svg class="gl" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#FF4436"/></svg>';
+// FIZZ's 12 names (core_quadrille_desc.c) at RemoteFM1's legend size (26 % of the key's height, tracking 0.06 em);
+// a name too long for its key drops the tracking, then shrinks to fit (SwiftUI's minimumScaleFactor), to 0.25 pt.
+// LEGW: each name's width in Chakra Petch Bold, in em, tracking 0. MIDI FX on two lines.
+const FIZZ12 = ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "MIDI FX", "PATTERNS", "PLAY", "REC"];
+const LEGW = { FX: 1.228, TRACKS: 3.848, MIX: 1.729, LATCH: 3.144, EDIT: 2.154, SHIFT: 2.771, HOME: 2.805, SOUNDS: 4.059, "MIDI FX": 2.041, PATTERNS: 5.075, PLAY: 2.487, REC: 1.936 };
+function legend(n, bw, base) {
+  const room = bw - 6, w = LEGW[n] || 3, len = n.split(" ")[0].length;
+  if ((w + 0.06 * len) * base <= room) return { fs: base, tr: 0.06 };
+  return { fs: Math.min(base, Math.floor(room / w * 4) / 4), tr: 0 };
+}
+const fizzBtns = (bw, base, on = []) => FIZZ12.map((n) => {
+  const { fs, tr } = legend(n, bw, base);
+  return { cls: on.includes(n) ? "on" : "", html: (n === "PLAY" ? GL_PLAY : n === "REC" ? GL_REC : "") +
+    `<span class="lg" style="font-size:${fs}px;letter-spacing:${tr}em;padding-left:${tr}em">${n.replace(" ", "<br>")}</span>` };
+});
+const fBtns = (f = ["F1", "F2"]) => f.map((n) => ({ html: `<span class="lg">${n}</span>` }));
+const cscreen = (x, y, s, img) => `<div class="a" style="left:${x}px;top:${y}px">${fscreen(s, img)}</div>`;
+// the header row: RemoteFM1's status chip (here FIZZ's unit: THIS iPHONE / FM-1 / the backup pill), the grabber, and the
+// FIZZ badge where RemoteFM1 has its wordmark (a tap goes back to the manager)
+function chead(y, h, { left = 16, right = 16, W = 390, chip = "THIS iPHONE", kind = "", grabW = 40, fz = 28, fs = 13.5 } = {}) {
+  const ch = kind === "bk" ? `<span class="cchip bk" style="height:${h}px;font-size:${fs - 1}px">${chip}<span class="xx">${IC.x}</span></span>`
+    : `<span class="cchip ${kind}" style="height:${h}px;border-radius:${h / 2}px;font-size:${fs}px"><i></i>${chip}</span>`;
+  return `<div class="a" style="left:${left}px;top:${y}px">${ch}</div>` +
+    `<div class="a cgrab" style="left:${(W - grabW) / 2}px;top:${y + h / 2 - 2.5}px;width:${grabW}px"></div>` +
+    `<div class="a" style="right:${right}px;top:${y + (h - fz) / 2}px"><span class="cfz" style="height:${fz}px;border-radius:${fz / 2}px">${BUB}<span class="word">FIZZ</span></span></div>`;
+}
+const ccp = (inner, theme = "Tangerine") => `<div class="cp" style="${tv(theme)}">${inner}</div>`;
+function cphone(inner, theme = "Tangerine") {
+  return `<div class="phone"><div class="scr emus" style="${tv(theme)};background:var(--t-body)"><div class="sb"><span>9:41</span>${SB_ICONS}</div><div class="island"></div>${ccp(inner, theme)}<div class="home"></div></div></div>`;
+}
+function cphoneLand(inner, theme = "Tangerine") {
+  return `<div class="phone land"><div class="scr emus" style="${tv(theme)};background:var(--t-body)"><div class="island"></div>${ccp(inner, theme)}<div class="home"></div></div></div>`;
+}
+function cipad(inner, theme = "Tangerine") {
+  return `<div class="ipad"><div class="cam"></div><div class="scr emus" style="${tv(theme)};background:var(--t-body)">${ccp(inner, theme)}<div class="home"></div></div></div>`;
+}
+// RemoteFM1's own screen in the same frame
+const rphone = (img) => `<div class="phone ref"><div class="scr"><img class="rimg" src="screens/rfm1/${img}.png" alt=""><div class="island"></div><div class="home" style="background:#3A1606;opacity:.7"></div></div></div>`;
+const rphoneLand = (img) => `<div class="phone land ref"><div class="scr"><img class="rimg" src="screens/rfm1/${img}.png" alt=""><div class="island"></div><div class="home" style="background:#3A1606;opacity:.7"></div></div></div>`;
+const ripad = (img) => `<div class="ipad ref"><div class="cam"></div><div class="scr"><img class="rimg" src="screens/rfm1/${img}.png" alt=""><div class="home" style="background:#3A1606;opacity:.7"></div></div></div>`;
+const who = (fz, what) => `<div class="who"><span class="tg ${fz ? "fz" : ""}">${fz ? "FIZZ PLAY" : "RemoteFM1"}</span><i>${what}</i></div>`;
+const cmp = (a, b, col = false) => `<div class="cmp ${col ? "col" : ""}"><div class="side">${a}</div><div class="side">${b}</div></div>`;
+const OFF16 = Array(16).fill(0);
+
+// 49: iPhone portrait, FULL (RemoteFM1's Main: 390 x 844)
+function cpFull() {
+  const kn = [76, 163, 250, 337];
+  return chead(52, 28) +
+    cknob("MASTER", 53, 111, 46, -135) + cknob("SELECT", 127, 111, 46) + cknob("PRESETS", 53, 186, 46) + cknob("ALGORITHM", 127, 186, 46) +
+    cwell(16, 246, 2, 66, 42, 6, 5, fBtns(), { bf: 13, r: 10, wr: 14 }) +
+    cscreen(172, 96, 202, "fizz-logo") +
+    `<span class="cled" style="left:16px;top:345px;width:10px;height:10px"></span>` +
+    kn.map((x, i) => cknob(`KN${i + 1}`, x, 331, 46)).join("") +
+    cwell(21, 400, 6, 48, 42, 8, 10, fizzBtns(48, 11)) +
+    keybed({ x: 16, y: 530, W: 358, H: 272, layout: "scroll", keyW: 40, mode: "play", steps: OFF16, wave: false, offset: 4 }) +
+    RFM_DOTS(4, 0, 18);
+}
+// 50: iPhone landscape (RemoteFM1's PhoneWide: 844 x 390); no status row, the FIZZ badge in the right margin
+function cpLand() {
+  const kn = [461.5, 561.5, 661.3, 761];
+  return `<div class="a cgrab" style="left:402px;top:19.7px;width:40px"></div>` +
+    cknob("MASTER", 87, 35, 38, -135) + cknob("SELECT", 153, 35, 38) + cknob("PRESETS", 87, 96, 38) + cknob("ALGORITHM", 153, 96, 38) +
+    cwell(54, 144, 2, 58, 38, 6, 5, fBtns(), { bf: 12.5, r: 10, wr: 14 }) +
+    cscreen(198, 20, 172, "fizz-logo") +
+    `<span class="cled" style="left:386px;top:45px;width:9px;height:9px"></span>` +
+    kn.map((x, i) => cknob(`KN${i + 1}`, x, 35, 38)).join("") +
+    cwell(386, 88, 6, 58, 38, 8, 10, fizzBtns(58, 10)) +
+    keybed({ x: 50, y: 206, W: 744, H: 170, layout: "row", mode: "play", steps: OFF16, wave: false }) +
+    `<div class="a" style="left:799px;top:16px"><span class="cfz round">${BUB}</span></div>`;
+}
+// 51: iPad landscape (RemoteFM1's PadWide at 1180 x 820: no status bar, no rail)
+function cpPad() {
+  const kn = [694.3, 825, 956, 1087];
+  return chead(26.5, 30, { chip: "THIS iPAD", left: 47.5, right: 47.5, W: 1180, grabW: 47, fz: 30, fs: 14.5 }) +
+    cknob("MASTER", 95, 103.5, 63, -135) + cknob("SELECT", 189.8, 103.5, 63) + cknob("PRESETS", 95, 213, 63) + cknob("ALGORITHM", 189.8, 213, 63) +
+    cwell(47.5, 328.5, 2, 86.75, 43, 6, 5, fBtns(), { bf: 15, r: 11, wr: 15 }) +
+    cscreen(269.5, 86.5, 295, "fizz-logo") +
+    `<span class="cled" style="left:598px;top:125px;width:10px;height:10px"></span>` +
+    kn.map((x, i) => cknob(`KN${i + 1}`, x, 104, 63)).join("") +
+    cwell(599, 230, 6, 76.9, 59, 10, 10, fizzBtns(76.9, 15.5)) +
+    keybed({ x: 47.5, y: 417, W: 1085, H: 356, layout: "row", mode: "play", steps: OFF16, wave: false }) +
+    RFM_DOTS(4, 0, 18);
+}
+// 52: STEPS, FIZZ's own view, built only of RemoteFM1's parts and laid on Main's grid: KN 1-4 where MAIN's 2 x 2 is,
+// OCT - / + in the tray, the screen at 202; the 16 steps as keys in a well (8 x 2, their LEDs and numbers as the
+// keybed's step mode), then RemoteFM1's own keybed, chromatic, playing the selected track
+const NOTE = { C4: "#FFD23F", G4: "#1FD47E" };   // as FIZZ's screen colours them
+function cpSteps() {
+  const pads = Array.from({ length: 16 }, (_, i) => {
+    const held = i === 0, on = DRUMS[i], cls = held ? "held" : "";
+    return { cls, html: `<i class="sled ${held ? "hd" : on ? "on" : ""}" style="width:3px;height:16px"></i><span class="sn">${i + 1}</span>` +
+      (held ? `<span class="nd"><i style="background:${NOTE.C4}"></i><i style="background:${NOTE.G4}"></i></span>` : "") };
+  });
+  return chead(52, 28) +
+    cknob("KN1", 53, 111, 46, -60) + cknob("KN2", 127, 111, 46, 135) + cknob("KN3", 53, 186, 46) + cknob("KN4", 127, 186, 46, 40) +
+    cwell(16, 246, 2, 66, 42, 6, 5, fBtns(["OCT−", "OCT+"]), { bf: 13, r: 10, wr: 14 }) +
+    cscreen(172, 96, 202, "fizz-held-note") +
+    cwell(16, 316, 8, 35.25, 64, 8, 10, pads, { r: 12, wr: 22 }) +
+    keybed({ x: 16, y: 484, W: 358, H: 318, layout: "scroll", keyW: 40, mode: "play", steps: OFF16, wave: false, offset: 2, held: [4, 8] }) +
+    RFM_DOTS(4, 2, 18);
+}
+// 53: the pull-down (RemoteFM1's PhoneSheet): FIZZ's sources, five views, six themes, FIZZ's memory, the tab bar
+function cpSheetBody() {
+  const vw = (n, on, g) => `<div class="vw ${on ? "on" : ""}"><span class="g">${g}</span>${n}</div>`;
+  const lt = "#F3EBDC", dk = "#6E6557", ac = "#FF8A4C";
+  const views = vw("Full", true, `<span style="display:flex;gap:3px;height:19px;width:42px"><s style="width:10px;background:${dk}"></s><s style="flex:1;background:${lt}"></s><s style="width:10px;background:${dk}"></s></span><s style="height:14px;width:42px;background:${ac}"></s>`) +
+    vw("Panel", false, `<s style="width:20px;height:20px;background:${lt}"></s><s style="width:42px;height:12px;background:${dk}"></s>`) +
+    vw("Keys", false, `<s style="width:20px;height:20px;background:${lt}"></s><s style="width:42px;height:12px;background:${ac}"></s>`) +
+    vw("Steps", false, `<span style="display:flex;gap:3px;height:16px;width:42px"><s style="width:16px;background:${lt}"></s><s style="flex:1;background:${dk}"></s></span><span style="display:grid;grid-template-columns:repeat(4,1fr);gap:2px;width:42px"><s style="height:5px;background:${ac}"></s><s style="height:5px;background:${dk}"></s><s style="height:5px;background:${ac}"></s><s style="height:5px;background:${dk}"></s></span><s style="height:8px;width:42px;background:${ac}"></s>`) +
+    vw("Screen", false, `<s style="width:34px;height:34px;background:${lt}"></s>`);
+  const sw = Object.keys(EP).map((n) => `<span class="sw ${n === "Tangerine" ? "on" : ""}"><span style="background:${EP[n].body}${n === "FIZZ" ? ";box-shadow:inset 0 0 0 1.5px #3a3a44" : ""}"><span style="background:${EP[n].bed}"><span style="background:${EP[n].led}"></span></span></span></span>`).join("");
+  return `<div class="a" style="inset:0;background:rgba(10,8,6,.5);z-index:60"></div><div class="csheet">
+    <div class="ttl"><b>Play</b><span class="done">Done</span></div>
+    <h4>Sound source</h4><div class="srcs"><div class="src on"><b><i></i>This iPhone</b><small>FIZZ, play by touch</small></div><div class="src fm"><b><i></i>FM-1</b><small>USB · track 3</small></div></div>
+    <h4>View · or swipe sideways</h4><div class="views">${views}</div>
+    <h4>Theme</h4><div class="thm">${sw}</div>
+    <div class="list"><div class="li">Firmware<span class="v">FIZZ 0.12.0-beta.12</span></div>
+      <div class="li mem">Memory<span class="mm"><span class="meter"><span style="width:24%;background:var(--cream)"></span><span style="width:31%;background:var(--green)"></span></span><small>6 projects · 143 presets</small></span><span class="rst">Reset</span></div>
+      <div class="li">MIDI &amp; audio<span class="v"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div></div>
+    ${nav6("PLAY")}<div class="close"><span></span></div></div>`;
+}
+// 54: CONTROLS (RemoteFM1's Panel / Keys view): the screen at 340, one knob set, the deck switch; here BUTTONS, and
+// the unit is a ▶-played backup: the chip turns into the backup pill
+function cpPanel() {
+  const kn = [50.5, 146.5, 242.5, 338.5];
+  return chead(52, 28, { chip: "BACKUP · 28 OCT", kind: "bk" }) +
+    cscreen(25, 92, 340, "fizz-logo") +
+    ["MASTER", "SELECT", "PRESETS", "ALGORITHM"].map((l, i) => cknob(l, kn[i], 459, 50, i === 0 ? -135 : 0)).join("") +
+    `<div class="a csw" style="left:0;right:0;top:523px"><span class="on">MAIN</span><span>KN 1–4</span></div>` +
+    `<div class="a cdeck" style="left:95px;top:565px;width:200px"><span class="on">BUTTONS</span><span>KEYS</span></div>` +
+    cwell(15, 611, 6, 50, 48, 8, 10, fizzBtns(50, 12.5)) +
+    cwell(95, 747, 2, 92, 38, 6, 5, fBtns(), { bf: 13, r: 10, wr: 14 }) +
+    RFM_DOTS(4, 1, 18);
+}
+
+SCREENS.push(
+  { id: "play-copy-phone", title: "PLAY = RemoteFM1: the iPhone", cmp: true, cap: "Left: RemoteFM1 for iOS (FULL, Tangerine) running FIZZ's own core, just launched. Right: FIZZ's PLAY drawn as its exact copy at the same moment. Copied, in points: the chip at (16, 52) 28 high, the grabber 40 × 5, the 2 × 2 knobs (46, white pointers, labels 9 pt Chakra Petch) at (16, 96), the tray at (16, 246) 148 × 52, the screen 202 at (172, 96), the LED and KN1–4 at y 316, the 6 × 2 well at (21, 400) of 48 × 42 keys (legends 11 pt), the scrolling keybed at (16, 530) 358 × 272 with its range strip, the page dots. FIZZ's own: the chip says THIS iPHONE (FM-1 when linked, green dot); the FIZZ badge stands where the wordmark is (tap: back to the manager); F1 / F2 for OCT− / OCT+; FIZZ's 12 names at RemoteFM1's 11 pt; a name too long for its key drops the tracking and shrinks to fit (TRACKS 10.75, SOUNDS 10.25, PATTERNS 8.25; MIDI FX on two lines); four dots (FULL · CONTROLS · STEPS · SCREEN).",
+    html: () => cmp(who(false, "Main, FIZZ's core loaded") + rphone("rfm1-p-full"), who(true, "the copy") + cphone(cpFull())) },
+  { id: "play-copy-landscape", title: "PLAY = RemoteFM1: the iPhone on its side", cmpland: true, cap: "Top: RemoteFM1's PhoneWide. Bottom: the copy. Copied: no status row, the grabber alone at the top (402, 20); the knobs at 38 with the tray at (54, 144) 132 × 48; the screen 172 at (198, 20); the LED and KN1–4 across from x 386; the well at (386, 88) of 58 × 38 keys (legends 10 pt: every FIZZ name fits, PATTERNS without tracking); all 27 keys in one row at (50, 206) 744 × 170. FIZZ's own: F1 / F2 and its button names; the FIZZ badge, a round one in the right margin beside KN4 (RemoteFM1 has nothing there); no chip (SOUND is in the pull-down, as RemoteFM1's).",
+    html: () => cmp(who(false, "PhoneWide, FIZZ's core loaded") + rphoneLand("rfm1-p-full-land"), who(true, "the copy") + cphoneLand(cpLand()), true) },
+  { id: "play-copy-ipad", title: "PLAY = RemoteFM1: the iPad", cmpipad: true, cap: "Top: RemoteFM1 on an iPad Air 11 in landscape (1180 × 820, PadWide scaled to it). Bottom: the copy. Copied: no status bar and no rail, the whole screen is the faceplate; the chip (47, 26) 30 high, the knobs at 63 (labels 11 pt), the tray (47, 328) 190 × 53, the screen 295 at (270, 86), the LED and KN1–4 at 63, the well (599, 230) 532 × 148 with 77 × 59 keys (legends 15.5 pt; PATTERNS 13.75 without tracking), the keybed row (47, 417) 1085 × 356, the dots. FIZZ's own: the chip says THIS iPAD, the FIZZ badge for the wordmark (the way back to the manager now that the rail is gone), F1 / F2 and FIZZ's names.",
+    html: () => cmp(who(false, "PadWide, FIZZ's core loaded") + ripad("rfm1-pad-full-land"), who(true, "the copy") + cipad(cpPad()), true) },
+  { id: "play-copy-steps", title: "PLAY = RemoteFM1: STEPS", cmp: true, cap: "STEPS is FIZZ's own view (RemoteFM1 has none), so it is built only from RemoteFM1's parts and laid on FULL's grid. Left: RemoteFM1's Keys deck with its step numbers, the parts it borrows. Right: KN1–4 in MAIN's 2 × 2 place, OCT− / OCT+ in the tray, the screen at 202 (FIZZ's step page); the 16 steps as keys in a well (8 × 2, each a key face with the keybed's LED slot and its number: trigs at 60 %, the held step lit with the head's face and glow, its notes as two dots in FIZZ's note colours); RemoteFM1's own scrolling keybed underneath, chromatic, playing the selected track, the held notes C4 and G4 lit as RemoteFM1 lights held notes. Hold a step and play: the notes go into it. Dots: the third of four.",
+    html: () => cmp(who(false, "Keys deck, step numbers") + rphone("rfm1-p-keys-steps"), who(true, "STEPS from its parts") + cphone(cpSteps())) },
+  { id: "play-copy-sheet", title: "PLAY = RemoteFM1: the pull-down", cmp: true, cap: "Left: RemoteFM1's sheet (Controls). Right: FIZZ's, copied: #17140F from the top, 20 pt margins, the title in Unbounded 24 and Done in its 44 pt pill, the small spaced headings, two 78 pt source cards (the chosen one ringed #FF8A4C), the view tiles 96 high, the theme swatches 48, the list in a #211E19 card, the grabber at the foot. FIZZ's own: the title is Play; the sources This iPhone (FIZZ) and FM-1; five views (Steps added); six themes (FIZZ added; no theme editor, so no Edit); Firmware shows FIZZ's version (no core picker); Memory with Reset; the app's tab bar above the grabber.",
+    html: () => cmp(who(false, "Controls sheet") + rphone("rfm1-p-sheet"), who(true, "the copy") + cphone(cpFull() + cpSheetBody()).replace('class="scr emus"', 'class="scr emus sbl"')) },
+  { id: "play-copy-controls", title: "PLAY = RemoteFM1: CONTROLS, playing a backup", cmp: true, cap: "Left: RemoteFM1's Panel (Controls, BUTTONS deck). Right: the copy: the screen 340 at (25, 92); MAIN's four knobs at 50 in a row; the MAIN | KN 1–4 switch at y 523; BUTTONS | KEYS at (95, 565) 200 × 36; the well at (15, 611) of 50 × 48 keys (legends 12.5; TRACKS 11.25, SOUNDS 10.75, PATTERNS 8.5); the tray (95, 747) 200 × 48. FIZZ's own extra: a ▶-played backup is the unit, so the chip becomes the yellow backup pill (BACKUP · 28 OCT, × goes back to THIS iPHONE) in the chip's place and height.",
+    html: () => cmp(who(false, "Panel (Controls · Buttons)") + rphone("rfm1-p-buttons"), who(true, "the copy") + cphone(cpPanel())) },
+);
+
+// ---------------------------------------------------------------- 55–57: the MIDI work on the RemoteFM1-copy PLAY
+// RemoteFM1 for iOS's M8 (PLAN.md section 10: controller input, MIDI learn, the OMX-27) and its FM-1-as-panel source,
+// drawn for FIZZ's PLAY in 49-54's style. Each FIZZ frame stands under the RemoteFM1 screen it follows (screens/rfm1:
+// RemoteFM1 for iOS in a 390 x 844 simulator, FIZZ's core, Tangerine). Nothing of RemoteFM1's code is used.
+const CHEV1 = '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>';
+const BACK1 = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>';
+const UPDN = '<svg viewBox="0 0 12 12"><path d="M3 4.5L6 1.8 9 4.5M3 7.5L6 10.2 9 7.5"/></svg>';
+const TICK1 = '<svg class="m-ck" viewBox="0 0 24 24"><path d="M5 12.5l5 5L19.5 7"/></svg>';
+// a grid of labelled devices: cells = [who html, device html], cols across (rows follow)
+const cmpGrid = (cells, cols) => `<div class="cmp cmpg" style="grid-template-columns:repeat(${cols},414px)">${cells.map(([w, d]) => `<div class="side">${w}${d}</div>`).join("")}</div>`;
+// a FIZZ phone with something laid over the panel (a picker, a scrim)
+function cphoneOver(inner, over, theme = "Tangerine", sbl = false) {
+  return `<div class="phone"><div class="scr emus ${sbl ? "sbl" : ""}" style="${tv(theme)};background:var(--t-body)"><div class="sb"><span>9:41</span>${SB_ICONS}</div><div class="island"></div>${ccp(inner + over, theme)}<div class="home"></div></div></div>`;
+}
+const emptyCell = (what) => `<div class="phone ref" style="background:transparent;box-shadow:inset 0 0 0 2px #2a2a31"><div class="scr" style="background:transparent;display:grid;place-items:center;padding:40px;box-sizing:border-box;font:600 15px/1.4 'Inter Tight';color:#6d6d76;text-align:center">${what}</div></div>`;
+
+// ---- 55: the MIDI & audio page (RemoteFM1's SheetPage "MIDI & audio"; FIZZ's sheet keeps the tab bar at its foot)
+const li = (l, r, cls = "m-r52") => `<div class="li ${cls}">${l}${r}</div>`;
+const tog = (on = true) => `<span class="m-tgl2 ${on ? "" : "off"}"></span>`;
+const chevv = (v = "") => `<span class="v">${v}${CHEV1}</span>`;
+const mapRow = (t, src, mode) => li(`<span class="m-mp"><b>${t}</b><em>←</em>${src}</span>${t === "MASTER" ? '<span class="m-pk">picks up</span>' : ""}`, (mode ? `<span class="m-mode">${mode}${UPDN}</span>` : "") + `<span class="m-xm">${IC.x}</span>`, "m-r52 m-mrow");
+function midiPageBody(part) {
+  if (part === "input") return `<div class="list m-r">${li("All inputs", "")}${li("None", "")}${li("KeyStep 37", TICK1)}${li("nanoKONTROL2", "")}</div>
+    <p class="m-nt">2 found. The FM-1 in use, an FM-1 used as the panel and an OMX-27 in REMOTE mode are not listed.</p>`;
+  const audio = `<h4 style="margin-top:12px">Audio</h4><div class="list m-r">${li("Sound", tog())}</div>
+    <p class="m-nt">48000 Hz, io buffer 5.3 ms, Speaker; 18.7 ms ahead, 0 underruns</p>`;
+  const midi = `<h4>MIDI</h4><div class="list m-r">${li("MIDI input", chevv("KeyStep 37"))}${li("MIDI notes play keys", tog())}${li("…and reach FIZZ's MIDI in", tog(false))}
+    ${li("Transpose", '<span class="m-stp"><b>+1 oct</b><span><i>−</i><i>+</i></span></span>')}${li("Bluetooth MIDI devices", chevv())}</div>
+    <p class="m-nt">A MIDI keyboard plays the keys (transposed by octaves); its other notes, CCs and clock, and every note when they don't play the keys, go to FIZZ's MIDI in.</p>`;
+  const knobs = `<h4>Knobs from MIDI</h4><div class="list m-r">${li('<span class="m-two">MIDI learn<small>5 learned</small></span>', '<span class="m-acc">Learn</span>', "m-r52")}
+    ${li("Knob speed", '<span class="m-seg2"><span>½×</span><span class="on">1×</span><span>2×</span></span>')}${li("MASTER pickup", tog())}</div>
+    <p class="m-nt">Tap Learn, then a knob or button on the panel, then move a control on your MIDI device.</p>
+    <div class="list m-r" style="margin-top:12px">${mapRow("KN1", "CC 21 ch 1", "absolute")}${mapRow("KN2", "CC 22 ch 1", "rel. 64 ± n")}${mapRow("KN3", "CC 23 ch 1", "absolute")}${mapRow("MASTER", "CC 7 ch 1")}${mapRow("PLAY", "note 36 ch 10")}</div>
+    <div class="m-clr"><span>Clear all</span></div>`;
+  const omx = `<h4>OMX-27</h4><p class="m-pp">An OMX-27 becomes PLAY's controller: its keys, encoder and pots play the panel; FIZZ lights its keys and draws its screen. K1 picks the view, K2 the colours, K5 is MASTER.</p>
+    <span class="m-acc gh inl">Disconnect</span><div class="m-st"><i></i>Connected · REMOTE mode · Base view</div>
+    <p class="m-nt">Needs the OMX-27 firmware with REMOTE mode, over USB. To leave remote mode, hold AUX and the encoder.</p><div style="height:24px"></div>`;
+  return audio + midi + knobs + omx;
+}
+function cpMidiPage(part = "top") {
+  const scroll = { top: 0, knobs: 514, omx: 860 }[part] || 0;
+  const head = part === "input" ? `<div class="m-bk">${BACK1}MIDI &amp; audio</div><div class="m-pt">MIDI input</div>` : `<div class="m-bk">${BACK1}Play</div><div class="m-pt">MIDI &amp; audio</div>`;
+  return `<div class="a" style="inset:0;background:rgba(10,8,6,.5);z-index:60"></div><div class="csheet pg">${head}
+    <div class="m-pgb"><div class="m-pgi" style="top:${-scroll}px">${midiPageBody(part === "input" ? "input" : "all")}</div></div>
+    ${nav6("PLAY")}<div class="close"><span></span></div></div>`;
+}
+const midiPhone = (part) => cphone(cpFull() + cpMidiPage(part)).replace('class="scr emus"', 'class="scr emus sbl"');
+
+// ---- 56: MIDI learn on the panel
+// a knob's learn ring (RemoteFM1's LearnRing: r = size / 2 + 6; dashed when learnable, solid with a dot when bound,
+// thick and pulsing when picked) and MASTER's pickup mark (PotMark: a hollow dot at the pot's place, r = size / 2 + 5)
+function lring(cx, top, size, st) {
+  const r = size / 2 + 6, cy = top + size / 2;
+  const sw = st === "s" ? 3.2 : st === "b" ? 2 : 1.5, op = st === "s" ? 1 : st === "b" ? .95 : .6, dash = st ? "" : 'stroke-dasharray="4 4"';
+  const glow = st === "s" ? "filter:drop-shadow(0 0 5px var(--t-label))" : "";
+  return `<span class="lring ${st}" style="left:${cx - r}px;top:${cy - r}px;width:${2 * r}px;height:${2 * r}px"><svg width="${2 * r}" height="${2 * r}" style="${glow}"><circle cx="${r}" cy="${r}" r="${r - sw / 2}" fill="none" style="stroke:var(--t-label)" stroke-width="${sw}" opacity="${op}" ${dash}/></svg>` +
+    (st === "b" ? `<span class="bd" style="left:${r + r * 0.71}px;top:${r - r * 0.71}px"></span>` : "") + "</span>";
+}
+const potMark = (cx, top, size, frac) => { const a = (-135 + frac * 270) * Math.PI / 180, r = size / 2 + 5; return `<span class="potm" style="left:${cx + r * Math.sin(a)}px;top:${top + size / 2 - r * Math.cos(a)}px"></span>`; };
+// the learn bar (RemoteFM1's LearnBar): at the foot of FULL (y 737), over the top in CONTROLS (y 54)
+const learnBar = (y, text, forget = false) => `<div class="clbar" style="top:${y}px"><span class="ld"></span><span class="lt"><b>MIDI LEARN</b><span>${text}</span></span>${forget ? '<span class="pl">Forget</span>' : ""}<span class="pl ac">Done</span></div>`;
+const ctoast = (y, text, ok = false) => `<div class="ctoast ${ok ? "ok" : ""}" style="top:${y}px">${text}</div>`;
+// FIZZ's 12 buttons with learn outlines: st = { NAME: "b" | "s" }, every other one learnable (dashed)
+const fizzBtnsL = (bw, base, st = {}, learn = true) => fizzBtns(bw, base).map((it, i) => ({ ...it, cls: (it.cls || "") + (learn ? ` lrn ${st[FIZZ12[i]] || ""}` : "") }));
+const fBtnsL = (f, st = {}, learn = true) => fBtns(f).map((it, i) => ({ ...it, cls: learn ? `lrn ${st[f[i]] || ""}` : "" }));
+// FULL with learn on (or off, with MASTER waiting for its pickup)
+function cpFullLearn({ st = {}, learn = true, bar = "", forget = false, toast = "", pot = null } = {}) {
+  const kn = [76, 163, 250, 337];
+  const K = (l, cx, top, ang = 0) => cknob(l, cx, top, 46, ang) + (learn ? lring(cx, top, 46, st[l] || "") : "");
+  return chead(52, 28) +
+    K("MASTER", 53, 111, -135) + K("SELECT", 127, 111) + K("PRESETS", 53, 186) + K("ALGORITHM", 127, 186) +
+    (pot !== null ? potMark(53, 111, 46, pot) : "") +
+    cwell(16, 246, 2, 66, 42, 6, 5, fBtnsL(["F1", "F2"], st, learn), { bf: 13, r: 10, wr: 14 }) +
+    cscreen(172, 96, 202, "fizz-logo") +
+    `<span class="cled" style="left:16px;top:345px;width:10px;height:10px"></span>` +
+    kn.map((x, i) => K(`KN${i + 1}`, x, 331, [0, 30, 0, 0][i])).join("") +
+    cwell(21, 400, 6, 48, 42, 8, 10, fizzBtnsL(48, 11, st, learn)) +
+    keybed({ x: 16, y: 530, W: 358, H: 272, layout: "scroll", keyW: 40, mode: "play", steps: OFF16, wave: false, offset: 4 }) +
+    (bar ? learnBar(737, bar, forget) : "") + (toast ? ctoast(744, toast) : "") +
+    RFM_DOTS(4, 0, 18);
+}
+// CONTROLS (54's layout) with KN 1–4 showing and learn on: the bar over the top (it would cover the buttons below)
+function cpPanelLearn(st, bar) {
+  const kn = [50.5, 146.5, 242.5, 338.5];
+  return cscreen(25, 92, 340, "fizz-logo") +
+    kn.map((x, i) => cknob(`KN${i + 1}`, x, 459, 50) + lring(x, 459, 50, st[`KN${i + 1}`] || "")).join("") +
+    `<div class="a csw" style="left:0;right:0;top:523px"><span>MAIN</span><span class="on">KN 1–4</span></div>` +
+    `<div class="a cdeck" style="left:95px;top:565px;width:200px"><span class="on">BUTTONS</span><span>KEYS</span></div>` +
+    cwell(15, 611, 6, 50, 48, 8, 10, fizzBtnsL(50, 12.5, st)) +
+    cwell(95, 747, 2, 92, 38, 6, 5, fBtnsL(["F1", "F2"], st), { bf: 13, r: 10, wr: 14 }) +
+    learnBar(54, bar) + RFM_DOTS(4, 1, 18);
+}
+const LEARNED = { MASTER: "b", KN1: "b", KN2: "b", PLAY: "b" };
+
+// ---- 57: the unit picker with a RemoteFM1 unit, and PLAY with it as the panel
+const LCD_RFM = '<text x="63" y="76" text-anchor="middle" style="font:800 30px Inter Tight;fill:var(--cyan);stroke:none;letter-spacing:.04em">RFM1</text>';
+function pickerPanel() {
+  const pan = `<div class="urow pan" style="--c:var(--cyan)"><span class="art">${fm1("var(--cyan)", LCD_RFM, 92)}</span><span class="un"><b>FM-1${VIA("USB")}</b><span><span class="rfmv">RemoteFM1</span>0.4.2</span></span>` +
+    `<span class="usep">${IC.plug}USE AS PANEL</span></div>`;
+  return `<div class="a" style="inset:0;background:rgba(0,0,0,.5);z-index:70"></div><div class="psheet upk" style="top:262px;z-index:75"><div class="grab"></div>
+    <div class="h">UNIT <span class="n">3</span></div>
+    ${urow("var(--emu)", phoneArt("var(--emu)", 44), "THIS iPHONE", "FIZZ 0.12.0-beta.12", "cur", false)}
+    ${pan}
+    ${urow("var(--blue)", fm1("var(--blue)", LCD_BUB, 92), "FM-1", "0.12.0-beta.11", "dead", false, "BT")}
+    <span class="btn btbtn">${IC.bt}+ BLUETOOTH</span></div><span class="tch" style="left:300px;top:594px;z-index:80"></span>`;
+}
+// PLAY with the panel attached: the chip as RemoteFM1's linked chip (green dot), the screen and LEDs mirrored on the unit
+function cpFullPanel() {
+  return cpFullLearn({ learn: false }).replace(chead(52, 28), chead(52, 28, { chip: "FM-1 panel", kind: "lnk" })) + ctoast(744, "FM-1 linked: it is this iPhone's panel", true);
+}
+
+SCREENS.push(
+  { id: "midi-audio-page", title: "PLAY's sheet › MIDI & audio", cmp8: true, cap: "Top: RemoteFM1's MIDI & audio page (its sheet's list › MIDI & audio), scrolled three ways, and its MIDI input page. Bottom: FIZZ's, in the same place: PLAY's pull-down (53) › MIDI & audio, copied in RemoteFM1's sheet style (#17140F, DM Sans, the back line and the Unbounded title fixed, the rest scrolling; rows 52 high), FIZZ's tab bar and grabber kept at its foot as in 53. AUDIO: Sound (the phone FIZZ's sound) with the audio line. MIDI: MIDI input (a page: All inputs, None or one device; the FM-1 in use, an FM-1 used as the panel and an OMX-27 in REMOTE mode are never listed), MIDI notes play keys (PLAY's keybed, from note 53 up, transposed −2..+2 octaves), …and reach FIZZ's MIDI in (the key notes go there too), everything else (other notes, CCs, clock) to FIZZ's MIDI in; Bluetooth MIDI devices (iOS's pairing). RemoteFM1's 'Look for the FM-1 again' is left out (the unit picker does that). KNOBS FROM MIDI: MIDI learn with Learn (closes the sheet: 56), Knob speed ½× 1× 2× (detents per CC step), MASTER pickup (FIZZ's addition: on, a learned MASTER pot waits until it reaches MASTER; off, it jumps), the learned list (target ← source, an encoder's mode menu, ×), Clear all (asks again inline). OMX-27: the same section, here connected (REMOTE mode, Base view). The map is RemoteFM1's format and ids, so one map reads the same in both apps.",
+    html: () => cmpGrid([
+      [who(false, "MIDI & audio"), rphone("rfm1-p-midi")], [who(false, "…scrolled: Knobs from MIDI"), rphone("rfm1-p-midi-knobs")],
+      [who(false, "…scrolled: OMX-27"), rphone("rfm1-p-midi-omx")], [who(false, "MIDI input"), rphone("rfm1-p-midi-input")],
+      [who(true, "MIDI & audio"), midiPhone("top")], [who(true, "…Knobs from MIDI"), midiPhone("knobs")],
+      [who(true, "…OMX-27"), midiPhone("omx")], [who(true, "MIDI input"), midiPhone("input")]], 4) },
+  { id: "midi-learn-panel", title: "MIDI learn on PLAY's panel", cmp6: true, cap: "Top: RemoteFM1's learn mode (CONTROLS with KN3 picked; FULL with KN1 bound). Bottom: FIZZ's. Learn (55) closes the sheet; every learnable control is outlined: the 8 knobs (MASTER, SELECT, PRESETS, ALGORITHM, KN1–4) with a dashed ring in the label colour (r = knob / 2 + 6), the 12 buttons and F1 / F2 with a dashed outline in the LED colour, 3 pt out; the keybed is not learnable (MIDI notes play it). Bound: solid, a dot on the knob's ring. Left: a tap picks KN3 (thick ring, pulsing, glowing); the bar says what to move: a knob or a pot for a knob, a button or a key for a button; in CONTROLS the bar sits over the top (the buttons reach the foot), in FULL at the foot (y 737). Middle: the CC arrives: KN3 is bound (CC 23, mode guessed: absolute), the bar shows it with Forget (forgets KN3's bindings) and Done. Right: after Done, playing from the controller: MASTER is learned to a pot that is not where MASTER is, so a hollow mark shows the pot's place and the toast says where to turn it; MASTER moves once the pot reaches it (MASTER pickup on, 55). STEPS: KN1–4, OCT− / OCT+ outlined (the step pads too, as buttons: open).",
+    html: () => cmpGrid([
+      [who(false, "CONTROLS · KN3 picked"), rphone("rfm1-p-learn-kn3-controls")], [who(false, "FULL · KN1 bound"), rphone("rfm1-p-learn-kn1")],
+      [who(false, "(no screen for the pickup)"), emptyCell("RemoteFM1 draws the same mark and toast (PotMark, ToastView); no launch argument shows it")],
+      [who(true, "KN3 picked: move a knob"), cphone(cpPanelLearn({ ...LEARNED, KN3: "s" }, "KN3: now turn a knob or a pot on your MIDI device"))],
+      [who(true, "KN3 bound"), cphone(cpFullLearn({ st: { ...LEARNED, KN3: "b" }, bar: "KN3 ← CC 23 ch 1", forget: true }))],
+      [who(true, "Done: MASTER's pickup"), cphone(cpFullLearn({ learn: false, pot: 0.62, toast: "MASTER: turn the pot to 62% to pick it up" }))]], 3) },
+  { id: "unit-picker-panel", title: "The unit picker: a RemoteFM1 FM-1 as THIS iPHONE's panel", cmp4: true, cap: "Top: RemoteFM1 with an FM-1 running RemoteFM1's firmware: its sheet's Sound source FM-1 (RemoteFM1 · USB) and the panel with the chip FM-1 linked (green dot). Bottom: FIZZ. Left: the unit picker (34, from PLAY's chip) finds an FM-1 that answers RemoteFM1's HELLO, not FIZZ's. Instead of greying it out, it gets its own row in cyan: its drawing with RemoteFM1's screen, USB, the RemoteFM1 tag and its firmware version, and USE AS PANEL across the row (breathing). THIS iPHONE stays the unit (its tick). Right: tapped: the FM-1 becomes THIS iPHONE's hardware panel: its buttons, encoders, MASTER and keys play the phone's FIZZ as PLAY's touches do, and FIZZ's screen and LEDs are drawn on the unit's LCD and LEDs. The chip turns into RemoteFM1's linked chip, FM-1 panel with the green dot; the toast (ok, green edge) says so once. The panel stays attached on every tab and while PLAY is closed; the chip (or the picker's row, then reading PANEL with ×) lets it go, and pulling the cable does too. The sound stays on the phone: PLAY's sheet keeps This iPhone as the source and greys FM-1 while the unit is a panel. Over Bluetooth: USB only for now (RemoteFM1's screen needs it).",
+    html: () => cmpGrid([
+      [who(false, "Sound source FM-1 (RemoteFM1 · USB)"), rphone("rfm1-p-fm1-sheet")], [who(false, "FM-1 linked"), rphone("rfm1-p-fm1-full")],
+      [who(true, "the picker: USE AS PANEL"), cphoneOver(cpFull(), pickerPanel(), "Tangerine", true)], [who(true, "the panel attached"), cphone(cpFullPanel())]], 2) },
+);
+
 // ---------------------------------------------------------------- the page
 const out = document.getElementById("out");
 const inits = [];
@@ -2439,7 +2908,7 @@ if (SHOT) {
   out.appendChild($h(`<div class="sheetsub">The web Manager's tabs over USB (Camera / USB adapter) or Bluetooth MIDI. Captions describe the motion; they are not on screen.</div>`));
   const g = $h(`<div class="sgridp"></div>`); out.appendChild(g);
   SCREENS.forEach((s, i) => {
-    const el = $h(`<div class="cell ${s.ipad ? "wide" : s.land ? "land" : s.pair ? "pr" : ""}"><div class="zf">${s.html()}</div><div class="ct"><span>${String(i + 1).padStart(2, "0")}</span>${s.id} · ${s.title}</div><p class="cap">${s.cap}</p></div>`);
+    const el = $h(`<div class="cell ${s.cmp8 || s.cmp6 ? "full" : s.ipad || s.cmpipad ? "wide" : s.land || s.cmpland ? "land" : s.pair || s.cmp || s.cmp4 ? "pr" : ""}"><div class="zf">${s.html()}</div><div class="ct"><span>${String(i + 1).padStart(2, "0")}</span>${s.id} · ${s.title}</div><p class="cap">${s.cap}</p></div>`);
     g.appendChild(el); if (s.init) inits.push([s, el]);
   });
 }

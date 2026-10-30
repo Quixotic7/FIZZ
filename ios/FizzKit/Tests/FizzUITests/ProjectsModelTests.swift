@@ -210,11 +210,11 @@ struct ProjectsModelTests {
         #expect(WriteSlide.knob(167, from: 167, width: 342, travel: 288) == 288)
         #expect(WriteSlide.knob(-20, from: 100, width: 342, travel: 288) == 0)
         #expect(WriteSlide.knob(400, from: 27, width: 342, travel: 288) == 288)
-        // a phone's height: full tiles without changes; the grid ends above the yellow bar with them
+        // a phone's height: full tiles without changes; the grid ends above the selection's bar and the yellow bar
         #expect(ProjectsPatternsView.tileH(744, pending: false) == 40)
-        let h = ProjectsPatternsView.tileH(700, pending: true)
+        let h = ProjectsPatternsView.tileH(760, pending: true)
         #expect(h < 40 && h >= 28)
-        #expect(4 + 61 + 53 + 8 * h + 4 * 5 + 3 * 12 <= 700 - 250)
+        #expect(4 + 61 + 53 + 8 * h + 4 * 5 + 3 * 12 <= 760 - ProjectsPatternsView.below(pending: true))
         #expect(ProjectsPatternsView.tileH(400, pending: true) == 28)
     }
 }

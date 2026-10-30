@@ -139,24 +139,35 @@ public struct FizzAppView: View {
 public struct RootView: View {
     let model: UnitModel
     @Binding var tab: FizzTab
-    /// nil: by the width (720 pt and more: the iPad layout)
-    var wide: Bool?
+    /// nil: by the size (RootLayout.pick)
+    var layout: RootLayout?
 
+    /// wide: the iPad's (true) or the upright iPhone's (false); nil: by the size.
     public init(model: UnitModel, tab: Binding<FizzTab>, wide: Bool? = nil) {
+        self.init(model: model, tab: tab, layout: wide.map { $0 ? .pad : .phone })
+    }
+
+    public init(model: UnitModel, tab: Binding<FizzTab>, layout: RootLayout?) {
         self.model = model
         _tab = tab
-        self.wide = wide
+        self.layout = layout
     }
 
     public var body: some View {
-        if let wide {
-            if wide { PadRoot(model: model, tab: $tab) } else { PhoneRoot(model: model, tab: $tab) }
+        if let layout {
+            root(layout)
         } else {
             GeometryReader { g in
-                // (an iPhone on its side, PLAY only, is wide but low: still the phone's)
-                if g.size.width >= 720 && g.size.height >= 500 { PadRoot(model: model, tab: $tab) } else { PhoneRoot(model: model, tab: $tab) }
+                // (the safe area's sides counted: the iPhone on its side is wide but low, so still the phone's)
+                root(RootLayout.pick(CGSize(width: g.size.width + g.safeAreaInsets.leading + g.safeAreaInsets.trailing,
+                                            height: g.size.height + g.safeAreaInsets.top + g.safeAreaInsets.bottom)))
             }
         }
+    }
+
+    /// (upright and sideways are one PhoneRoot: turning the iPhone keeps PLAY and the tab's screen as they are)
+    @ViewBuilder private func root(_ l: RootLayout) -> some View {
+        if l == .pad { PadRoot(model: model, tab: $tab) } else { PhoneRoot(model: model, tab: $tab, sideways: l == .phoneWide) }
     }
 }
 
@@ -165,14 +176,16 @@ struct TabScreen: View {
     let model: UnitModel
     let tab: FizzTab
     var wide = false
+    /// the iPhone on its side (LandscapeRoot.swift): two columns where the tab has a list and its detail
+    var sideways = false
     var body: some View {
         switch tab {
-        case .backup: BackupView(model: model)
-        case .library: LibraryView(model: model, wide: wide)
-        case .projects: ProjectsView(model: model, wide: wide)
-        case .pool: PoolView(model: model, wide: wide)
-        case .edit: EditView(model: model, wide: wide)
-        case .importer: ImportSheet(model: model, inline: true)
+        case .backup: BackupView(model: model, sideways: sideways)
+        case .library: LibraryView(model: model, wide: wide, sideways: sideways)
+        case .projects: ProjectsView(model: model, wide: wide, sideways: sideways)
+        case .pool: PoolView(model: model, wide: wide, sideways: sideways)
+        case .edit: EditView(model: model, wide: wide, sideways: sideways)
+        case .importer: ImportSheet(model: model, inline: true, sideways: sideways)
         case .play: Color.clear      // (PhoneRoot and PadRoot show PLAY themselves)
         }
     }
@@ -183,26 +196,34 @@ struct TabScreen: View {
 struct PhoneRoot: View {
     let model: UnitModel
     @Binding var tab: FizzTab
+    /// on its side: the slim rail at the left, no floating bar (LandscapeRoot.swift)
+    var sideways = false
     @Environment(\.fizzInsets) private var insets
 
     /// the tab bar's distance from the screen's bottom edge
     static let barBottom: CGFloat = 24
-    /// what the floating bars cover (fizzBarClearance): the tab bar and a gap, KEEP / CANCEL over it when it shows
+    /// what the floating bars cover (fizzBarClearance): the tab bar and a gap, KEEP / CANCEL over it when it shows;
+    /// on its side the home indicator's room and KEEP / CANCEL
     private var clearance: CGFloat {
-        Self.barBottom + TabBar.height + 12 + (model.actions.pending != nil ? 52 + 10 : 0)
+        let audition: CGFloat = model.actions.pending != nil ? 52 + 10 : 0
+        return sideways ? LandscapeRail.bottom + audition : Self.barBottom + TabBar.height + 12 + audition
     }
+
+    /// The tab under IMPORT's sheet while it shows (upright); on its side IMPORT is a tab of its own, as the iPad's.
+    private var shown: FizzTab { tab == .importer && !sideways ? model.importer.under : tab }
 
     var body: some View {
         Group {
             // PLAY is full-screen: its sheet carries the tab bar
-            if (tab == .importer ? model.importer.under : tab) == .play, let host = model.emulator {
+            if shown == .play, let host = model.emulator {
                 PlayView(model: model, host: host, tab: $tab)
             } else {
                 tabs
             }
         }
         .onChange(of: tab) { old, new in if new == .importer && old != .importer { model.importer.under = old } }
-        .sheet(isPresented: Binding(get: { tab == .importer }, set: { if !$0 && tab == .importer { tab = model.importer.under } })) {
+        .sheet(isPresented: Binding(get: { tab == .importer && !sideways },
+                                    set: { if !$0 && tab == .importer && !sideways { tab = model.importer.under } })) {
             ImportSheet(model: model)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -213,34 +234,65 @@ struct PhoneRoot: View {
 
     private var tabs: some View {
         ZStack(alignment: .bottom) {
-            Color.black
-            VStack(spacing: 0) {
-                // (IMPORT is a sheet on the phone: the tab under it stays)
-                if TrackPill.shows(on: tab == .importer ? model.importer.under : tab) { TrackTopBar(model: model) } else { TopBar(model: model) }
-                TabScreen(model: model, tab: tab == .importer ? model.importer.under : tab).frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .environment(\.fizzBarClearance, clearance)
+            Color.black.ignoresSafeArea()
+            HStack(spacing: 0) {
+                if sideways {
+                    LandscapeRail(tab: $tab)
+                    Rectangle().fill(FZ.line.color).frame(width: 1).ignoresSafeArea(edges: .bottom)
+                }
+                VStack(spacing: 0) {
+                    if sideways {
+                        LandscapeTopBar(model: model, tab: shown)
+                    } else if TrackPill.shows(on: shown) {
+                        TrackTopBar(model: model)
+                    } else {
+                        TopBar(model: model)
+                    }
+                    TabScreen(model: model, tab: shown, sideways: sideways)
+                        // (on its side, the screen's own size whatever it holds: a screen taller than the low iPhone
+                        // runs off the bottom, never pushes the rail and the top bar away)
+                        .frame(minWidth: sideways ? 0 : nil, maxWidth: .infinity, minHeight: sideways ? 0 : nil, maxHeight: .infinity,
+                               alignment: sideways ? .top : .center)
+                        .environment(\.fizzBarClearance, clearance)
+                        .padding(.horizontal, sideways ? 10 : 0)
+                }
+                // on its side, over the tab: PROJECTS' bars (changes waiting, the selection's), KEEP / CANCEL while
+                // a track plays another sound (TrackSwitch.swift), PROJECTS' TO…
+                .overlay(alignment: .bottom) {
+                    if sideways {
+                        if tab == .projects { ProjectsPhoneBar(model: model).environment(\.fizzBarClearance, clearance) }
+                        AuditionBar(model: model).frame(maxWidth: 560).padding(.bottom, LandscapeRail.bottom)
+                        if tab == .projects { LandscapeToLayer(model: model) }
+                    }
+                }
             }
             .padding(.top, insets.top)
-            // (only round the tab bar: EDIT's and PROJECTS' action rows sit just above it, undimmed)
-            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.45)],
-                           startPoint: .top, endPoint: .bottom)
-                .frame(height: Self.barBottom + TabBar.height + 12)
-                .allowsHitTesting(false)
-                .opacity(tab == .library && model.libraryBarUp ? 0 : 1)
-            if tab == .projects { ProjectsPhoneBar(model: model) }
-            // (KEPT's or the unit's SELECT bar takes its place)
-            if !(tab == .library && model.libraryBarUp) {
-                TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, Self.barBottom)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            .padding(.leading, sideways ? insets.leading : 0).padding(.trailing, sideways ? insets.trailing : 0)
+            if !sideways {
+                // (only round the tab bar: EDIT's and PROJECTS' action rows sit just above it, undimmed)
+                LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.45)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: Self.barBottom + TabBar.height + 12)
+                    .allowsHitTesting(false)
+                    .opacity(tab == .library && model.libraryBarUp ? 0 : 1)
+                if tab == .projects { ProjectsPhoneBar(model: model).environment(\.fizzBarClearance, clearance) }
+                // (KEPT's or the unit's SELECT bar takes its place)
+                if !(tab == .library && model.libraryBarUp) {
+                    TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, Self.barBottom)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
+                AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, Self.barBottom + TabBar.height + 10)
+                // PROJECTS' TO… sheet, over the tab bar (ProjectsDragViews.swift)
+                if tab == .projects { ProjectsToLayer(model: model) }
             }
-            // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
-            AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, Self.barBottom + TabBar.height + 10)
-            // PROJECTS' TO… sheet, over the tab bar (ProjectsDragViews.swift)
-            if tab == .projects { ProjectsToLayer(model: model) }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.libraryBarUp)
+        // (on its side too: the screens run to the bottom edge, their bars and scroll ends kept above the home
+        // indicator by the clearance)
         .ignoresSafeArea(edges: .bottom)
+        .environment(\.fizzSideways, sideways)
     }
 }
 

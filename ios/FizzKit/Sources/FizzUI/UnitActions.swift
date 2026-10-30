@@ -915,11 +915,11 @@ public final class UnitActions {
     }
 
     /// manager.js refresh: IDENTITY until FIZZ answers again (it starts on the restored store: 10 x 0.5 s), FZBI,
-    /// LIST, STATUS, PROJECTS, the DUMPs.
+    /// LIST, STATUS, PROJECTS, the DUMPs. (The emulated FIZZ is up again before its FZOK: asked at once.)
     private func refreshAfterRestore(_ link: FizzLink, _ u: UnitModel) async {
         var v: String?
         for t in 0..<10 {
-            try? await Task.sleep(for: .milliseconds(500))
+            if t > 0 || !link.isEmulated { try? await Task.sleep(for: .milliseconds(500)) }
             v = (try? await link.identity()) ?? nil
             if v != nil || t == 9 { break }
         }
