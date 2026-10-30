@@ -125,6 +125,8 @@ extension UnitModel {
     /// picker, PLAY's SOUND follows (an FM-1: its track over MIDI; THIS iPHONE: the emulated FIZZ). true: it is the unit.
     @discardableResult public func pick(_ key: UnitKey) async -> Bool {
         guard switching == nil else { return false }
+        // (a backup playing in PLAY: a pick there, or THIS iPHONE picked, puts it away first: BackupPlay.swift)
+        if let h = emulator, h.backup != nil, pickerFromPlay || key == .here { await h.endBackup() }
         if key == unitKey {
             pin(key)
             follow(key)

@@ -22,6 +22,11 @@ public enum StoreImage {
     public static let host = Layout(name: "host", magic: Array("Z2FS".utf8), size: 0x100000, nproj: 8, nlib: 256,
                                     lib: Store(base: 0, sectors: 32, reserve: 6),
                                     prj: Store(base: 0x20000, sectors: 224, reserve: 6))
+    /// the Bluetooth package's store (persist.h QD_PKG_BLE: 4 projects, 128 presets)
+    public static let ble = Layout(name: "ble", magic: Array("Z2FB".utf8), size: 49 * sector, nproj: 4, nlib: 128,
+                                   lib: Store(base: 0, sectors: 11, reserve: 2),
+                                   prj: Store(base: 11 * sector, sectors: 38, reserve: 10))
+    public static let layouts = [device, ble, host]
     /// the USB package's region on the FM-1 (FZBI's offset)
     public static let deviceRegion: UInt32 = 0x97000
 
@@ -34,6 +39,25 @@ public enum StoreImage {
     public static func convert(_ img: [UInt8], from: Layout, to: Layout) throws -> [UInt8] {
         let r = records(img, from)
         return try build(to, lib: r.lib, prj: r.prj)
+    }
+
+    /// The layout of an image (fizzstore.js layoutOf): by its size, checked against its sectors' magic (a blank
+    /// image passes); nil for a size FIZZ never had.
+    public static func layout(of img: [UInt8]) -> Layout? {
+        guard let l = layouts.first(where: { $0.size == img.count }) else { return nil }
+        var magics = Set<[UInt8]>()
+        for o in stride(from: 0, to: img.count - sector + 1, by: sector) {
+            let m = Array(img[o..<(o + 4)])
+            if layouts.contains(where: { $0.magic == m }) { magics.insert(m) }
+        }
+        return magics.isEmpty || magics.contains(l.magic) ? l : nil
+    }
+
+    /// A backup's store image as the emulated FIZZ's whole flash (site/js/backup-play.js backupFlash:
+    /// convertImage(image, "host")): throws .notStore for an image of no FIZZ layout.
+    public static func hostFlash(from img: [UInt8]) throws -> [UInt8] {
+        guard let l = layout(of: img) else { throw Failure.notStore }
+        return try convert(img, from: l, to: host)
     }
 
     /// Every live record of both stores, by key (fizzstore.js regionRecords).
