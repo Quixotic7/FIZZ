@@ -17,6 +17,13 @@ public protocol MIDITransport: AnyObject, Sendable {
     /// One complete message (a SysEx F0 .. F7, or a short channel message).
     func send(_ bytes: [UInt8]) throws
     func close()
+    /// No FM-1 behind it (the emulated FIZZ in this app): nothing paced for the unit's one-frame inbox, its flash or
+    /// its USB (FizzLink's frame gap, the restore's first wait). Every real port: false.
+    var isEmulated: Bool { get }
+}
+
+extension MIDITransport {
+    public var isEmulated: Bool { false }
 }
 
 public enum MIDITransportError: Error, Equatable {

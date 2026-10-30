@@ -47,9 +47,10 @@ struct LibraryPoolTests {
     @Test func filters() {
         let rows = [row("mine", 1, id: 11, tags: 1), row("mine", 2, id: 12, tags: 4), row("factory", 1, id: 101, tags: 1),
                     row("pool", 5, id: 11, tags: 1)]
-        var f = LibraryFilter()
+        var f = LibraryFilter(source: .mine)
         #expect(f.shown(rows).mine.map(\.slot) == [1, 2] && f.shown(rows).factory.isEmpty)
         f.source = .all
+        #expect(LibraryFilter().source == .all, "LIBRARY opens on ALL")
         #expect(f.shown(rows).factory.count == 1)
         f.toggle(.bass)
         #expect(f.shown(rows).mine.map(\.slot) == [1] && f.shown(rows).factory.count == 1)

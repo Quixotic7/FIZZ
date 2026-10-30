@@ -15,11 +15,11 @@ import Observation
 // MARK: - Filters
 
 /// presets.js newFilter: which presets (ALL / MY PRESETS / FACTORY), in the pool or not, the tags (any of them), the
-/// search (q: a part of the name).
+/// search (q: a part of the name). ALL first: LIBRARY opens on it (the owner's ask, 2026-10-29).
 struct LibraryFilter: Equatable {
-    enum Source: Int, CaseIterable { case mine, factory, all }
+    enum Source: Int, CaseIterable { case all, mine, factory }
     enum Pool: Int { case any, inPool, notInPool }
-    var source: Source = .mine
+    var source: Source = .all
     var tags: Set<FizzTag> = []
     var pool: Pool = .any
     /// the search as typed (NameSearch reads it)
@@ -45,6 +45,55 @@ struct LibraryFilter: Equatable {
     mutating func turnPool() { pool = Pool(rawValue: (pool.rawValue + 1) % 3) ?? .any }
 
     mutating func toggle(_ t: FizzTag) { if tags.contains(t) { tags.remove(t) } else { tags.insert(t) } }
+}
+
+/// LIBRARY's sources as the phone's switch shows them: ALL, MY PRESETS, FACTORY (the unit's), then the phone's KEPT
+/// last. LIBRARY opens on ALL whichever the unit is (an FM-1 or THIS iPHONE); the side last shown is kept while the
+/// app runs, not across launches (an earlier build remembered KEPT for good and forced it with no FM-1, so LIBRARY
+/// always opened on KEPT and the unit's SELECT never showed).
+enum LibrarySide: Hashable, CaseIterable {
+    case all, mine, factory, kept
+
+    var title: String {
+        switch self {
+        case .all: "ALL"
+        case .mine: "MY PRESETS"
+        case .factory: "FACTORY"
+        case .kept: "KEPT"
+        }
+    }
+
+    /// the unit's filter for this side (KEPT: nil)
+    var source: LibraryFilter.Source? {
+        switch self {
+        case .all: .all
+        case .mine: .mine
+        case .factory: .factory
+        case .kept: nil
+        }
+    }
+
+    init(kept: Bool, source: LibraryFilter.Source) {
+        if kept { self = .kept } else {
+            switch source {
+            case .all: self = .all
+            case .mine: self = .mine
+            case .factory: self = .factory
+            }
+        }
+    }
+
+    /// LIBRARY's first side
+    static let opening: LibrarySide = .all
+
+    /// The side shown while the app runs (`-kept`: KEPT, for the simulator's screenshots).
+    @MainActor static var shown: LibrarySide = ProcessInfo.processInfo.arguments.contains("-kept") ? .kept : opening
+}
+
+extension UnitModel {
+    /// SELECT can start on this side: the unit's sides once a unit answers (an FM-1 or THIS iPHONE alike), KEPT's
+    /// always (the phone's own presets).
+    func canSelect(on side: LibrarySide) -> Bool { side == .kept || unit != nil }
 }
 
 /// LIBRARY's search (manager.js l-q, presets.js nameOk: the query trimmed, a part of the name, any case), also blind

@@ -3,8 +3,8 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // iPad PROJECTS (mock-up 22): the slots across the top, the project's 64 patterns as tall tiles (one row a bank),
-// the selection's buttons in a fixed row (COPY, PASTE, CLEAR, .fizzpat; ⌘C ⌘V ⌘Z), the changes waiting in one
-// row with the slide to write; KEEP and the slot's moves ("⋯": LOAD, NEW, RENAME, COPY TO, MOVE TO, DELETE, a file in)
+// the selection's buttons in a fixed row (COPY, PASTE, CLEAR, TO…, SHARE; ⌘C ⌘V ⌘Z; ProjectsBar.swift's states),
+// the changes waiting in one row with the slide to write; KEEP and the slot's moves ("⋯": LOAD, NEW, RENAME, COPY TO, MOVE TO, DELETE, a file in)
 // in the grid's header; the kept projects in a column beside (LOAD INTO, share). Landscape (mock-up 48): the project
 // beside the open one in that column instead (its pill ringed green; a pill tapped opens it and the one open before goes
 // beside; the KEPT chip at the strip's end shows the kept ones there), the changes in a row under both. A pattern dragged
@@ -202,32 +202,32 @@ struct ProjectsPadView: View {
         .animation(.easeOut(duration: 0.2), value: over)
     }
 
-    /// The selection's buttons (.ptools): its name, COPY, PASTE, CLEAR, TO…, .fizzpat. Side by side (half the width): icons
-    /// only; portrait: .fizzpat as its icon.
+    /// The selection's buttons (.ptools): its name, COPY, PASTE, CLEAR, TO…, SHARE (.fizzpat); off with nothing selected
+    /// (ProjectsBarState). Side by side (half the width): icons only; portrait: SHARE as its icon.
     private var tools: some View {
-        let has = !pm.pats.isEmpty && pm.canEdit, icons = side, narrow = width < 900
+        let st = ProjectsBarState(pm), has = st.any, icons = side, narrow = width < 900
         let t = { (title: String) in icons ? "" : title }, pad: CGFloat = icons ? 12 : 14
         return HStack(spacing: 8) {
             if has {
                 Text(FizzClip.range(Array(pm.pats))).fz(icons ? 22 : 26, 800, em: -0.01).foregroundStyle(FZ.cyan.color).lineLimit(1).fixedSize()
                     .padding(.trailing, 4)
             }
-            ProjButton(title: t("COPY"), icon: ProjIcons.copy, color: FZ.cyan, padding: pad, enabled: has) { Task { await pm.copy() } }
+            ProjButton(title: t("COPY"), icon: ProjIcons.copy, color: FZ.cyan, padding: pad, enabled: st.copy) { Task { await pm.copy() } }
                 .fixedSize()
                 .keyboardShortcut("c", modifiers: .command)
             ProjButton(title: t("PASTE"), icon: ProjIcons.paste, color: FZ.yellow, style: pm.clip != nil ? .fill : .ghost, padding: pad,
-                       enabled: has && pm.clip != nil) { pm.paste() }
+                       enabled: st.paste) { pm.paste() }
                 .fixedSize()
                 .keyboardShortcut("v", modifiers: .command)
-            ProjButton(title: t("CLEAR"), icon: ProjIcons.clear, style: .ghost, padding: pad, enabled: has) { pm.clear() }
+            ProjButton(title: t("CLEAR"), icon: ProjIcons.clear, style: .ghost, padding: pad, enabled: st.clear) { pm.clear() }
                 .fixedSize()
                 .keyboardShortcut(.delete, modifiers: [])
-            ProjButton(title: t("TO…"), icon: ProjIcons.move, style: .ghost, padding: pad, enabled: has && pm.canTo) {
+            ProjButton(title: t("TO…"), icon: ProjIcons.move, style: .ghost, padding: pad, enabled: st.to) {
                 Task { await pm.openToSelection() }
             }
             .fixedSize()
             Spacer(minLength: 0)
-            ProjButton(title: icons || narrow ? "" : ".fizzpat", icon: Icons.share, style: .ghost, padding: pad, enabled: has) {
+            ProjButton(title: icons || narrow ? "" : "SHARE", icon: Icons.share, style: .ghost, padding: pad, enabled: st.share) {
                 Task { if let u = await pm.fizzpatFile() { sharing = SharedFile(url: u) } }
             }
             .fixedSize()

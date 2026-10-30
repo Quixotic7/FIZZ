@@ -37,6 +37,8 @@ public final class EmulatorTransport: MIDITransport, @unchecked Sendable {
     }
 
     public var isLost: Bool { lock.withLock { lostFlag } }
+    /// No FM-1 behind it: FizzLink paces nothing (every frame is taken at once).
+    public var isEmulated: Bool { true }
 
     public func send(_ bytes: [UInt8]) throws {
         let (c, l, box) = lock.withLock { (closed, lostFlag, inbox) }
