@@ -105,6 +105,12 @@
 .pt.new { --c: var(--yellow); }
 .pt.new .no { color: var(--yellow); }
 .pt.sel:focus-visible { outline: 2px solid var(--cyan); }
+/* (the owner's fixes, 2026-10-29) a pattern a change waiting clears (CLEAR, CUT, a MOVE's own place): dashed yellow until
+   WRITE, as the iOS app's; a press does not move the tile (only a drag lifts it) */
+#tab-projects .pt.cleared { border-style: dashed; border-color: var(--yellow); background: transparent; }
+#tab-projects .pt.cleared .no { color: var(--yellow); }
+#tab-projects .pt.cleared.sel { border-color: var(--cyan); }
+#pj-grid .pt:active { transform: none; }
 .pjwait { flex: 1; display: grid; place-items: center; }
 #pj-read, #pj-new { height: 52px; padding: 0 28px; font-size: 14px; }
 /* the tools under the patterns */

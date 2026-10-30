@@ -1664,6 +1664,9 @@ function pickClick(b, ev) {
     if (a < 0) a = z;
     for (let i = Math.min(a, z); i <= Math.max(a, z); i++) if (sideOf(cards[i]) === sideOf(k)) P.keys.add(cards[i]);
   } else {
+    // (the first CMD/CTRL-click with one preset selected: that one counts as picked, the click adds to it)
+    const one = !P.mode && !P.keys.size && S.sel ? `${S.sel.source}:${S.sel.slot}` : "";
+    if (one && one !== k && sideOf(one) === sideOf(k) && rowOfKey(one)) P.keys.add(one);
     if (P.keys.has(k)) P.keys.delete(k); else P.keys.add(k);
     P.anchor = k;
   }
@@ -1880,6 +1883,13 @@ list.addEventListener("click", (ev) => {
   if (S.sel.source === "browser") { const r = S.brow.rows.find((x) => x.slot === S.sel.slot); if (r) previewLib(r.lib, r.name); }
   else previewRow(S.unit.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot));   // (TRACK on: on the track, KEEP / CANCEL)
   if (matchMedia("(max-width: 900px) and (orientation: portrait)").matches) $("l-sel").scrollIntoView({ behavior: "smooth", block: "start" });   // (a phone: the panel is below the list)
+});
+// (a Mac: CTRL-click is the context menu, no click: there it picks as CMD-click does)
+list.addEventListener("contextmenu", (ev) => {
+  const b = ev.target.closest(".cas");
+  if (!b || !ev.ctrlKey || ev.metaKey) return;
+  ev.preventDefault();
+  pickClick(b, ev);
 });
 // reorder MY PRESETS: a cassette dropped on another swaps their places (the ids go with them: nothing else changes);
 // ALT + up / down moves the selected one a place (into an empty place too)

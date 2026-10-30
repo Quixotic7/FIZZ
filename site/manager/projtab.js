@@ -2,8 +2,9 @@
 // The Manager's PROJECTS tab (the owner's request of 2026-10-26; mockups/fizz-projects.html, approved 2026-10-27):
 // the FM-1's slots on the left (eight; four in the Bluetooth package) (LOAD, RENAME, COPY TO, MOVE TO, KEEP, DELETE; NEW on an
 // empty one), a project's 64 patterns on the
-// right (click, SHIFT-click a range, CMD-click one more; COPY, PASTE, CLEAR, .fizzpat out and in; a pattern dragged onto
-// a pattern or a project copies it, ALT moves it; TO… or a phone's long press: the TO sheet), or the projects KEPT
+// right (click, SHIFT-click a range, CMD-click one more; COPY, PASTE, CLEAR, .fizzpat out and in; CTRL / CMD + C X V,
+// DELETE / BACKSPACE: CLEAR; a pattern dragged onto a pattern or a project copies it, ALT moves it, an empty one clears
+// the target; TO… or a phone's long press: the TO sheet), or the projects KEPT
 // in this browser (.fizzprj in and out, LOAD INTO a slot).
 //   - The slots' moves are the FM-1's own commands (PROJECT, RENAME): done at once.
 //   - The patterns are the store read in the browser (projects.js): pasted, cleared, a kept project loaded, each
@@ -123,8 +124,21 @@ export function mountProjects(ctx) {
   }
 
   // ---------------------------------------------------------------- the patterns
-  function tile(s, k) {
-    const cls = ["pt", s ? "used" : "", J.pats.has(k) ? "sel" : "", J.ops.some((o) => o.q === J.sel && o.result && o.result.at && o.result.at.includes(k)) ? "new" : ""];
+  // the patterns a change waiting clears in project p (CLEAR, CUT, a MOVE's own place, an empty one dropped): dashed
+  // until WRITE, as the iOS app's (ProjectsModel cleared); one written again since (a paste there) is not
+  function clearedOf(p) {
+    const m = model(), out = new Set();
+    for (const o of J.ops) {
+      if (o.kind === "clear" && o.q === p) o.ks.forEach((k) => out.add(k));
+      if (o.kind === "drop" && o.move && o.from.p === p && o.clip.pats.length) out.add(o.from.k);
+      if (o.kind === "drop" && o.q === p && o.result && o.result.cleared) o.result.cleared.forEach((k) => out.add(k));
+    }
+    if (m) for (const k of out) if (m.prj.has(rkey(RK.PAT, p, k))) out.delete(k);
+    return out;
+  }
+  function tile(s, k, cleared) {
+    const cls = ["pt", s ? "used" : "", J.pats.has(k) ? "sel" : "", J.ops.some((o) => o.q === J.sel && o.result && o.result.at && o.result.at.includes(k)) ? "new" : "",
+      cleared.has(k) ? "cleared" : ""];
     const rows = TC.map((c, t) => `<div class="tr">${Array.from({ length: 16 }, (_, x) => `<i${s && s.rows[t] && s.rows[t][x] ? ` style="background:var(${c})"` : ""}></i>`).join("")}</div>`).join("");
     const demo = TC.map(() => `<div class="tr demo">${"<i></i>".repeat(16)}</div>`).join("");   // (the demos' own, compiled in)
     return `<button class="${cls.join(" ")}" data-k="${k}" aria-pressed="${J.pats.has(k)}"><span class="no hud">${patName(k)}</span>${s && s.demo ? demo : rows}</button>`;
@@ -134,7 +148,8 @@ export function mountProjects(ctx) {
     if (!m) return `<div class="pjwait">${J.reading ? "" : on() ? `<button class="ol cyan" id="pj-read">${IC.down}READ</button>` : ""}</div>`;
     const pr = project(m, J.sel);
     if (!pr.there) return `<div class="pjwait">${on() && !J.ops.length && !J.arm ? `<button class="ol cyan" id="pj-new">${IC.plus}NEW PROJECT</button>` : ""}</div>`;
-    return [0, 1, 2, 3].map((b) => `<div class="bankrow"><span class="bank hud">${"ABCD"[b]}</span><div class="pgrid">${Array.from({ length: 16 }, (_, x) => tile(pr.pats[b * 16 + x], b * 16 + x)).join("")}</div></div>`).join("");
+    const cl = clearedOf(J.sel);
+    return [0, 1, 2, 3].map((b) => `<div class="bankrow"><span class="bank hud">${"ABCD"[b]}</span><div class="pgrid">${Array.from({ length: 16 }, (_, x) => tile(pr.pats[b * 16 + x], b * 16 + x, cl)).join("")}</div></div>`).join("");
   }
   function toolsHtml() {
     const m = model(), ok = !!m && project(m, J.sel).there && !S.busy, n = J.pats.size;
@@ -148,7 +163,7 @@ export function mountProjects(ctx) {
     const last = J.ops[J.ops.length - 1], L = list();
     const pname = (q) => (L[q] && L[q].name) || (model() ? project(model(), q).name : "") || `PROJECT ${q + 1}`;
     const what = last.kind === "paste" ? `${last.result.at.length} pattern${last.result.at.length === 1 ? "" : "s"} into ${esc(pname(last.q))}`
-      : last.kind === "clear" ? `${last.ks.length} cleared in ${esc(pname(last.q))}`
+      : last.kind === "clear" ? `${last.ks.length} ${last.cut ? "cut from" : "cleared in"} ${esc(pname(last.q))}`
         : last.kind === "drop" ? `${patName(last.from.k)} ${last.move ? "moved" : "copied"} to ${last.from.p === last.q ? "" : `${esc(pname(last.q))} `}${patName(last.j)}`
           : `${esc(last.kept.name)} into slot ${last.q + 1}`;
     const r = last.result;
@@ -308,10 +323,19 @@ export function mountProjects(ctx) {
       }
       if (push({ kind: "paste", q: J.sel, j, clip: J.clip })) { J.pats = new Set(at.filter((k) => k < NPAT)); render(); }
     } else if (act === "clear") {
-      const used = ks.filter((k) => pr.pats[k]);
-      if (!used.length) return;
-      const ok = await confirmBox({ title: "CLEAR", what: range(used), go: "CLEAR" });
-      if (ok) push({ kind: "clear", q: J.sel, ks: used });
+      // (at once, no question: it waits in the yellow bar, dashed, UNDO there; every pattern there with a record,
+      // one with no trigs too)
+      const there = ks.filter((k) => m.prj.has(rkey(RK.PAT, J.sel, k)));
+      if (there.length) push({ kind: "clear", q: J.sel, ks: there });
+    } else if (act === "cut") {
+      // CUT: copied, and cleared as a change waiting (UNDO puts it back; the copy stays to PASTE)
+      const clip = copyPatterns(m, J.sel, ks);
+      if (!clip.pats.length) { say("Nothing to cut there: empty patterns (or the demos' own).", "--orange"); return; }
+      if (push({ kind: "clear", q: J.sel, ks: clip.pats.map((x) => x.k), cut: true })) {
+        J.clip = clip;
+        toast(`${clip.pats.length} cut`, "--cyan");
+        render();
+      }
     } else if (act === "fizzpat") {
       const clip = copyPatterns(m, J.sel, ks);
       if (!clip.pats.length) { say("Nothing to save there: empty patterns (or the demos' own).", "--orange"); return; }
@@ -411,7 +435,9 @@ export function mountProjects(ctx) {
   const nameOf = (q) => { const e = list()[q], m = model(); return (e && e.there && e.name) || (m ? project(m, q).name : "") || `PROJECT ${q + 1}`; };
   const thereAt = (q) => { const m = model(); return !!m && q >= 0 && q < nproj() && project(m, q).there; };
   function dropApply(m, op) {
-    const r = pastePatterns(m, op.q, op.j, op.clip);   // (a full pool: refused, as PASTE)
+    // (an empty pattern, no record: FIZZ's own empty one, as its PATTERN copy / paste carries it: the target cleared)
+    const r = op.clip.pats.length ? pastePatterns(m, op.q, op.j, op.clip)   // (a full pool: refused, as PASTE)
+      : (clearPatterns(m, op.q, [op.j]), { at: [], poolAdded: 0, presetsAdded: 0, copies: 0, cleared: [op.j] });
     if (op.move && !(op.from.p === op.q && op.from.k === op.j)) clearPatterns(m, op.from.p, [op.from.k]);
     return r;
   }
@@ -420,15 +446,19 @@ export function mountProjects(ctx) {
     const m = model();
     if (!m) return;
     if (!thereAt(q)) { say(`Slot ${q + 1} is empty: a pattern needs a project there.`, "--orange"); return; }
-    const pr = project(m, q);
+    const pr = project(m, q), clip = copyPatterns(m, from.p, [from.k]);
+    if (!clip.pats.length) {                           // (an empty pattern: no record)
+      const s = project(m, from.p).pats[from.k];
+      if (s && s.demo) { say("Nothing to copy there: the demo's own pattern.", "--orange"); return; }
+      if (j === null) return;                          // (onto a project: its first free one is empty already)
+      if (!m.prj.has(rkey(RK.PAT, q, j))) return;      // (onto an empty one: nothing changes)
+    }
     if (j === null) {
       j = pr.pats.findIndex((s) => !s);
       if (j < 0) { say(`${esc(nameOf(q))} has no free pattern: drop it on one to replace it.`, "--orange"); return; }
     }
     if (from.p === q && from.k === j) return;
     if (move && project(m, from.p).demo && from.k < DEMO_N) { say("A demo's A01–A03 stay the demo's: drop it without ALT to copy it.", "--orange"); return; }
-    const clip = copyPatterns(m, from.p, [from.k]);
-    if (!clip.pats.length) { say("Nothing to copy there: an empty pattern (or the demo's own).", "--orange"); return; }
     const dst = `${nameOf(q)} ${patName(j)}`, src = from.p === q ? patName(from.k) : `${nameOf(from.p)} ${patName(from.k)}`, old = pr.pats[j];
     if (old) {
       const ok = await confirmBox({ title: move ? "MOVE OVER" : "COPY OVER", what: `${src} → ${dst}`, go: "REPLACE", color: "--yellow",
@@ -461,7 +491,9 @@ export function mountProjects(ctx) {
   }
   function follow(x, y) {
     D.x = x; D.y = y;
-    ghost.style.transform = `translate(${x - D.ox}px, ${y - D.oy}px)`;
+    // (the translate property, outside the lift's scale: a transform's translate was scaled with it, the ghost
+    // pushed right and down by an eighth of its distance from the window's corner)
+    ghost.style.translate = `${x - D.ox}px ${y - D.oy}px`;
     const el = document.elementFromPoint(x, y);
     const t = el && el.closest("#pj-grid .pt[data-k]"), s = el && el.closest("#pj-slots .slot[data-p]");
     let o = null;
@@ -477,10 +509,14 @@ export function mountProjects(ctx) {
     if (!t) { end(); return; }
     clearTimeout(D.timer);
     D.lifted = true;
-    const r = t.getBoundingClientRect();
+    // (the tile as it was at the press: the ghost over it with the grabbed point under the pointer, its lift's scale
+    // about that point, so it does not jump)
+    const r = D.r;
     D.ox = D.x0 - r.left; D.oy = D.y0 - r.top;
     ghost.innerHTML = `${t.innerHTML}<span class="badge hud"></span>`;
+    ghost.classList.toggle("used", t.classList.contains("used"));
     ghost.style.width = `${r.width}px`; ghost.style.height = `${r.height}px`;
+    ghost.style.transformOrigin = `${D.ox}px ${D.oy}px`;
     ghost.hidden = false;
     document.body.classList.add("pjdrag");
     if (D.touch && navigator.vibrate) navigator.vibrate(12);
@@ -513,7 +549,7 @@ export function mountProjects(ctx) {
     if (!D.lifted) {
       const d = Math.hypot(ev.clientX - D.x0, ev.clientY - D.y0);
       if (D.touch) { if (d > 10) end(); return; }      // (a finger moving before the long press: a scroll)
-      if (d < 6) return;
+      if (d < 4) return;                               // (a press let go before 4 px: a click, it selects)
       lift();
       if (!D) return;
     }
@@ -532,15 +568,32 @@ export function mountProjects(ctx) {
     const t = ev.target.closest(".pt[data-k]");
     if (!t || ev.button !== 0 || D || J.arm || J.renaming || J.reading || S.busy) return;
     const m = model(), k = +t.dataset.k;
-    if (!m || !m.prj.has(rkey(RK.PAT, J.sel, k))) return;   // (an empty pattern or a demo's own: nothing to carry)
+    if (!m) return;
+    // (every pattern drags, an empty one too (it carries FIZZ's empty pattern: the target cleared), one with no trigs
+    // or only ghosts (LOCK steps) as it is; not a demo's own A01..A03, compiled in)
+    const s = project(m, J.sel).pats[k];
+    if (s && s.demo) return;
+    const r = t.getBoundingClientRect();
     D = { k, p: J.sel, id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY, touch: ev.pointerType !== "mouse",
+      r: { left: r.left, top: r.top, width: r.width, height: r.height },
       lifted: false, move: ev.altKey, over: null, springQ: -1 };
     if (D.touch) D.timer = setTimeout(lift, 400);
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
     document.addEventListener("pointercancel", onCancel);
   });
-  $("pj-grid").addEventListener("contextmenu", (ev) => { if (D) ev.preventDefault(); });   // (a long press)
+  $("pj-grid").addEventListener("contextmenu", (ev) => {
+    const t = ev.target.closest(".pt[data-k]");
+    if (t && ev.ctrlKey && !ev.metaKey && ev.pointerType !== "touch") {   // (a Mac's CTRL-click: no click, picks one more as CMD)
+      ev.preventDefault();
+      const k = +t.dataset.k;
+      if (J.pats.has(k)) J.pats.delete(k); else J.pats.add(k);
+      J.anchor = k;
+      render();
+      return;
+    }
+    if (D) ev.preventDefault();                        // (a long press)
+  });
   document.addEventListener("touchmove", (ev) => { if (D && D.lifted) ev.preventDefault(); }, { passive: false });
   $("tab-projects").addEventListener("click", (ev) => { if (Date.now() - dragEnd < 80) { ev.stopPropagation(); ev.preventDefault(); } }, true);   // (the click a drag's release makes)
   const altKey = (ev) => {
@@ -628,10 +681,15 @@ export function mountProjects(ctx) {
   document.addEventListener("keydown", (ev) => {
     if (card.hidden || (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName))) return;
     if (ev.key === "Escape" && J.arm) { J.arm = null; render(); return; }
-    if (!(ev.metaKey || ev.ctrlKey) || J.view !== "patterns") return;
+    if (J.view !== "patterns" || D || !sheet.hidden || !$("cf").hidden) return;
+    const ok = !!model() && project(model(), J.sel).there && !S.busy && J.pats.size > 0;   // (as the tools' buttons)
+    // DELETE / BACKSPACE: CLEAR; CTRL or CMD + C, X, V: COPY, CUT, PASTE
+    if ((ev.key === "Delete" || ev.key === "Backspace") && !(ev.metaKey || ev.ctrlKey || ev.altKey)) { if (ok) { ev.preventDefault(); patAct("clear"); } return; }
+    if (!(ev.metaKey || ev.ctrlKey)) return;
     const k = ev.key.toLowerCase();
-    if (k === "c" && J.pats.size) { ev.preventDefault(); patAct("copy"); }
-    else if (k === "v" && J.pats.size && J.clip) { ev.preventDefault(); patAct("paste"); }
+    if (k === "c" && ok) { ev.preventDefault(); patAct("copy"); }
+    else if (k === "x" && ok) { ev.preventDefault(); patAct("cut"); }
+    else if (k === "v" && ok && J.clip) { ev.preventDefault(); patAct("paste"); }
     else if (k === "z" && J.ops.length) { ev.preventDefault(); pendAct("undo"); }
   });
 

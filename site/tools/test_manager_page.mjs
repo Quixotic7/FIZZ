@@ -71,6 +71,10 @@
 //   - nf-askload (2026-10-29): LOAD ON FM-1 of an IN THIS BROWSER preset the FM-1 lacks asks ADD · MY PRESETS n (the
 //     first free place): CANCEL sends nothing, ADD stores it there and opens the unit's browser; one it has opens at
 //     once; MY PRESETS full: FULL, nothing sent;
+//   - nf-proj2 (the owner's fixes, 2026-10-29), on ?sim and THIS BROWSER: LIBRARY's first CTRL / CMD-click adds to the one
+//     preset selected; PROJECTS: empty, no-trig and ghost-only patterns drag (an empty one clears the target); CLEAR at
+//     once (dashed, waiting); DELETE / BACKSPACE clear; CTRL / CMD + X cut, + V paste; a click is not a drag; the
+//     drag's ghost keeps the grabbed point under the pointer;
 //   - nf-play2 (2026-10-29): PLAY flat (no glow around the board, no gradient on its buttons and keys), no THIS
 //     BROWSER chip on it, key 11's longer LED; Shift-click latches (THIS BROWSER's panel; the FM-1's CC 127 held, 0 on
 //     the second click; leaving the tab lets go); 1440 x 900 and 844 x 390 screenshots in .build/test/play2;
@@ -1579,6 +1583,7 @@ try {
   await click("#l-select");
   await idle();
   const delSlots = await evaluate("[__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.name === 'USED ONE').slot, __mgr.S.unit.rows.filter((r) => r.source === 'mine' && r.name !== 'USED ONE').pop().slot]");
+  await evaluate("__mgr.S.sel = null");               // (nf-proj2: a preset selected counts as picked by the first CTRL-click; none here)
   for (const sl of delSlots) await mclick(MINE(sl), { ctrlKey: true });
   const nMine0 = await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').length");
   if (await evaluate("!document.getElementById('cf').hidden")) await click("#cf-no");
@@ -2549,6 +2554,227 @@ try {
   await realClick("#logbox summary");
   }
   // ---- (end of nf-units)
+  // ---- nf-proj2: the owner's fixes (2026-10-29), on ?sim (the FM-1) and ?browser (THIS BROWSER's FIZZ): LIBRARY's
+  // first CTRL / CMD-click adds to the one preset selected; PROJECTS: an empty pattern, one with no trigs and one with
+  // only ghosts (LOCK steps) drag (an empty one dropped clears the target, asked first; onto an empty one nothing);
+  // CLEAR at once, dashed, in the yellow bar; DELETE and BACKSPACE clear the selection (not while typing); CTRL+X and
+  // CMD+X cut (copied, the source cleared as a change waiting), CMD / CTRL+V pastes it; a press let go without moving
+  // (or under 4 px) is a click, not a drag; a drag's ghost keeps the grabbed point under the pointer (within 1 px)
+  {
+  const SHOTS = process.env.NF_PROJ2_SHOTS || "";
+  const keep = async (name) => { await shot(`manager-${name}.png`); if (SHOTS) fs.copyFileSync(path.join(OUT, `manager-${name}.png`), path.join(SHOTS, `${name}.png`)); };
+  const PJ = "__mgr.projtab.state";
+  const MOD = { alt: 1, ctrl: 2, cmd: 4, shift: 8 };
+  const key = async (k, code, vk, modifiers = 0) => {
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: k, code, windowsVirtualKeyCode: vk, modifiers });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code, windowsVirtualKeyCode: vk, modifiers });
+    await sleep(120);
+  };
+  async function modClick(sel, modifiers) {
+    const c = await centre(sel);
+    if (!c) return false;
+    await mouse("mousePressed", c.x, c.y, { modifiers });
+    await mouse("mouseReleased", c.x, c.y, { modifiers });
+    await sleep(150);
+    return true;
+  }
+  // a pattern record made here ('P' 4: no references; tracks' sounds copies of zeros): steps on track 1's first page
+  // (s: [step, flags, type, note]), nlock locks, used
+  const recJs = `(steps, nlock, used) => { const TSZ = 44, head = 12 + TSZ * 6 + 24, per = [], snd = 6 * (128 + 2 + 13 + 2);
+    let sm = 0; for (const s of steps) sm |= 1 << s[0];
+    const st = steps.length ? 1 + 2 + steps.length * 20 : 1, b = new Uint8Array(head + st + 5 + nlock * 4 + snd);
+    b.set([0x50, 4, 20, TSZ, 0, 0, 0, used ? 1 : 0, 120, 0, nlock, 0]);
+    let o = head;
+    if (steps.length) { b[o++] = 1; b[o++] = sm & 255; b[o++] = sm >> 8;
+      for (const s of [...steps].sort((x, y) => x[0] - y[0])) { b[o + 2] = s[1]; b[o + 3] = s[2]; b[o + 4] = s[3]; b[o + 10] = 100; o += 20; } }
+    else b[o++] = 0;
+    o += 5;
+    for (let i = 0; i < nlock; i++) { b[o] = steps.length ? steps[i % steps.length][0] : 0; b[o + 1] = 3; b[o + 2] = 40; o += 4; }
+    return b; }`;
+  async function nfProj2(mode) {
+    const tag = `nf-proj2 (${mode})`;
+    await size(1440, 900);
+    await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#library" });
+    await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+    await idle();
+    if (mode === "browser") {
+      await realClick("#unit");
+      await waitFor("!document.getElementById('upick').hidden", 3000);
+      await realClick("#upick-pop .urow[data-u='browser']");
+      await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && !!__mgr.S.unit && __mgr.S.unit.rows.length > 0", 40000);
+      await idle();
+    }
+    // ---- LIBRARY: one preset selected, the first CTRL-click (then CMD-click) adds to it
+    await click("#t-library");
+    await sleep(300);
+    const cards = await evaluate("[...document.querySelectorAll('#l-list .cas')].slice(0, 4).map((c) => `${c.dataset.src}:${c.dataset.slot}`)");
+    const cas = (k) => `#l-list .cas[data-src="${k.split(":")[0]}"][data-slot="${k.split(":")[1]}"]`;
+    const picked = () => evaluate("[...__mgr.S.pick.keys].sort().join()");
+    const lib = [];
+    for (const [m, name] of [[MOD.ctrl, "CTRL"], [MOD.cmd, "CMD"]]) {
+      await evaluate("(() => { const P = __mgr.S.pick; P.mode = false; P.keys.clear(); P.anchor = ''; })()");
+      await realClick(cas(cards[0]));
+      await sleep(200);
+      const sel = await evaluate("__mgr.S.sel && `${__mgr.S.sel.source}:${__mgr.S.sel.slot}`");
+      await modClick(cas(cards[1]), m);
+      const one = await picked();
+      await modClick(cas(cards[2]), m);
+      const two = await picked();
+      lib.push({ name, sel, one, two });
+    }
+    const want = (n) => cards.slice(0, n).sort().join();
+    check(cards.length >= 3 && lib.every((x) => x.sel === cards[0] && x.one === want(2) && x.two === want(3)),
+      `${tag}: LIBRARY: one preset selected, the first CTRL-click and the first CMD-click add to it (${JSON.stringify(lib.map((x) => [x.name, x.one, x.two]))})`);
+    await evaluate("(() => { const P = __mgr.S.pick; P.mode = false; P.keys.clear(); P.anchor = ''; })()");
+    // ---- PROJECTS: a new project in slot 2 with A01 notes, A02 only ghosts, A03 no trigs (a record), A04 nothing
+    await click("#t-projects");
+    await waitFor(`!!${PJ}.base && !__mgr.S.busy`, 60000);
+    await evaluate(`(async () => { await __mgr.S.link.project('new', 2); ${PJ}.base = null; await __mgr.refreshRows({ projects: true }); await __mgr.projtab.show(); })()`);
+    await waitFor(`!!${PJ}.base && !__mgr.S.busy && !${PJ}.reading`, 60000);
+    await idle();
+    const made = await evaluate(`(async () => { const P = await import('./projects.js'), rec = ${recJs}, m = ${PJ}.base.model;
+      for (const k of [...m.prj.keys()]) if (k >>> 24 === P.RK.PAT && ((k >>> 16) & 255) === 1) m.prj.delete(k);   // (slot 2 as made here only)
+      m.prj.set(P.rkey(P.RK.PAT, 1, 0), rec([[0, 1, 1, 60], [4, 1, 1, 62], [8, 1, 1, 64]], 0, 1));
+      m.prj.set(P.rkey(P.RK.PAT, 1, 1), rec([[2, 0x81, 2, 0], [6, 0x81, 2, 0]], 2, 1));
+      m.prj.set(P.rkey(P.RK.PAT, 1, 2), rec([], 0, 0));
+      ${PJ}.sel = 1; ${PJ}.view = 'patterns'; ${PJ}.pats = new Set(); ${PJ}.ops = []; ${PJ}.cache = null; __mgr.projtab.render();
+      const pr = P.project(m, 1), w = (k) => P.walkPat(m.prj.get(P.rkey(P.RK.PAT, 1, k)));
+      return { there: pr.there, a1: !!pr.pats[0], ghost: w(1) && w(1).trigs === 2 && w(1).locks.length === 6, quiet: pr.pats[2] === null && !!w(2), none: !m.prj.has(P.rkey(P.RK.PAT, 1, 3)) }; })()`);
+    const recOf = (k) => `(async () => { const P = await import('./projects.js'); const m = ${PJ}.cache || ${PJ}.base.model; const b = m.prj.get(P.rkey(P.RK.PAT, 1, ${k})); return b ? Array.from(b).join() : ""; })()`;
+    const nops = () => evaluate(`${PJ}.ops.length`);
+    const ghostOn = () => evaluate("(() => { const g = document.querySelector('.pjghost'); return !!g && !g.hidden; })()");
+    async function dragOnto(k, target, { modifiers = 0 } = {}) {
+      const a = await centre(`#pj-grid .pt[data-k="${k}"]`), t = await centre(target);
+      if (!a || !t) return false;
+      await mouse("mousePressed", a.x, a.y, { buttons: 1, modifiers });
+      for (let i = 1; i <= 6; i++) { await mouse("mouseMoved", a.x + (t.x - a.x) * i / 6, a.y + (t.y - a.y) * i / 6, { buttons: 1, modifiers }); await sleep(20); }
+      const lifted = await ghostOn();
+      await mouse("mouseReleased", t.x, t.y, { modifiers });
+      await sleep(250);
+      return lifted;
+    }
+    const tile = (k) => `#pj-grid .pt[data-k="${k}"]`;
+    const r2 = await evaluate(recOf(2)), r1 = await evaluate(recOf(1)), r0 = await evaluate(recOf(0));
+    // the one with no trigs (A03 -> A11) and the ghosts' (A02 -> A12): lifted, copied as they are
+    const l2 = await dragOnto(2, tile(10)), l1 = await dragOnto(1, tile(11));
+    check(made.there && made.a1 && made.ghost && made.quiet && made.none && l2 && l1 && (await nops()) === 2 && (await evaluate(recOf(10))) === r2 && (await evaluate(recOf(11))) === r1,
+      `${tag}: PROJECTS: a pattern with no trigs (A03) and one with only ghosts (A02) drag: copied to A11, A12 (${JSON.stringify(made)})`);
+    // an empty one (A04, no record): lifted; onto an empty one nothing; onto A01 (notes): asked, then A01 cleared, dashed
+    const l3 = await dragOnto(3, tile(12));
+    const nothing = (await nops()) === 2;
+    await dragOnto(3, tile(0));
+    const cf = await evaluate("({ open: !document.getElementById('cf').hidden, t: document.getElementById('cf-title').textContent })");
+    await click("#cf-go");
+    await sleep(250);
+    const e0 = await evaluate(`({ n: ${PJ}.ops.length, cl: document.querySelector('${tile(0)}').classList.contains('cleared') })`);
+    check(r0 && l3 && nothing && cf.open && cf.t === "COPY OVER" && e0.n === 3 && (await evaluate(recOf(0))) === "" && e0.cl,
+      `${tag}: PROJECTS: an empty pattern (A04) drags: onto an empty one nothing changes; onto A01 asked (${cf.t}), A01 cleared, dashed (${e0.n} waiting)`);
+    await evaluate(`${PJ}.ops = []; ${PJ}.cache = null; ${PJ}.pats = new Set(); __mgr.projtab.render()`);
+    // CLEAR: at once (no question), the tile dashed yellow, the yellow bar
+    await realClick(tile(1));
+    await sleep(150);
+    await click('#pj-tools [data-act="clear"]');
+    await sleep(100);
+    const c1 = await evaluate(`(() => { const t = document.querySelector('${tile(1)}'), cs = getComputedStyle(t); return { n: ${PJ}.ops.length, cf: !document.getElementById('cf').hidden, cl: t.classList.contains('cleared'),
+      dash: cs.borderTopStyle, bar: !document.getElementById('pj-pending').hidden && /1 cleared in/.test(document.querySelector('#pj-pending .what').textContent) }; })()`);
+    check(c1.n === 1 && !c1.cf && c1.cl && c1.dash === "dashed" && c1.bar && (await evaluate(recOf(1))) === "",
+      `${tag}: PROJECTS: CLEAR shows at once: A02 dashed (${c1.dash}), in the yellow bar, no question (${JSON.stringify(c1)})`);
+    if (mode === "fm1") { await keep("pj-cleared-1440"); await size(390, 844, true); await evaluate(`__mgr.projtab.render(); document.querySelector('${tile(1)}').scrollIntoView({ block: "center" })`); await sleep(2500); await keep("pj-cleared-390"); await size(1440, 900); await sleep(200); }
+    await click('#pj-pending [data-act="undo"]');
+    // DELETE and BACKSPACE clear the selection; not while typing in a field
+    await realClick(tile(0));
+    await sleep(150);
+    await key("Delete", "Delete", 46);
+    const d1 = await evaluate(`(() => { const o = ${PJ}.ops[${PJ}.ops.length - 1]; return { n: ${PJ}.ops.length, kind: o && o.kind, ks: o && o.ks.join() }; })()`);
+    await click('#pj-pending [data-act="undo"]');
+    await evaluate(`${PJ}.pats = new Set([0, 2]); __mgr.projtab.render()`);
+    await key("Backspace", "Backspace", 8);
+    const d2 = await evaluate(`(() => { const o = ${PJ}.ops[${PJ}.ops.length - 1]; return { n: ${PJ}.ops.length, kind: o && o.kind, ks: o && o.ks.join() }; })()`);
+    await click('#pj-pending [data-act="undo"]');
+    await evaluate("(() => { const i = document.createElement('input'); i.id = 'nfp2-typing'; document.getElementById('tab-projects').appendChild(i); i.focus(); })()");
+    await key("Backspace", "Backspace", 8);
+    await key("Delete", "Delete", 46);
+    const typed = await nops();
+    await evaluate("document.getElementById('nfp2-typing').remove()");
+    check(d1.n === 1 && d1.kind === "clear" && d1.ks === "0" && d2.n === 1 && d2.ks === "0,2" && typed === 0,
+      `${tag}: PROJECTS: DELETE clears A01 (${d1.ks}), BACKSPACE A01 + A03 (${d2.ks}); typing in a field clears nothing`);
+    // CTRL+X and CMD+X: copied and the source cleared at once (dashed, waiting); CMD+V / CTRL+V pastes it
+    const cut = [];
+    for (const [m, name] of [[MOD.ctrl, "CTRL"], [MOD.cmd, "CMD"]]) {
+      await evaluate(`${PJ}.ops = []; ${PJ}.cache = null; ${PJ}.clip = null; ${PJ}.pats = new Set([1]); __mgr.projtab.render()`);
+      await key("x", "KeyX", 88, m);
+      const x = await evaluate(`(() => { const o = ${PJ}.ops[0]; return { n: ${PJ}.ops.length, cut: !!(o && o.cut), clip: ${PJ}.clip ? ${PJ}.clip.pats.map((p) => p.k).join() : '',
+        cl: document.querySelector('${tile(1)}').classList.contains('cleared'), bar: /1 cut from/.test(document.getElementById('pj-pending').textContent) }; })()`);
+      x.gone = (await evaluate(recOf(1))) === "";
+      await evaluate(`${PJ}.pats = new Set([20]); __mgr.projtab.render()`);
+      await key("v", "KeyV", 86, m === MOD.ctrl ? MOD.cmd : MOD.ctrl);
+      x.pasted = (await evaluate(recOf(20))) === r1 && (await nops()) === 2;
+      cut.push({ name, ...x });
+    }
+    check(cut.every((x) => x.n === 1 && x.cut && x.clip === "1" && x.cl && x.bar && x.gone && x.pasted),
+      `${tag}: PROJECTS: CTRL+X and CMD+X cut A02 (copied, cleared at once, dashed, waiting), then CMD+V / CTRL+V pastes it at A21 (${JSON.stringify(cut)})`);
+    await evaluate(`${PJ}.ops = []; ${PJ}.cache = null; ${PJ}.clip = null; ${PJ}.pats = new Set(); __mgr.projtab.render()`);
+    // a press let go without moving, and one moved 3 px: a click (selects), no ghost, nothing waiting
+    const a = await centre(tile(0));
+    await mouse("mousePressed", a.x, a.y, { buttons: 1 });
+    await sleep(60);
+    const g0 = await ghostOn();
+    await mouse("mouseReleased", a.x, a.y);
+    await sleep(150);
+    const s0 = await evaluate(`[...${PJ}.pats].join()`);
+    await mouse("mousePressed", a.x, a.y, { buttons: 1 });
+    await mouse("mouseMoved", a.x + 3, a.y, { buttons: 1 });
+    await sleep(60);
+    const g3 = await ghostOn();
+    await mouse("mouseReleased", a.x + 3, a.y);
+    await sleep(150);
+    const s3 = await evaluate(`[...${PJ}.pats].join()`);
+    check(!g0 && !g3 && s0 === "0" && s3 === "" && (await nops()) === 0,
+      `${tag}: PROJECTS: a press let go without moving selects A01 (${s0}), one moved 3 px is a click too (${s3 || "none"}): no ghost, no drag`);
+    // CTRL-click and CMD-click add a pattern (a Mac's CTRL-click: the context menu, taken as one)
+    await realClick(tile(0));
+    await sleep(150);
+    await modClick(tile(2), MOD.ctrl);
+    await modClick(tile(5), MOD.cmd);
+    const cc = await evaluate(`[...${PJ}.pats].sort((a, b) => a - b).join()`);
+    check(cc === "0,2,5", `${tag}: PROJECTS: A01, then CTRL-click A03 and CMD-click A06: ${cc}`);
+    await evaluate(`${PJ}.pats = new Set(); __mgr.projtab.render()`);
+    // the ghost at the drag's start, and far away: the grabbed point under the pointer (1 px)
+    const r = await evaluate(`(() => { const t = document.querySelector('${tile(1)}'); t.scrollIntoView({ block: "center" }); const r = t.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; })()`);
+    const gx = r.l + 9, gy = r.t + 7;
+    const under = (px, py) => evaluate(`(() => { const g = document.querySelector('.pjghost'); if (!g || g.hidden) return null; const r = g.getBoundingClientRect(), s = r.width / g.offsetWidth;
+      return { x: (${px} - r.left) / s, y: (${py} - r.top) / s, s }; })()`);
+    await mouse("mousePressed", gx, gy, { buttons: 1 });
+    await mouse("mouseMoved", gx + 2, gy + 1, { buttons: 1 });
+    const early = await ghostOn();
+    await mouse("mouseMoved", gx + 5, gy + 2, { buttons: 1 });
+    await sleep(300);                                  // (the lift's scale animation done)
+    const u1 = await under(gx + 5, gy + 2);
+    await mouse("mouseMoved", gx + 300, gy + 120, { buttons: 1 });
+    await sleep(100);
+    const u2 = await under(gx + 300, gy + 120);
+    await key("Escape", "Escape", 27);
+    await mouse("mouseReleased", gx + 300, gy + 120);
+    await sleep(150);
+    const near = (u) => !!u && Math.abs(u.x - 9) <= 1 && Math.abs(u.y - 7) <= 1;
+    check(!early && near(u1) && near(u2) && (await nops()) === 0,
+      `${tag}: PROJECTS: no ghost before 4 px; on lift and 300 px on the grabbed point (9, 7) stays under the pointer (${u1 && `${u1.x.toFixed(1)}, ${u1.y.toFixed(1)}`}; ${u2 && `${u2.x.toFixed(1)}, ${u2.y.toFixed(1)}`}; scale ${u1 && u1.s.toFixed(2)})`);
+    if (mode === "fm1") {
+      await mouse("mousePressed", gx, gy, { buttons: 1 });
+      await mouse("mouseMoved", gx + 40, gy + 30, { buttons: 1 });
+      await sleep(300);
+      await keep("pj-drag-1440");
+      await key("Escape", "Escape", 27);
+      await mouse("mouseReleased", gx + 40, gy + 30);
+      await sleep(150);
+    }
+    await evaluate(`${PJ}.ops = []; ${PJ}.cache = null; ${PJ}.base = null; __mgr.projtab.render()`);
+  }
+  await nfProj2("fm1");
+  await nfProj2("browser");
+  await size(1280, 800);
+  }
+  // ---- (end of nf-proj2)
   // ---- nf-speed: THIS BROWSER's store read and written in the page (the owner, 2026-10-29: "loading and writing to
   // browser take the same long time as writing to the FM-1"). The FM-1 (?sim) first: its PROJECTS read FZBR by FZBR,
   // its WRITE pulled twice by FZSR's 512-byte reads, as before. Then THIS BROWSER (the sound on: the worklet): a LOAD
