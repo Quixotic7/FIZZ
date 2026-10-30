@@ -8,7 +8,8 @@
 // column; or dragged there on the iPad) goes into the next place tapped. MOVE (or, on the iPad, a tile dragged onto
 // another) swaps two places, every pattern's steps following. CLEAR, CLEAR UNUSED and SORT BY TAG ask first, as the
 // page does (the standalone confirm, over the tab bar). The phone's bar floats above the tab bar; the grid scrolls
-// clear of both.
+// clear of both. A long-press on a sound starts SELECT (PoolSelect.swift): taps tick more, the bulk bar takes the
+// bar's place.
 
 import SwiftUI
 import FizzData
@@ -31,6 +32,12 @@ struct PoolView: View {
     @State private var filter = LibraryFilter(source: .all)
     /// the phone's bar's height (the grid scrolls clear of it)
     @State private var barHeight: CGFloat = 116
+    /// SELECT: the places ticked, MOVE waiting for its place
+    @State private var picks = PoolPicks()
+    /// a bulk write running (its count in the bar)
+    @State private var run: BulkProgress?
+    /// the place a long-press just ticked (the tap its release makes is not another toggle)
+    @State private var held: Int?
     @Namespace private var tiles
 
     private var actions: UnitActions { model.actions }
@@ -53,7 +60,13 @@ struct PoolView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
         .onAppear {
             if snapshot, let s = shotSelection, s.hasPrefix("pool:") { selected = Int(s.dropFirst(5)) }
+            // (fizzshots: "poolsel:3,6,9", "poolmove:3,6,9")
+            if snapshot, let s = shotSelection, let c = s.firstIndex(of: ":"), s.hasPrefix("poolsel:") || s.hasPrefix("poolmove:") {
+                picks.set(Set(s[s.index(after: c)...].split(separator: ",").compactMap { Int($0) }))
+                picks.moving = s.hasPrefix("poolmove:")
+            }
         }
+        .onChange(of: signature) { _, _ in if run == nil { picks.keep(Set(pool.keys)) } }
         // the steps on each place: USERS, one after another while POOL shows (pool.js fill)
         .task(id: signature) {
             guard !snapshot else { return }
@@ -96,7 +109,7 @@ struct PoolView: View {
         ask = ConfirmAsk(title: "LOAD PROJECT", what: name, detail: from.isEmpty ? nil : "FROM \(from)", go: "LOAD", color: FZ.green,
                          undo: .cleared) {
             Task {
-                selected = nil; pick = nil; moving = nil
+                selected = nil; pick = nil; moving = nil; picks.clear()
                 let o = await actions.loadProject(k)
                 note = o.isOK ? .done("\(name) ON THE FM-1") : ScreenNote.of(o)
             }
@@ -110,14 +123,24 @@ struct PoolView: View {
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 10), spacing: 5), count: columns), spacing: 5) {
             ForEach(1...128, id: \.self) { k in
                 let e = pm[k]
+                let ticked = picks.on && picks.places.contains(k)
                 Button { tapTile(k) } label: {
                     PoolTile(place: k, entry: e, algorithm: e.flatMap { ps[$0.id] }.map(model.algorithm) ?? 1,
                              steps: actions.poolSteps(k), selected: selected == k, here: pick != nil && e?.id == pick,
-                             moving: moving == k, height: height, namespace: tiles,
+                             moving: moving == k || (picks.moving && ticked), ticked: ticked && !picks.moving,
+                             height: height, namespace: tiles,
                              nth: e.map { x in pm.filter { $0.key < k && $0.value.id == x.id }.count } ?? 0)
                 }
                 .buttonStyle(PressStyle(scale: 0.9))
-                .modifier(TileDrop(place: k, enabled: can, drags: wide, onPreset: { place(k, id: $0) }, onPlace: { askSwap($0, k) }))
+                // (a long-press on a sound: SELECT, that place ticked; the tap its release makes is skipped)
+                .simultaneousGesture(LongPressGesture(minimumDuration: 0.4).onEnded { _ in hold(k) })
+                .accessibilityAction(named: "Select") { hold(k) }
+                .modifier(TileDrop(place: k, enabled: can, drags: wide && !picks.on, onPreset: { place(k, id: $0) },
+                                   onPlace: { from in
+                                       held = nil
+                                       if picks.count <= 1 { picks.clear() }      // (the iPad's hold that lifted a drag)
+                                       askSwap(from, k)
+                                   }))
             }
         }
         .opacity(model.status == nil ? 0.4 : 1)
@@ -125,6 +148,15 @@ struct PoolView: View {
     }
 
     private func tapTile(_ k: Int) {
+        if held == k { held = nil; return }
+        held = nil
+        if picks.on {
+            guard run == nil else { return }
+            if picks.moving { askBlockMove(k) } else {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { picks.tap(k, full: pool[k] != nil) }
+            }
+            return
+        }
         guard can else { return }
         if let id = pick { place(k, id: id); return }
         if let m = moving {
@@ -135,6 +167,14 @@ struct PoolView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { selected = selected == k ? nil : k }
         // TRACK on: the place's sound heard on the track (pool.js previewId), as LIBRARY's tap
         if actions.trackOn, selected == k, let r = pool[k] { Task { _ = await actions.pick(r) } }
+    }
+
+    /// A long-press: SELECT on with this sound ticked (on already: a toggle); an empty place: nothing new.
+    private func hold(_ k: Int) {
+        guard pool[k] != nil, actions.job == nil, run == nil else { return }
+        held = k
+        if !picks.on { selected = nil; pick = nil; moving = nil }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { picks.hold(k, full: true) }
     }
 
     private func place(_ k: Int, id: Int) {
@@ -193,6 +233,80 @@ struct PoolView: View {
                 let o = await actions.clearUnused()
                 if case .placed(let c) = o { note = .done("\(c) CLEARED", c > 0 ? FZ.green : FZ.muted) } else { note = ScreenNote.of(o) }
             }
+        }
+    }
+
+    // MARK: SELECT's flows
+
+    private var pickedTints: [RGB] { picks.sorted.prefix(4).compactMap { pool[$0] }.map { FizzTag.tint(mask: $0.tags) } }
+
+    /// the confirm's what: the names (three at most), else the count
+    private func pickedNames(_ ks: [Int]) -> String {
+        let pm = pool
+        var names: [String] = []
+        for k in ks { if let e = pm[k], !names.contains(e.name) { names.append(e.name) } }
+        return ks.count <= 3 && !names.isEmpty ? names.joined(separator: ", ") : "\(ks.count) SOUNDS"
+    }
+
+    private func progress(_ label: String) -> (Int, Int) -> Void { { d, of in run = BulkProgress(label: label, done: d, of: of) } }
+
+    /// CLEAR n: the steps that use them read (USERS), asked once (pool.js p-clear's question for all of them).
+    private func askClearPicked() {
+        let go = picks.sorted
+        guard !go.isEmpty else { return }
+        Task {
+            let steps = await actions.poolStepsUsing(go)
+            ask = ConfirmAsk(title: "CLEAR \(go.count) POOL PLACE\(go.count == 1 ? "" : "S")", what: pickedNames(go),
+                             detail: steps > 0 ? stepsText(steps) : "THEIR STEPS → TRACK SOUND", go: "CLEAR", color: FZ.red,
+                             undo: .kept) {
+                Task {
+                    let d = await actions.bulkClearPlaces(go, progress: progress("CLEAR"))
+                    run = nil
+                    picks.keep(Set(pool.keys))
+                    note = BulkFlow.toast("\(d.n) CLEARED", FZ.muted, d)
+                }
+            }
+        }
+    }
+
+    /// MOVE's place tapped: the block side by side from there (held inside 128), asked once.
+    private func askBlockMove(_ k: Int) {
+        let go = picks.sorted
+        picks.moving = false
+        let plan = UnitActions.blockMove(go, to: k, occupied: Set(pool.keys))
+        let r = plan.range, at = r.count == 1 ? "\(r.lowerBound)" : "\(r.lowerBound)–\(r.upperBound)"
+        guard !plan.swaps.isEmpty else { note = .done("THERE ALREADY", FZ.muted); return }
+        let n = plan.swaps.count
+        ask = ConfirmAsk(title: "MOVE \(go.count) → \(at)", what: pickedNames(go),
+                         detail: "\(n) SWAP\(n == 1 ? "" : "S") · PATTERNS FOLLOW", go: "MOVE", color: FZ.yellow, undo: .cleared) {
+            Task {
+                let d = await actions.bulkMovePool(go, to: k, progress: progress("MOVE"))
+                run = nil
+                if d.stopped == nil { withAnimation { picks.moved(to: r) } } else { picks.keep(Set(pool.keys)) }
+                note = BulkFlow.toast("MOVED → \(at)", FZ.yellow, d)
+            }
+        }
+    }
+
+    /// → KEPT n: the places' presets onto the phone.
+    private func keepPicked() {
+        let go = picks.sorted
+        Task {
+            let r = await model.keepPlaces(go, progress: progress("KEPT"))
+            run = nil
+            note = r.kept + r.already == 0 ? ScreenNote(text: "NOT READ YET", color: FZ.muted, kind: .refused)
+                : .done("→ KEPT · \(r.kept)\(r.already > 0 ? " · \(r.already) ALREADY" : "")", FZ.champagne)
+        }
+    }
+
+    @ViewBuilder private var bottom: some View {
+        if picks.on {
+            PoolBulkBar(count: picks.count, tints: pickedTints, can: can && run == nil, moving: picks.moving, run: run,
+                        done: { withAnimation { picks.clear() } }, clear: askClearPicked, move: { picks.moving = true },
+                        cancelMove: { picks.moving = false }, keep: keepPicked)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else {
+            bar.transition(.opacity)
         }
     }
 
@@ -291,9 +405,10 @@ struct PoolView: View {
         .padding(.horizontal, 16)
         .overlay(alignment: .top) { NoteStrip(note: $note).padding(.top, 60) }
         .overlay(alignment: .bottom) {
-            bar.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+            bottom.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
                 .padding(.horizontal, 12).padding(.bottom, clearance)
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.on)
         .sheet(isPresented: $drawer) {
             SoundsDrawer(model: model, filter: $filter, picked: pick) { id in
                 pick = id
@@ -312,14 +427,15 @@ struct PoolView: View {
                 projectChips.frame(maxWidth: 560).padding(.bottom, 14)
                 grid(columns: 16, height: 52)
                 Spacer(minLength: 14)
-                bar
+                bottom
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.on)
             .frame(maxWidth: .infinity)
             Card(padding: 14) {
                 Heading(text: "SOUNDS", count: "\(model.mine.count + model.factory.count)").padding(.bottom, 10)
                 SoundsList(model: model, filter: $filter, picked: pick, draggable: can, marks: false) { id in
                     pick = pick == id ? nil : id
-                    selected = nil; moving = nil
+                    selected = nil; moving = nil; picks.clear()
                 }
             }
             .frame(width: 300)
@@ -341,6 +457,8 @@ struct PoolTile: View {
     var selected = false
     var here = false
     var moving = false
+    /// SELECT's tick: a cream ring and a tick at the corner (still: many at once)
+    var ticked = false
     var height: CGFloat = 46
     let namespace: Namespace.ID
     /// the same sound's earlier places (its id among the matched tiles)
@@ -362,16 +480,25 @@ struct PoolTile: View {
             }
             .frame(height: height)
             .overlay {
-                if selected || here || moving {
-                    let c = moving ? FZ.yellow : here ? FZ.green : FZ.cyan
+                if selected || here || moving || ticked {
+                    let c = moving ? FZ.yellow : here ? FZ.green : ticked ? FZ.cream : FZ.cyan
                     RoundedRectangle(cornerRadius: 12).inset(by: -3).strokeBorder(Color.black, lineWidth: 2.5)
                         .overlay(RoundedRectangle(cornerRadius: 13).inset(by: -5.5).strokeBorder(c.color, lineWidth: 2.5))
-                        .shadow(color: c.color, radius: 10)
+                        .shadow(color: c.color, radius: ticked && !selected ? 0 : 10)    // (the ticks: crisp, many at once)
                 }
             }
             .overlay { if selected { TileBubbles(t: t) } }
+            .overlay(alignment: .topTrailing) {
+                if ticked {
+                    IconView(KeptArt.check, color: .black, lineWidth: 2.8, backdrop: FZ.cream.color)
+                        .frame(width: 10, height: 10).padding(3)
+                        .background(Circle().fill(FZ.cream.color)).overlay(Circle().strokeBorder(Color.black, lineWidth: 1.5))
+                        .offset(x: 6, y: -6)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
             .scaleEffect(selected ? s : 1)
-            .zIndex(selected ? 2 : 0)
+            .zIndex(selected ? 2 : ticked ? 1 : 0)
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
     }
