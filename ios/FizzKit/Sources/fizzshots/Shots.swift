@@ -106,6 +106,10 @@ struct Shots {
         }.padding(20).background(Color.black), CGSize(width: 760, height: 120), out, "tag-icons")
         save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "pool:3"), phone, out, "pool")
         save(RootView(model: m, tab: .constant(.pool), wide: true).environment(\.fizzShotSelection, "pool:3"), pad, out, "ipad-pool")
+        // POOL's SELECT: three ticked (3 and 6 locked by steps), the bulk bar; MOVE waiting for its place
+        save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "poolsel:2,3,6"), phone, out, "pool-select")
+        save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "poolmove:2,3,6"), phone, out, "pool-select-move")
+        save(RootView(model: m, tab: .constant(.pool), wide: true).environment(\.fizzShotSelection, "poolsel:2,3,6"), pad, out, "ipad-pool-select")
         save(LogSheetShot(model: m), phone, out, "log")
 
         // ---- I5: EDIT
@@ -351,6 +355,12 @@ struct Shots {
         pm.dismissNote()
         pm.mode = .patterns
         save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-patterns")
+        // the selection's bar at an iPhone 13 Pro Max's size; nothing selected (all off); one pattern (TO… on)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), CGSize(width: 428, height: 926), out, "projects-patterns-max")
+        pm.clearSelection()
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-bar-none")
+        pm.tap(6)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-bar-one")
         // mock-ups 43, 48: NOIR A07 lifted over SUNDAY's chip (its card sprung open); TO… into SUNDAY; the iPad (SUNDAY
         // beside NOIR): A07 dragged onto SUNDAY A10, KEPT in that column instead. (Each pose after a render of its screen:
         // the drop targets' places are the ones it reported.)
@@ -364,6 +374,8 @@ struct Shots {
         pm.closeTo()
         pm.selectRange(from: 33, to: 34)
         save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects")
+        pm.clearSelection()
+        save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-none")
         pm.clearSelection()
         await pm.pose(p: 0, k: 6, q: 1, j: 9)
         save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-drag")

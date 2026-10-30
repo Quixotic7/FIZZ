@@ -19,23 +19,28 @@ extension Icons {
 
 // MARK: - SELECT / DONE
 
-/// SELECT (an outline) / DONE (cream, a tick), as KEPT's head has them.
+/// SELECT (an outline, the rows' empty tick before it) / DONE (cream, a tick), as KEPT's head has them.
 struct SelectPill: View {
     let selecting: Bool
     var enabled = true
+    var color: RGB = FZ.cream
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                if selecting { IconView(KeptArt.check, color: .black, lineWidth: 2.6, backdrop: FZ.cream.color).frame(width: 15, height: 15) }
+            HStack(spacing: 7) {
+                if selecting {
+                    IconView(KeptArt.check, color: .black, lineWidth: 2.6, backdrop: color.color).frame(width: 15, height: 15)
+                } else {
+                    Circle().strokeBorder(color.color, lineWidth: 2).frame(width: 16, height: 16)
+                }
                 Text(selecting ? "DONE" : "SELECT").fz(14, 800, em: 0.08)
             }
             .foregroundStyle(selecting ? Color.black : FZ.text.color)
             .padding(.horizontal, 16).frame(height: 44)
-            .background(Capsule().fill(selecting ? FZ.cream.color : .clear))
-            .overlay(Capsule().strokeBorder(selecting ? .clear : FZ.line.color, lineWidth: 1.5))
-            .shadow(color: selecting ? FZ.cream.opacity(0.4) : .clear, radius: 10)
+            .background(Capsule().fill(selecting ? color.color : .clear))
+            .overlay(Capsule().strokeBorder(selecting ? .clear : color.opacity(0.55), lineWidth: 1.5))
+            .shadow(color: selecting ? color.opacity(0.4) : .clear, radius: 10)
             .contentShape(Capsule())
             .fixedSize()
         }

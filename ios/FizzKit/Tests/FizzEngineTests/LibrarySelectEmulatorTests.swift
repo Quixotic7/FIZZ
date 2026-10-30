@@ -67,4 +67,32 @@ extension EmulatorTests {
         m.stop()
         await host.close()
     }
+
+    /// LIBRARY on THIS iPHONE (no FM-1): it opens on ALL, not KEPT, and SELECT starts and ticks on every side (the
+    /// owner found none on the iPhone: LIBRARY always opened on KEPT then, where only the phone's presets tick).
+    @MainActor @Test func selectOnEverySideOfThisIPhone() async throws {
+        let d = FileManager.default.temporaryDirectory.appendingPathComponent("fizz-emu-sides-\(UUID().uuidString)")
+        let host = EmulatorHost(emulator: FizzEmulator(storage: nil))
+        let m = UnitModel(source: NoPorts(), emulator: host, backups: d.appendingPathComponent("Backups"),
+                          projects: d.appendingPathComponent("Projects"), presets: d.appendingPathComponent("Presets"))
+        host.launch()
+        m.start()
+        let end = Date().addingTimeInterval(15)
+        while !(m.onEmulator && m.dumpsLoaded) && Date() < end { try? await Task.sleep(for: .milliseconds(20)) }
+        #expect(m.onEmulator && m.noFM1 && m.unitName == "THIS iPHONE")
+        #expect(LibrarySide.shown == .all, "LIBRARY opens on ALL with no FM-1 too")
+        for s in LibrarySide.allCases { #expect(m.canSelect(on: s), "SELECT on \(s.title)") }
+        // one saved, so MY PRESETS has a row; then one ticked on each of the unit's sides
+        if let s = await m.actions.exportSounds(Array(m.factory.prefix(1))).first { _ = await m.actions.save(s) }
+        #expect(!m.mine.isEmpty && !m.factory.isEmpty)
+        for side in [LibrarySide.all, .mine, .factory] {
+            m.picks.start()
+            let shown = LibraryFilter(source: side.source ?? .all).shown(m.rows)
+            if let r = (shown.mine + shown.factory).first { m.picks.toggle(r) }
+            #expect(m.picks.active && m.picks.rows(m.rows).count == 1, "a row ticked on \(side.title)")
+            m.picks.clear()
+        }
+        m.stop()
+        await host.close()
+    }
 }

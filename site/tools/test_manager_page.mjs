@@ -69,6 +69,9 @@
 //   - nf-askload (2026-10-29): LOAD ON FM-1 of an IN THIS BROWSER preset the FM-1 lacks asks ADD · MY PRESETS n (the
 //     first free place): CANCEL sends nothing, ADD stores it there and opens the unit's browser; one it has opens at
 //     once; MY PRESETS full: FULL, nothing sent;
+//   - nf-play2 (2026-10-29): PLAY flat (no glow around the board, no gradient on its buttons and keys), no THIS
+//     BROWSER chip on it, key 11's longer LED; Shift-click latches (THIS BROWSER's panel; the FM-1's CC 127 held, 0 on
+//     the second click; leaving the tab lets go); 1440 x 900 and 844 x 390 screenshots in .build/test/play2;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -2060,6 +2063,92 @@ try {
   await sleep(300);
   }
   // ---- (end of nf-play)
+  // ---- nf-play2 (the owner's fixes, 2026-10-29): the board flat (no glow around it, no gradient on its buttons and
+  // keys); no THIS BROWSER chip on it; key 11 (B11) with the longer LED; Shift-click latches a button (the FM-1: CC 127
+  // once, held while other buttons are clicked; a click again CC 0), a plain click does not, leaving the tab lets go
+  {
+  const SHOTS2 = path.join(OUT, "play2");
+  fs.mkdirSync(SHOTS2, { recursive: true });
+  const shiftClick = async (sel) => { const c = await centre(sel); await mouse("mousePressed", c.x, c.y, { modifiers: 8 }); await mouse("mouseReleased", c.x, c.y, { modifiers: 8 }); };
+  await size(1440, 900);
+  await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#play" });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.rows.length > 0 && __mgr.S.mode === 'fm1' && __mgr.play.state.shown", 40000);
+  await realClick("#pl-tgt [data-tg='browser']");
+  await realClick("#pl-views [data-v='full']");
+  await waitFor("__mgr.play.state.cur === 'browser' && __mgr.play.state.lay === 'full'", 3000);
+  await sleep(300);
+  const look = await evaluate(`(() => { const b = document.getElementById('pl-board');
+    const bg = (sel) => [...b.querySelectorAll(sel)].map((e) => getComputedStyle(e).backgroundImage);
+    const led = (k) => parseFloat(getComputedStyle(b.querySelector('.k[data-key="' + k + '"]'), '::after').height);
+    const pb = bg('.pb'), k = bg('.k');
+    return { glow: getComputedStyle(b).boxShadow, pb: pb.length === 14 && pb.every((x) => x === 'none'), k: k.length === 27 && k.every((x) => x === 'none'),
+      chip: /THIS BROWSER/.test(b.textContent) || !!b.querySelector('.bpill'), l11: led(25), near: [22, 24, 26].map(led) }; })()`);
+  check(look.glow === "none" && look.pb && look.k, `PLAY flat: no glow around the board (${look.glow}), no gradient on its 14 buttons (${look.pb}) and 27 keys (${look.k})`);
+  check(!look.chip, "PLAY → THIS BROWSER: no THIS BROWSER chip on the board");
+  check(look.l11 > Math.max(...look.near) + 8, `PLAY: key 11 (B11, F#5) has the longer LED (${look.l11} px; B10, W15, W16: ${look.near.join(", ")})`);
+  await shot(path.join("play2", "play-1440-browser-full.png"));
+  // THIS BROWSER: a key Shift-clicked stays down in its FIZZ's panel until clicked again
+  await realClick("#pl-board .bezel");
+  await waitFor("!__mgr.bu().quiet && __mgr.bu().running", 20000);
+  await sleep(1200);
+  await realClick("#pl-board .pb[data-b='6']");
+  await sleep(600);
+  await evaluate("(() => { const p = __mgr.bu().player; window.__pk = []; const o = p.panel.bind(p); p.panel = (m) => { window.__pk.push(m.keys); o(m); }; })()");
+  await shiftClick("#pl-board .k[data-key='7']");
+  await sleep(500);
+  const bl = await evaluate("({ held: __mgr.play.controls.keyLatched(7), last: window.__pk[window.__pk.length - 1], cls: document.querySelector('#pl-board .k[data-key=\"7\"]').classList.contains('latched') })");
+  await shot(path.join("play2", "play-1440-browser-latched.png"));
+  await realClick("#pl-board .k[data-key='7']");
+  await sleep(200);
+  const bu = await evaluate("({ held: __mgr.play.controls.keyHeld(7), last: window.__pk[window.__pk.length - 1] })");
+  check(bl.held && bl.cls && (bl.last & (1 << 7)) && !bu.held && !(bu.last & (1 << 7)),
+    `PLAY → THIS BROWSER: a Shift-clicked key stays down in its FIZZ's panel (${bl.last}) until clicked again (${bu.last})`);
+  // the FM-1: SHIFT (QD_B 5) Shift-clicked: CC 25 127 once and held; HOME clicked meanwhile: momentary; SHIFT again: CC 25 0
+  await realClick("#pl-tgt [data-tg='fm1']");
+  await waitFor("__mgr.play.state.cur === 'fm1'", 3000);
+  await sleep(300);
+  check(await evaluate("getComputedStyle(document.getElementById('pl-board')).boxShadow === 'none'"), "PLAY → FM-1: no glow around the board either");
+  await evaluate("window.__pout = []; window.__sim.hooks.midi = (d) => window.__pout.push(Array.from(d).join(' '))");
+  await shiftClick("#pl-board .pb[data-b='5']");
+  await sleep(250);
+  const l1 = await evaluate("({ out: window.__pout.join('|'), held: __mgr.play.controls.btnHeld(5), cls: document.querySelector('#pl-board .pb[data-b=\"5\"]').classList.contains('latched') })");
+  await evaluate("window.__pout = []");
+  await realClick("#pl-board .pb[data-b='6']");
+  await sleep(250);
+  const l2 = await evaluate("({ out: window.__pout.join('|'), shift: __mgr.play.controls.btnHeld(5), home: __mgr.play.controls.btnHeld(6) || __mgr.play.controls.btnLatched(6) })");
+  await shot(path.join("play2", "play-1440-fm1-latched.png"));
+  await evaluate("window.__pout = []");
+  await realClick("#pl-board .pb[data-b='5']");
+  await sleep(250);
+  const l3 = await evaluate("({ out: window.__pout.join('|'), held: __mgr.play.controls.btnHeld(5), cls: document.querySelector('#pl-board .pb[data-b=\"5\"]').classList.contains('latched') })");
+  check(l1.out === "191 25 127" && l1.held && l1.cls, `PLAY → FM-1: Shift-click latches SHIFT: CC 25 127 sent once, held, ringed (${l1.out})`);
+  check(l2.out === "191 26 127|191 26 0" && l2.shift && !l2.home, `PLAY → FM-1: a plain click on HOME meanwhile is momentary (${l2.out}), SHIFT still held`);
+  check(l3.out === "191 25 0" && !l3.held && !l3.cls, `PLAY → FM-1: a second click lets SHIFT go: CC 25 0 (${l3.out})`);
+  // latched, then the tab left: let go (CC 25 0, then CC 123)
+  await shiftClick("#pl-board .pb[data-b='5']");
+  await sleep(200);
+  await evaluate("window.__pout = []");
+  await realClick("#t-library");
+  await sleep(250);
+  const l4 = await evaluate("({ out: window.__pout.join('|'), held: __mgr.play.controls.btnHeld(5) })");
+  check(/^191 25 0\|.*191 123 0/.test(l4.out) && !l4.held, `PLAY → FM-1: leaving the tab lets a latched SHIFT go (${l4.out})`);
+  await realClick("#t-play");
+  await waitFor("__mgr.play.state.shown", 3000);
+  await sleep(300);
+  await shot(path.join("play2", "play-1440-fm1-full.png"));
+  await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true, screenOrientation: { type: "landscapePrimary", angle: 90 } });
+  await sleep(700);
+  await shot(path.join("play2", "play-844x390-fm1.png"));
+  await realClick("#pl-tgpill");
+  await waitFor("__mgr.play.state.cur === 'browser'", 3000);
+  await sleep(400);
+  await shot(path.join("play2", "play-844x390-browser.png"));
+  await evaluate("window.__sim.hooks.midi = null");
+  await realClick("#pl-back");
+  await size(1280, 800);
+  await sleep(300);
+  }
+  // ---- (end of nf-play2)
   // ---- nf-new (parity 2026-10-29): LIBRARY's + NEW (FM / MIDI, into the FM-1 or IN THIS BROWSER), the IN THIS BROWSER
   // card (rename, tags, web tags, DUPLICATE, EDIT -> SAVE into the browser's store, SEND, LOAD), pan and sends kept
   // through each, RESET then + NEW, LOAD ON FM-1's track under the name, a phone
