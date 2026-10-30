@@ -141,7 +141,8 @@ public struct PlayView: View {
     }
 
     /// RemoteFM1's status chip as FIZZ's unit: THIS iPHONE (THIS iPAD), FM-1 with a green dot while the keys play it,
-    /// or a ▶-played backup's yellow pill (BackupPlay.swift). A tap: the unit picker.
+    /// FM-1 panel with a green dot while a RemoteFM1 unit is the panel (mock-up 57; the dot waits for the link), or a
+    /// ▶-played backup's yellow pill (BackupPlay.swift). A tap: the unit picker (where the panel's × lets it go).
     @ViewBuilder
     private func chip(_ c: PlayLayout.Chip, _ u: CGFloat) -> some View {
         let p = play.theme.palette
@@ -149,11 +150,12 @@ public struct PlayView: View {
             BackupPill(backup: bk, height: c.height * u, font: c.font * u, pick: { model.openPicker(fromPlay: true) },
                        close: { Task { await host.endBackup() } })
         } else {
-            let fm1 = play.soundNow == .fm1
+            let fm1 = play.soundNow == .fm1, panel = host.panelPort != nil
+            let lit = panel ? host.panel == .active : fm1
             Button { model.openPicker(fromPlay: true) } label: {
                 HStack(spacing: 9 * u) {
-                    Circle().fill(fm1 ? RGB(0x3BD47A).color : p.label.color).frame(width: 7 * u, height: 7 * u)
-                    Text(fm1 ? "FM-1" : EmulatorHost.hereName).dm(c.font * u, 500).lineLimit(1).fixedSize()
+                    Circle().fill(lit ? RGB(0x3BD47A).color : p.label.color).frame(width: 7 * u, height: 7 * u)
+                    Text(panel ? "FM-1 panel" : fm1 ? "FM-1" : EmulatorHost.hereName).dm(c.font * u, 500).lineLimit(1).fixedSize()
                 }
                 .foregroundStyle(p.label.color)
                 .padding(.leading, 11 * u).padding(.trailing, 13 * u)
