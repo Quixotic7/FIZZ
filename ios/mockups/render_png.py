@@ -27,7 +27,10 @@ PAIR = (884, 900)         # two phones side by side: 414 + 24 + 414 + 16 px arou
 CMP = (884, 950)          # RemoteFM1's screen beside the copy: a 30 px label over each phone
 CMPLAND = (900, 940)      # two phones on their side, stacked, each with its label
 CMPIPAD = (1248, 1824)    # two iPads, stacked, each with its label
-SHEET = (1640, 18000)   # trimmed to its content afterwards
+CMP4 = (884, 1860)        # 2 x 2 labelled phones (RemoteFM1's row over FIZZ's)
+CMP6 = (1322, 1860)       # 3 x 2 labelled phones
+CMP8 = (1760, 1860)       # 4 x 2 labelled phones
+SHEET = (1640, 24000)   # trimmed to its content afterwards
 
 
 def screens():
@@ -35,7 +38,7 @@ def screens():
     src = open(PAGE, encoding='utf-8').read()
     body = src[src.index('const SCREENS = ['):]
     def size(line):
-        for key, sz in (('cmpipad: true', CMPIPAD), ('cmpland: true', CMPLAND), ('cmp: true', CMP), ('ipad: true', IPAD),
+        for key, sz in (('cmp8: true', CMP8), ('cmp6: true', CMP6), ('cmp4: true', CMP4), ('cmpipad: true', CMPIPAD), ('cmpland: true', CMPLAND), ('cmp: true', CMP), ('ipad: true', IPAD),
                         ('land: true', LAND), ('pair: true', PAIR)):
             if key in line:
                 return sz
