@@ -5,7 +5,8 @@
 // PLAY's state and input (mock-ups 49-54, RemoteFM1's panel; STEPS in PlaySteps.swift): the emulated FIZZ's screen and LEDs as
 // they come (frames()), the buttons pressed on touch-down and let go on touch-up as the hardware's are, the knobs
 // (MASTER absolute, the others detents from a drag), the 27 keys with a velocity from where the finger lands; the view,
-// the theme and SOUND remembered.
+// the theme and SOUND remembered. A MIDI controller, the learned map and the OMX-27 play the same panel (`midi`,
+// MIDI/MidiHub.swift; learn mode's state is there too).
 // The pure parts (labels, detents, velocity, the keybed's geometry) are PlayInput's and KeyLayout's, for the tests.
 
 import CoreGraphics
@@ -57,7 +58,12 @@ public final class PlayModel {
     /// CONTROLS' knob row: MAIN (false, as RemoteFM1 opens it) or KN 1-4 (true)
     public var knobsKN = false
     /// The pull-down sheet
-    public var sheet = false
+    public var sheet = false { didSet { if !sheet { sheetPage = nil } } }
+    /// The sheet's MIDI & audio page (or its MIDI input page) in its list's place (MIDI/MidiAudioPage.swift)
+    public var sheetPage: MidiSheetPage?
+    /// (the snapshots: how far the MIDI & audio page is scrolled; the simulator's demo: the section scrolled to)
+    public var midiShotScroll: CGFloat = 0
+    public var midiScrollTo: String?
     /// The scrolling keybed's first key shown (white keys, 0..)
     public var keysOffset: Double = 4
     /// .. STEPS' keybed's (C4 and G4 in sight at the octave first chosen)
@@ -80,14 +86,34 @@ public final class PlayModel {
     @ObservationIgnored var padFade: [Int: Int] = [:]
     @ObservationIgnored var fm1Sends: Task<Void, Never>?
 
-    init(host: EmulatorHost?, defaults: UserDefaults = .standard) {
+    // MIDI (MIDI/MidiHub.swift)
+    @ObservationIgnored private var midiHub: MidiHub?
+    @ObservationIgnored private let midiFile: URL?
+    @ObservationIgnored var midiDemoShown = false
+
+    /// midiFile: where the learned map is kept (nil: in memory, the tests)
+    init(host: EmulatorHost?, defaults: UserDefaults = .standard, midiFile: URL? = MidiMapStore.defaultURL) {
         self.host = host
         self.defaults = defaults
+        self.midiFile = midiFile
         view = PlayViewKind(rawValue: defaults.string(forKey: "play.view") ?? "") ?? .full
         theme = PlayTheme(rawValue: defaults.string(forKey: "play.theme") ?? "") ?? .tangerine
         if defaults.object(forKey: "play.master") != nil { master = defaults.integer(forKey: "play.master") }
         let o = defaults.object(forKey: "play.stepsOctave") != nil ? defaults.integer(forKey: "play.stepsOctave") : 4
         stepsOctave = max(StepsInput.octaves.lowerBound, min(StepsInput.octaves.upperBound, o))
+    }
+
+    /// PLAY's MIDI: the controller input, the learned map and learn, the OMX-27 (made the first time it is asked for).
+    public var midi: MidiHub {
+        if let midiHub { return midiHub }
+        let h = MidiHub(play: self, defaults: defaults, store: MidiMapStore(url: midiFile))
+        midiHub = h
+        return h
+    }
+
+    /// PLAY's MIDI with these parts (the demo, the snapshots, the tests).
+    public func useMidi(store: MidiMapStore, input: MidiInput? = nil, omx: OmxLink? = nil) {
+        midiHub = MidiHub(play: self, defaults: defaults, store: store, input: input, omx: omx)
     }
 
     /// The FIZZ PLAY drives: THIS iPHONE's, or a backup's while one plays (EmulatorHost.backup).
@@ -111,11 +137,11 @@ public final class PlayModel {
 
     // MARK: the panel
 
-    func press(_ b: FizzButton) {
+    func press(_ b: FizzButton, haptic: Bool = true) {
         guard !pressed.contains(b) else { return }
         pressed.insert(b)
         emulator?.press(b)
-        Haptics.press()
+        if haptic { Haptics.press() }
     }
 
     func release(_ b: FizzButton) {
@@ -124,17 +150,17 @@ public final class PlayModel {
     }
 
     /// A detent knob turned (+ clockwise).
-    func turn(_ k: FizzKnob, by n: Int) {
+    func turn(_ k: FizzKnob, by n: Int, haptic: Bool = true) {
         guard n != 0 else { return }
         emulator?.turn(k, by: n)
         angles[k, default: 0] += Double(n) * 15
-        Haptics.tick()
+        if haptic { Haptics.tick() }
     }
 
-    func setMaster(_ v: Int) {
+    func setMaster(_ v: Int, haptic: Bool = true) {
         let c = max(0, min(1023, v))
         guard c != master else { return }
-        if PlayInput.masterStep(master) != PlayInput.masterStep(c) { Haptics.tick() }
+        if haptic && PlayInput.masterStep(master) != PlayInput.masterStep(c) { Haptics.tick() }
         master = c
         emulator?.setMaster(c)
         defaults.set(c, forKey: "play.master")
@@ -172,6 +198,7 @@ public final class PlayModel {
         for k in held { keyUp(k) }
         for n in notes { noteUp(n) }
         for i in pads { padUp(i) }
+        midiHub?.router.releaseAll()
     }
 
     /// PLAY left: everything let go, the sheet up, the LCD back in its place.

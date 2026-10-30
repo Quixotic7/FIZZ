@@ -67,6 +67,10 @@ public final class EmulatorHost {
     public private(set) var serving = false
     /// TRACK on, with the emulated FIZZ the unit
     public var trackOn = false { didSet { if trackOn != oldValue { update() } } }
+    /// PLAY's sound (MIDI & audio > Sound, kept): off, the clock runs silent where it would be heard.
+    public var soundOn = UserDefaults.standard.object(forKey: "play.soundOn") as? Bool ?? true {
+        didSet { if soundOn != oldValue { UserDefaults.standard.set(soundOn, forKey: "play.soundOn"); update() } }
+    }
     /// A note sent to it while it is the unit (EDIT's keybed): heard from then on.
     public private(set) var notes = false
     /// Its STATUS as PLAY's sheet last read it (while an FM-1 is the unit; else UnitModel's)
@@ -234,7 +238,8 @@ public final class EmulatorHost {
         let c = Self.clock(playShown: playShown || (panelLink != nil && own), serving: serving && own,
                            trackOn: trackOn && serving && own, notes: notes && own,
                            playing: wanted == .audio && e.isPlaying, now: wanted)
-        let w = c == .stopped && lent > 0 && own ? .timer : c   // (lend: SEND's link needs its clock)
+        let h = c == .audio && !soundOn ? .timer : c           // (the sound off: silent)
+        let w = h == .stopped && lent > 0 && own ? .timer : h   // (lend: SEND's link needs its clock)
         guard w != wanted else { return }
         wanted = w
         ops.async { [weak self] in

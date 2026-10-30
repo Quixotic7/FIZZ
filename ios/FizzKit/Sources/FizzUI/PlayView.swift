@@ -8,6 +8,8 @@
 // SCREEN; four page dots, or a swipe sideways on the screen. The iPhone on its side and the iPad (no rail: the whole
 // screen is the panel) lay FULL out in one band. The grabber (or a pull down) drops the sheet (PlayPanel.swift), which
 // carries the app's tab bar; the FIZZ badge goes back to the manager. Where everything sits: PlayRFMLayout.swift.
+// MIDI learn's outlines, bar and MASTER's pickup mark lie over the panel (MIDI/MidiLearnViews.swift, mock-up 56); a MIDI
+// controller and the OMX-27 play it from PLAY's first showing (MIDI/MidiHub.swift).
 
 import SwiftUI
 import FizzEngine
@@ -71,7 +73,11 @@ public struct PlayView: View {
         .deferringSystemGestures()
         // (a backup played or put away: the screen follows the FIZZ now driven)
         .task(id: host.backup?.id) { if !snapshot { await play.follow() } }
+        // (the controller input skips the unit in use and the panel)
+        .onChange(of: model.unit?.portName) { play.midi.skipAgain() }
+        .onChange(of: host.panelPort) { play.midi.skipAgain() }
         .onAppear {
+            if !snapshot { play.startMidi() }
             host.playShown = true
             if play.view == .steps { play.stepsEntered() }      // (FIZZ in its step view, as on entering STEPS)
         }
@@ -127,6 +133,7 @@ public struct PlayView: View {
             if let y = L.knobSwitchY { knobSwitch(u).frame(width: L.size.width * u).offset(y: (y - 16) * u) }
             if let d = L.deck { deck(u).frame(width: d.width * u, height: d.height * u).offset(x: d.minX * u, y: d.minY * u) }
             if let d = L.dots { dots(u).frame(width: d.width * u, height: d.height * u).offset(x: d.minX * u, y: d.minY * u) }
+            MidiLearnLayer(play: play, L: L, u: u)
         }
     }
 
