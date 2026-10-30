@@ -1545,7 +1545,8 @@ async function duplicateBrowser(r) {
   toast(`${name} · IN THIS BROWSER ${x.at[0]}`, "--orange");
   renderLibrary();
 }
-// LOAD ON FM-1 of a browser preset: the unit's browser opens on it there (MY PRESETS' copy, SENT first when it has none)
+// LOAD ON FM-1 of a browser preset: the unit's browser opens on it there (MY PRESETS' copy; when it has none, ADD to
+// MY PRESETS' first free place asked first, FULL said and nothing sent)
 async function browserOnUnit(r) {
   if (!S.link || !S.unit) return null;
   const want = soundFromLib(r.lib);                     // (the same sound: its values; a DUMP may carry another blob version)
@@ -1553,6 +1554,11 @@ async function browserOnUnit(r) {
   if (!S.unit.dumps) await loadDumps();
   let q = S.unit.rows.find(same);
   if (!q) {
+    // (where STORE's slot 0 puts it: the first free place of 1..nlib, as sendToUnit's SEND and the bulk panel show)
+    const [slot] = freeOf(S.unit.rows.filter((x) => x.source === "mine").map((x) => x.slot), unitPkg().nlib, 1);
+    if (!slot) { toast("MY PRESETS is FULL", "--orange"); return null; }
+    const ok = await confirmBox({ title: `ADD · MY PRESETS ${slot}`, what: r.name, go: "ADD + LOAD", color: "--green", undo: "kept" });
+    if (!ok) return null;
     const keep = { src: S.filter.src, sel: S.sel };
     const n = await sendToUnit([r], "mine", { jump: false });
     S.filter.src = keep.src; S.sel = keep.sel;

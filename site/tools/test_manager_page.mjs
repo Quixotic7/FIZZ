@@ -66,6 +66,9 @@
 //   - nf-units (2026-10-29): two FM-1s (?sim=two) in the picker, each by its port with USB or BLUETOOTH; RemoteFM1 and
 //     the update loader greyed and named, not to pick; the second picked answers alone; PORTS from the picker and the
 //     LOG (every port, what answered); the second unplugged: its row gone at once; a phone with no horizontal scroll;
+//   - nf-askload (2026-10-29): LOAD ON FM-1 of an IN THIS BROWSER preset the FM-1 lacks asks ADD · MY PRESETS n (the
+//     first free place): CANCEL sends nothing, ADD stores it there and opens the unit's browser; one it has opens at
+//     once; MY PRESETS full: FULL, nothing sent;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -2244,6 +2247,92 @@ try {
   await click("#t-library");
   }
   // ---- (end of nf-new)
+  // ---- nf-askload: LOAD ON FM-1 of an IN THIS BROWSER preset the FM-1 lacks asks first (ADD · MY PRESETS n, the first
+  // free place): CANCEL sends nothing, ADD stores it there and opens the unit's browser on it; one it has opens at once;
+  // MY PRESETS full: FULL said, nothing asked or sent
+  {
+  await size(1440, 900);
+  await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#library" });
+  await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await idle();
+  await click("#t-library");
+  const mineRows = () => evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').map((r) => ({ slot: r.slot, id: r.id, name: r.name }))");
+  const cmds = () => evaluate("(() => { const c = window.__sim.counts.cmds; return { store: (c[0x10] || 0) + (c[0x11] || 0), browse: c[0x31] || 0 }; })()");
+  const firstFree = async () => { const u = new Set((await mineRows()).map((r) => r.slot)), n = await evaluate("__mgr.S.unit.status.nlib || 256"); for (let k = 1; k <= n; k++) if (!u.has(k)) return k; return 0; };
+  const cfOpen = () => evaluate("!document.getElementById('cf').hidden");
+  const cfText = () => evaluate("({ title: document.getElementById('cf-title').textContent, what: document.getElementById('cf-what').textContent, go: document.getElementById('cf-go').textContent })");
+  const rename = async (slot, name) => {
+    await evaluate(`(() => { const i = document.getElementById('l-bname'); i.value = ${JSON.stringify(name)}; i.dispatchEvent(new Event('change')); })()`);
+    return waitFor(`__mgr.S.brow.rows.some((r) => r.slot === ${slot} && r.name === ${JSON.stringify(name)}) && !!document.getElementById('l-unit') && !document.getElementById('l-unit').disabled`, 8000);
+  };
+  // a browser preset: a MY preset kept in the browser, renamed (the FM-1 then has no copy of it)
+  const m0 = await mineRows(), src = m0[0];
+  await click("#l-filter [data-src='mine']");
+  await click(`#l-list .cas[data-src='mine'][data-slot='${src.slot}']`);
+  await waitFor("!!document.getElementById('l-keep') && !document.getElementById('l-keep').disabled", 8000);
+  await click("#l-keep");
+  await waitFor(`__mgr.S.brow.rows.some((r) => r.name === ${JSON.stringify(src.name)})`, 8000);
+  await idle();
+  const bslot = await evaluate(`__mgr.S.brow.rows.find((r) => r.name === ${JSON.stringify(src.name)}).slot`);
+  await click("#l-filter [data-src='browser']");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${bslot}']`);
+  await waitFor("!!document.getElementById('l-bname')", 5000);
+  const rn1 = await rename(bslot, "ASKLOAD");
+  // 1. LOAD: asked, the slot and the name; CANCEL: nothing sent, nothing opened
+  const want = await firstFree(), c0 = await cmds();
+  await click("#l-unit");
+  const asked = await waitFor("!document.getElementById('cf').hidden", 8000);
+  const t1 = await cfText();
+  await shot("manager-nfaskload-confirm.png");
+  await click("#cf-no");
+  await sleep(800);
+  await idle();
+  const c1 = await cmds(), m1 = await mineRows(), br1 = await evaluate("!!__mgr.live.browsing()");
+  check(rn1 && asked && t1.title === `ADD · MY PRESETS ${want}` && t1.what === "ASKLOAD" && /^ADD/.test(t1.go) && m1.length === m0.length && c1.store === c0.store && c1.browse === c0.browse && !br1,
+    `nf-askload: LOAD of a browser preset the FM-1 lacks asks "${t1.title}" (${t1.what}, ${t1.go}); CANCEL: MY PRESETS ${m1.length} (was ${m0.length}), STORE +${c1.store - c0.store}, BROWSE +${c1.browse - c0.browse}, browser ${br1 ? "open" : "closed"}`);
+  // 2. ADD: stored in that very slot, the unit's browser opened on it
+  await click("#l-unit");
+  await waitFor("!document.getElementById('cf').hidden", 8000);
+  await click("#cf-go");
+  const added = await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.slot === ${want} && r.name === 'ASKLOAD')`, 15000);
+  const nr = await evaluate(`(__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === ${want} && r.name === 'ASKLOAD') || {}).id || -1`);
+  const op2 = await waitFor(`!!__mgr.live.browsing() && __mgr.live.browsing().id === ${nr}`, 8000);
+  const c2 = await cmds(), m2 = await mineRows();
+  check(added && op2 && m2.length === m0.length + 1 && c2.store === c1.store + 1 && c2.browse === c1.browse + 1,
+    `nf-askload: ADD: ASKLOAD in MY PRESETS ${want} (${m2.length} MY PRESETS, STORE +${c2.store - c1.store}), the FM-1's browser on it (BROWSE +${c2.browse - c1.browse})`);
+  await evaluate("window.__sim.press('OCT-')");
+  await waitFor("!__mgr.live.browsing()", 8000);
+  await idle();
+  // 3. one the FM-1 has: LOAD opens it at once, nothing asked, nothing sent
+  await click("#l-filter [data-src='browser']");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${bslot}']`);
+  await waitFor("!!document.getElementById('l-unit') && !document.getElementById('l-unit').disabled", 8000);
+  await click("#l-unit");
+  const op3 = await waitFor(`!!__mgr.live.browsing() && __mgr.live.browsing().id === ${nr}`, 8000);
+  const cf3 = await cfOpen(), c3 = await cmds();
+  check(op3 && !cf3 && c3.store === c2.store && c3.browse === c2.browse + 1 && (await mineRows()).length === m2.length,
+    `nf-askload: LOAD of one the FM-1 has: its browser on MY PRESETS ${want} at once (${cf3 ? "asked" : "nothing asked"}, STORE +${c3.store - c2.store})`);
+  await evaluate("window.__sim.press('OCT-')");
+  await waitFor("!__mgr.live.browsing()", 8000);
+  await idle();
+  // 4. MY PRESETS full (its places stubbed to the ones used from 1): FULL said, nothing asked or sent
+  await click("#l-filter [data-src='browser']");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${bslot}']`);
+  await waitFor("!!document.getElementById('l-bname')", 5000);
+  const rn4 = await rename(bslot, "ASKFULL");
+  const ff = await firstFree(), nlib0 = await evaluate("__mgr.S.unit.status.nlib");
+  await evaluate(`__mgr.S.unit.status.nlib = ${ff - 1}`);
+  const c4 = await cmds(), m4 = await mineRows();
+  await click("#l-unit");
+  const full = await waitFor("!document.getElementById('toast').hidden && document.getElementById('toast').textContent === 'MY PRESETS is FULL'", 8000);
+  await sleep(500);
+  const cf4 = await cfOpen(), c5 = await cmds(), br4 = await evaluate("!!__mgr.live.browsing()");
+  await evaluate(`__mgr.S.unit.status.nlib = ${JSON.stringify(nlib0)}`);
+  check(rn4 && ff > 1 && full && !cf4 && !br4 && c5.store === c4.store && c5.browse === c4.browse && (await mineRows()).length === m4.length,
+    `nf-askload: MY PRESETS full (${ff - 1} places): LOAD says FULL, ${cf4 ? "asked" : "nothing asked"}, STORE +${c5.store - c4.store}, BROWSE +${c5.browse - c4.browse}`);
+  await size(1280, 800);
+  }
+  // ---- (end of nf-askload)
   // ---- nf-units: two FM-1s in the picker, PORTS
   // (?sim=two: "FIZZ FM-1" (USB) and "FM-1 C1F0 Bluetooth" running FIZZ, "FM-1" running RemoteFM1, "FM1 Update" in
   // its loader, "IAC Driver Bus 1" and "Roto-Control" never asked. Each FIZZ its own row named by its port, the one in
