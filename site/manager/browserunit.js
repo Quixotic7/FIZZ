@@ -14,10 +14,16 @@
 //   await u.wake() (in a click: the sound on, FIZZ moved into the worklet); u.quiet; u.access (requestMIDIAccess's shape)
 // PLAY (play.js) plays its panel: u.panel(p) (panel.js's Controls snapshot, once it sounds), u.view = { frame(pixels),
 // leds(levels, playGreen) } (its screen and LEDs as they come), u.screenNow() (the last of each; quiet: the engine's own)
+// nf-speed (the owner, 2026-10-29: "loading and writing to browser take the same long time as writing to the FM-1"): the
+// Manager reads and writes this store here, in the page, not over the SysEx paced for the FM-1:
+//   await u.readStore() -> {image, lo, size, crc, stats: null} (what a backup over the link reads: FZBI's snapshot, the
+//     FM-1's layout); await u.writeStore(image) -> {ok, ms} (what FZSR leaves: FIZZ started again on the image, its
+//     flash kept in this browser), or throws as the link's restore does ({code: "fzer", fzer: 10 | 11, written: false})
 import { SimFizz } from "./simfizz.js";
 import { Player } from "../js/audio.js";
 import { ver } from "../js/build.js";
 import { convertImage, LAYOUTS } from "./fizzstore.js";
+import { crc32 } from "./fizzbak.js";
 
 export const BROWSER_ID = "FM-1_46999999";            // (FIZZ's id prefix, digits only: fm1lib.js parseIdentity)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -41,7 +47,7 @@ export class BrowserUnit extends SimFizz {
   start() { return this.player.start(); }
   get running() { return this.player.running && !this.quiet; }
   setVolume(v) { this.player.setVolume(v); }
-  async boot(image = null) {
+  async boot(image = null, { settle = 600 } = {}) {
     const host = image && image.length !== LAYOUTS.host.size ? convertImage(image, "host") : image;
     if (!this.player.running) return this.bootQuiet(host);
     if (this.quiet && this.engine) this.engine.dispose();
@@ -51,7 +57,7 @@ export class BrowserUnit extends SimFizz {
     await this.player.load(ver("../fizz.wasm"), host);
     await Promise.race([up, sleep(8000)]);
     this.host = host; this.region = null;
-    await sleep(600);                                  // (FIZZ mounts its store and draws its first screen)
+    if (settle) await sleep(settle);                   // (FIZZ mounts its store and draws its first screen)
     return this;
   }
   // quiet: FIZZ on this thread (simfizz.js's loop), no sound
@@ -89,7 +95,7 @@ export class BrowserUnit extends SimFizz {
     return this.waking;
   }
   async move() {
-    while (this.restoring) await sleep(100);
+    while (this.restoring || this.storing) await sleep(100);
     this.holding = [];                                // (frames sent meanwhile: kept, then given to the worklet's FIZZ)
     clearTimeout(this.timer); this.timer = null;
     if (this.slot) { this.holding.push(this.slot); this.slot = null; }
@@ -129,6 +135,30 @@ export class BrowserUnit extends SimFizz {
       if (b) { this.host = b; this.region = convertImage(b, "device"); }
     }
     if (this.region) super.usbCmd(u);
+  }
+  // nf-speed: the store read and written here (FZBI + FZBR's image, FZSR's end), FIZZ's SysEx not paced for this
+  async readStore() {
+    while (this.restoring || this.storing || this.waking) await sleep(20);
+    const b = await this.hostFlash();
+    if (!b) throw Object.assign(new Error("the browser's FIZZ did not answer"), { code: "timeout" });
+    this.host = b; this.region = convertImage(b, "device");
+    const image = this.region.slice();
+    return { image, lo: 0, size: image.length, crc: crc32(image), stats: null };
+  }
+  async writeStore(image) {
+    const no = (code, msg) => Object.assign(new Error(msg), { code: "fzer", fzer: code, written: false });
+    if (this.playing) throw no(10, "the FM-1 is playing: stop it first");               // (as simfizz.js's FZSR)
+    if (image.length !== LAYOUTS.device.size) throw no(11, "the backup's size is not this FM-1's store");
+    while (this.restoring || this.storing || this.waking) await sleep(20);
+    const t0 = Date.now();
+    this.storing = true;
+    clearTimeout(this.timer); this.timer = null;      // (no pass into the FIZZ let go)
+    try { await this.boot(Uint8Array.from(image), { settle: 0 }); }   // (fz_restart on the image: the same boot FZSR's FZOK gives)
+    finally { this.storing = false; if (this.slot) this.loop(); }
+    if (this.hooks.restored) this.hooks.restored(0);
+    clearTimeout(this.saveT);
+    await this.save();                                // (kept in this browser at once, not on FIZZ's next write)
+    return { ok: true, ms: Date.now() - t0 };
   }
   dispose() { clearTimeout(this.saveT); this.onFlash = null; this.unplug(); if (this.quiet && this.engine) this.engine.dispose(); this.engine = null; try { this.player.ctx && this.player.ctx.close(); } catch (_) { /* (gone) */ } }
 }

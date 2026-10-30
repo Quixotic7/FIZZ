@@ -25,6 +25,8 @@
 //   link.backup({depth, onProgress, signal, onRead}) -> {image, lo, size, crc, stats}       (throws {code})
 //   link.restore(image, {onProgress, onPhase, signal}) -> {ok: true} | throws {code: "fzer", fzer, detail}
 //   link.close(); link.onLost = () => {}; link.log = (line) => {}
+//   link.turn(fn) -> fn()'s result, run in the queue's turn (nothing of the link's in flight meanwhile: THIS BROWSER's
+//     store read or written in the page, site/manager/browserunit.js)
 // Phase 1 (docs/SYSEX.md; an older FIZZ answers BAD COMMAND: status() gives null, the others {status: 7}):
 //   link.status() -> parseStatus's {tracks, playing, project, projects, mine, pool, lib, prj, ..} | null
 //   link.flush() -> a STATUS once everything is written | {status: 8} (playing)
@@ -155,6 +157,11 @@ export class FizzLink {
       try { start(c); } catch (e) { c.fail(e); }
     });
     const p = this.q.then(run, run);
+    this.q = p.catch(() => {});
+    return p;
+  }
+  turn(fn) {
+    const p = this.q.then(fn, fn);
     this.q = p.catch(() => {});
     return p;
   }
