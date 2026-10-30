@@ -30,6 +30,8 @@ struct Shots {
         if !FizzFont.register() { print("Inter Tight not registered: the system font is used") }
         // (`fizzshots OUTDIR units`: the unit picker's alone)
         if CommandLine.arguments.dropFirst(2).contains("units") { await unitShots(out); return }
+        // (`fizzshots OUTDIR projects`: PROJECTS' alone)
+        if CommandLine.arguments.dropFirst(2).contains("projects") { await projectShots(out); return }
 
         // looking: a model never started
         let looking = UnitModel(source: DemoLinkSource(.fizz))
@@ -80,6 +82,22 @@ struct Shots {
              phone, out, "library-search-none")
         save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "search:glass"),
              pad, out, "ipad-library-search")
+        // SELECT on the FM-1's presets (mock-ups 41, 42, 47): three GLASS ones ticked under the search, the TAG and
+        // DELETE sheets (USED BY read), the iPad's panel with TAG's row open
+        let glass = m.mine.filter { $0.name.contains("GLASS") }.prefix(3).map { "mine:\($0.slot)" }
+        m.picks.on = true
+        m.picks.set(Set(glass))
+        _ = await m.actions.bulkUsers(m.picks.rows(m.rows))
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "select: search:glass"),
+             phone, out, "library-select")
+        save(BulkTagSheetShot(model: m, selection: "select: search:glass"), phone, out, "library-select-tag")
+        save(BulkDeleteSheetShot(model: m, selection: "select: search:glass"), phone, out, "library-select-delete")
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "select: search:glass"),
+             pad, out, "ipad-library-select")
+        m.picks.tagsOpen = true
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "select: search:glass"),
+             pad, out, "ipad-library-select-tag")
+        m.picks.clear()
         // the seven tag icons (ui.js TAG_ICON) big, in their colours, to set beside the web's
         save(HStack(spacing: 20) {
             ForEach(FizzTag.allCases) { t in TagIcon(t).frame(width: 80, height: 80) }
@@ -90,6 +108,7 @@ struct Shots {
 
         // ---- I5: EDIT
         await editShots(m, out)
+        await editMixShots(m, out)
 
         // ---- I4: RESTORE, IMPORT, EXPORT
         await i4(m, out)
@@ -97,7 +116,43 @@ struct Shots {
         await projectShots(out)
         await keptShots(out)
         await playShots(out)
+        await backupPlayShots(out)
         await unitShots(out)
+    }
+
+    // ---- ▶ play a backup (mock-up 44): the demo FM-1's backups with ▶, yesterday's played in a throwaway FIZZ
+    @MainActor
+    static func backupPlayShots(_ out: URL) async {
+        let tmp = FileManager.default.temporaryDirectory
+        let e = FizzEmulator(storage: nil)
+        let host = EmulatorHost(emulator: e)
+        let m = UnitModel(source: DemoLinkSource(.fizz), emulator: host,
+                          backups: tmp.appendingPathComponent("fizzshots-bp-\(UUID().uuidString)"),
+                          projects: tmp.appendingPathComponent("fizzshots-bpp-\(UUID().uuidString)"))
+        host.launch()
+        m.start()
+        await until { m.unit?.isEmulated == false && m.dumpsLoaded && m.layout != nil }
+        do { try await DemoBackups.seed(m.backups.store) } catch { print("demo backups: \(error)") }
+        await m.backups.store.reload()
+        save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-play-rows")
+        guard let y = m.backups.store.entries.first(where: { Calendar.current.isDateInYesterday($0.date) }),
+              await m.backups.play(y), let b = host.backup?.emulator else { print("backup play: not played"); return }
+        // its demo pattern playing: the backup's own screen
+        b.tap(.home)
+        b.run(ms: 600)
+        b.tap(.play)
+        b.run(ms: 1450)
+        let p = host.play
+        p.theme = .tangerine
+        p.view = .full
+        p.showNow()
+        save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-play-ringed")
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-backup")
+        p.showNow()
+        save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play-backup")
+        await host.endBackup()
+        m.stop()
+        await host.close()
     }
 
     // ---- the unit picker and SEND between the units (mock-ups 34-36): the demo FM-1 on USB, a silent one over
@@ -116,6 +171,14 @@ struct Shots {
         await until { m.unitKey == .port("FIZZ FM-1") && m.dumpsLoaded && m.other?.taken != nil }
         // (the emulated FIZZ starts empty: the FM-1's first fourteen sent to it, as SEND TO THIS iPHONE does)
         _ = await m.sendToOther(rows: Array(m.mine.prefix(14)))
+        // 41 / 47: SELECT on the FM-1's presets with THIS iPHONE beside: SEND n TO THIS iPHONE
+        m.picks.on = true
+        m.picks.set(Set(m.mine.prefix(3).map { "mine:\($0.slot)" } + ["factory:2"]))
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "select:"),
+             phone, out, "units-library-select")
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "select:"),
+             pad, out, "units-ipad-library-select")
+        m.picks.clear()
         // 34: THIS iPHONE picked by hand, the FM-1 beside it, the Bluetooth one asleep
         await m.pick(.here)
         await until { m.onEmulator && m.dumpsLoaded && m.other?.taken != nil }
@@ -286,7 +349,27 @@ struct Shots {
         pm.dismissNote()
         pm.mode = .patterns
         save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-patterns")
+        // mock-ups 43, 48: NOIR A07 lifted over SUNDAY's chip (its card sprung open); TO… into SUNDAY; the iPad (SUNDAY
+        // beside NOIR): A07 dragged onto SUNDAY A10, KEPT in that column instead. (Each pose after a render of its screen:
+        // the drop targets' places are the ones it reported.)
+        pm.clearSelection()
+        await pm.pose(p: 0, k: 6, q: 1, spring: true)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-lift")
+        pm.endLift()
+        await pm.openTo(p: 0, k: 6)
+        pm.setToProject(1)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-to")
+        pm.closeTo()
+        pm.selectRange(from: 33, to: 34)
         save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects")
+        pm.clearSelection()
+        await pm.pose(p: 0, k: 6, q: 1, j: 9)
+        save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-drag")
+        pm.endLift()
+        pm.padKept = true
+        save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-kept")
+        pm.padKept = false
+        pm.selectRange(from: 33, to: 34)
         pm.mode = .kept
         if let k = pm.kept.items.first {
             pm.keptSel = k.id

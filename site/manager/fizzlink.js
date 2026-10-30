@@ -13,9 +13,10 @@
 // (depth > 1: a dropped request is sent again; the replies are matched by offset; the CRC-32 checks the whole).
 // The link reads all the time (a unit whose replies are not read stalls its main loop: plan §3.3).
 //
-//   await findFizz(access, {log}) -> FizzLink | throws Error {code: "notfound" | "update" | "notfizz", detail}
+//   await findFizz(access, {log, port}) -> FizzLink | throws Error {code: "notfound" | "update" | "notfizz", detail}
 //     (the USB port first; the Bluetooth package's own port, "FM-1 XXXX Bluetooth", when it is the only one: there
-//     everything works but the restore and a data blob's write, FZER 15: link.viaBle)
+//     everything works but the restore and a data blob's write, FZER 15: link.viaBle; port: that port only, the unit
+//     picked in the picker when two are plugged in)
 //   link.identity() -> "0.11.0-beta.2" | null (FIZZ does not answer: no data blob, or safe mode)
 //   link.list({factory, pool}) -> [{source, slot, id, name, tags, imported, inPool}]
 //   link.dumpAll(source, total, onProgress) -> [frame]          link.dump(source, slot) -> frame | null
@@ -83,11 +84,11 @@ const stats = (rtts) => {
   return { avg: s.length ? s.reduce((a, b) => a + b, 0) / s.length : 0, median: q(0.5), p95: q(0.95), max: s.length ? s[s.length - 1] : 0 };
 };
 
-export async function findFizz(access, { log = () => {} } = {}) {
+export async function findFizz(access, { log = () => {}, port = null } = {}) {
   const up = new Updater(usbFirst(access), log);
-  let dev = await up.find(isFizzId);
+  let dev = await up.find(isFizzId, port ?? undefined);
   if (!dev) {
-    dev = await up.find(() => true);
+    dev = await up.find(() => true, port ?? undefined);
     if (!dev) throw err("notfound", "no FM-1 answered");
     dev.link.close();
     if (IS_OTA(dev.id)) throw err("update", `the FM-1 is in update mode (${dev.id.text})`, { detail: dev.id.text });

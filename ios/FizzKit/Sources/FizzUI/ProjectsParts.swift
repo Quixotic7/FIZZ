@@ -123,7 +123,9 @@ struct Hatch: View {
     }
 }
 
-/// One of A01..D16 (.pp): its number, its trigs; selected cyan, pasted yellow (dropping in), cleared dashed yellow.
+/// One of A01..D16 (.pp): its number, its trigs; selected cyan, pasted yellow (dropping in), cleared dashed yellow. A
+/// pattern dragged (ProjectsDrag.swift): its own place dashed cyan (lifted), the others lit as targets, the one under the
+/// finger ringed (cyan; yellow over one there: it would be replaced).
 struct PatternTileView: View {
     let k: Int
     let tile: FizzPatternTile?
@@ -133,12 +135,17 @@ struct PatternTileView: View {
     var cleared = false
     var playing = false
     var delay = 0.0
+    var lifted = false
+    var lit = false
+    var over = false
 
     var body: some View {
         let used = tile != nil
         let r: CGFloat = big ? 8 : 9
-        let tint: RGB? = selected ? FZ.cyan : pasted ? FZ.yellow : cleared ? FZ.yellow : nil
-        let fill: Color = selected ? FZ.cyan.mix(13, FZ.raised).color : pasted ? FZ.yellow.mix(11, FZ.raised).color
+        let tint: RGB? = lifted ? FZ.cyan : over ? (used ? FZ.yellow : FZ.cyan) : selected ? FZ.cyan : pasted ? FZ.yellow
+            : cleared ? FZ.yellow : lit ? FZ.cyan.mix(40, RGB(0x2a2a33)) : nil
+        let fill: Color = lifted ? .clear : over ? (used ? FZ.yellow : FZ.cyan).mix(16, FZ.raised).color
+            : selected ? FZ.cyan.mix(13, FZ.raised).color : pasted ? FZ.yellow.mix(11, FZ.raised).color
             : cleared ? .clear : used ? FZ.raised.color : RGB(0x0f0f13).color
         let inset = big ? EdgeInsets(top: 18, leading: 3, bottom: 5, trailing: 3) : EdgeInsets(top: 15, leading: 4, bottom: 4, trailing: 4)
         ZStack(alignment: .topLeading) {
@@ -155,6 +162,7 @@ struct PatternTileView: View {
                 }
             }
             .padding(inset)
+            .opacity(lifted ? 0.22 : 1)
             Text(big ? FizzClip.patName(k) : String(format: "%02d", (k & 15) + 1))
                 .fz(12, 800)
                 .foregroundStyle((tint ?? (used ? FZ.text : RGB(0x3d3d46))).color)
@@ -162,7 +170,9 @@ struct PatternTileView: View {
                 .frame(height: big ? 16 : 15)
         }
         .overlay {
-            if cleared {
+            if lifted {
+                RoundedRectangle(cornerRadius: r).strokeBorder(FZ.cyan.color, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+            } else if cleared {
                 RoundedRectangle(cornerRadius: r).strokeBorder(FZ.yellow.color, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
             } else {
                 RoundedRectangle(cornerRadius: r).strokeBorder((tint ?? (used ? RGB(0x2a2a33) : RGB(0x1c1c22))).color, lineWidth: 1.5)
@@ -174,9 +184,11 @@ struct PatternTileView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: r).stroke(FZ.cyan.opacity(selected ? 0.45 : 0), lineWidth: 4)
-                .shadow(color: FZ.cyan.opacity(selected ? 0.5 : 0), radius: 9)
+            RoundedRectangle(cornerRadius: r).stroke((over && used ? FZ.yellow : FZ.cyan).opacity(selected || over ? 0.45 : 0), lineWidth: 4)
+                .shadow(color: (over && used ? FZ.yellow : FZ.cyan).opacity(selected || over ? 0.5 : 0), radius: 9)
         )
+        .scaleEffect(over ? 1.06 : 1)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: over)
         .keyframeAnimator(initialValue: Drop(), trigger: pasted) { v, d in
             v.scaleEffect(d.scale).offset(y: d.dy)
         } keyframes: { _ in
@@ -198,7 +210,9 @@ struct PatternTileView: View {
 // MARK: - A grid of tiles: tap, drag across
 
 /// A project's 64 patterns: four banks A..D, `cols` tiles a row (8: two rows a bank; 16: one); a tap selects one, a
-/// drag across selects a range. Reports where each tile is (the edit menu's anchor).
+/// drag across selects a range (iPad: SHIFT-tap a range, ⌘-tap one more). A pattern there is lifted by a long press
+/// (`liftDelay`; nil, iPad: a drag from it lifts it at once, ⌥ held moves it) and dragged (ProjectsDrag.swift): the grid
+/// is a drop target under `place`. Reports where each tile is (the edit menu's anchor).
 struct PatternGrid: View {
     let model: ProjectsModel
     let project: FizzProjectModel
@@ -208,9 +222,21 @@ struct PatternGrid: View {
     var gap: CGFloat = 5
     var bankGap: CGFloat = 12
     var label: CGFloat = 16
+    /// the drop zone's name ("main", iPad's "beside")
+    var place = "main"
+    /// the long press that lifts a pattern (nil: a drag lifts it)
+    var liftDelay: Double? = 0.4
+    /// a tile tapped (nil: selected)
+    var onTile: ((Int) -> Void)?
     /// the selection's first tile's frame (in the grid's space)
     var onAnchor: (CGRect?, CGFloat) -> Void = { _, _ in }
-    @State private var dragFrom: Int?
+    @State private var press: Press?
+    @State private var origin: CGPoint = .zero
+    @GestureState private var touching = false
+    @Environment(\.fizzSnapshot) private var snapshot
+
+    /// A finger (or pointer) down on the grid: the tile it started on, a range being selected, a pattern lifted.
+    struct Press { var k: Int?; var start: CGPoint; var range = false; var lifted = false; var timer: Task<Void, Never>? }
 
     var rowsPerBank: Int { 64 / 4 / cols }
     var height: CGFloat { 4 * (CGFloat(rowsPerBank) * tileH + CGFloat(rowsPerBank - 1) * gap) + 3 * bankGap }
@@ -220,6 +246,8 @@ struct PatternGrid: View {
             let w = (g.size.width - label - CGFloat(cols) * gap) / CGFloat(cols)
             let pasted = model.pasted(project.p), cleared = model.cleared(project.p)
             let playK = model.playing && model.selected.current ? model.unit?.status?.pattern : nil
+            let mine = project.p == model.sel, lift = model.lift
+            let from = lift.flatMap { $0.p == project.p ? $0.k : nil }, over = lift?.over.flatMap { $0.q == project.p ? $0.j : nil }
             ZStack(alignment: .topLeading) {
                 ForEach(0..<4, id: \.self) { b in
                     Text(["A", "B", "C", "D"][b]).fz(big ? 16 : 15, 800).foregroundStyle(FZ.muted.color)
@@ -230,8 +258,9 @@ struct PatternGrid: View {
                     let f = frame(k, w)
                     let pk = pasted.contains(k)
                     PatternTileView(k: k, tile: project.pats.indices.contains(k) ? project.pats[k] : nil, big: big,
-                                    selected: model.pats.contains(k), pasted: pk, cleared: cleared.contains(k),
-                                    playing: playK == k, delay: pk ? Double(pasted.sorted().firstIndex(of: k) ?? 0) * 0.12 : 0)
+                                    selected: mine && lift == nil && model.pats.contains(k), pasted: pk, cleared: cleared.contains(k),
+                                    playing: playK == k, delay: pk ? Double(pasted.sorted().firstIndex(of: k) ?? 0) * 0.12 : 0,
+                                    lifted: from == k, lit: lift != nil && from != k, over: over == k)
                         .frame(width: f.width, height: f.height)
                         .offset(x: f.minX, y: f.minY)
                 }
@@ -239,16 +268,22 @@ struct PatternGrid: View {
             // (offsets do not grow a ZStack: the whole grid's frame, so a touch anywhere on it is the grid's)
             .frame(width: g.size.width, height: height, alignment: .topLeading)
             .contentShape(Rectangle())
-            // a tap: one tile; a drag across: a range
-            .onTapGesture { p in if let k = hit(p, w) { model.tap(k) } }
+            // a tap: one tile; a drag across: a range; a long press (iPad: a drag) on a pattern there: lifted
             .gesture(
-                DragGesture(minimumDistance: 6)
-                    .onChanged { v in
-                        if dragFrom == nil { dragFrom = hit(v.startLocation, w) }
-                        if let k0 = dragFrom, let k = hit(v.location, w) { model.selectRange(from: k0, to: k) }
-                    }
-                    .onEnded { _ in dragFrom = nil }
+                DragGesture(minimumDistance: 0)
+                    .updating($touching) { _, t, _ in t = true }
+                    .onChanged { v in changed(v, w) }
+                    .onEnded { v in ended(v, w) }
             )
+            .onChange(of: touching) { _, t in if !t, press != nil { cancelPress() } }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ProjectsDropZones.space)) } action: { r in
+                origin = r.origin
+                register(r)
+            }
+            .onChange(of: project.p) { _, _ in register(CGRect(origin: origin, size: CGSize(width: g.size.width, height: height))) }
+            // (a snapshot's views go at once: its places kept, for the next one's drag)
+            .onDisappear { if !snapshot, model.zones.grids[place]?.q == project.p { model.zones.grids[place] = nil } }
+
             .onChange(of: model.pats, initial: true) { _, p in onAnchor(p.min().map { frame($0, w) }, g.size.width) }
             .onChange(of: g.size.width) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }, g.size.width) }
             .onChange(of: tileH) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }, g.size.width) }
@@ -264,6 +299,76 @@ struct PatternGrid: View {
         return CGRect(x: label + gap + CGFloat(col) * (w + gap), y: bankTop(b) + CGFloat(row) * (tileH + gap), width: w, height: tileH)
     }
 
+    /// The grid as a drop target (its frame in the screen's space; a point in it -> a pattern).
+    private func register(_ r: CGRect) {
+        let me = self, w = (r.width - label - CGFloat(cols) * gap) / CGFloat(cols)
+        model.zones.grids[place] = .init(q: project.p, rect: r, hit: { me.hit($0, w) }, tile: { me.frame($0, w) })
+    }
+
+    private func spacePoint(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + origin.x, y: p.y + origin.y) }
+
+    private func changed(_ v: DragGesture.Value, _ w: CGFloat) {
+        if press == nil {
+            let k = hit(v.startLocation, w)
+            var pr = Press(k: k, start: v.startLocation)
+            if let k, let delay = liftDelay, model.liftable(project.p, k) {
+                let at = v.startLocation
+                pr.timer = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(delay))
+                    guard !Task.isCancelled, press != nil, press?.range == false else { return }
+                    liftNow(k, at: at, w: w, touch: true)
+                }
+            }
+            press = pr
+        }
+        guard var pr = press else { return }
+        if pr.lifted { model.drag(to: spacePoint(v.location)); return }
+        let d = hypot(v.location.x - pr.start.x, v.location.y - pr.start.y)
+        if !pr.range {
+            // (iPad: a drag from a pattern there lifts it; the phone: a finger moving before the long press selects)
+            if liftDelay == nil, d >= 6, let k = pr.k, model.liftable(project.p, k) {
+                liftNow(k, at: pr.start, w: w, touch: false)
+                model.drag(to: spacePoint(v.location))
+                return
+            }
+            if d >= (liftDelay == nil ? 6 : 10) {
+                pr.timer?.cancel()
+                pr.range = true
+            }
+        }
+        if pr.range, let k0 = pr.k, let k = hit(v.location, w) { model.selectRange(from: k0, to: k) }
+        press = pr
+    }
+
+    private func liftNow(_ k: Int, at: CGPoint, w: CGFloat, touch: Bool) {
+        let f = frame(k, w)
+        model.lift(p: project.p, k: k, at: spacePoint(at), size: f.size, grab: CGPoint(x: at.x - f.minX, y: at.y - f.minY),
+                   touch: touch, move: HeldKeys.now.contains(.option))
+        if model.lift != nil { press?.lifted = true; press?.timer = nil } else { press?.range = true }
+    }
+
+    private func ended(_ v: DragGesture.Value, _ w: CGFloat) {
+        guard let pr = press else { return }
+        pr.timer?.cancel()
+        press = nil
+        if pr.lifted {
+            model.drag(to: spacePoint(v.location))
+            Task { await model.release() }
+            return
+        }
+        guard !pr.range, let k = pr.k else { return }
+        if let onTile { onTile(k); return }
+        let mods = HeldKeys.now
+        if mods.contains(.shift), model.anchor >= 0 { model.selectRange(from: model.anchor, to: k) }
+        else if mods.contains(.command) { model.toggle(k) } else { model.tap(k) }
+    }
+
+    private func cancelPress() {
+        press?.timer?.cancel()
+        if press?.lifted == true { model.endLift() }
+        press = nil
+    }
+
     func hit(_ p: CGPoint, _ w: CGFloat) -> Int? {
         guard p.x >= label, p.y >= 0, p.y <= height else { return nil }
         let col = min(cols - 1, max(0, Int((p.x - label - gap / 2) / (w + gap))))
@@ -277,7 +382,8 @@ struct PatternGrid: View {
 // MARK: - Slot chips, the clip, the kept chip
 
 /// 1..8 as chips (.sch .sc): the one looked at filled, empty ones dashed, a yellow dot where changes wait; armed:
-/// every other slot a target (champagne), the kept chip at the end.
+/// every other slot a target (champagne), the kept chip at the end. A pattern dragged: the projects there are its drop
+/// targets (dashed cyan; the one under the finger ringed; a full pool's dashed red).
 struct SlotChips: View {
     let model: ProjectsModel
     var keptOn = false
@@ -287,6 +393,8 @@ struct SlotChips: View {
             ForEach(model.slots) { s in
                 let on = s.p == model.sel && !keptOn && model.arm == nil
                 let target = model.arm != nil && s.p != model.arm?.from
+                let drop = model.lift != nil && s.there && !on, full = drop && model.plan?.target(s.p)?.full == true
+                let over = model.lift?.overChip == true && model.lift?.over?.q == s.p
                 Button {
                     Task {
                         if model.arm != nil { await model.tapSlot(s.p); return }
@@ -299,7 +407,11 @@ struct SlotChips: View {
                         .frame(maxWidth: .infinity).frame(height: 34)
                         .background(Capsule().fill(on ? FZ.cyan.color : .clear))
                         .overlay {
-                            if target {
+                            if over {
+                                Capsule().strokeBorder((full ? FZ.red : FZ.cyan).color, lineWidth: 2.5)
+                            } else if drop {
+                                Capsule().strokeBorder((full ? FZ.red : FZ.cyan).color, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                            } else if target {
                                 Capsule().strokeBorder(FZ.champagne.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                             } else if s.there {
                                 Capsule().strokeBorder(on ? FZ.cyan.color : FZ.cyan.mix(50, FZ.line).color, lineWidth: 1.5)
@@ -308,10 +420,13 @@ struct SlotChips: View {
                             }
                         }
                         .overlay(alignment: .topTrailing) { if s.changed { ChangeDot().offset(x: 1, y: -3) } }
-                        .shadow(color: on ? FZ.cyan.opacity(0.5) : .clear, radius: 7)
+                        .shadow(color: on || over ? (full ? FZ.red : FZ.cyan).opacity(0.5) : .clear, radius: over ? 10 : 7)
+                        .scaleEffect(over ? 1.12 : 1)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: over)
                         // (44 pt to the finger; the chip drawn 34)
                         .padding(.vertical, 5)
                         .contentShape(Rectangle())
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ProjectsDropZones.space)) } action: { model.zones.chips[s.p] = $0 }
                 }
                 .buttonStyle(ProjPress())
             }
@@ -413,7 +528,7 @@ struct ProjButton: View {
                     IconView(icon, color: ink, lineWidth: 2.3, backdrop: style == .fill ? color.color : .black, fill: iconFill)
                         .frame(width: iconFill ? 12 : 16, height: iconFill ? 12 : 16)
                 }
-                Text(title).fz(size, 800, em: 0.06).lineLimit(1).minimumScaleFactor(0.75)
+                if !title.isEmpty { Text(title).fz(size, 800, em: 0.06).lineLimit(1).minimumScaleFactor(0.75) }
             }
             .foregroundStyle(ink)
             .padding(.horizontal, padding)
@@ -451,20 +566,30 @@ struct ProjRoundIcon: View {
 
 // MARK: - The edit menu over a selection
 
-/// COPY, PASTE, CLEAR, .fizzpat over the selection (.emenu): it comes with the selection, no hold.
+/// COPY, PASTE, CLEAR, TO… (one pattern), .fizzpat over the selection (.emenu): it comes with the selection, no hold.
 struct EditMenu: View {
     let model: ProjectsModel
     var share: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            ProjButton(title: "COPY", icon: ProjIcons.copy, color: FZ.cyan) { Task { await model.copy() } }
+        // (with TO… the buttons pack closer: the menu stays on a phone's grid)
+        let to = model.canTo, pad: CGFloat = to ? 9 : 14, gap: CGFloat = to ? 4 : 6
+        HStack(spacing: gap) {
+            ProjButton(title: "COPY", icon: ProjIcons.copy, color: FZ.cyan, padding: pad) { Task { await model.copy() } }
                 .fixedSize()
-            ProjButton(title: "PASTE", icon: ProjIcons.paste, color: FZ.yellow, enabled: model.clip != nil) { model.paste() }
+            ProjButton(title: "PASTE", icon: ProjIcons.paste, color: FZ.yellow, padding: pad, enabled: model.clip != nil) { model.paste() }
                 .fixedSize()
-            ProjButton(title: "CLEAR", icon: ProjIcons.clear, style: .red) { model.clear() }
+            ProjButton(title: "CLEAR", icon: ProjIcons.clear, style: .red, padding: pad) { model.clear() }
                 .fixedSize()
-            ProjRoundIcon(icon: Icons.share, size: 42, action: share)
+            // TO… (one pattern there): the sheet
+            if to {
+                ProjRoundIcon(icon: ProjIcons.move, color: FZ.cyan, ring: FZ.cyan.mix(50, FZ.line), size: 40) {
+                    Task { await model.openToSelection() }
+                }
+                .padding(.horizontal, -2)
+            }
+            ProjRoundIcon(icon: Icons.share, size: to ? 40 : 42, action: share)
+                .padding(.horizontal, to ? -2 : 0)
         }
         .padding(6)
         .background(Capsule().fill(RGB(0x1b1b21).color))

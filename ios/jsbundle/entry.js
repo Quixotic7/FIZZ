@@ -122,8 +122,13 @@ export function toPlain(x) {
 //   editPack(s) -> {blob, drive}: the editor's sound ({values, midi?}) packed back (sound.js blob6)
 //   editTexts([[id, v], ..]) -> [text(id, v), ..] (the tests' comparisons)
 import { VALUES, ALGOS, DEST_ORDER, Q, NP, soundFromLib, blob6, text as valueText } from "../../site/manager/sound.js";
-export { soundFromLib };
-export const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP });
+// (mock-ups 45, 46) the mix: PAN and the sends under PARAM's ids (MIX_IDS), their rows (info: PAN -64..63, the sends
+// 0..127), PAN's texts (panText, -64 first), the defaults (MIX_DEFAULTS); newSound("fm" | "midi"): LIBRARY's + NEW
+import { MIX_DEFAULTS, MIX_IDS, newSound, panText, info as mixInfo } from "../../site/manager/sound.js";
+export { soundFromLib, newSound };
+const editMix = () => ({ ids: MIX_IDS, defaults: MIX_DEFAULTS, rows: Object.values(MIX_IDS).map((id) => mixInfo(id)),
+  panTexts: Array.from({ length: 128 }, (_, k) => panText(k - 64)) });
+export const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP, mix: editMix() });
 export const editPack = (s) => ({ blob: blob6(s), drive: s.values[Q.DRIVE] });
 export const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
 
@@ -212,10 +217,16 @@ export function restoreFit(image, unitSize, choice, withImage = false) {
 //   pjKeep(h, p, {fizz, date}) -> {bytes, fileName, name, pats, sounds, colours}
 //   pjKeptInfo(bytes, file) -> {ok, name, demo, pats, sounds, colours, fizz, date, used: [bool x 64]}
 //   pjRenameKept(bytes, file, name, {fizz, date}) -> {bytes, fileName, name}
-//   demoPatterns(image, {prev, projects: [{slot, name, pats, demo}]}) -> image with the demo unit's patterns (synthetic)
+//   demoPatterns(image, {prev, projects: [{slot, name, pats, demo, pool}]}) -> image with the demo unit's patterns
+//       (synthetic; pool: its pool filled to that many places, else 12)
+//   pjDrop(h, p, k, q, j, move) -> as pjPaste: a pattern dragged (projtab.js land / dropApply: pattern k of slot p copied
+//       to slot q's pattern j, its sounds into q's pool; move: its own place cleared; one change); op {kind: "drop", j, from, move}
+//   pjDropPlan(h, p, k) -> {n, sounds, colours, targets: [{q, added, there, pool, after, full, had: [bool x sounds]}]}: what
+//       dropping pattern k of slot p on each project there does to its pool (pastePatterns tried on a copy at its first
+//       free pattern): the pool sounds it plays (their tag colours), how many come along, how many it has, the count after
 import { modelOf, imageOf, cloneModel, project as pjProject, copyPatterns, pastePatterns, clearPatterns, keepProject,
   loadProject, renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, DEMO_N,
-  limits as pjLimits } from "../../site/manager/projects.js";
+  limits as pjLimits, poolEntry as pjPoolEntry } from "../../site/manager/projects.js";
 
 const PJ = new Map(), CLIPS = new Map();
 let pjNext = 1, clipNext = 1;
@@ -225,6 +236,11 @@ function pjApply(m, op) {
   if (op.kind === "paste") return pastePatterns(m, op.q, op.j, op.clip);
   if (op.kind === "clear") return clearPatterns(m, op.q, op.ks);
   if (op.kind === "load") return loadProject(m, op.q, op.kept);
+  if (op.kind === "drop") {                             // (projtab.js dropApply: a full pool refused, as PASTE)
+    const r = pastePatterns(m, op.q, op.j, op.clip);
+    if (op.move && !(op.from.p === op.q && op.from.k === op.j)) clearPatterns(m, op.from.p, [op.from.k]);
+    return r;
+  }
   return null;
 }
 function pjModel(s) {
@@ -241,13 +257,15 @@ function pjViewOf(s) {
   const m = pjModel(s), L = pjLimits(m);
   const projects = Array.from({ length: L.nproj }, (_, p) => {
     const x = pjProject(m, p);
-    return { p, there: x.there, name: x.name, demo: x.demo, used: x.used, pool: x.pool, changed: s.ops.some((o) => o.q === p),
-      pats: x.pats.map(pjTile) };
+    return { p, there: x.there, name: x.name, demo: x.demo, used: x.used, pool: x.pool,
+      changed: s.ops.some((o) => o.q === p || (o.move && o.from.p === p)), pats: x.pats.map(pjTile) };
   });
   const ops = s.ops.map((o) => {
     const r = o.result || {};
-    return { kind: o.kind, q: o.q, at: r.at || [], ks: o.ks || [], name: o.kind === "load" ? o.kept.name : o.kind === "paste" ? o.clip.from : "",
-      poolAdded: r.poolAdded || 0, presetsAdded: r.presetsAdded || 0, copies: r.copies || 0 };
+    return { kind: o.kind, q: o.q, at: r.at || [], ks: o.ks || [],
+      name: o.kind === "load" ? o.kept.name : o.kind === "paste" || o.kind === "drop" ? o.clip.from : "",
+      poolAdded: r.poolAdded || 0, presetsAdded: r.presetsAdded || 0, copies: r.copies || 0,
+      ...(o.kind === "drop" ? { j: o.j, from: o.from, move: !!o.move } : {}) };
   });
   return { layout: m.layout.name, nproj: L.nproj, nlib: L.nlib, package: L.package, projects, ops };
 }
@@ -282,6 +300,40 @@ export async function pjLoadKept(h, q, bytes, file = "") {
   let kept;
   try { kept = await readFizzprj(bytes, file); } catch (e) { return pjFail(e); }
   return pjPush(pjGet(h), { kind: "load", q, kept });
+}
+export function pjDrop(h, p, k, q, j, move = false) {
+  const s = pjGet(h), clip = copyPatterns(pjModel(s), p, [k]);
+  if (!clip.pats.length) return pjFail(Object.assign(new Error("nothing to copy there"), { code: "empty" }));
+  if (move && pjProject(pjModel(s), p).demo && k < DEMO_N) return pjFail(Object.assign(new Error("a demo's A01..A03 stay the demo's"), { code: "demo" }));
+  return pjPush(s, { kind: "drop", q, j, clip, from: { p, k }, move: !!move });
+}
+const PJ_TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
+export function pjDropPlan(h, p, k) {
+  const m = pjModel(pjGet(h)), clip = copyPatterns(m, p, [k]), L = pjLimits(m);
+  const sounds = [...clip.pool.values()].filter(Boolean);
+  const colourOf = (e) => {                             // (projects.js colours: a MY preset's first tag)
+    const r = e.id ? clip.presets.get(e.id) : null;
+    if (!r) return "--muted";
+    const t = r[2 + 13 + 128 + 2] & 0x7F, i = FIZZ_TAGS.findIndex((_, b) => (t >> b) & 1);
+    return i >= 0 ? PJ_TAGC[FIZZ_TAGS[i]] || "--muted" : "--muted";
+  };
+  const same = (a, b) => !!a && ((a.id && b.id && a.id === b.id) || (a.rec && b.rec && a.rec.length === b.rec.length && a.rec.every((v, i) => v === b.rec[i])));
+  const targets = [];
+  for (let q = 0; q < L.nproj; q++) {
+    const x = pjProject(m, q);
+    if (!x.there) continue;
+    const had = sounds.map((e) => { for (let n = 1; n <= 128; n++) if (same(pjPoolEntry(m, q, n), e)) return true; return false; });
+    const j = Math.max(0, x.pats.findIndex((t) => !t));
+    const c = cloneModel(m);
+    try {
+      const r = pastePatterns(c, q, j, clip);
+      targets.push({ q, added: r.poolAdded, there: sounds.length - r.poolAdded, pool: x.pool, after: pjProject(c, q).pool, full: false,
+        had });
+    } catch (e) {
+      targets.push({ q, added: 0, there: had.filter(Boolean).length, pool: x.pool, after: x.pool, full: e.code === "poolfull", had });
+    }
+  }
+  return { n: clip.pats.length, sounds: sounds.length, colours: sounds.map(colourOf), targets };
 }
 export function pjUndo(h) { const s = pjGet(h); s.ops.pop(); s.cache = null; return pjViewOf(s); }
 export function pjDiscard(h) { const s = pjGet(h); s.ops = []; s.cache = null; return pjViewOf(s); }
@@ -395,6 +447,14 @@ export function demoPatterns(image, { prev = null, projects = [] } = {}) {
       const id = ids[Math.floor(rnd() * ids.length)];
       m.prj.set(rkey(RK.SND, p, n), Uint8Array.from([0x52, 1, id & 0xFF, (id >> 8) & 0xFF]));
       places.push(n);
+    }
+    // (sp.pool: the pool filled to that many places, the rest the project's own copies of MY presets, each its own name)
+    const libs = [...m.lib.values()].filter((r) => r[0] === 0x53 && r[1] === 5 && r.length >= at + 2);
+    for (let n = 13; libs.length && n <= Math.min(sp.pool || 0, 128); n++) {
+      const r = libs[n % libs.length].slice(), nm = `COPY ${n}`;
+      for (let i = 0; i < NAME; i++) r[2 + i] = i < nm.length ? nm.charCodeAt(i) : 0;
+      r[at] = 0; r[at + 1] = 0;
+      m.prj.set(rkey(RK.SND, p, n), r);
     }
     const k0 = sp.demo ? DEMO_N : 0;
     for (let i = 0; i < (sp.pats || 0) - k0 && k0 + i < NPAT; i++) m.prj.set(rkey(RK.PAT, p, k0 + i), demoPat(rnd, ids, places));

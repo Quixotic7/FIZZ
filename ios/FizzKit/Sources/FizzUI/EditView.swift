@@ -34,7 +34,10 @@ struct EditView: View {
             .ignoresSafeArea(.keyboard)
             .task {
                 await BorrowLaunch.apply(model)
+                let launch = NewSoundLaunch.pending
+                await NewSoundLaunch.apply(model)
                 await e.show()
+                if launch { NewSoundLaunch.mix(e) }
             }
             // (the borrow undone; RootView's tab hook does it too)
             .onDisappear { e.hide() }
@@ -45,6 +48,15 @@ struct EditView: View {
                 if let id = e.picking { EditPickerSheet(e: e, id: id) }
             }
             .sheet(isPresented: $tagsOpen) { EditTagsSheet(e: e) }
+            // (+ NEW's sound unsaved and EDIT left: asked first; mock-up 46)
+            .alert("\(e.sound?.name ?? "NEW") IS NOT SAVED", isPresented: Binding(get: { e.asking != nil },
+                                                                              set: { _ in })) {
+                Button("SAVE AS NEW") { Task { await e.answerLeaving(.save) } }
+                Button("DISCARD", role: .destructive) { Task { await e.answerLeaving(.discard) } }
+                Button("STAY", role: .cancel) { Task { await e.answerLeaving(.stay) } }
+            } message: {
+                Text(e.firstFreeMine.map { "SAVE AS NEW stores it in MY PRESETS \($0)." } ?? "It is stored nowhere yet.")
+            }
             .alert("SAVE · MY PRESETS \(e.place.slot)", isPresented: $confirmSave) {
                 Button("SAVE") { Task { await save(asNew: false) } }
                 Button("CANCEL", role: .cancel) {}
@@ -175,6 +187,10 @@ struct EditView: View {
                 if e.place.isKept {
                     PhoneGlyph(size: 13)
                     Text(e.place.kept == nil ? "KEPT · NEW" : "KEPT").fz(13, 800, em: 0.12).foregroundStyle(FZ.champagne.color)
+                } else if e.place.unsaved {
+                    // (+ NEW's sound: stored nowhere yet; mock-up 46)
+                    Circle().fill(FZ.yellow.opacity(0.55)).frame(width: 7, height: 7)
+                    Text("NEW").fz(13, 800, em: 0.12).foregroundStyle(FZ.yellow.color)
                 } else {
                     Text(e.place.label).fz(13, 800, em: 0.12).foregroundStyle(FZ.muted.color).lineLimit(1)
                 }
@@ -315,10 +331,10 @@ struct EditView: View {
         if fixed {
             actionRow(height: height, fixed: true, widths: [nil, nil, nil])
         } else {
-            // (the mock-up's shares: 1, 1, 1.45)
+            // (the mock-up's shares: 1, 1, 1.45; + NEW's sound: SAVE AS NEW and its place wider, mock-up 46)
             GeometryReader { g in
-                let u = (g.size.width - 16) / 3.45
-                actionRow(height: height, fixed: false, widths: [u, u, 1.45 * u])
+                let u = (g.size.width - 16) / 3.45, k: [CGFloat] = e.place.unsaved ? [0.95, 0.7, 1.8] : [1, 1, 1.45]
+                actionRow(height: height, fixed: false, widths: k.map { $0 * u })
             }
             .frame(height: height)
         }
@@ -340,7 +356,9 @@ struct EditView: View {
                 }
                 .frame(width: w[1])
             }
-            action("SAVE AS NEW", ghost: true, on: e.canSaveNew && !e.saving, fixed: fixed, height: height) {
+            // (+ NEW's sound: the one way to store it, breathing, its place named)
+            action("SAVE AS NEW", ghost: !e.place.unsaved, on: e.canSaveNew && !e.saving, fixed: fixed, height: height,
+                   badge: e.place.unsaved ? e.firstFreeMine : nil, breathes: e.place.unsaved) {
                 Task { await save(asNew: true) }
             }
             .frame(width: w[2])
@@ -348,11 +366,13 @@ struct EditView: View {
     }
 
     private func action(_ t: String, ghost: Bool, on: Bool, fixed: Bool, height: CGFloat, fill: RGB = FZ.pink,
-                        _ go: @escaping () -> Void) -> some View {
+                        badge: Int? = nil, breathes: Bool = false, _ go: @escaping () -> Void) -> some View {
         Button(action: go) {
+            AnimatedIf(on: breathes && on, still: 0.5) { now in
             HStack(spacing: 6) {
                 if fill == FZ.champagne { PhoneGlyph(size: 13, color: RGB(0x000000)) }
                 Text(t).fz(13, 800, em: 0.08).lineLimit(1).minimumScaleFactor(0.8)
+                if let badge { SlotBadge(n: badge, ink: FZ.text, fill: RGB(0x000000)).layoutPriority(1) }
             }
                 .foregroundStyle(ghost ? FZ.text.color : .black)
                 .padding(.horizontal, fixed ? 16 : 10)
@@ -360,9 +380,11 @@ struct EditView: View {
                 .frame(height: height)
                 .background(Capsule().fill(ghost ? Color.clear : fill.color))
                 .overlay(Capsule().strokeBorder(ghost ? FZ.line.color : .clear, lineWidth: 1.5))
-                .shadow(color: ghost ? .clear : fill.opacity(0.45), radius: 10)
+                .shadow(color: ghost ? .clear : fill.opacity(breathes && on ? 0.3 + 0.45 * breathe(now, 2) : 0.45),
+                        radius: breathes && on ? 8 + 10 * breathe(now, 2) : 10)
                 .contentShape(Capsule())
                 .fixedSize(horizontal: fixed, vertical: false)
+            }
         }
         .buttonStyle(.plain)
         .disabled(!on)
