@@ -137,6 +137,8 @@ public final class UnitModel {
     public internal(set) var sendingOther = false
     /// A switch picked by hand running (the picker's card ripples).
     public internal(set) var switching: UnitKey?
+    /// RemoteFM1 units seen: FM-1s that could be THIS iPHONE's panel (PanelUnits.swift; data only, the picker later).
+    public internal(set) var panelUnits: [PanelUnit] = []
     /// The picker opened from PLAY (PLAY's SOUND follows the pick).
     @ObservationIgnored var pickerFromPlay = false
     /// The FM-1 kept open beside THIS iPHONE (picked by hand while one is plugged in).
@@ -255,9 +257,11 @@ public final class UnitModel {
         }
         #endif
         // (the FM-1 kept beside THIS iPHONE is open already: not probed again)
-        let scanner = PortSubset(source.scanner, without: otherProbe?.candidate)
+        // (nor the RemoteFM1 unit attached as THIS iPHONE's panel)
+        let scanner = PortSubset(source.scanner, without: otherProbe?.candidate, skipping: panelSkip)
         report.probed = scanner.candidates().map(\.name)
         let probes = await FizzLink.probe(scanner: scanner, clock: source.clock)
+        notePanelUnits(probes)
         report.answers = probes.map { PortReport.Answer(port: $0.candidate.name, id: $0.identity.text) }
         if report.probed != ports.probed || report.answers.map(\.id) != ports.answers.map(\.id)
             || report.sources != ports.sources {

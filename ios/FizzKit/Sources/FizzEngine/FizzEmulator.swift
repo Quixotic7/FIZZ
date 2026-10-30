@@ -257,6 +257,11 @@ public final class FizzEmulator: @unchecked Sendable {
         guard (0..<27).contains(key) else { return }
         fzh_key(UInt32(key), 0, 0)
     }
+    /// The panel's wiring as the core said at its last power-on (nil: not booted): PanelLink's matrix ids.
+    var panelTable: PanelTable? { lock.withLock { table } }
+    /// The MASTER pot as last set (nil: the core's default).
+    var master: Int? { lock.withLock { masterValue } }
+
     /// Every key and button let go, the input not yet applied dropped.
     public func releaseAll() { fzh_input_clear() }
 

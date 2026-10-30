@@ -1,0 +1,151 @@
+/* SPDX-License-Identifier: MPL-2.0
+ * Copyright (C) 2026 RemoteFM1 contributors */
+/* libremotefm1: the host session (docs/PROTOCOL.md section 2). Portable C99, single-threaded, no OS calls: the
+ * caller gives it links (a write function each), feeds it the bytes each link received, and calls poll() with a
+ * millisecond clock. Everything happens inside those calls.
+ *
+ * Links: RFM_LINK_SX (a MIDI port pair: SysEx out; in: SysEx and the panel's channel messages) and RFM_LINK_BK
+ * (the vendor bulk pipe). The back end adds every candidate; the session finds the unit by HELLO only.
+ *
+ *   DISCOVER  HELLO on every link; within hello_ms, every link that answered "RemoteFM1" proto 2 counts. The first
+ *             SX link that answered carries the panel events; the frame link (the session transport) is a BK link
+ *             that answered (unless transport = MIDI), else that SX link (unless transport = BULK). Nothing found:
+ *             the rescan callback, HELLO again after retry_ms.
+ *   STARTING  SESSION start=1 keepalive_ms on the frame link, until its ACK (retried; after 4 tries: DISCOVER).
+ *   ACTIVE    the model is black, frames count from 0. Every 1000/fps ms, when tiles are dirty and fewer than
+ *             max_frames_in_flight frames are unacknowledged: one frame (rfm_screen_encode) on the frame link.
+ *             LEDS on a change and at least once a second; something at least every keepalive_ms / 3.
+ *             FRAME_ACK: decode error -> every tile resent; an unexpected shadow reset -> SESSION start again
+ *             (model black). A frame not acknowledged within ack_timeout_ms: every tile resent. PANEL_R reconciles
+ *             the panel; a PANEL_R without the session flag (the unit ended it), or no PANEL_R for heartbeat_ms
+ *             (it is the session's heartbeat, every 500 ms) -> SESSION start again. Nothing at all heard from the unit
+ *             for lost_ms, or a link write failing: DISCOVER.
+ *   STOPPING  stop(): SESSION start=0, until its ACK or stop_ms; then STOPPED.
+ *
+ * Bluetooth: a SysEx frame link whose HELLO_R says Bluetooth (rfm_hello_is_ble: sxq <= 256 with the Bluetooth bit)
+ * is paced for it: frames at most RFM_BLE_FPS a second, a budget of RFM_BUDGET_BLE_BPS / 10 (100 ms of the rate;
+ * cfg.budget, if set, at most RFM_BLE_BUDGET_MAX; the rate is then 10 x the budget), the next frame no sooner than its
+ * body at the rate allows (small changes go at up to 20 a second, a page change at the rate), at most
+ * RFM_BLE_WIRE_CAP framed TILES bytes unacknowledged (the unit's Bluetooth input drops packets beyond a few KB; one
+ * frame alone always goes), FRAME_ACK timeout max(ack_timeout_ms, RFM_BLE_ACK_MIN_MS, 500 + 3 x what is in flight at
+ * the rate), SESSION retried after max(start_ms, 1000), heartbeat_ms / lost_ms at least 2500 / 3000. A USB SysEx
+ * link of the same unit is preferred to a Bluetooth one. USB and bulk links are paced as before.
+ *   Bluetooth frames are lossy (cfg.ble_colors, screen.h): a tile with more colours goes reduced to its best
+ * ble_colors when that is smaller (a ChoralRoot page change: ~40 % fewer bytes at 4), sent once and then left as it
+ * is. When no tile has changed for cfg.ble_refine_ms, the reduced tiles are sent again exactly, one frame in flight at
+ * a time; a change stops that (it goes first; the refinement starts again once the screen is still). USB and bulk
+ * links are never lossy.
+ *   Bluetooth screen changes go whole (cfg.ble_hold, when the unit's caps have RFM_CAP_HOLD: RemoteFM1 0.2.2): each
+ * change is a snapshot (screen.h) sent as frames with HOLD and a last one without, so the unit keeps showing the old
+ * screen until the new one is all there, then shows it at once; a source that changes meanwhile is latched again
+ * only when the snapshot is shown (the screens in between are skipped). Refinements are not held. A lost or late
+ * frame resends the screen as before (a new snapshot, from the newest screen); the unit shows what it holds by itself
+ * after RFM_HOLD_MS without TILES. USB, bulk and older units: no HOLD, every frame as before. */
+#ifndef RFM_SESSION_H
+#define RFM_SESSION_H
+#include <stdint.h>
+#include "codec.h"
+#include "panel.h"
+#include "screen.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+enum { RFM_T_AUTO = 0, RFM_T_MIDI = 1, RFM_T_BULK = 2 };
+enum { RFM_S_DISCOVER = 0, RFM_S_STARTING, RFM_S_ACTIVE, RFM_S_STOPPING, RFM_S_STOPPED };
+#define RFM_MAX_LINKS 16
+#define RFM_BLE_FPS 20u                                 /* Bluetooth pacing (above) */
+#define RFM_BLE_WIRE_CAP 2048u                          /* framed TILES bytes unacknowledged (3.4 KB measured clean) */
+#define RFM_BLE_BUDGET_MAX 800u                         /* a frame stays well under the cap */
+/* a unit with RFM_CAP_BLE_FAST (0.2.2's radio: 2M, long link packets, MTU 247; measured with a Mac 35-38 KB/s of
+ * 1 KB frames, nothing lost with 14 KB unacknowledged): this rate, cap and largest budget instead */
+#define RFM_BUDGET_BLE_FAST_BPS 30000u
+#define RFM_BLE_FAST_WIRE_CAP 8192u
+#define RFM_BLE_FAST_BUDGET_MAX 3000u
+#define RFM_BLE_ACK_MIN_MS 2000u
+#define RFM_BLE_COLORS 4u                               /* cfg.ble_colors' default: 2 bpp PAL tiles */
+#define RFM_BLE_REFINE_MS 1000u
+
+typedef struct {
+    uint32_t fps;                                       /* 20 */
+    uint32_t budget;                                    /* bytes per frame; 0: from the transport (screen.h) */
+    uint32_t keepalive_ms;                              /* 3000 */
+    uint32_t hello_ms;                                  /* 300: discovery window */
+    uint32_t retry_ms;                                  /* 1000: between discoveries */
+    uint32_t start_ms;                                  /* 400: SESSION's ACK */
+    uint32_t ack_timeout_ms;                            /* 1000: a FRAME_ACK */
+    uint32_t lost_ms;                                   /* 2000: nothing at all from the unit */
+    uint32_t heartbeat_ms;                              /* 1600: no PANEL_R (it comes every 500 ms in a session) */
+    uint32_t stop_ms;                                   /* 300 */
+    uint32_t settle_ms;                                 /* 60: panel.h */
+    uint32_t sx_body_max, bk_body_max;                  /* 0: the spec's (1024 / 16384), lowered by HELLO_R's */
+    int transport;                                      /* RFM_T_* */
+    uint32_t ble_colors;                                /* RFM_BLE_COLORS: lossy tiles over Bluetooth; 0 lossless */
+    uint32_t ble_refine_ms;                             /* RFM_BLE_REFINE_MS: still this long -> exact; 0 never */
+    int ble_hold;                                       /* 1 (default): whole screen changes (HOLD) over Bluetooth */
+    const char *host_name;                              /* HELLO's body ("fm1remote") */
+} rfm_session_cfg_t;
+void rfm_session_cfg_default(rfm_session_cfg_t *c);
+
+typedef int (*rfm_write_fn)(void *ctx, const uint8_t *p, uint32_t n);     /* 0 ok, else the link failed */
+
+typedef struct {
+    void *ctx;
+    void (*event)(void *ctx, const rfm_event_t *ev);    /* a panel event */
+    void (*state)(void *ctx, int state, const char *why);
+    void (*rescan)(void *ctx);                          /* discovery found no unit: refresh the links */
+    void (*log)(void *ctx, const char *msg);
+} rfm_session_cb_t;
+
+typedef struct {
+    uint32_t frames, msgs, tiles, rects, body_bytes, wire_bytes;
+    uint32_t acks, ack_ms_sum, ack_ms_max, ack_timeouts, decode_errs, shadow_resets;
+    uint32_t leds_sent, keepalives, panel_r, events, sessions, discoveries, lost;
+    uint32_t in_flight, pending;
+    uint32_t last_ack_ms;
+    uint32_t ble;                                       /* 1: the frame link is Bluetooth, paced for it */
+    uint32_t frame_ms;                                  /* the frame period in use */
+    uint32_t wire_cap;                                  /* framed TILES bytes allowed unacknowledged; 0: no cap */
+    uint32_t wire_in_flight;                            /* framed TILES bytes unacknowledged now */
+    uint32_t reduced;                                   /* tiles sent reduced (Bluetooth, ble_colors) */
+    uint32_t refined;                                   /* reduced tiles sent again exactly */
+    uint32_t inexact;                                   /* tiles the unit shows reduced now */
+    uint32_t lossy;                                     /* the colours a tile is reduced to now; 0 lossless */
+    uint32_t hold;                                      /* 1: screen changes go whole (HOLD) on this link now */
+    uint32_t held;                                      /* frames sent with HOLD */
+} rfm_session_stats_t;
+
+typedef struct rfm_session rfm_session_t;
+rfm_session_t *rfm_session_new(const rfm_session_cfg_t *cfg, const rfm_session_cb_t *cb);
+void rfm_session_free(rfm_session_t *s);
+
+int rfm_session_add_link(rfm_session_t *s, int kind, rfm_write_fn write, void *ctx, const char *name);  /* id, -1 */
+void rfm_session_remove_link(rfm_session_t *s, int id, uint32_t now_ms);
+void rfm_session_rx(rfm_session_t *s, int id, const uint8_t *p, uint32_t n, uint32_t now_ms);
+void rfm_session_poll(rfm_session_t *s, uint32_t now_ms);
+
+void rfm_session_set_frame(rfm_session_t *s, const uint16_t *lcd);     /* a new screen (copied) */
+void rfm_session_set_leds(rfm_session_t *s, const rfm_leds_t *l);
+/* cfg.ble_colors now (0: lossless; a Bluetooth link's reduced tiles are then sent exactly at once) */
+void rfm_session_set_ble_colors(rfm_session_t *s, uint32_t colors);
+/* cfg.ble_hold now (0: every frame shown as it arrives, as before 0.2.2; a change being held goes on unheld) */
+void rfm_session_set_ble_hold(rfm_session_t *s, int on);
+void rfm_session_stop(rfm_session_t *s, uint32_t now_ms);               /* SESSION start=0, then STOPPED */
+void rfm_session_restart(rfm_session_t *s, uint32_t now_ms);            /* back to DISCOVER (after stop too) */
+
+int rfm_session_state(const rfm_session_t *s);
+const char *rfm_session_state_name(int state);
+const rfm_hello_t *rfm_session_hello(const rfm_session_t *s);           /* the unit's, once found */
+int rfm_session_frame_link(const rfm_session_t *s);                     /* -1 none */
+int rfm_session_midi_link(const rfm_session_t *s);
+int rfm_session_link_kind(const rfm_session_t *s, int id);
+uint32_t rfm_session_budget(const rfm_session_t *s);                    /* bytes per frame in use */
+void rfm_session_stats(const rfm_session_t *s, rfm_session_stats_t *st);
+const rfm_panel_t *rfm_session_panel(const rfm_session_t *s);
+const rfm_screen_t *rfm_session_screen(const rfm_session_t *s);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

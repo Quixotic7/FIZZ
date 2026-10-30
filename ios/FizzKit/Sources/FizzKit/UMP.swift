@@ -32,6 +32,22 @@ public enum UMP {
         return words
     }
 
+    /// The MIDI 1.0 channel voice messages (type 2) among UMP words, as bytes, status first (the rest skipped).
+    public static func channelMessages(_ words: some Collection<UInt32>) -> [[UInt8]] {
+        let w = Array(words)
+        var out: [[UInt8]] = []
+        var i = 0
+        while i < w.count {
+            let w0 = w[i]
+            i += wordCount(w0)
+            guard w0 >> 28 == 0x2 else { continue }
+            let st = UInt8((w0 >> 16) & 0xff), d1 = UInt8((w0 >> 8) & 0x7f), d2 = UInt8(w0 & 0x7f)
+            guard st >= 0x80, st < 0xf0 else { continue }
+            out.append(st >> 4 == 0xc || st >> 4 == 0xd ? [st, d1] : [st, d1, d2])
+        }
+        return out
+    }
+
     /// A UMP's length in words, by its message type.
     public static func wordCount(_ w0: UInt32) -> Int {
         switch w0 >> 28 {
