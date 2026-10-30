@@ -10,6 +10,8 @@
 // A backup played (mock-up 44, BackupPlay.swift) runs on a throwaway FizzEmulator with no flash file: the core is the
 // process's one, so THIS iPHONE's is stopped (its flash saved) and set aside meanwhile, and on × boots again from
 // its file and takes the core back, its clock as the needs ask.
+// A RemoteFM1 unit can be its panel (PanelLink, on every tab): claimed by hand (attachPanel), it keeps the clock and the
+// sound going while it is attached, PLAY shown or not.
 
 import FizzEngine
 import FizzKit
@@ -69,6 +71,9 @@ public final class EmulatorHost {
     public private(set) var notes = false
     /// Its STATUS as PLAY's sheet last read it (while an FM-1 is the unit; else UnitModel's)
     public private(set) var status: FizzStatus?
+    /// A RemoteFM1 unit as THIS iPHONE's panel: the link's state (nil: none attached), and its port.
+    public private(set) var panel: PanelLink.State?
+    public private(set) var panelPort: String?
     /// The backup PLAY plays (nil: THIS iPHONE's own FIZZ).
     public private(set) var backup: BackupPlaying?
     /// What PLAY drives: the backup's throwaway FIZZ while one plays, else the app's own.
@@ -80,6 +85,7 @@ public final class EmulatorHost {
     @ObservationIgnored private var closed = false
     @ObservationIgnored private var poke: (@Sendable () -> Void)?
     @ObservationIgnored private var lent = 0
+    @ObservationIgnored private var panelLink: PanelLink?
 
     /// What the emulated FIZZ answers the update handshake (its backups carry it).
     public nonisolated static let identity = "FM-1_46999999"
@@ -172,6 +178,38 @@ public final class EmulatorHost {
         await settle()
     }
 
+    // MARK: a RemoteFM1 unit as its panel
+
+    /// Claim a RemoteFM1 unit (its port opened with its channel messages) as the panel: its controls play this FIZZ, and
+    /// FIZZ's LCD and LEDs show on it; the clock and the sound run while it is attached. A panel attached before is
+    /// let go first. With a fake engine (the tests) the port is closed and nothing happens.
+    public func attachPanel(_ transport: any MIDITransport) {
+        guard let e = emulator, !closed else { transport.close(); return }
+        panelLink?.release()
+        let link = PanelLink(transport: transport, emulator: e)
+        link.log = { print("FIZZ: \($0)") }
+        panelLink = link
+        panelPort = transport.name
+        panel = .idle
+        let id = ObjectIdentifier(link)
+        link.onState = { [weak self] s in Task { @MainActor [weak self] in self?.panelChanged(id, s) } }
+        link.claim()
+        update()
+    }
+
+    /// Let the panel go (SESSION 0: the unit shows its waiting screen).
+    public func detachPanel() { panelLink?.release() }
+
+    private func panelChanged(_ link: ObjectIdentifier, _ s: PanelLink.State) {
+        guard let l = panelLink, ObjectIdentifier(l) == link else { return }
+        panel = s
+        if case .released = s {
+            panelLink = nil
+            panelPort = nil
+        }
+        update()
+    }
+
     /// Its STATUS through a port of its own (PLAY's MEMORY while an FM-1 is the unit).
     public func readStatus() async {
         guard let e = active, e.isBooted, e.mode != .stopped else { return }
@@ -192,8 +230,10 @@ public final class EmulatorHost {
         guard launched, !closed else { return }
         // (a backup playing: its throwaway FIZZ is no unit; THIS iPHONE's stays stopped until ×)
         let e: any EmulatorEngine = backup?.emulator ?? engine, own = backup == nil
-        let c = Self.clock(playShown: playShown, serving: serving && own, trackOn: trackOn && serving && own,
-                           notes: notes && own, playing: wanted == .audio && e.isPlaying, now: wanted)
+        // (a RemoteFM1 unit attached as the panel: heard as PLAY is, on whatever tab)
+        let c = Self.clock(playShown: playShown || (panelLink != nil && own), serving: serving && own,
+                           trackOn: trackOn && serving && own, notes: notes && own,
+                           playing: wanted == .audio && e.isPlaying, now: wanted)
         let w = c == .stopped && lent > 0 && own ? .timer : c   // (lend: SEND's link needs its clock)
         guard w != wanted else { return }
         wanted = w
@@ -212,6 +252,7 @@ public final class EmulatorHost {
     /// clock stopped.
     public func close() async {
         closed = true
+        panelLink?.release()
         let e = engine, b = backup?.emulator
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
             ops.async { b?.stop(); e.stop(); k.resume() }

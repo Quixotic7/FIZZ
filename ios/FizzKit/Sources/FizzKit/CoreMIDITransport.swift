@@ -62,6 +62,15 @@ public struct MIDIPortCandidate: Sendable, Hashable {
 public protocol MIDIPortScanning: Sendable {
     func candidates() -> [MIDIPortCandidate]
     func open(_ candidate: MIDIPortCandidate) throws -> any MIDITransport
+    /// A transport whose messages also carry the port's channel messages (status first: a RemoteFM1 unit's panel
+    /// events); open(_:) passes SysEx only.
+    func open(_ candidate: MIDIPortCandidate, channelMessages: Bool) throws -> any MIDITransport
+}
+
+extension MIDIPortScanning {
+    public func open(_ candidate: MIDIPortCandidate, channelMessages: Bool) throws -> any MIDITransport {
+        try open(candidate)
+    }
 }
 
 public enum MIDIPorts {
@@ -171,7 +180,11 @@ public final class MIDIPortScanner: MIDIPortScanning, @unchecked Sendable {
     }
 
     public func open(_ candidate: MIDIPortCandidate) throws -> any MIDITransport {
-        let t = try CoreMIDITransport(client: client, candidate: candidate)
+        try open(candidate, channelMessages: false)
+    }
+
+    public func open(_ candidate: MIDIPortCandidate, channelMessages: Bool) throws -> any MIDITransport {
+        let t = try CoreMIDITransport(client: client, candidate: candidate, channelMessages: channelMessages)
         lock.lock()
         open.append(Weak(t: t))
         lock.unlock()
@@ -196,7 +209,8 @@ public final class MIDIPortScanner: MIDIPortScanning, @unchecked Sendable {
     }
 }
 
-/// One port pair through CoreMIDI: SysEx out as UMP SysEx7 event lists, in reassembled from them.
+/// One port pair through CoreMIDI: SysEx out as UMP SysEx7 event lists, in reassembled from them (and, when asked,
+/// the channel messages in as they come).
 public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     public let name: String
     public let messages: AsyncStream<[UInt8]>
@@ -206,11 +220,13 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     private let lock = NSLock()
     private var reassembler = SysEx7Reassembler()
     private var lost = false, closed = false
+    private let channelMessages: Bool
 
     public var isLost: Bool { lock.lock(); defer { lock.unlock() }; return lost }
 
-    init(client: MIDIClientRef, candidate: MIDIPortCandidate) throws {
+    init(client: MIDIClientRef, candidate: MIDIPortCandidate, channelMessages: Bool = false) throws {
         name = candidate.name
+        self.channelMessages = channelMessages
         source = candidate.source.ref
         destination = candidate.destination.ref
         (messages, cont) = AsyncStream.makeStream(of: [UInt8].self)
@@ -237,7 +253,11 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     private func receive(_ list: UnsafePointer<MIDIEventList>) {
         var got: [[UInt8]] = []
         lock.lock()
-        for p in list.unsafeSequence() { got += reassembler.feed(p.words()) }
+        for p in list.unsafeSequence() {
+            let w = p.words()
+            got += reassembler.feed(w)
+            if channelMessages { got += UMP.channelMessages(w) }
+        }
         let done = closed || lost
         lock.unlock()
         guard !done else { return }

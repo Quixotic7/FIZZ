@@ -9,6 +9,7 @@
 
 import Foundation
 import FizzData
+import FizzEngine
 import FizzKit
 
 /// A unit the picker offers.
@@ -57,14 +58,22 @@ struct PortSubset: MIDIPortScanning {
     let inner: any MIDIPortScanning
     let without: MIDIPortCandidate?
     let only: Set<String>?
+    var skipping: Set<String> = []
 
-    init(_ inner: any MIDIPortScanning, without: MIDIPortCandidate?) { self.inner = inner; self.without = without; only = nil }
+    init(_ inner: any MIDIPortScanning, without: MIDIPortCandidate?, skipping: Set<String> = []) {
+        self.inner = inner; self.without = without; only = nil; self.skipping = skipping
+    }
     init(_ inner: any MIDIPortScanning, only: Set<String>) { self.inner = inner; without = nil; self.only = only }
 
     func candidates() -> [MIDIPortCandidate] {
-        inner.candidates().filter { c in c != without && (only.map { $0.contains(c.name) } ?? true) }
+        inner.candidates().filter { c in
+            c != without && !skipping.contains(c.name) && (only.map { $0.contains(c.name) } ?? true)
+        }
     }
     func open(_ c: MIDIPortCandidate) throws -> any MIDITransport { try inner.open(c) }
+    func open(_ c: MIDIPortCandidate, channelMessages: Bool) throws -> any MIDITransport {
+        try inner.open(c, channelMessages: channelMessages)
+    }
 }
 
 extension UnitInfo {
@@ -288,19 +297,29 @@ extension UnitModel {
     /// The picker's other rows: each FM-1 port besides the unit and the one kept beside it, probed (answering, its
     /// version) or silent; a paired Bluetooth FM-1 not connected (CoreMIDI shows it offline) silent too.
     func survey() async {
-        var skip = Set([unit?.portName, otherProbe?.candidate.name].compactMap { $0 })
+        var skip = Set([unit?.portName, otherProbe?.candidate.name].compactMap { $0 }).union(panelSkip)
         let busy = Set([taken?.candidate.device, otherProbe?.candidate.device].compactMap { $0 }.filter { $0 != 0 })
         let cands = source.scanner.candidates().filter { !skip.contains($0.name) && !(unit != nil && !onEmulator && busy.contains($0.device)) }
         let probes = await FizzLink.probe(scanner: PortSubset(source.scanner, only: Set(cands.map(\.name))), clock: source.clock)
         var out: [SeenPort] = []
+        var panels: [PanelUnit] = []
         for p in probes {
             let v = p.identity.isFizz ? (try? await p.link.identity()) ?? nil : nil
             await p.link.close()
+            if RemoteFM1Unit.isRemoteFM1(identity: p.identity.text) {
+                panels.append(await panelUnit(p.candidate, identity: p.identity.text))
+            }
             if p.identity.isFizz { out.append(SeenPort(name: p.candidate.name, version: UnitInfo.short(v), answering: true)) }
             skip.insert(p.candidate.name)
         }
         let found = Set(probes.map(\.candidate.device)).subtracting([0])
-        for c in cands where !skip.contains(c.name) && !found.contains(c.device) {
+        // (a port silent to the update handshake and to FIZZ, Bluetooth's above all: a RemoteFM1 unit answers HELLO)
+        let silent = cands.filter { !skip.contains($0.name) && !found.contains($0.device) }
+        for u in await helloAll(silent) where u.hello?.isPanel == true {
+            panels.append(u)
+            skip.insert(u.name)
+        }
+        for c in silent where !skip.contains(c.name) {
             out.append(SeenPort(name: c.name, version: seen.first { $0.name == c.name }?.version, answering: false))
             skip.insert(c.name)
         }
@@ -313,6 +332,7 @@ extension UnitModel {
         }
         #endif
         if out != seen { seen = out }
+        surveyed(panels)
     }
 
     // MARK: SEND to the other unit
