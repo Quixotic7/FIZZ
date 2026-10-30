@@ -90,6 +90,7 @@ struct Shots {
 
         // ---- I5: EDIT
         await editShots(m, out)
+        await editMixShots(m, out)
 
         // ---- I4: RESTORE, IMPORT, EXPORT
         await i4(m, out)

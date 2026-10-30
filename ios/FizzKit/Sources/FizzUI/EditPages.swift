@@ -400,7 +400,7 @@ struct AmpPage: View {
         FitColumn(spacing: 14, minSpacing: 6) {
             EditSeg(e: e, id: QV.amod, tint: FZ.k3).frame(width: 200)
             ADSRDrawing(e: e, ids: [QV.eatk, QV.edec, QV.esus, QV.erel], tint: FZ.k3, w: 520, h: 170, ahd: ahd, name: "AMP")
-                .fitFlex(min: 100, max: 280)
+                .fitFlex(min: 90, max: 280)
             HStack(spacing: 6) {
                 EditChip(e: e, id: QV.eatk, label: "ATK", tint: FZ.k3, fill: !wide)
                 if ahd {
@@ -412,7 +412,8 @@ struct AmpPage: View {
                     EditChip(e: e, id: QV.erel, label: "REL", tint: FZ.k3, fill: !wide)
                 }
             }
-            EditBar(e: e, id: QV.level, label: "LEVEL", tint: FZ.k3)
+            // (mock-up 45: LEVEL, PAN and the sends in one card; EditMix.swift)
+            AmpMixCard(e: e)
         }
     }
 }

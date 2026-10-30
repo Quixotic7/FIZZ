@@ -122,8 +122,13 @@ export function toPlain(x) {
 //   editPack(s) -> {blob, drive}: the editor's sound ({values, midi?}) packed back (sound.js blob6)
 //   editTexts([[id, v], ..]) -> [text(id, v), ..] (the tests' comparisons)
 import { VALUES, ALGOS, DEST_ORDER, Q, NP, soundFromLib, blob6, text as valueText } from "../../site/manager/sound.js";
-export { soundFromLib };
-export const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP });
+// (mock-ups 45, 46) the mix: PAN and the sends under PARAM's ids (MIX_IDS), their rows (info: PAN -64..63, the sends
+// 0..127), PAN's texts (panText, -64 first), the defaults (MIX_DEFAULTS); newSound("fm" | "midi"): LIBRARY's + NEW
+import { MIX_DEFAULTS, MIX_IDS, newSound, panText, info as mixInfo } from "../../site/manager/sound.js";
+export { soundFromLib, newSound };
+const editMix = () => ({ ids: MIX_IDS, defaults: MIX_DEFAULTS, rows: Object.values(MIX_IDS).map((id) => mixInfo(id)),
+  panTexts: Array.from({ length: 128 }, (_, k) => panText(k - 64)) });
+export const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP, mix: editMix() });
 export const editPack = (s) => ({ blob: blob6(s), drive: s.values[Q.DRIVE] });
 export const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
 

@@ -41,11 +41,21 @@ public struct EditTable: Sendable, Equatable {
     public let destOrder: [Int]
     /// fizz2dn.js Q: ALGO, RC, RA, .. by name
     public let q: [String: Int]
+    /// The mix (sound.js MIX_IDS, info, panText): PAN and the sends under PARAM's ids 115..118, PAN's texts as a list
+    /// (-64 first: L64 .. C .. R63); the sends 0..127.
+    public let mix: [Int: EditValue]
+    /// sound.js MIX_DEFAULTS: a track's mix (a sound without one gets it)
+    public let mixDefaults: (pan: Int, sends: FizzSends)
 
     public var count: Int { values.count }
     public func id(_ name: String) -> Int { q[name] ?? -1 }
 
-    public func info(_ id: Int) -> EditValue? { values.indices.contains(id) ? values[id] : nil }
+    public func info(_ id: Int) -> EditValue? { values.indices.contains(id) ? values[id] : mix[id] }
+
+    public static func == (a: EditTable, b: EditTable) -> Bool {
+        a.values == b.values && a.algos == b.algos && a.destOrder == b.destOrder && a.q == b.q && a.mix == b.mix
+            && a.mixDefaults == b.mixDefaults
+    }
 
     /// sound.js text(id, v)
     public func text(_ id: Int, _ v: Int) -> String {
@@ -116,7 +126,25 @@ public struct EditTable: Sendable, Equatable {
         var q: [String: Int] = [:]
         for m in v["q"]?.members ?? [] { if let n = m.value.int { q[m.key] = n } }
         self.q = q
+        let pans = v["mix"]?["panTexts"]?.array?.compactMap(\.string) ?? []
+        var mix: [Int: EditValue] = [:]
+        for r in v["mix"]?["rows"]?.array ?? [] {
+            guard let id = r["id"]?.int else { continue }
+            let pan = r["rule"]?.string == "pan"
+            mix[id] = EditValue(name: r["name"]?.string ?? "", min: r["min"]?.int ?? 0, max: r["max"]?.int ?? 127,
+                                def: r["def"]?.int ?? 0, rule: pan ? .list : .int, ex: [:], list: pan ? pans : [])
+        }
+        self.mix = mix
+        let d = v["mix"]?["defaults"]
+        mixDefaults = (d?["pan"]?.int ?? 0, FizzSends(chorus: d?["chorus"]?.int ?? 0, delay: d?["delay"]?.int ?? 0,
+                                                     reverb: d?["reverb"]?.int ?? 20))
     }
+}
+
+/// PARAM's ids for the mix (sound.js MIX_IDS; core/seq/pattern.h QD_LK_*).
+public enum EditMix {
+    public static let pan = 115, delay = 116, reverb = 117, chorus = 118
+    public static func isMix(_ id: Int) -> Bool { (115...118).contains(id) }
 }
 
 /// A MIDI sound's slot (FIZZ MIDI (e)): its CC number, its value, touched (untouched: "—", nothing sent).
@@ -160,6 +188,27 @@ public struct EditSound: Sendable, Equatable {
     }
 
     public var isMidi: Bool { midi != nil }
+
+    /// sound.js mixValue / setMix / sameMix: PAN and the sends by PARAM id (115..118).
+    public func mixValue(_ id: Int) -> Int {
+        switch id {
+        case EditMix.pan: pan
+        case EditMix.delay: sends.delay
+        case EditMix.reverb: sends.reverb
+        case EditMix.chorus: sends.chorus
+        default: 0
+        }
+    }
+    public mutating func setMix(_ id: Int, _ v: Int) {
+        switch id {
+        case EditMix.pan: pan = v
+        case EditMix.delay: sends.delay = v
+        case EditMix.reverb: sends.reverb = v
+        case EditMix.chorus: sends.chorus = v
+        default: break
+        }
+    }
+    public func sameMix(_ o: EditSound) -> Bool { pan == o.pan && sends == o.sends }
 
     /// sound.js sameValues: the same values (a MIDI sound: its slots; a MIDI and an FM TONE sound never)
     public func sameValues(_ o: EditSound) -> Bool {
@@ -227,6 +276,12 @@ extension FizzDataEngine {
         return try FizzSysEx.storeSound(name: s.name, blob: p.blob, drive: p.drive, slot: slot, track: track, pan: s.pan,
                                         chorus: s.sends.chorus, delay: s.sends.delay, reverb: s.sends.reverb,
                                         tags: .mask(s.tags), audition: audition, own: own, extras: extras)
+    }
+
+    /// sound.js newSound: + NEW's sound ("fm": FM TONE's defaults, named INIT; "midi": a new MIDI sound, named MIDI, its
+    /// 28 slots untouched, slot k's CC 16 + k), the mix a track's defaults (reverb 20).
+    public func newSound(midi: Bool) async throws -> EditSound {
+        EditSound(js: try await call("newSound", [.string(midi ? "midi" : "fm")]))
     }
 
     /// sound.js text for each pair (the tests).

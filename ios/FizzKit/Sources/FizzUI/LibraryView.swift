@@ -309,6 +309,7 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 0) {
             ChipScroll {
                 SearchToggle(open: searching, active: hasQuery, action: toggleSearch)
+                NewSoundButton(model: model)
                 chips
             }
                 .padding(.bottom, 14)
@@ -351,6 +352,7 @@ struct LibraryView: View {
                 // (scrolls sideways: the iPad held upright has no room for them all)
                 ChipScroll(inset: 0, spacing: 6) { chips }
                     .frame(height: 44, alignment: .leading)
+                NewSoundButton(model: model, height: 40)
                 TrackPill(model: model, wide: true)
             }
             HStack(alignment: .top, spacing: 14) {
