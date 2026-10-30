@@ -186,8 +186,8 @@ struct OfflineTests {
         #expect(PlayInput.button("SEL") == .tracks, "the FM-1's printed label too")
         #expect(PlayInput.button("F1") == .f1 && PlayInput.button("OCT+") == .f2)
         #expect(PlayInput.button("NOPE") == nil)
-        #expect(PlayInput.well.map { PlayInput.label($0) } ==
-                ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "MIDI\nFX", "PATTERNS", "PLAY", "REC"])
+        #expect(PlayInput.well.map { PlayInput.name($0) } ==
+                ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "MIDI FX", "PATTERNS", "PLAY", "REC"])
     }
 
     @Test func knobDragsToDetents() {

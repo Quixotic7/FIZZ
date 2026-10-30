@@ -21,7 +21,9 @@ let package = Package(
             name: "FizzUI",
             dependencies: ["FizzKit", "FizzData", "FizzEngine"],
             resources: [.copy("Resources/InterTight.ttf"), .copy("Resources/OFL.txt"),
-                        .copy("Resources/ChakraPetch-Bold.ttf"), .copy("Resources/OFL-ChakraPetch.txt")]
+                        .copy("Resources/ChakraPetch-Bold.ttf"), .copy("Resources/OFL-ChakraPetch.txt"),
+                        .copy("Resources/DMSans.ttf"), .copy("Resources/OFL-DMSans.txt"),
+                        .copy("Resources/Unbounded.ttf"), .copy("Resources/OFL-Unbounded.txt")]
         ),
         // the web Manager's data modules (site/, bundled by ios/jsbundle/build.mjs) run in JavaScriptCore
         .target(

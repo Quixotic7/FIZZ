@@ -3,7 +3,7 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // Getting around PLAY: a double tap on the LCD fills the display with it (grown from its place, a double tap anywhere
-// puts it back); the FIZZ badge goes straight to the manager's tab last shown.
+// puts it back); the FIZZ badge (RemoteFM1's wordmark's place) goes straight to the manager's tab last shown.
 
 import SwiftUI
 
@@ -51,22 +51,35 @@ enum PlayNav {
     }
 }
 
-/// The black FIZZ badge (PLAY's header; small in the phone's band on its side): to the manager.
+/// The black FIZZ badge where RemoteFM1 has its wordmark (mock-ups 49-54): the bubbles and FIZZ in a pill, or the
+/// bubbles alone in a round one (the iPhone on its side, beside KN4). A tap: the manager.
 struct FizzBadge: View {
     let height: CGFloat
-    let logo: CGFloat
-    let word: CGFloat
+    var round = false
+    /// the board's unit (the bubbles 20 and the word 14 at any height)
+    var scale: CGFloat = 1
     let go: () -> Void
 
     var body: some View {
+        let k = scale
         Button(action: go) {
-            HStack(spacing: height * 0.17) {
-                BubbleLogo().frame(width: logo, height: logo)
-                FizzWord(size: word)
+            Group {
+                if round {
+                    BubbleLogo(lineWidth: 2.8).frame(width: height * 0.65, height: height * 0.65)
+                        .frame(width: height, height: height)
+                        .background(Circle().fill(RGB(0x0b0b0e).color))
+                } else {
+                    HStack(spacing: 5 * k) {
+                        BubbleLogo(lineWidth: 2.8).frame(width: 20 * k, height: 20 * k)
+                        Text("FIZZ").fz(14 * k, 800, em: 0.1)
+                            .foregroundStyle(LinearGradient(gradient: FZ.word, startPoint: .leading, endPoint: .trailing))
+                            .fixedSize()
+                    }
+                    .padding(.leading, 5 * k).padding(.trailing, 11 * k - 1.4 * k)
+                    .frame(height: height)
+                    .background(Capsule().fill(RGB(0x0b0b0e).color))
+                }
             }
-            .padding(.leading, height * 0.17).padding(.trailing, height * 0.36)
-            .frame(height: height)
-            .background(Capsule().fill(RGB(0x0b0b0e).color).shadow(color: .black.opacity(0.22), radius: 0, y: 3))
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
         }

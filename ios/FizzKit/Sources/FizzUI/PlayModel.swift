@@ -2,7 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// PLAY's state and input (mock-ups 29-33; STEPS, 38-40, in PlaySteps.swift): the emulated FIZZ's screen and LEDs as
+// PLAY's state and input (mock-ups 49-54, RemoteFM1's panel; STEPS in PlaySteps.swift): the emulated FIZZ's screen and LEDs as
 // they come (frames()), the buttons pressed on touch-down and let go on touch-up as the hardware's are, the knobs
 // (MASTER absolute, the others detents from a drag), the 27 keys with a velocity from where the finger lands; the view,
 // the theme and SOUND remembered.
@@ -43,8 +43,7 @@ public final class PlayModel {
     public private(set) var pressed: Set<FizzButton> = []
     public private(set) var held: Set<Int> = []
     /// The knobs' marks (degrees; detents turn them 15 each) and MASTER (0..1023).
-    public private(set) var angles: [FizzKnob: Double] = [.select: -20, .algo: 30, .presets: -120, .k1: -60, .k2: 135,
-                                                          .k3: 0, .k4: 40]
+    public private(set) var angles: [FizzKnob: Double] = [.select: 0, .algo: 0, .presets: 0, .k1: 0, .k2: 0, .k3: 0, .k4: 0]
     public private(set) var master = 800
 
     public var view: PlayViewKind {
@@ -55,12 +54,14 @@ public final class PlayModel {
     }
     public var theme: PlayTheme { didSet { defaults.set(theme.rawValue, forKey: "play.theme") } }
     public var sound: PlaySound = .here
-    /// The linked views' knob row: MAIN (false) or KN 1-4 (true)
-    public var knobsKN = true
+    /// CONTROLS' knob row: MAIN (false, as RemoteFM1 opens it) or KN 1-4 (true)
+    public var knobsKN = false
     /// The pull-down sheet
     public var sheet = false
     /// The scrolling keybed's first key shown (white keys, 0..)
     public var keysOffset: Double = 4
+    /// .. STEPS' keybed's (C4 and G4 in sight at the octave first chosen)
+    public var stepsKeysOffset: Double = 2
     /// The LCD fills the display (a double tap on it; PlayNav.swift)
     public var lcdFull = false
     /// The manager's tab last shown (the FIZZ badge goes back to it; PlayNav.swift)
@@ -226,10 +227,14 @@ public enum PlayInput {
     public static let well: [FizzButton] = [.fx, .tracks, .mix, .latch, .edit, .shift, .home, .sounds, .midiFX,
                                             .patterns, .play, .rec]
 
-    /// A button's label on the panel (FIZZ's own; "MIDI FX" on two lines).
-    public static func label(_ b: FizzButton) -> String {
-        let n = b.fizzName.isEmpty ? b.panelName : b.fizzName
-        return n.replacingOccurrences(of: " ", with: "\n")
+    /// A button's name on the panel (FIZZ's own; "MIDI FX" goes on two lines).
+    public static func name(_ b: FizzButton) -> String { b.fizzName.isEmpty ? b.panelName : b.fizzName }
+
+    /// The key of a well under a point (the well's own points; the gaps belong to the nearest key).
+    public static func cell(at pt: CGPoint, in w: PlayLayout.Well) -> Int {
+        let c = Int(((pt.x - w.pad + w.gap / 2) / (w.bw + w.gap)).rounded(.down))
+        let r = Int(((pt.y - w.pad + w.gap / 2) / (w.bh + w.gap)).rounded(.down))
+        return max(0, min(w.rows - 1, r)) * w.cols + max(0, min(w.cols - 1, c))
     }
 
     /// Points of drag per detent.
@@ -281,12 +286,15 @@ public struct KeyLayout: Sendable, Equatable {
     /// where white key 0 starts (scrolled: negative)
     public let originX: CGFloat
     public let blackHeight: CGFloat, whiteTop: CGFloat
+    /// the white keys' height: 4 short of the stage's foot (their shadow's room)
+    public let whiteHeight: CGFloat
 
-    /// row: all 16 across `size.width`; scroll: keys `keyW` wide, the row moved `offset` white keys left.
-    public init(size: CGSize, keyW: CGFloat? = nil, offset: Double = 0) {
+    /// row: all 16 across `size.width`; scroll: keys `keyW` wide, the row moved `offset` white keys left. `gap`: the
+    /// keybed's (0.8 % of its whole width), else 0.8 % of the stage's.
+    public init(size: CGSize, keyW: CGFloat? = nil, offset: Double = 0, gap: CGFloat? = nil) {
         self.size = size
-        let g = max(3, min(10, (size.width * 0.008).rounded()))
-        gap = g
+        let g = gap ?? max(3, min(10, (size.width * 0.008).rounded()))
+        self.gap = g
         if let keyW {
             pitch = keyW + g
             originX = -CGFloat(offset) * pitch
@@ -296,6 +304,7 @@ public struct KeyLayout: Sendable, Equatable {
         }
         blackHeight = (size.height * 0.4).rounded()
         whiteTop = blackHeight + g + 2
+        whiteHeight = max(1, (size.height - whiteTop - 4).rounded())
     }
 
     /// How many white keys show (scroll layout).
@@ -304,7 +313,7 @@ public struct KeyLayout: Sendable, Equatable {
     public var blackWidth: CGFloat { keyWidth * 0.86 }
 
     public func whiteFrame(_ i: Int) -> CGRect {
-        CGRect(x: originX + CGFloat(i) * pitch, y: whiteTop, width: keyWidth, height: size.height - whiteTop)
+        CGRect(x: originX + CGFloat(i) * pitch, y: whiteTop, width: keyWidth, height: whiteHeight)
     }
 
     public func blackFrame(after a: Int) -> CGRect {
@@ -328,7 +337,7 @@ public struct KeyLayout: Sendable, Equatable {
         let i = Int(((p.x - originX + gap / 2) / pitch).rounded(.down))
         guard (0..<16).contains(i), p.y >= 0, p.y <= size.height else { return nil }
         let r = whiteFrame(i)
-        return (Self.whites[i], max(0, (p.y - r.minY)) / max(1, r.height))
+        return (Self.whites[i], min(1, max(0, (p.y - r.minY)) / max(1, r.height)))
     }
 }
 

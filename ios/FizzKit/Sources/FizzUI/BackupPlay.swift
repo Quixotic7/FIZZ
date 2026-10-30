@@ -5,7 +5,7 @@
 // ▶ play a backup (mock-up 44; the web's site/js/backup-play.js backupFlash): a full backup's store image written
 // again as the emulated FIZZ's whole flash (StoreImage.hostFlash: the same records, the host's layout), booted in a
 // throwaway FizzEmulator with no flash file (EmulatorHost.playBackup), PLAY opened on it. THIS iPHONE's own flash
-// file is never written. PLAY's header pill turns yellow, BACKUP · 28 OCT; its × (or a pick in the unit picker)
+// file is never written. PLAY's chip turns into the yellow pill, BACKUP · 28 OCT; its × (or a pick in the unit picker)
 // throws the copy away and THIS iPHONE takes the core back.
 
 import Foundation
@@ -72,43 +72,40 @@ extension BackupModel {
     }
 }
 
-/// PLAY's header pill on a backup: yellow, the cassette, BACKUP · 28 OCT, then × in a black ring (to THIS iPHONE).
-/// The pill itself opens the unit picker, as THIS iPHONE's does.
+/// PLAY's chip on a backup (mock-up 54): yellow, BACKUP · 28 OCT in the chip's place and height, then × in a black
+/// ring (back to THIS iPHONE). The pill itself opens the unit picker, as the chip does.
 struct BackupPill: View {
     let backup: BackupPlaying
-    let scale: CGFloat
+    /// the chip's height and type size
+    let height: CGFloat
+    let font: CGFloat
     let pick: () -> Void
     let close: () -> Void
 
     var body: some View {
-        let s = scale
-        HStack(spacing: s * 5) {
+        let k = height / 28
+        HStack(spacing: 0) {
             Button(action: pick) {
-                HStack(spacing: s * 5) {
-                    IconView(Icons.backup, color: .black, lineWidth: 2.3, backdrop: FZ.yellow.color)
-                        .frame(width: s * 16, height: s * 16)
-                    Text(backup.title).fz(s * 12, 800, em: 0.03).foregroundStyle(.black).lineLimit(1).fixedSize()
-                }
-                .frame(height: s * 32)
-                .contentShape(Rectangle())
+                Text(backup.title).dm(font - 1, 600).foregroundStyle(RGB(0x1b1300).color).lineLimit(1).fixedSize()
+                    .padding(.leading, 11 * k).padding(.trailing, 7 * k)
+                    .frame(height: height)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             Button(action: close) {
-                IconView(TransferIcons.close, color: FZ.yellow.color, lineWidth: 3.2)
-                    .frame(width: s * 13, height: s * 13)
-                    .frame(width: s * 26, height: s * 26)
-                    .background(Circle().fill(.black))
-                    .frame(width: s * 32, height: s * 32)
-                    .contentShape(Circle())
+                IconView(TransferIcons.close, color: FZ.yellow.color, lineWidth: 3.4)
+                    .frame(width: 9 * k, height: 9 * k)
+                    .frame(width: 22 * k, height: 22 * k)
+                    .background(Circle().fill(.black.opacity(0.82)))
+                    .padding(.leading, 2 * k).padding(.trailing, 3 * k)
+                    .frame(height: height)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PressStyle(scale: 0.88))
             .accessibilityLabel("Back to \(EmulatorHost.hereName)")
         }
-        .padding(.leading, s * 9).padding(.trailing, s * 0)
-        .frame(height: s * 32)
-        .background(Capsule().fill(FZ.yellow.color)
-            .shadow(color: FZ.yellow.opacity(0.5), radius: s * 9)
-            .overlay(Capsule().strokeBorder(.black.opacity(0.25), lineWidth: 2).padding(-2)))
+        .background(Capsule().fill(RGB(0xFFD23F).color))
+        .overlay(Capsule().strokeBorder(RGB(0x22222a).color, lineWidth: 1.5 * k))
         .fixedSize()
     }
 }
