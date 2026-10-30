@@ -213,4 +213,11 @@ extension FizzLink {
             : [UInt8(0x80 | (channel & 15)), UInt8(n & 127), 0]
         try await send(b)
     }
+
+    /// One channel message (status 0x80..0xEF) or real-time byte to the FM-1's MIDI in, paced as every frame (a MIDI
+    /// controller's CCs and clock on PLAY); anything else is not sent.
+    public func midiIn(_ bytes: [UInt8]) async throws {
+        guard let s = bytes.first, (s >= 0x80 && s < 0xF0) || s >= 0xF8 else { return }
+        try await send(bytes)
+    }
 }

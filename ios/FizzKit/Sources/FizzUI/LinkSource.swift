@@ -58,6 +58,8 @@ public enum LinkSources {
         if args.contains("-emulator") { return NoPorts() }
         if let k = args.firstIndex(of: "-demo") {
             if k + 1 < args.count, args[k + 1] == "units" { return DemoUnitsSource() }    // (the unit picker's)
+            // (mock-up 57: a RemoteFM1 unit on USB beside THIS iPHONE, the Bluetooth FM-1 asleep)
+            if k + 1 < args.count, args[k + 1] == "panel" { return DemoUnitsSource(usb: false, remoteFM1: true) }
             let v = k + 1 < args.count ? DemoVariant(rawValue: args[k + 1]) : nil
             return DemoLinkSource(v ?? .fizz)
         }

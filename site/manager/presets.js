@@ -62,7 +62,7 @@ export function shownRows(rows, f, places = poolPlaces(rows)) {
 // one cassette: its ring (the algorithm, the tag's colour), its place, the pool's mark, the name, the tag; the one
 // picked lit, with the audition's bars. o: { frameOf(r), places (poolPlaces), on(r) selected, drag(r) draggable, i (its
 // place in the list: the pop's stagger) }
-// o.check(r): SELECT's mark (a check circle) on it; o.isNew(r): just sent here (a NEW badge, a glow, for a moment)
+// o.check(r): SELECT's mark (a check circle) on it; o.isNew(r): just sent here (a NEW badge, its fill flashing, for a moment)
 export function casHtml(r, o) {
   const f = o.frameOf(r), d = (f && parseDump(f)) || (r.blob ? { blob: r.blob } : null), tg = tagsOf(r.tags), c = colOf(r.tags);
   const pl = r.source === "browser" ? null : o.places.get(r.id), mi = !!d && isMidiBlob(d.blob), on = !!o.on(r), ck = o.check ? o.check(r) : null;

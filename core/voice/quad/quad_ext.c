@@ -301,7 +301,8 @@ static void quad_ext_crush(voice_t *v, int bits, int srr, int32_t *acc, uint32_t
 }
 
 /* ================================================================ E4: the modulation slots */
-/* hook 6, a block: each slot with a SOURCE adds source x DEPTH / 127 (Q15) to its destination, after the LFOs */
+/* hook 6, a block: each slot with a SOURCE adds source x DEPTH / 127 (Q15) to its destination, before the LFOs (so
+ * a slot moves LFO 1's own SPEED .. DEPTH as LFO 2 and 3 do; F ENV is the last block's either way) */
 static void quad_ext_mods(track_t *t, voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *dst)
 {
     int k;
