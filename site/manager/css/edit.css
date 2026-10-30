@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* FIZZ Manager: EDIT in FIZZ NEON (the boards PadEditLandscape, PhoneEdit, PhoneEditLandscape, inside the web shell):
-   every value on one panel (the owner's choice), each section a card outlined in its colour (a ring and its name),
-   lit while one of its values is dragged; the operators' drawing with its roundels, ALGO a big glowing pink number,
-   the operators' cards (the ratio big, OFS a 10-segment bar), the values as knobs (rings: an arc in the value's colour
-   on a dark ring), the choices outlined and lit when on; SAVE the one fill; the keybed lit pink under a finger.
+/* FIZZ Manager: EDIT (the boards PadEditLandscape, PhoneEdit, PhoneEditLandscape, inside the web shell). Design 12 / 13
+   (the owner, 2026-10-30): the panel one grid, every value a cell, the sections frames drawn on it; drag a source onto
+   a value to modulate it. Flat (the owner: "Flatten everything"): no glows, no blooms, no shadows under lines; a
+   selected or live thing marked by its border or its fill; only floating cards keep a black lift shadow.
    Everything under #tab-edit (POOL's tiles have a .pn of their own). */
 
 /* ---- the card: the head, the panel (it scrolls by itself on a computer), the keys */
@@ -17,19 +16,19 @@
 #tab-edit .edname .h .hud { color: var(--pink); font-size: 11px; letter-spacing: .04em; }
 #tab-edit .edname .bigname { font-size: 42px; line-height: 1.02; }
 #tab-edit .edited { margin-left: 8px; color: var(--pink); display: inline-flex; align-items: center; gap: 6px; }
-#tab-edit .edited::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); animation: led 1.4s ease-in-out infinite; }
+#tab-edit .edited::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pink); animation: led 1.4s ease-in-out infinite; }
 /* the name and its tag: one chip beside it (a click: the popover of the seven tags) */
 #tab-edit .ednrow { display: flex; align-items: center; gap: 12px; min-width: 0; }
 #tab-edit .ednrow .bigname { field-sizing: content; width: auto; min-width: 4ch; max-width: 100%; flex: 0 1 auto; }
 #tab-edit .edtag { height: 24px; padding: 0 8px; background: transparent; cursor: pointer; flex: none; transition: box-shadow .16s, background .16s; }
 #tab-edit .edtag small { font-size: 11px; margin-left: 2px; opacity: .8; }
-#tab-edit .edtag:hover, #tab-edit .edtag[aria-expanded="true"] { background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: 0 0 12px -3px var(--c); }
+#tab-edit .edtag:hover, #tab-edit .edtag[aria-expanded="true"] { background: color-mix(in srgb, var(--c) 12%, transparent); border-color: var(--c); }
 #tab-edit .edtag.none { border-style: dashed; }
 .tagpop { position: absolute; z-index: 9; display: flex; flex-wrap: wrap; gap: 6px; max-width: min(320px, calc(100vw - 24px)); padding: 10px; border-radius: 16px;
-  background: rgba(10, 10, 15, .97); border: 1.5px solid color-mix(in srgb, var(--pink) 42%, transparent); box-shadow: 0 0 18px -6px var(--pink), 0 12px 30px rgba(0, 0, 0, .6); animation: pop .2s var(--snap) both; }
+  background: rgba(10, 10, 15, .97); border: 1.5px solid color-mix(in srgb, var(--pink) 42%, transparent); box-shadow: 0 12px 30px rgba(0, 0, 0, .6); animation: pop .2s var(--snap) both; }
 .tagpop .chip { height: 32px; padding: 0 10px; background: transparent; cursor: pointer; transition: background .16s, box-shadow .16s; }
 .tagpop .chip:hover { background: color-mix(in srgb, var(--c) 10%, transparent); }
-.tagpop .chip.on { background: color-mix(in srgb, var(--c) 16%, transparent); border-color: var(--c); box-shadow: 0 0 12px -3px var(--c); }
+.tagpop .chip.on { background: color-mix(in srgb, var(--c) 16%, transparent); border-color: var(--c); }
 .tagpop .chip:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 .tagpop .chip.none { color: var(--muted); }
 #tab-edit .edacts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-left: auto; max-width: 760px; }
@@ -37,7 +36,7 @@
 #tab-edit .edwhere:empty { display: none; }
 #tab-edit .edacts .ol { height: 42px; padding: 0 16px; font-size: 11px; }
 #tab-edit .edacts .arc { height: 42px; padding: 0 30px; font-size: 13px; }
-#tab-edit .edacts .arc:disabled { box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000); }
+#tab-edit .edacts .arc:disabled { box-shadow: none; }
 /* REVERT / SAVE AS NEW / SAVE: a bar of their own; in the head's row on a computer (EXPORT between SAVE AS NEW and SAVE) */
 #tab-edit .edsave { display: contents; }
 #tab-edit .edwhere { order: 0; } #tab-edit #ed-revert { order: 1; } #tab-edit #ed-savenew { order: 2; } #tab-edit #ed-export { order: 3; } #tab-edit #ed-save { order: 4; }
@@ -47,7 +46,7 @@
   border: 2px solid var(--c); color: var(--c); background: #000; box-shadow: inset 0 0 0 5px #000, inset 0 0 0 6.5px color-mix(in srgb, var(--c) 45%, transparent); align-self: center; }
 #tab-edit .trkbig small { font-size: 11px; font-weight: 800; letter-spacing: .14em; }
 #tab-edit .trkbig b { font: 400 30px/1 var(--hud); color: inherit; }
-#tab-edit .trkbig.live { background: var(--c); color: #000; box-shadow: 0 0 26px -2px var(--c), 0 0 0 4px #000, 0 0 0 5.5px color-mix(in srgb, var(--c) 45%, transparent); }
+#tab-edit .trkbig.live { background: var(--c); color: #000; box-shadow: 0 0 0 4px #000, 0 0 0 5.5px color-mix(in srgb, var(--c) 45%, transparent); }
 #tab-edit .trkbig.view { border-style: dashed; color: color-mix(in srgb, var(--c) 75%, var(--text)); box-shadow: none; }
 /* the track strip (live.js): SELECTED, 1..6, LIVE: a pink tube */
 #tab-edit .trks { --c: var(--pink); display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; align-items: center; flex-wrap: wrap;
@@ -57,13 +56,13 @@
 #tab-edit .trk:hover { color: var(--text); }
 #tab-edit .trk.sel, #tab-edit .trk.live { font: 800 11px/1 "Inter Tight", sans-serif; letter-spacing: .12em; }
 #tab-edit .trk svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
-#tab-edit .trk.on { background: var(--c); color: #000; box-shadow: 0 0 14px -3px var(--c); }
-#tab-edit .trk.usel::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+#tab-edit .trk.on { background: var(--c); color: #000; box-shadow: none; }
+#tab-edit .trk.usel::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--yellow); }
 #tab-edit .trk.on.usel::after { background: #000; box-shadow: none; }
 #tab-edit .trk.live { color: var(--text); padding: 0 12px 0 6px; margin-left: 3px; box-shadow: inset 0 0 0 1.5px var(--line); }
 #tab-edit .trk .sw { width: 30px; height: 18px; border-radius: 9px; background: var(--dim); position: relative; flex: none; transition: background .2s; }
 #tab-edit .trk .sw i { position: absolute; left: 3px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: left .2s var(--snap), background .2s; }
-#tab-edit .trk.live.on { background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--c), 0 0 14px -4px var(--c); }
+#tab-edit .trk.live.on { background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--c); }
 #tab-edit .trk.live.on .sw { background: var(--c); }
 #tab-edit .trk.live.on .sw i { left: 15px; background: #fff; }
 /* where the sound plays (the browser's FIZZ, or a track): a tube, lit when ready */
@@ -73,195 +72,10 @@
 #tab-edit .aud:hover { border-color: color-mix(in srgb, var(--c) 75%, transparent); }
 #tab-edit .aud .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 #tab-edit .aud.on, #tab-edit .aud.live { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
-  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent); }
-#tab-edit .aud.on .dot, #tab-edit .aud.live .dot { background: var(--c); box-shadow: 0 0 10px var(--c); animation: led 1.8s ease-in-out infinite; }
+  box-shadow: none; }
+#tab-edit .aud.on .dot, #tab-edit .aud.live .dot { background: var(--c); animation: led 1.8s ease-in-out infinite; }
 #tab-edit .aud.live .dot { animation: blink .9s infinite alternate; }
 
-/* ---- the panel: every section at once, each a card in its colour */
-#tab-edit .stage { display: flex; flex-direction: column; gap: 10px; user-select: none; -webkit-user-select: none; touch-action: pan-y; }
-#tab-edit .fcol, #tab-edit .fpair { display: contents; }
-#tab-edit .pn { grid-area: var(--a); border-radius: 22px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
-  border: 1.5px solid color-mix(in srgb, var(--c) 34%, transparent); background: color-mix(in srgb, var(--c) 4%, rgba(10, 10, 15, .7));
-  transition: border-color .16s var(--snap), box-shadow .2s; }
-#tab-edit .pn:has(.dragging) { border-color: var(--c); box-shadow: 0 0 22px -6px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 18px -10px color-mix(in srgb, var(--c) 70%, transparent); }
-#tab-edit .pn-ops { --a: ops; } #tab-edit .pn-openv { --a: openv; } #tab-edit .pn-filter { --a: filter; } #tab-edit .pn-amp { --a: amp; }
-#tab-edit .pn-drive { --a: drive; } #tab-edit .pn-lfo { --a: lfo; } #tab-edit .pn-mod { --a: mod; } #tab-edit .pn-play { --a: play; }
-#tab-edit .pnh { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 800; letter-spacing: .14em; color: var(--text); }
-#tab-edit .pdot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--c); box-shadow: 0 0 8px -2px var(--c); flex: none; }
-#tab-edit .pnb { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
-#tab-edit .duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: start; }
-#tab-edit div.sub { border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; min-width: 0;
-  background: rgba(0, 0, 0, .5); border: 1.5px solid color-mix(in srgb, var(--c) 22%, var(--line)); }
-#tab-edit .cn { font-size: 11px; font-weight: 800; letter-spacing: .16em; color: var(--c); }
-#tab-edit .sub .kv { font: 400 11px var(--hud); color: var(--muted); }
-#tab-edit .envc .tgs { margin-left: auto; display: inline-flex; gap: 6px; }
-#tab-edit .pnb > .vbar, #tab-edit div.sub > .vbar { flex: none; }
-#tab-edit .bars { display: flex; flex-wrap: wrap; gap: 8px; }
-#tab-edit .row.wrap { flex-wrap: wrap; gap: 8px; }
-#tab-edit .stage.locked [data-x], #tab-edit .stage.locked [data-y], #tab-edit .stage.locked [data-set], #tab-edit .stage.locked [data-pick] { cursor: not-allowed; }
-#tab-edit .stage [data-x], #tab-edit .stage [data-y], #tab-edit .stage [data-pick] { touch-action: none; }
-#tab-edit .stage svg { display: block; width: 100%; height: auto; overflow: visible; }
-#tab-edit .stage [data-x], #tab-edit .stage [data-y] { cursor: ns-resize; }
-#tab-edit .stage [data-x]:not([data-y]) { cursor: ew-resize; }
-#tab-edit .stage .hd { cursor: move; }
-.foot { margin-top: auto; }
-
-/* ---- a value: a knob's ring with its name and value; a dial (a big knob); a bar; a choice */
-#tab-edit .vc { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 12px 0 6px; border-radius: 12px; white-space: nowrap; min-width: 0;
-  background: #000; border: 1.5px solid color-mix(in srgb, var(--c) 26%, var(--line)); transition: border-color .16s var(--snap), box-shadow .16s; }
-#tab-edit .stage .vc svg { width: 26px; height: 26px; flex: none; }
-#tab-edit .vc .track, #tab-edit .dial .track { fill: none; stroke: #24242B; stroke-width: 3.2; stroke-linecap: round; }
-#tab-edit .vc .fill, #tab-edit .dial .fill { fill: none; stroke: var(--c); stroke-width: 3.2; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--c)); }
-#tab-edit .vc small { font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
-#tab-edit .vc b { color: var(--text); font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
-#tab-edit .vc.big b { font-size: 21px; }
-#tab-edit .vc.pick { cursor: pointer; padding-left: 12px; gap: 8px; border-color: color-mix(in srgb, var(--c) 50%, var(--line)); }
-#tab-edit .vc.pick b { color: var(--c); }
-#tab-edit .vc.pick b::after { content: " ▾"; font-size: 11px; color: var(--muted); }
-#tab-edit .vc:hover, #tab-edit .vbar:hover, #tab-edit .dial:hover { border-color: color-mix(in srgb, var(--c) 70%, transparent); }
-#tab-edit .vc:focus-visible, #tab-edit .vbar:focus-visible, #tab-edit .dial:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
-#tab-edit .vc.dragging, #tab-edit .vbar.dragging, #tab-edit .dial.dragging { border-color: var(--c); box-shadow: 0 0 16px -3px color-mix(in srgb, var(--c) 70%, transparent), inset 0 0 12px -6px var(--c); }
-#tab-edit .vc.dragging b, #tab-edit .dial.dragging b, #tab-edit .vbar.dragging b { color: var(--c); }
-#tab-edit .dial { display: inline-flex; flex-direction: column; align-items: center; gap: 0; width: 84px; padding: 4px 0 6px; border-radius: 16px; border: 1.5px solid transparent; transition: border-color .16s, box-shadow .16s; }
-#tab-edit .stage .dial svg { width: 64px; }
-#tab-edit .dial .track, #tab-edit .dial .fill { stroke-width: 6; }
-#tab-edit .dial .fill { filter: drop-shadow(0 0 4px var(--c)); }
-#tab-edit .dial b { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -.02em; margin-top: -10px; }
-#tab-edit .dial small { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: var(--muted); }
-#tab-edit .vbar { display: inline-grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 12px; min-width: 120px; flex: 1 1 140px; padding: 8px 12px 10px; border-radius: 12px;
-  background: #000; border: 1.5px solid color-mix(in srgb, var(--c) 22%, var(--line)); transition: border-color .16s var(--snap), box-shadow .16s; }
-#tab-edit .vbar small { font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
-#tab-edit .vbar b { justify-self: end; color: var(--text); font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
-#tab-edit .vbar i { grid-column: 1 / 3; height: 6px; border-radius: 3px; background: #1C1C24; position: relative; overflow: hidden; }
-#tab-edit .vbar i span { position: absolute; top: 0; bottom: 0; background: var(--c); border-radius: 3px; box-shadow: 0 0 10px var(--c); }
-#tab-edit .vseg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 13px; border: 1.5px solid var(--line); background: #000; flex-wrap: wrap; }
-#tab-edit .vseg button { height: 32px; padding: 0 11px; border: 0; border-radius: 10px; background: transparent; font-weight: 800; font-size: 11px; letter-spacing: .1em; color: var(--muted);
-  transition: background .16s, color .16s, box-shadow .16s; }
-#tab-edit .vseg button:hover { color: var(--text); }
-#tab-edit .vseg button.on { color: var(--text); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: inset 0 0 0 1.5px var(--c), 0 0 12px -3px var(--c); }
-#tab-edit .vseg.mach button { height: 34px; padding: 0 12px; }
-#tab-edit .vtog { height: 32px; padding: 0 11px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--c) 35%, var(--line)); background: transparent; color: var(--muted);
-  font-weight: 800; font-size: 11px; letter-spacing: .1em; transition: border-color .16s, background .16s, box-shadow .16s, color .16s; }
-#tab-edit .vtog.on { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); box-shadow: 0 0 14px -3px var(--c), inset 0 0 10px -6px var(--c); }
-#tab-edit .capt { display: inline-flex; align-items: center; gap: 10px; }
-#tab-edit .capt small { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: var(--muted); }
-#tab-edit .lfoc .vseg button { height: 30px; padding: 0 8px; }
-#tab-edit .lfoc .vseg.waves button { padding: 0 6px; }
-#tab-edit .vseg.waves svg { width: 22px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; display: block; }
-#tab-edit .vseg.waves button.on { color: var(--c); }
-#tab-edit .vseg.waves button.on svg { filter: drop-shadow(0 0 3px var(--c)); }
-
-/* ---- OPERATORS: the algorithm drawn (the roundels, the wires, the signals running), ALGO big, the four cards, the knobs */
-#tab-edit .ops { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; align-items: center; }
-#tab-edit .algosvg .bus { stroke: #5A5A66; stroke-width: 3; }
-#tab-edit .algosvg .spk { fill: none; stroke: var(--muted); stroke-width: 3; stroke-linejoin: round; }
-#tab-edit .algosvg .spk.wave { stroke: var(--cream); opacity: .7; animation: blink 1s infinite alternate; }
-#tab-edit .algosvg .carrier { stroke: color-mix(in srgb, var(--cream) 62%, #000); fill: none; }
-#tab-edit .algosvg .joint { fill: var(--cream); }
-#tab-edit .algosvg .modl { stroke: #4A4A55; stroke-width: 3.5; stroke-linecap: round; }
-#tab-edit .algosvg .arrow { fill: #4A4A55; }
-#tab-edit .algosvg .spark { fill: var(--cream); filter: drop-shadow(0 0 5px var(--cream)); }
-#tab-edit .algosvg .fb { fill: none; stroke-width: 3.5; stroke-dasharray: 8 6; opacity: .85; animation: fbrun 1.2s linear infinite; }
-@keyframes fbrun { to { stroke-dashoffset: -28; } }
-#tab-edit .algosvg .op { cursor: ns-resize; }
-#tab-edit .algosvg .op .rim { fill: #000; stroke: var(--c); stroke-width: 4; transition: filter .16s; }
-#tab-edit .algosvg .op .inner { fill: none; stroke: color-mix(in srgb, var(--c) 42%, transparent); stroke-width: 2.5; }
-#tab-edit .algosvg .op text { fill: var(--text); font: 900 26px "Inter Tight", sans-serif; pointer-events: none; }
-#tab-edit .algosvg .op.on .rim, #tab-edit .algosvg .op.dragging .rim { stroke-width: 5; filter: drop-shadow(0 0 10px var(--c)); }
-#tab-edit .algosvg .op.on .inner { stroke: var(--c); }
-#tab-edit .algosvg .op:focus { outline: none; }
-#tab-edit .algosvg .op:focus-visible .rim { stroke: var(--cyan); }
-@keyframes throb { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-#tab-edit .opcards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-/* an operator's card: its name, OFS (a HUD value, top right) and its 10-segment bar, the ratio big */
-#tab-edit .opc { position: relative; border-radius: 18px; padding: 11px 13px 24px; display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 104px; cursor: pointer;
-  border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, rgba(0, 0, 0, .5));
-  transition: border-color .16s var(--snap), background .16s, box-shadow .16s; }
-#tab-edit .opc:hover { border-color: color-mix(in srgb, var(--c) 75%, transparent); }
-#tab-edit .opc.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
-  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent);
-  outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 3px; }
-#tab-edit .opc .opn { font-size: 13px; font-weight: 900; letter-spacing: .06em; color: var(--c); line-height: 1.2; }
-#tab-edit .opc .opv { align-self: flex-start; font-size: 40px; font-weight: 800; color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
-  border-radius: 10px; border: 1.5px solid transparent; padding: 2px 4px; margin: 2px -5px 0; }
-#tab-edit .opc .opv small { font-size: 22px; color: var(--muted); font-weight: 800; }
-#tab-edit .opc .opv:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }
-#tab-edit .opc .opv.dragging { border-color: var(--c); box-shadow: 0 0 14px -4px var(--c); }
-#tab-edit .opc .vbar { position: absolute; inset: 11px 13px 11px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto 1fr 6px; gap: 0 6px;
-  min-width: 0; padding: 0; border: 0; background: none; border-radius: 0; pointer-events: none; }
-#tab-edit .opc .vbar > * { pointer-events: auto; }
-#tab-edit .opc .vbar small { grid-column: 2; grid-row: 1; font: 400 11px/16px var(--hud); letter-spacing: .04em; color: var(--muted); }
-#tab-edit .opc .vbar b { grid-column: 3; grid-row: 1; font: 400 11px/16px var(--hud); letter-spacing: .04em; color: var(--muted); }
-#tab-edit .opc .vbar i { grid-column: 1 / 4; grid-row: 3; height: 6px; border-radius: 0; background: #24242B; overflow: hidden;
-  -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent calc(10% - 3px) 10%); mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent calc(10% - 3px) 10%); }
-#tab-edit .opc .vbar i span { border-radius: 0; box-shadow: none; }
-#tab-edit .opc .vbar.dragging b, #tab-edit .opc .vbar:hover b { color: var(--c); }
-#tab-edit .opc .vbar.dragging { box-shadow: none; }
-#tab-edit .opc .vbar.dragging i { box-shadow: 0 0 10px var(--c); }
-#tab-edit .opc .vbar:focus-visible { outline: none; }
-#tab-edit .opc .vbar:focus-visible i { outline: 2px solid var(--cyan); outline-offset: 2px; }
-#tab-edit .dials { display: flex; gap: 6px; justify-content: space-around; flex-wrap: wrap; border-top: 1.5px solid var(--line); padding-top: 10px; }
-/* the knob row (NEON): six knobs, the one dragged wiggles (its phase kept across redraws: --wd) */
-#tab-edit .knobs .dial { flex: 1 1 0; min-width: 0; max-width: 96px; }
-#tab-edit .knobs .dial.dragging svg { animation: wiggle 1.6s ease-in-out infinite; animation-delay: var(--wd, 0ms); transform-origin: 50% 55%; }
-@keyframes wiggle { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
-/* ALGO: its name, the number big (dragged, clicked: the next), ‹ › under it */
-#tab-edit .algocol { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
-#tab-edit .algo { display: flex; flex-direction: column; gap: 2px; cursor: ns-resize; touch-action: none; border-radius: 12px; outline: none; }
-#tab-edit .algo small { color: var(--pink); font-weight: 800; font-size: 12px; letter-spacing: .16em; }
-#tab-edit .algo b { color: var(--kalg); font-size: 104px; font-weight: 900; line-height: .9; letter-spacing: -.04em; font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 26px rgba(255, 60, 160, .6); transform-origin: left center; animation: throb 2.4s ease-in-out infinite; }
-#tab-edit .algo:hover b, #tab-edit .algo.dragging b { text-shadow: 0 0 34px rgba(255, 60, 160, .95); }
-#tab-edit .algo:focus-visible b { color: var(--cyan); }
-#tab-edit .algonav { display: flex; gap: 6px; }
-#tab-edit .algonav .ol { --c: var(--kalg); width: 40px; height: 36px; padding: 0; }
-#tab-edit .algonav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-#tab-edit .pn-ops .pnb { display: grid; grid-template-columns: auto minmax(0, .9fr) minmax(0, 1fr); grid-template-areas: "col algo cards" "dials dials dials"; gap: 10px 14px; align-items: center; }
-#tab-edit .pn-ops .ops { display: contents; }
-#tab-edit .pn-ops .algocol { grid-area: col; } #tab-edit .pn-ops .algowrap { grid-area: algo; min-width: 0; } #tab-edit .pn-ops .opcards { grid-area: cards; } #tab-edit .pn-ops .dials { grid-area: dials; }
-
-/* ---- the drawings: envelopes, the filter's curve, the waves; their handles. A drawing sits in a box (.dbox): its own
-   proportions, or (the computer's fit) the room left, drawn again in the box's proportions (editor.js measure) */
-#tab-edit .dbox { position: relative; aspect-ratio: var(--ar); min-width: 0; flex: none; }
-#tab-edit .stage .dbox > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* the keys' toggle in the head */
-#tab-edit .kbtg { order: 1; width: 42px; height: 42px; border-radius: 50%; }
-#tab-edit .kbtg.on { border-color: color-mix(in srgb, var(--pink) 60%, transparent); }
-#tab-edit .kbtg.on svg { stroke: var(--pink); }
-#tab-edit .env .area, #tab-edit .curve .area { fill: color-mix(in srgb, var(--c) 14%, transparent); stroke: none; }
-#tab-edit .env .line, #tab-edit .curve .line, #tab-edit .wave .line, #tab-edit .crush .line, #tab-edit .glide .line { fill: none; stroke: var(--c); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--c) 70%, transparent)); }
-#tab-edit .glide .line.dim { opacity: .35; filter: none; }
-#tab-edit .env .lab, #tab-edit .curve .lab { fill: var(--muted); font: 800 14px "Inter Tight", sans-serif; letter-spacing: 2px; }
-#tab-edit .curve .grid { stroke: #1A1A22; stroke-width: 2; }
-#tab-edit .curve .val { fill: var(--text); font: 800 22px "Inter Tight", sans-serif; }
-#tab-edit .curve text.sub { fill: var(--k2); font: 800 15px "Inter Tight", sans-serif; }
-#tab-edit .hd { fill: #000; stroke: var(--c); stroke-width: 3.5; transition: fill .12s; }
-#tab-edit .hd:hover, #tab-edit .hd.dragging { fill: var(--c); filter: drop-shadow(0 0 8px var(--c)); }
-#tab-edit .hd:focus { outline: none; } #tab-edit .hd:focus-visible { stroke: var(--cyan); }
-#tab-edit .wave .axis { stroke: #24242B; stroke-width: 2; }
-#tab-edit .wave .spark { fill: #fff; filter: drop-shadow(0 0 6px var(--c)); }
-#tab-edit .lfos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-#tab-edit div.lfoc { border-color: color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 4%, rgba(0, 0, 0, .5)); }
-#tab-edit .lfoc .row:first-child { justify-content: space-between; }
-#tab-edit .lfoc .vc { height: 38px; padding-right: 9px; gap: 5px; }
-#tab-edit .lfoc .vc.pick { padding-left: 9px; }
-#tab-edit .lfoc .wave { max-height: 56px; }
-
-/* ---- MOD: the slots as cables, from the source to the destination */
-#tab-edit .mrow { display: grid; grid-template-columns: 22px minmax(0, 1.1fr) minmax(40px, .6fr) minmax(0, 1.4fr) minmax(0, 1fr) 36px; align-items: center; gap: 8px; min-height: 42px; }
-#tab-edit .mrow .vc { min-width: 0; overflow: hidden; justify-content: space-between; }
-#tab-edit .mrow .vc b { overflow: hidden; text-overflow: ellipsis; }
-#tab-edit .mrow .mk { font: 400 12px var(--hud); color: var(--muted); text-align: center; }
-#tab-edit .mrow .cable path { fill: none; stroke: var(--c); stroke-linecap: round; filter: drop-shadow(0 0 4px var(--c)); }
-#tab-edit .mrow .cable { cursor: ew-resize; }
-#tab-edit .mrow.empty { grid-template-columns: 22px minmax(0, 1.1fr); min-height: 34px; }
-#tab-edit .stage .icon svg { width: 18px; height: 18px; }
-#tab-edit .mrow .mx { width: 36px; height: 36px; border-radius: 50%; }
-#tab-edit .mrow .mx:hover { border-color: var(--red); box-shadow: 0 0 12px -4px var(--red); }
-#tab-edit .madd { width: 100%; height: 30px; border-radius: 12px; border: 1.5px dashed #34343D; background: transparent; color: #66666F; font-weight: 800; font-size: 16px; transition: border-color .16s, color .16s, box-shadow .16s; }
-#tab-edit .madd:hover { border-color: var(--kalg); color: var(--kalg); box-shadow: 0 0 12px -4px var(--kalg); }
-#tab-edit .pn-mod .pnb { gap: 4px; }
 
 /* ---- the keybed: the FM-1's 27 keys from F, lit pink under a finger (red while recording); OCT − / + and the range */
 #tab-edit .kbed { display: flex; align-items: stretch; gap: 12px; height: 104px; margin-top: 2px; }
@@ -274,9 +88,9 @@
 #tab-edit .kbed .wk:hover::before { border-color: #55555F; }
 #tab-edit .kbed .bk2 { position: absolute; top: 0; height: 60%; border: 1.5px solid #3A3A44; border-radius: 0 0 7px 7px; background: #15151B; padding: 0; z-index: 1; box-shadow: 0 6px 10px rgba(0, 0, 0, .6);
   transition: background .08s, border-color .08s, box-shadow .08s; }
-#tab-edit .kbed .wk.down::before, #tab-edit .kbed .bk2.down { background: color-mix(in srgb, var(--pink) 22%, #000); border-color: var(--pink); box-shadow: 0 0 24px -2px var(--pink), inset 0 -6px 0 var(--pink); }
+#tab-edit .kbed .wk.down::before, #tab-edit .kbed .bk2.down { background: color-mix(in srgb, var(--pink) 22%, #000); border-color: var(--pink); box-shadow: inset 0 -6px 0 var(--pink); }
 #tab-edit .kbed .bed.rec .wk::before { border-color: color-mix(in srgb, var(--red) 50%, #3A3A44); }
-#tab-edit .kbed .bed.rec .wk.down::before, #tab-edit .kbed .bed.rec .bk2.down { background: color-mix(in srgb, var(--red) 24%, #000); border-color: var(--red); box-shadow: 0 0 24px -2px var(--red), inset 0 -6px 0 var(--red); }
+#tab-edit .kbed .bed.rec .wk.down::before, #tab-edit .kbed .bed.rec .bk2.down { background: color-mix(in srgb, var(--red) 24%, #000); border-color: var(--red); box-shadow: inset 0 -6px 0 var(--red); }
 
 @media (min-width: 901px) {
   #tab-edit { align-items: stretch; }
@@ -284,6 +98,7 @@
   #tab-edit .edcard .stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; padding: 6px; margin: -6px; scrollbar-width: thin; scrollbar-color: #2A2A33 transparent; }
   #tab-edit .edcard .edhead, #tab-edit .edcard .kbed { flex: none; }
 }
+
 @media (max-width: 1380px) and (min-width: 901px) {
   #tab-edit .edname .bigname { font-size: 36px; }
   #tab-edit .trkbig { width: 66px; height: 66px; }
@@ -304,8 +119,6 @@
   #tab-edit .trkbig b { font-size: 22px; }
   #tab-edit .edwhere { flex-wrap: wrap; gap: 8px; }
   #tab-edit .trk { min-width: 34px; height: 34px; padding: 0 8px; }
-  #tab-edit .pn { padding: 12px; border-radius: 20px; }
-  #tab-edit .pn-ops .pnb { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "col algo" "cards cards" "dials dials"; }
   #tab-edit .kbed { height: 84px; gap: 8px; }
   #tab-edit .kbed .octs { width: 58px; }
   #tab-edit .kbed .oct { height: 30px; font-size: 11px; letter-spacing: .02em; }
@@ -320,49 +133,34 @@
 }
 /* a phone on its side: the operators' drawing beside their cards again */
 @media (max-width: 900px) and (orientation: landscape) {
-  #tab-edit .pn-ops .pnb { grid-template-columns: auto minmax(0, .8fr) minmax(0, 1fr); grid-template-areas: "col algo cards" "dials dials dials"; }
-  #tab-edit .duo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
 /* ---- FIZZ MIDI (e): a MIDI track's sound: seven pages of four bars (mockups/fizz-midi-track.html screens 4..6: the
    knobs' colours, CC n under each bar, then its value; untouched dashed) */
-#tab-edit .stage.midi { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); grid-template-areas: none; }
-#tab-edit .stage .mpg { grid-area: auto; }
-#tab-edit .stage .mpg .pnh { color: var(--midi); }
-#tab-edit .stage .mpg .pnh .din { width: 22px; height: 22px; stroke: var(--midi); fill: none; stroke-width: 2; }
-#tab-edit .stage .mpg .pnh .din circle ~ circle { fill: var(--midi); stroke: none; }
 #tab-edit .mdots { display: inline-flex; gap: 4px; margin-right: 2px; }
 #tab-edit .mdots i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--midi) 55%, transparent); }
-#tab-edit .mdots i.on { background: var(--midi); border-color: var(--midi); box-shadow: 0 0 6px var(--midi); }
+#tab-edit .mdots i.on { background: var(--midi); border-color: var(--midi); }
 #tab-edit .mslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 #tab-edit .msl { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 24px; min-width: 0; }
 #tab-edit .mbar { position: relative; width: 32px; height: 150px; border-radius: 11px; background: #17171F; overflow: hidden; cursor: ns-resize; touch-action: none; border: 1.5px solid transparent; transition: border-color .16s, box-shadow .16s; }
-#tab-edit .mbar i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--c); border-radius: 9px; box-shadow: 0 0 16px color-mix(in srgb, var(--c) 55%, transparent); transition: height .06s linear; }
+#tab-edit .mbar i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--c); border-radius: 9px; transition: height .06s linear; }
 #tab-edit .mbar i::before { content: ""; position: absolute; left: 4px; right: 4px; top: 4px; height: 3px; border-radius: 2px; background: color-mix(in srgb, #fff 70%, var(--c)); }
 #tab-edit .msl.un .mbar { background: transparent; border: 1.5px dashed #3A3A44; }
 #tab-edit .msl.un .mbar i { display: none; }
 #tab-edit .mbar:hover { border-color: color-mix(in srgb, var(--c) 60%, transparent); }
-#tab-edit .mbar.dragging { border-color: var(--c); box-shadow: 0 0 16px -2px var(--c); }
+#tab-edit .mbar.dragging { border-color: var(--c); }
 #tab-edit .mcc { background: none; border: 0; padding: 2px 4px; border-radius: 6px; color: var(--text); font: 400 12px var(--hud); letter-spacing: .04em; white-space: nowrap; cursor: text; }
 #tab-edit .mcc:hover { color: var(--c); text-decoration: underline; text-decoration-color: var(--c); text-underline-offset: 4px; text-decoration-thickness: 2px; }
-#tab-edit .mccin { width: 52px; height: 28px; border-radius: 7px; border: 1.5px solid var(--c); background: var(--bg); color: var(--text); font: 800 15px "Inter Tight", sans-serif; text-align: center; padding: 0; box-shadow: 0 0 12px -4px var(--c); }
+#tab-edit .mccin { width: 52px; height: 28px; border-radius: 7px; border: 1.5px solid var(--c); background: var(--bg); color: var(--text); font: 800 15px "Inter Tight", sans-serif; text-align: center; padding: 0; }
 #tab-edit .mval b { display: block; font-size: 22px; font-weight: 800; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; }
 #tab-edit .msl.un .mval b { color: var(--muted); }
 #tab-edit .msl .mx { position: absolute; top: 0; right: 0; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--bg); color: var(--muted); font-size: 14px; font-weight: 800; line-height: 1; padding: 0; opacity: .7; }
 #tab-edit .msl .mx:hover, #tab-edit .msl .mx:focus-visible { opacity: 1; color: var(--text); border-color: var(--c); }
-#tab-edit .stage.locked .mbar { cursor: not-allowed; }
 @media (max-width: 900px) { #tab-edit .mbar { height: 120px; } }
 
 /* ---- a phone upright (NEON): the knob row six across; REVERT / SAVE AS NEW / SAVE a bar fixed at the bottom (above
    the KEEP / CANCEL card when it shows: --lbh, editor.js), the page clear of it at its end */
 @media (max-width: 600px) {
-  #tab-edit .knobs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; justify-content: stretch; }
-  #tab-edit .knobs .dial { width: auto; max-width: none; padding: 2px 0 4px; }
-  #tab-edit .knobs .dial svg { width: 46px; }
-  #tab-edit .knobs .dial b { font-size: 14px; margin-top: -8px; }
-  #tab-edit .knobs .dial small { letter-spacing: .04em; }
-  #tab-edit .algonav { top: 50%; gap: 4px; }
-  #tab-edit .algonav .ol { width: 36px; height: 32px; }
   #tab-edit .edsave { display: flex; gap: 8px; align-items: center; position: fixed; left: 12px; right: 12px; z-index: 7; padding: 10px; border-radius: 28px;
     bottom: calc(max(var(--lbh, 0px), env(safe-area-inset-bottom, 0px)) + 12px);
     background: rgba(10, 10, 15, .94); border: 1.5px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, .6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
@@ -394,116 +192,8 @@
   #tab-edit .kbed .oct { height: 30px; width: 58px; }
   #tab-edit .kbed .octv { width: 54px; }
 
-  #tab-edit .edcard .stage.panel { flex-direction: row; gap: 6px; align-items: stretch; overflow: hidden; }
-  #tab-edit .stage.panel .fcol { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; overflow: hidden; }
-  #tab-edit .stage.panel .fc1 { flex: .95 1 0; } #tab-edit .stage.panel .fc2 { flex: 1.25 1 0; } #tab-edit .stage.panel .fc3 { flex: 1 1 0; }
-  #tab-edit .stage.panel .fcol > .pn, #tab-edit .stage.panel .fpair { flex: 1 1 auto; }
-  #tab-edit .stage.panel .fpair { display: flex; gap: 6px; min-height: 0; }
-  #tab-edit .stage.panel .fpair > .pn { flex: 1 1 0; min-width: 0; }
-  #tab-edit .stage.panel .lfos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  #tab-edit .stage.panel .pn-amp .pnb > .row:first-child { position: absolute; top: 4px; right: 10px; }
 }
 
-/* ---- the values compact, everywhere (a small tile: its name over its value, a bar in its colour under them); the
-   sections' parts side by side where there is room */
-#tab-edit .pn { padding: 7px 10px 8px; gap: 5px; border-radius: 16px; position: relative; }
-#tab-edit .pnh { font-size: 11px; gap: 7px; }
-#tab-edit .pdot { width: 9px; height: 9px; }
-#tab-edit .pnb { gap: 6px; min-height: 0; }
-#tab-edit div.sub { padding: 6px 8px; gap: 5px; border-radius: 12px; }
-#tab-edit .row.wrap { gap: 5px; }
-#tab-edit .dbox { aspect-ratio: auto; flex: 1 1 0; min-height: 30px; }
-/* a value a small tile: its name over its value, a bar in its colour under them */
-#tab-edit .vc { position: relative; flex-direction: column; justify-content: center; height: 36px; min-width: 50px; padding: 0 7px 3px; gap: 1px; border-radius: 9px; }
-#tab-edit .stage .vc svg { display: none; }
-#tab-edit .vc small { font-size: 11px; line-height: 1.05; letter-spacing: .06em; }
-#tab-edit .vc b, #tab-edit .vc.big b { font-size: 13px; line-height: 1.1; }
-#tab-edit .vc::after { content: ""; position: absolute; bottom: 3px; height: 2px; border-radius: 1px; left: calc(6px + var(--l, 0) * (100% - 12px)); width: calc(var(--w, 0) * (100% - 12px));
-  background: var(--c); box-shadow: 0 0 5px var(--c); }
-#tab-edit .vc.pick { padding: 0 8px 3px; gap: 1px; }
-#tab-edit .vc.pick::after { display: none; }
-#tab-edit .vc.pick b::after { font-size: 11px; }
-#tab-edit .vbar { padding: 4px 8px 5px; gap: 2px 8px; border-radius: 9px; min-width: 100px; flex-basis: 110px; }
-#tab-edit .vbar b { font-size: 13px; }
-#tab-edit .vbar i { height: 4px; }
-#tab-edit .vseg { padding: 2px; border-radius: 10px; gap: 2px; }
-#tab-edit .vseg button, #tab-edit .vseg.mach button, #tab-edit .lfoc .vseg button { height: 24px; padding: 0 6px; border-radius: 8px; letter-spacing: .05em; }
-#tab-edit .vtog { height: 24px; padding: 0 8px; border-radius: 8px; }
-#tab-edit .capt { gap: 6px; }
-#tab-edit .dial { width: 60px; padding: 0 0 2px; }
-#tab-edit .stage .dial svg { width: 44px; }
-#tab-edit .dial b { font-size: 15px; margin-top: -8px; }
-/* OPERATORS: ALGO, the drawing, the cards; the knobs under */
-#tab-edit .pn-ops .pnb { grid-template-rows: minmax(0, 1fr) auto; gap: 6px 10px; align-items: stretch; }
-#tab-edit .algo b { font-size: 64px; }
-#tab-edit .algonav .ol { width: 32px; height: 28px; }
-#tab-edit .pn-ops .algowrap { position: relative; min-height: 80px; }
-#tab-edit .pn-ops .algowrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-#tab-edit .opcards { gap: 6px; align-content: center; }
-#tab-edit .opc { min-height: 0; padding: 6px 9px 14px; border-radius: 12px; gap: 0; }
-#tab-edit .opc .opn { font-size: 11px; }
-#tab-edit .opc .opv { font-size: 24px; }
-#tab-edit .opc .opv small { font-size: 14px; }
-#tab-edit .opc .vbar { inset: 6px 9px 6px; }
-#tab-edit .dials { padding-top: 4px; gap: 2px; }
-/* OP ENV, FILTER: their parts side by side, each a column */
-#tab-edit .duo { gap: 6px; align-items: stretch; min-height: 0; flex: 1 1 auto; }
-#tab-edit .duo > .sub { min-height: 0; }
-#tab-edit .envc .row:first-child { gap: 6px; }
-#tab-edit .lfoc { min-height: 0; }
-#tab-edit .lfoc .vc { height: 36px; padding: 0 6px 3px; }
-#tab-edit .lfoc .vc.pick { padding: 0 6px 3px; }
-#tab-edit .lfoc .vseg.waves button { padding: 0 3px; }
-#tab-edit .vseg.waves svg { width: 18px; height: 13px; }
-/* PLAY: the phase and the bars, then PORTAMENTO and VOICE side by side */
-#tab-edit .pn-play .pnb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 6px; }
-#tab-edit .pn-play .pnb > .row, #tab-edit .pn-play .pnb > .bars { grid-column: 1 / 3; }
-#tab-edit .pn-play .bars .vbar { flex-basis: 90px; }
-#tab-edit .lfoc .wave { max-height: none; }
-#tab-edit .bars { gap: 5px; }
-#tab-edit .mrow { min-height: 28px; gap: 6px; }
-#tab-edit .mrow .vc { height: 34px; }
-#tab-edit .mrow .mx { width: 26px; height: 26px; }
-#tab-edit .mrow.empty { min-height: 22px; }
-#tab-edit .madd { height: 22px; }
-#tab-edit .pn-mod .pnb { gap: 3px; }
-#tab-edit .mrow .vc { flex-direction: row; height: 28px; padding: 0 8px 2px; gap: 5px; justify-content: space-between; }
-#tab-edit .mrow .vc.pick small { display: none; }
-#tab-edit .opc .vbar small { display: none; }
-#tab-edit .pn-drive .crush { --c: var(--pink); }
-#tab-edit .mrow .cable { display: none; }
-#tab-edit .mrow:not(.empty) { grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr) 26px; }
-#tab-edit .crushc .crh { justify-content: space-between; gap: 6px; }
-#tab-edit .lfos { gap: 6px; flex: 1 1 auto; min-height: 0; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-#tab-edit .vseg.waves svg { width: 18px; height: 13px; }
-
-/* ---- pages (.tabs: the panel does not fit, or a smaller window): one section a page under its tabs (the board
-   PhoneEdit's tubes), filling the room; the tab names it */
-#tab-edit .edpages { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 2px 2px 4px; margin: -2px -2px 0; }
-#tab-edit .edpages::-webkit-scrollbar { display: none; }
-#tab-edit .edpages[hidden] { display: none; }
-#tab-edit .edpages button { --c: var(--muted); flex: none; height: 36px; border-radius: 12px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px;
-  font-weight: 800; font-size: 11px; letter-spacing: .12em; color: var(--body); white-space: nowrap; outline-offset: 2px; }
-#tab-edit .edpages button.on { color: var(--text); }
-#tab-edit .edpages .pdot { width: 9px; height: 9px; }
-#tab-edit .edpages button:focus-visible { outline: 2px solid var(--cyan); }
-#tab-edit .stage.paged .pn:not(.cur) { display: none; }
-#tab-edit .stage.paged .pn.cur { flex: 1 1 auto; }
-#tab-edit .stage.paged .pnh { display: none; }
-#tab-edit .stage.paged .pn-drive .drv { justify-content: center; }
-@media (min-width: 640px) {
-  #tab-edit .stage.paged .pn-mod .pnb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 16px; align-content: start; }
-  #tab-edit .stage.paged .dbox { min-height: 40px; }
-}
-/* ---- a phone: the drawings no taller than its screen allows; upright, a section's parts one under another */
-@media (max-width: 900px) { #tab-edit .dbox { max-height: 140px; } }
-@media (max-width: 900px) and (orientation: portrait) { #tab-edit .dbox { aspect-ratio: var(--ar); flex: none; } }
-@media (max-width: 639px) {
-  #tab-edit .duo { grid-template-columns: minmax(0, 1fr); }
-  #tab-edit .pn-play .pnb { grid-template-columns: minmax(0, 1fr); }
-  #tab-edit .pn-play .pnb > .row, #tab-edit .pn-play .pnb > .bars { grid-column: auto; }
-}
-@media (max-width: 900px) and (orientation: landscape) { #tab-edit .dbox { max-height: 110px; } }
 /* the fit on a narrower computer: the head's long parts shorter (SELECTED its icon, where it plays cut) */
 @media (min-width: 1200px) and (max-width: 1439px) and (min-height: 700px) {
   #tab-edit .trk.sel { font-size: 0; letter-spacing: 0; gap: 0; padding: 0 9px; }
@@ -512,6 +202,7 @@
   #tab-edit .aud { max-width: 170px; }
   #tab-edit .aud { overflow: hidden; text-overflow: ellipsis; }
 }
+
 /* ---- a phone on its side: EDIT the window's height (the head, the tabs, a page, the keys), the page scrolls only if
    a section can't fit */
 @media (max-width: 900px) and (orientation: landscape) {
@@ -537,44 +228,271 @@
   #tab-edit .kbed .octs { flex-direction: row; align-items: center; width: auto; }
   #tab-edit .kbed .octv { display: none; }
   #tab-edit .kbed .oct { height: 30px; width: 52px; }
-  #tab-edit .stage.paged .pn.cur { padding: 6px 10px; }
-  #tab-edit .stage.paged .pnb { gap: 4px; }
-  #tab-edit .stage.paged .pn-ops .pnb { grid-template-columns: auto minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "col algo cards dials"; }
-  #tab-edit .stage.paged .pn-ops .knobs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 0; padding-top: 0; align-content: center; }
-  #tab-edit .algo b { font-size: 44px; }
-  #tab-edit .dbox { max-height: none; }
-  #tab-edit .stage.paged .dbox { min-height: 26px; }
   #tab-edit .edwhere { display: none; }            /* (the track: the bar's TRACK switch; its strip on the phone upright) */
-  /* LFO: its name over its drawing, its values four across */
-  #tab-edit .lfoc { position: relative; }
-  #tab-edit .lfoc .lfh { position: absolute; left: 8px; top: 5px; }
-  #tab-edit .lfoc .row.wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
-  #tab-edit .lfoc .vc { min-width: 0; padding: 0 4px 3px; }
-  #tab-edit .lfoc .vc small { letter-spacing: .02em; }
-  /* PLAY: the phase and the bars, PORTAMENTO, VOICE: three columns */
-  #tab-edit .stage.paged .pn-play .pnb { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); }
-  #tab-edit .stage.paged .pn-play .pnb > .row { grid-column: 1; grid-row: 1; flex-wrap: wrap; }
-  #tab-edit .stage.paged .pn-play .pnb > .bars { grid-column: 1; grid-row: 2; align-content: start; }
-  #tab-edit .stage.paged .pn-play .pnb > .sub { grid-row: 1 / 3; }
-  /* FILTER: the machines over the curve, the envelope and the band's column */
-  #tab-edit .stage.paged .pn-filter .pnb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 112px; grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
-  #tab-edit .stage.paged .pn-filter .vseg { flex-wrap: wrap; }
-  #tab-edit .stage.paged .pn-filter .vseg button { padding: 0 5px; }
-  #tab-edit .stage.paged .pn-filter .vc { min-width: 0; padding: 0 5px 3px; }
-  #tab-edit .stage.paged .pn-filter .pnb > .row:first-child { grid-column: 1 / 4; }
-  #tab-edit .stage.paged .pn-filter .duo { display: contents; }
-  #tab-edit .stage.paged .pn-filter .pnb > .row:last-child { grid-column: 3; grid-row: 2; display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 4px; }
-  #tab-edit .stage.paged .pn-filter .pnb > .row:last-child .vseg { grid-column: 1 / 3; }
 }
-/* ---- AMP's mix (PAN, CHO, DEL, REV): a row on its page; on the one panel a 2 x 2 beside the envelope. PAN's bar from
-   the middle, a tick at C */
-#tab-edit .pn-amp .mix { display: flex; flex-wrap: wrap; gap: 5px; flex: none; }
-#tab-edit .pn-amp .mix .vc { flex: 1 1 60px; }
-#tab-edit .vc.pan::before { content: ""; position: absolute; bottom: 3px; left: calc(50% - 1px); width: 2px; height: 2px; background: var(--muted); }
+/* ---- FIZZ MIDI (e): the seven pages, each a card */
+#tab-edit .stage.midi { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+#tab-edit .stage.midi .pn { border-radius: 16px; padding: 7px 10px 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  border: 1.5px solid color-mix(in srgb, var(--c) 34%, transparent); background: color-mix(in srgb, var(--c) 4%, rgba(10, 10, 15, .7)); }
+#tab-edit .stage.midi .pnh { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; letter-spacing: .14em; color: var(--midi); }
+#tab-edit .stage.midi .pnh .din { width: 22px; height: 22px; stroke: var(--midi); fill: none; stroke-width: 2; }
+#tab-edit .stage.midi .pnh .din circle ~ circle { fill: var(--midi); stroke: none; }
+#tab-edit .stage.locked .mbar { cursor: not-allowed; }
+
+/* the keys' toggle in the head */
+#tab-edit .kbtg { order: 1; width: 42px; height: 42px; border-radius: 50%; }
+#tab-edit .kbtg.on { border-color: color-mix(in srgb, var(--pink) 60%, transparent); }
+#tab-edit .kbtg.on svg { stroke: var(--pink); }
+
+/* ==== the panel (design 12, the owner 2026-10-30): one grid, every value a cell; clean linework, flat fills, no glows.
+   The stage is the grid (20 x 15 on the one panel); the sections (.pn) are display: contents there, their cells
+   placed by editor.js (grid-area), each section's frame (.fr) a line in the gaps around its cells with its name on
+   it. On pages the current section is the grid itself (its own columns and rows: --pc, --pr; a phone four across). */
+#tab-edit .stage { user-select: none; -webkit-user-select: none; touch-action: pan-y; --gap: 10px; --cg: 8px; }
+#tab-edit .stage.panel { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); grid-template-rows: repeat(15, minmax(0, 1fr)); row-gap: var(--gap); column-gap: var(--cg);
+  padding: 10px 7px 7px; position: relative; }
+#tab-edit .edcard .stage.panel { overflow: visible; margin: 0; }
+#tab-edit .stage.panel .pn { display: contents; }
+#tab-edit .stage.paged .pn:not(.cur) { display: none; }
+#tab-edit .stage.paged .pn.cur { display: grid; grid-template-columns: repeat(var(--pc), minmax(0, 160px)); grid-template-rows: repeat(var(--pr), var(--prow, 64px));
+  row-gap: var(--gap); column-gap: var(--cg); position: relative; padding: 2px 0; }
+#tab-edit .stage.phone .pn.cur { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(var(--pr), 54px); --gap: 8px; --cg: 6px; }
+#tab-edit .stage .pn > * { min-width: 0; min-height: 0; }
+#tab-edit .stage [data-x], #tab-edit .stage [data-y], #tab-edit .stage [data-pick] { touch-action: none; }
+#tab-edit .stage.locked [data-x], #tab-edit .stage.locked [data-y], #tab-edit .stage.locked [data-set], #tab-edit .stage.locked [data-pick] { cursor: not-allowed; }
+
+/* a section's frame: the line in the gaps, its name on it */
+#tab-edit .fr { position: relative; margin: calc(var(--gap) / -2 - .75px) calc(var(--cg) / -2 - .75px); border: 1.5px solid color-mix(in srgb, var(--c) 46%, transparent);
+  border-radius: 14px; background: color-mix(in srgb, var(--c) 3.5%, transparent); pointer-events: none; z-index: 0; transition: border-color .2s, opacity .2s; }
+#tab-edit .fr .lg { position: absolute; top: -8px; left: 14px; height: 14px; padding: 0 7px 0 6px; background: var(--panel); display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 800; letter-spacing: .15em; color: var(--text); white-space: nowrap; }
+#tab-edit .fr .lg i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--c); }
+
+/* a value: its name over its value, a bar in its colour under them */
+#tab-edit .t { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 6px 3px; border-radius: 9px; background: #000;
+  border: 1.5px solid color-mix(in srgb, var(--c) 28%, var(--line)); transition: border-color .16s, opacity .2s; cursor: ns-resize; outline: none; min-width: 0; }
+#tab-edit .t small { font-size: 11px; font-weight: 800; letter-spacing: .03em; color: var(--muted); line-height: 1.05; white-space: nowrap; overflow: hidden; }
+#tab-edit .t b { font-size: var(--vf, 14px); font-weight: 800; color: var(--text); line-height: 1.12; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+#tab-edit .t::after { content: ""; position: absolute; bottom: 4px; height: 2px; border-radius: 1px; left: calc(7px + var(--l, 0) * (100% - 14px)); width: calc(var(--w, 0) * (100% - 14px)); background: var(--c); }
+#tab-edit .t:hover { border-color: color-mix(in srgb, var(--c) 70%, transparent); }
+#tab-edit .t:focus-visible { border-color: var(--cyan); }
+#tab-edit .t.dragging { border-color: var(--c); }
+#tab-edit .t.dragging b { color: var(--c); }
+#tab-edit .t.pk, #tab-edit .t.tg { cursor: pointer; border-color: color-mix(in srgb, var(--c) 48%, var(--line)); }
+#tab-edit .t.pk b, #tab-edit .t.tg b { color: var(--c); }
+#tab-edit .t.pk b::after { content: " ▾"; font-size: 11px; color: var(--muted); }
+#tab-edit .t.pk::after, #tab-edit .t.tg::after { display: none; }
+#tab-edit .t.tg .pips { position: absolute; left: 7px; right: 7px; bottom: 4px; display: flex; gap: 3px; }
+#tab-edit .t.tg .pips i { flex: 1; height: 2px; border-radius: 1px; background: #2A2A33; }
+#tab-edit .t.tg .pips i.on { background: var(--c); }
+#tab-edit .t.dim0 { border-style: dashed; border-color: #2A2A33; cursor: default; }
+#tab-edit .t.dim0 b { color: var(--dim); }
+#tab-edit .t.dim0::after { display: none; }
+#tab-edit .t.ofs::before, #tab-edit .t.pan::before { content: ""; position: absolute; bottom: 3px; left: 50%; width: 1.5px; height: 4px; background: var(--dim); }
+#tab-edit .stage.narrow .t { padding: 0 4px 3px; }
+#tab-edit .stage.narrow .t small, #tab-edit .stage.narrow .sg > small { letter-spacing: 0; }
+/* a choice of a few: its name over its options, the one on filled */
+#tab-edit .sg { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 2px 4px 3px; border-radius: 9px; background: #000;
+  border: 1.5px solid color-mix(in srgb, var(--c) 28%, var(--line)); transition: opacity .2s; min-width: 0; }
+#tab-edit .sg > small { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--muted); line-height: 1.05; padding-left: 4px; white-space: nowrap; }
+#tab-edit .sg .opts { display: flex; gap: 2px; min-width: 0; }
+#tab-edit .sg button { flex: 1 1 0; min-width: 0; height: calc(var(--ch, 36px) - 19px); max-height: 26px; min-height: 16px; padding: 0 1px; border-radius: 6px; border: 1.5px solid transparent;
+  background: transparent; color: var(--body); font-size: 11px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; overflow: hidden; cursor: pointer; }
+#tab-edit .sg button:hover { color: var(--text); border-color: color-mix(in srgb, var(--c) 40%, transparent); }
+#tab-edit .sg button.on { color: #000; background: var(--c); }
+#tab-edit .sg:not(:has(> small)) button { height: calc(var(--ch, 36px) - 10px); max-height: 40px; }
+#tab-edit .stage.paged .sg button { max-height: 34px; }
+/* ALGO: the big pink number, centred in its block; ‹ › */
+#tab-edit .t.algoT { justify-content: center; align-items: center; padding: 0; cursor: ns-resize; overflow: hidden; }
+#tab-edit .t.algoT::after { display: none; }
+#tab-edit .t.algoT small { position: absolute; left: 10px; top: 6px; color: var(--pink); letter-spacing: .16em; }
+#tab-edit .t.algoT b { font-size: var(--algof, 90px); font-weight: 900; line-height: 1; color: var(--kalg); letter-spacing: -.04em; text-align: center; overflow: visible; }
+#tab-edit .algonav { display: contents; }
+#tab-edit .nav { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; border-radius: 9px; background: #000; padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--kalg) 50%, transparent); color: var(--text); cursor: pointer; }
+#tab-edit .nav:hover { border-color: var(--kalg); }
+#tab-edit .nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+/* an operator: its name in a ring, its ratio big */
+#tab-edit .t.op { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; padding: 0 10px 0 6px; }
+#tab-edit .t.op::after { display: none; }
+#tab-edit .t.op .ring { width: calc(var(--ch, 36px) - 12px); height: calc(var(--ch, 36px) - 12px); max-width: 40px; max-height: 40px; border-radius: 50%; border: 1.5px solid var(--c);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: var(--text); flex: none; }
+#tab-edit .t.op b { font-size: calc(var(--vf, 14px) * 1.55); font-weight: 800; }
+#tab-edit .t.op b small { font-size: .6em; color: var(--body); letter-spacing: 0; overflow: visible; display: inline; }
+#tab-edit .t.op.on { border-color: var(--c); }
+#tab-edit .t.op.on .ring { background: color-mix(in srgb, var(--c) 18%, #000); }
+/* a drawing: a block of cells, drawn in its own pixels */
+#tab-edit .gd { position: relative; z-index: 1; border-radius: 10px; background: rgba(0, 0, 0, .55); border: 1.5px solid color-mix(in srgb, var(--c) 18%, var(--line)); overflow: hidden; }
+#tab-edit .gd > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+#tab-edit .gd .cap { position: absolute; left: 9px; top: 6px; z-index: 2; display: flex; gap: 8px; align-items: baseline; font-size: 11px; font-weight: 800; letter-spacing: .16em; color: var(--c); pointer-events: none; }
+#tab-edit .gd .cap .hud { color: var(--muted); letter-spacing: .04em; font-weight: 400; }
+#tab-edit .gd .pills { position: absolute; right: 6px; top: 5px; z-index: 2; display: flex; gap: 4px; }
+#tab-edit .gd .pl { height: 22px; padding: 0 8px; border-radius: 7px; border: 1.5px solid color-mix(in srgb, var(--c) 45%, transparent); background: #000; color: var(--body);
+  font-size: 11px; font-weight: 800; letter-spacing: .08em; cursor: pointer; }
+#tab-edit .gd .pl.on { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, #000); }
+#tab-edit .gd.algod { background: transparent; border-color: transparent; overflow: visible; }
+#tab-edit .stage svg { overflow: visible; }
+#tab-edit .env .area, #tab-edit .curve .area { fill: color-mix(in srgb, var(--c) 12%, transparent); stroke: none; }
+#tab-edit .env .line, #tab-edit .curve .line, #tab-edit .wave .line, #tab-edit .crush .line { fill: none; stroke: var(--c); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+#tab-edit .curve .grid { stroke: #1A1A22; stroke-width: 1; }
+#tab-edit .wave .axis { stroke: #24242B; stroke-width: 1; }
+#tab-edit .wave .spark { fill: var(--c); }
+/* a handle: a small ring (r 4), a larger hit ring under it */
+#tab-edit .hg { cursor: move; outline: none; }
+#tab-edit .hg .hit { fill: transparent; stroke: none; pointer-events: all; }
+#tab-edit .hg .hd { fill: #000; stroke: var(--c); stroke-width: 1.5; transition: fill .12s; }
+#tab-edit .hg:hover .hd, #tab-edit .hg.dragging .hd { fill: var(--c); }
+#tab-edit .hg:focus-visible .hd { stroke: var(--cyan); }
+/* the algorithm: roundels, wires, the bus */
+#tab-edit .algosvg .bus { stroke: #5A5A66; stroke-width: 1.5; }
+#tab-edit .algosvg .spk { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; }
+#tab-edit .algosvg .carrier { stroke: color-mix(in srgb, var(--cream) 62%, #000); fill: none; }
+#tab-edit .algosvg .joint { fill: var(--cream); }
+#tab-edit .algosvg .modl { stroke: #5A5A66; stroke-width: 1.5; stroke-linecap: round; }
+#tab-edit .algosvg .arrow { fill: #5A5A66; }
+#tab-edit .algosvg .spark { fill: var(--cream); }
+#tab-edit .algosvg .fb { fill: none; stroke-width: 1.5; stroke-dasharray: 7 6; animation: fbrun 1.2s linear infinite; }
+@keyframes fbrun { to { stroke-dashoffset: -26; } }
+#tab-edit .algosvg .op { cursor: ns-resize; outline: none; }
+#tab-edit .algosvg .op .rim { fill: #000; stroke: var(--c); stroke-width: 2; }
+#tab-edit .algosvg .op .inner { fill: none; stroke: color-mix(in srgb, var(--c) 40%, transparent); stroke-width: 1; }
+#tab-edit .algosvg .op text { fill: var(--text); font: 900 26px "Inter Tight", sans-serif; pointer-events: none; }
+#tab-edit .algosvg .op.on .rim { stroke-width: 3; }
+#tab-edit .algosvg .op.on .inner { stroke: var(--c); }
+#tab-edit .algosvg .op:focus-visible .rim { stroke: var(--cyan); }
+/* MOD: the sources (a cell each), the slots (four cells each, the same size full or empty) */
+#tab-edit .src { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 9px; background: color-mix(in srgb, var(--c) 7%, #000);
+  border: 1.5px solid color-mix(in srgb, var(--c) 55%, transparent); color: var(--c); font-size: 12px; font-weight: 900; letter-spacing: .06em; white-space: nowrap; cursor: grab;
+  touch-action: none; outline: none; transition: opacity .2s, background .16s, border-color .16s; min-width: 0; overflow: hidden; }
+#tab-edit .src:hover, #tab-edit .src:focus-visible { border-color: var(--c); }
+#tab-edit .src .grip { width: 7px; height: 14px; flex: none; background: radial-gradient(circle, var(--c) 1.2px, transparent 1.6px) 0 0 / 3.5px 4.6px; opacity: .8; }
+#tab-edit .src.isarmed { background: var(--c); color: #000; }
+#tab-edit .src.isarmed .grip { background: radial-gradient(circle, #000 1.2px, transparent 1.6px) 0 0 / 3.5px 4.6px; }
+#tab-edit .mslot { position: relative; z-index: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--cg); transition: opacity .2s; }
+#tab-edit .mslot.empty { border-radius: 9px; border: 1.5px dashed #2C2C35; display: flex; align-items: center; padding-left: 10px; gap: 10px; overflow: hidden; }
+#tab-edit .mslot .sn { font: 400 11px var(--hud); color: #5C5C66; }
+#tab-edit .mslot .t .sn { position: absolute; right: 6px; top: 5px; color: var(--muted); }
+#tab-edit .mslot .madd { margin-left: auto; align-self: stretch; width: 44px; padding: 0; border: 0; background: transparent; color: #55555F; font-size: 16px; font-weight: 800; cursor: pointer; border-radius: 9px; }
+#tab-edit .mslot .madd:hover { color: var(--kalg); }
+#tab-edit .mslot .cab { position: relative; border-radius: 9px; background: #000; border: 1.5px solid var(--line); cursor: ew-resize; touch-action: none; }
+#tab-edit .mslot .cab svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+#tab-edit .mslot .cab path { fill: none; stroke: var(--c); stroke-linecap: round; }
+#tab-edit .mslot .mx { position: absolute; right: -7px; top: -7px; z-index: 3; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #3A3A44; background: #000; color: var(--muted);
+  display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+#tab-edit .mslot .mx:hover { border-color: var(--red); color: var(--red); }
+#tab-edit .mslot .mx svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 2.4; fill: none; }
+/* an LFO's plug (design 13): dragged onto a value, it sets the LFO's DEST */
+#tab-edit .jack { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 3; width: 20px; height: 20px; border-radius: 50%; background: #000;
+  border: 1.5px solid var(--c); box-shadow: inset 0 0 0 3px #000, inset 0 0 0 4.5px var(--c); cursor: grab; touch-action: none; outline: none; }
+#tab-edit .jack::before { content: ""; position: absolute; right: 100%; top: 50%; width: 12px; height: 1.5px; margin-top: -.75px; background: var(--c); }
+#tab-edit .jack:hover, #tab-edit .jack:focus-visible, #tab-edit .jack.isarmed { background: var(--c); }
+
+/* ---- design 13: routes marked on their values (a dot each in the source's colour, three, then +n) */
+#tab-edit .mks { position: absolute; right: 4px; top: 4px; display: flex; gap: 3px; z-index: 2; align-items: center; }
+#tab-edit .mks i { width: 8px; height: 8px; border-radius: 50%; background: var(--m); box-shadow: 0 0 0 2px #000; cursor: pointer; position: relative; }
+#tab-edit .mks i::before { content: ""; position: absolute; inset: -6px; }
+#tab-edit .mks em { font: 400 11px var(--hud); color: var(--muted); font-style: normal; }
+#tab-edit .t.modded { border-color: color-mix(in srgb, var(--m) 50%, var(--line)); }
+/* a source dragged or armed: what it reaches outlined in its colour, the rest dimmed; the one under the pointer filled */
+#tab-edit .stage.modon .t, #tab-edit .stage.modon .sg, #tab-edit .stage.modon .gd:not(.algod), #tab-edit .stage.modon .nav, #tab-edit .stage.modon .src, #tab-edit .stage.modon .mslot { opacity: .22; }
+#tab-edit .stage.modon .gd.algod { opacity: .35; }
+#tab-edit .stage.modon .fr { opacity: .55; }
+#tab-edit .stage.modon .lit { opacity: 1; border-color: var(--s); }
+#tab-edit .stage.modon .t.lit::before { content: ""; position: absolute; inset: -5px; border-radius: 12px; border: 1.5px dashed color-mix(in srgb, var(--s) 60%, transparent); pointer-events: none; }
+#tab-edit .stage.modon .t.lit.hot { background: color-mix(in srgb, var(--s) 22%, #000); border-color: var(--s); z-index: 4; }
+#tab-edit .stage.modon .t.lit.hot::before { border-style: solid; border-color: var(--s); }
+#tab-edit .stage.modon .t.lit.hot b { color: var(--text); }
+#tab-edit .stage.modon .from, #tab-edit .stage.modon .lfosrc { opacity: 1; }
+#tab-edit .stage.modon .src.from { border-color: var(--s); }
+/* the destinations without a value of their own: pads, shown only while a source is dragged or armed */
+#tab-edit .pad { display: none; }
+#tab-edit .stage.modon .pad.lit { display: flex; position: relative; z-index: 3; align-items: center; justify-content: center; border-radius: 9px; background: color-mix(in srgb, var(--s) 12%, #000);
+  border: 1.5px dashed var(--s); color: var(--text); font-size: 11px; font-weight: 900; letter-spacing: .06em; white-space: nowrap; overflow: hidden; }
+#tab-edit .stage.modon .pad.lit.hot { background: color-mix(in srgb, var(--s) 30%, #000); border-style: solid; }
+#tab-edit .pad small { color: var(--s); margin-right: 5px; font-size: 11px; }
+/* every slot used: the MOD frame red, the source refused */
+#tab-edit .stage.full .fr-mod { border-color: var(--red); opacity: 1; }
+#tab-edit .stage.full .mslot { opacity: .9; }
+#tab-edit .stage.full .mslot .t, #tab-edit .stage.full .mslot .cab { border-color: color-mix(in srgb, var(--red) 55%, var(--line)); }
+#tab-edit .stage.fullflash .fr-mod { background: color-mix(in srgb, var(--red) 10%, transparent); }
+
+/* the drag's cable, the plug under the pointer, its label; a route's card */
+.dragov { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+.dragov svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.dragov .cable { fill: none; stroke: var(--s); stroke-width: 2; stroke-linecap: round; }
+.dragov .cable.no { stroke: #6A6A74; stroke-dasharray: 8 7; }
+.dragov .plug { fill: #000; stroke: var(--s); stroke-width: 1.5; }
+.dragov .plug.no { stroke: var(--red); }
+.dragov .ghost { position: absolute; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: 999px; background: #000; border: 1.5px solid var(--s);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .6); color: var(--s); font-size: 12px; font-weight: 900; letter-spacing: .08em; white-space: nowrap; }
+.dragov .ghost b { color: var(--text); }
+.dragov .ghost svg { width: 12px; height: 12px; stroke: var(--text); fill: none; stroke-width: 2.4; }
+.dragov .ghost.no { border-color: var(--red); color: var(--red); }
+.dragov .ghost .fullb { background: var(--red); color: #000; border-radius: 6px; padding: 2px 6px; font-size: 11px; }
+.rtpop { position: fixed; z-index: 21; display: flex; align-items: stretch; gap: 8px; padding: 8px; border-radius: 14px; background: rgba(10, 10, 15, .97); border: 1.5px solid var(--m);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .6); animation: pop .2s var(--snap) both; user-select: none; -webkit-user-select: none; }
+.rtpop .who { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 6px; }
+.rtpop .who small { font-size: 11px; font-weight: 800; letter-spacing: .1em; color: var(--muted); }
+.rtpop .who b { font-size: 14px; font-weight: 900; letter-spacing: .06em; color: var(--m); white-space: nowrap; }
+.rtpop .who b em { font-style: normal; color: var(--text); }
+.rtpop .dep { position: relative; width: 92px; display: flex; flex-direction: column; justify-content: center; padding: 0 9px 4px; border-radius: 9px; background: #000;
+  border: 1.5px solid var(--m); cursor: ns-resize; touch-action: none; outline: none; }
+.rtpop .dep:focus-visible { border-color: var(--cyan); }
+.rtpop .dep small { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--muted); }
+.rtpop .dep b { font-size: 16px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.rtpop .dep::after { content: ""; position: absolute; bottom: 4px; height: 2px; left: 50%; width: calc(var(--w) * (100% - 16px)); background: var(--m); }
+.rtpop .rm { width: 44px; border-radius: 9px; border: 1.5px solid color-mix(in srgb, var(--red) 60%, transparent); background: #000; color: var(--red); display: flex; align-items: center;
+  justify-content: center; cursor: pointer; padding: 0; }
+.rtpop .rm:hover { border-color: var(--red); }
+.rtpop .rm svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2.6; fill: none; }
+.rtpop::before { content: ""; position: absolute; left: var(--ax, 30px); top: -7px; width: 12px; height: 12px; background: rgba(10, 10, 15, .97); border-left: 1.5px solid var(--m);
+  border-top: 1.5px solid var(--m); transform: rotate(45deg); }
+.rtpop.up::before { top: auto; bottom: -7px; transform: rotate(225deg); }
+
+/* ---- pages: the tabs (the board PhoneEdit's tubes), the sources' strip under them (a tab marked where the source
+   reaches) */
+#tab-edit .edpages { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 2px 2px 4px; margin: -2px -2px 0; }
+#tab-edit .edpages::-webkit-scrollbar { display: none; }
+#tab-edit .edpages[hidden] { display: none; }
+#tab-edit .edpages button { --c: var(--muted); flex: none; height: 36px; border-radius: 12px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; box-shadow: none;
+  font-weight: 800; font-size: 11px; letter-spacing: .12em; color: var(--body); white-space: nowrap; outline-offset: 2px; }
+#tab-edit .edpages button.on { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+#tab-edit .edpages button:focus-visible { outline: 2px solid var(--cyan); }
+#tab-edit .pdot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--c); flex: none; }
+#tab-edit .edpages button.on .pdot { background: var(--c); }
+#tab-edit .edpages .reach { width: 8px; height: 8px; border-radius: 50%; background: var(--s); margin-left: 2px; }
+#tab-edit .srcstrip { display: flex; gap: 6px; flex: none; overflow-x: auto; scrollbar-width: none; padding: 2px 0; align-items: center; }
+#tab-edit .srcstrip[hidden] { display: none; }
+#tab-edit .srcstrip::-webkit-scrollbar { display: none; }
+#tab-edit .srcstrip .src { flex: none; height: 32px; padding: 0 10px; font-size: 11px; touch-action: pan-x; }
+#tab-edit .srcstrip .src.lfo .grip { width: 12px; height: 12px; background: none; border-radius: 50%; border: 1.5px solid var(--c); box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3.5px var(--c); }
+#tab-edit .srcstrip .src.isarmed.lfo .grip { border-color: #000; box-shadow: inset 0 0 0 2px var(--c), inset 0 0 0 3.5px #000; }
+#tab-edit .srcstrip .src.from { border-color: var(--c); background: color-mix(in srgb, var(--c) 22%, #000); color: var(--text); }
+#tab-edit .srcstrip .src.full::after { content: "FULL"; margin-left: 4px; background: var(--red); color: #000; border-radius: 5px; padding: 1px 5px; font-size: 11px; }
+#tab-edit .srcstrip .sep { width: 1.5px; height: 22px; background: var(--line); flex: none; }
+#tab-edit .srcstrip .disarm { position: sticky; left: 0; z-index: 2; flex: none; width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--c); background: #000; color: var(--c);
+  display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+#tab-edit .srcstrip .disarm[hidden] { display: none; }
+#tab-edit .srcstrip .disarm svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2.6; fill: none; }
+
+/* ---- the panel's room: the stage takes what the head and the keys leave (a computer, a phone on its side) */
+@media (min-width: 901px) {
+  #tab-edit .edcard .stage { flex: 1 1 0; }
+  #tab-edit .edcard .stage.panel { overflow: visible; }
+}
 @media (min-width: 1200px) and (min-height: 700px) {
-  #tab-edit .stage.panel .pn-amp .pnb { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; gap: 6px; }
-  #tab-edit .stage.panel .pn-amp .pnb > .dbox { grid-column: 1; grid-row: 1; }
-  #tab-edit .stage.panel .pn-amp .pnb > .row.wrap { grid-column: 1 / 3; grid-row: 2; }
-  #tab-edit .stage.panel .pn-amp .mix { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(2, 52px); align-content: end; }
-  #tab-edit .stage.panel .pn-amp .mix .vc { min-width: 0; }
+  #tab-edit .kbed { height: 52px; }
 }
+/* a phone upright: the page as long as its cells (the window scrolls) */
+@media (max-width: 900px) and (orientation: portrait) {
+  #tab-edit .edcard .stage { overflow: visible; }
+}
+
+/* ---- flat (the owner, 2026-10-30: "Flatten everything"): EDIT's head, the keys' toggle, the page tabs, the keys: no
+   glow from the shared NEON parts either (a selected or live thing: its border or fill; SAVE solid, no base, no breath) */
+#tab-edit .arc, #tab-edit .arc:not(:disabled):active, #tab-edit .arc.breathe { box-shadow: none; animation: none; }
+#tab-edit .ol:not(:disabled):hover { box-shadow: none; }
+#tab-edit .tube.on { box-shadow: none; outline: 0; }
+#tab-edit .chip::before { box-shadow: none; }
+#tab-edit .edtag:hover, #tab-edit .edtag[aria-expanded="true"] { box-shadow: none; }
+.tagpop .chip::before { box-shadow: none; }

@@ -1,11 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The manager's EDIT tab: the sound editor (docs/MANAGER-P2-PLAN.md §1). The owner's fix (2026-10-25): every value on
-// one page, a synth's whole front panel: OPERATORS, OP ENV, FILTER, AMP, DRIVE · CRUSH, LFO, MOD, PLAY side by side
-// (a column on a phone), each value a part of a drawing that is dragged, in its knob's colour. Every one of FIZZ's
-// 110 values is on the panel once (sound.js's table, the core's names and texts); a section is drawn again only when
-// its drawing changed. Drag (SHIFT: fine; the two-decimal values 0.01 a pixel), the wheel or the arrow keys over a
-// value (the two-decimal values 0.01 a tick, quick ticks speed up to 1.00, SHIFT 1.00); a double click its default; a long list (a destination, a source) a
-// picker. The keybed under it plays the sound (the FM-1's 27 keys from F, the computer's A..' row, Z / X the octave).
+// The manager's EDIT tab: the sound editor (docs/MANAGER-P2-PLAN.md §1): every one of FIZZ's values on one panel, a
+// synth's front panel (sound.js's table, the core's names and texts). Drag a value (SHIFT: fine; the two-decimal values
+// 0.01 a pixel), the wheel or the arrow keys over it (the two-decimal values 0.01 a tick, quick ticks speed up to 1.00,
+// SHIFT 1.00); a double click its default; a long list (a destination, a source) a picker. The keybed under it plays
+// the sound (the FM-1's 27 keys from F, the computer's A..' row, Z / X the octave).
+// Design 12 (the owner, 2026-10-30): the panel is one grid, 20 columns x 15 rows, every value a cell of it (a tile: its
+// name over its value, a bar in its colour), the drawings a block of cells drawn in their own pixels; the sections
+// (OPERATORS, OP ENV, FILTER, AMP, DRIVE · CRUSH, PLAY, LFO, MOD) a frame drawn on the grid. Clean linework: no glows,
+// small handles (a ring with a larger hit area), ALGO's number centred. The operators' row HARM DTUN FDBK MIX (DRIVE
+// on DRIVE · CRUSH, LEVEL on AMP); PHASE RESET and the KEY / VEL values with their operators; the filter's TYPE one
+// 8-way choice (its stored values); SHAPE dimmed "—" where the type has none. One panel from about 1400 x 860 with the
+// keys shown, 1280 x 760 with them hidden; smaller, a page a section under tabs (each its block on the same kind of
+// grid, bigger cells; a phone four across).
+// Design 13 (drag to modulate, modroute.js): an LFO's plug or a MOD source dragged onto a value routes it there (what
+// it reaches lit in its colour); a route a dot on its value, a click on the dot its card (DEPTH, ×); pages: the sources
+// in a strip under the tabs, a tap arms one, a tap on a tab, a tap on a lit value.
 //
 // Where the sound plays: the target (setTarget). By default the browser's own FIZZ (browserfizz.js: the same core in
 // this page, the sound loaded onto its track 1). The live editor (P2-B, manager.js) gives a target that plays it on
@@ -17,44 +26,46 @@
 // the CC number types it, a double click (or DELETE, or ×) makes the slot untouched again. FIZZ's PARAM takes only a
 // slot's value (not its CC number or touched mark): each change goes to the target as the whole sound, target.sound(s)
 // (the FM-1's track: an AUDITION; the browser's FIZZ: its STORE6 with LOAD).
-// FIZZ NEON (2026-10-29): ALGO's ‹ ›; the knob row under OPERATORS (HARM DTUN FDBK MIX DRIVE LEVEL); the tag one chip
-// beside the name (a popover of the seven); REVERT / SAVE AS NEW / SAVE fixed at the bottom on a phone; the keys shown or
-// hidden (remembered). One panel or pages (the owner: "keep one panel but then tabs once they are too small to fit"):
-// from 1200 x 700 the panel is tried in three columns (values small tiles, the drawings drawn in the room left); if a
-// column runs over (measured), or on a smaller window, each section is a page of its own under tabs (the last one
-// remembered). DRIVE and LEVEL show in the knob row and, as pages, on DRIVE · CRUSH and AMP too.
-// The mix (2026-10-29): PAN, CHO, DEL, REV beside LEVEL on AMP (a 2 x 2 by the envelope on the one panel, a row on its
-// page), the sound's pan and sends under PARAM's ids 115..118 (sound.js MIX_IDS). A MIDI sound shows none: a MIDI
-// track takes no voice, so the mix does nothing there.
+// The mix (2026-10-29): PAN, CHO, DEL, REV on AMP, the sound's pan and sends under PARAM's ids 115..118 (sound.js
+// MIX_IDS). A MIDI sound shows none: a MIDI track takes no voice, so the mix does nothing there.
 //   mountEditor(ctx) -> { open(sound, place), show(), sound(), setTarget(t), render() }
-import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, tickStep, isHundredths, isHi, frac, copySound, sameValues, tagNames,
+import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, tickStep, isHundredths, frac, copySound, sameValues, tagNames,
   isMix, mixValue, setMix, sameMix, newSound, MIX_IDS } from "./sound.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { esc, MIDI_I, TAGC } from "./ui.js";
+import { SRC_NAMES, SRC_COLOURS, LFO_COLOURS, DEST_NAMES, TILE_DEST, PADS, routes, plan, removeSets, routeTitle, srcColour, srcName, sameSrc,
+  isFull, FILTER_TYPES } from "./modroute.js";
 
 const K = { c1: "--k1", c2: "--k2", c3: "--k3", c4: "--k4", alg: "--kalg" };
-const OPS = [["C", Q.RC, Q.OFSC, K.c1], ["A", Q.RA, Q.OFSA, K.c2], ["B1", Q.RB1, Q.OFSB1, K.c3], ["B2", Q.RB2, Q.OFSB2, K.c4]];
+// an operator: its name, ratio, offset, colour and its KEY (C: the velocity's)
+const OPS = [["C", Q.RC, Q.OFSC, K.c1, Q.VEL], ["A", Q.RA, Q.OFSA, K.c2, Q.AKEY], ["B1", Q.RB1, Q.OFSB1, K.c3, Q.B1KEY], ["B2", Q.RB2, Q.OFSB2, K.c4, Q.B2KEY]];
 // (FIZZ NEON: each section's name after a ring in its colour, as the boards' EDIT pages)
 export const SECTIONS = [
   ["ops", "OPERATORS", K.c1], ["openv", "OP ENV", K.c2], ["play", "PLAY", "--yellow"], ["filter", "FILTER", K.c4],
   ["amp", "AMP", K.c3], ["drive", "DRIVE · CRUSH", "--orange"], ["lfo", "LFO", "--cyan"], ["mod", "MOD", K.alg],
 ];
-const LFOC = ["--cyan", "--yellow", "--violet"];      // (core/ui ui_kit.c UI_LFO_COL)
-const MACH = [["LEGACY", [0, 1, 2]], ["LP4", [3]], ["MULTI", [4]], ["COMB+", [5]], ["COMB−", [6]], ["EQ", [7]]];
+// each section's block on the panel's 20 x 15 grid [column, row, width, height]; a phone's page four across: its rows
+const SEC_BOX = { ops: [1, 1, 10, 5], openv: [11, 1, 10, 5], filter: [1, 6, 10, 5], amp: [11, 6, 5, 5], drive: [16, 6, 5, 3], play: [16, 9, 5, 2],
+  lfo: [1, 11, 12, 5], mod: [13, 11, 8, 5] };
+const PHONE_ROWS = { ops: 9, openv: 8, play: 3, filter: 10, amp: 5, drive: 4, lfo: 12, mod: 10 };
+const LFOC = LFO_COLOURS;
 const isDest = (id) => (id >= 47 && id <= 70 && (id - 47) % 8 === LF.DEST) || (id >= 86 && id < 110 && (id - 86) % 3 === 1);
 // a white key's and a black key's note from F (the FM-1's keybed: F3 .. G5 at OCT 0)
 const WHITE = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
 const BLACK = [[0, 1], [1, 3], [2, 5], [4, 8], [5, 10], [7, 13], [8, 15], [9, 17], [11, 20], [12, 22], [14, 25]];   // [after white, note]
 const PC_WHITE = ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'"], PC_BLACK = { w: 1, e: 3, r: 5, y: 8, u: 10, o: 13, p: 15, "[": 17 };
+const I_X = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>';
 
 export function mountEditor(ctx) {
   const { $, log = () => {} } = ctx;
   const E = { s: null, base: null, place: { label: "NEW SOUND" }, op: 1, oct: 0, held: new Map(), target: null,
-    drag: null, raf: 0, picker: null, rec: false, onChange: null, live: false, dims: new Map(), view: {} };
+    drag: null, raf: 0, picker: null, rec: false, onChange: null, live: false, dims: new Map(), view: {},
+    rt: [], md: null, arm: null, card: null, cardEl: null, lay: "" };
   const PAGE_KEY = "fizz-manager-edit-page";        // (the page last shown, remembered)
   E.mode = "";                                       // "panel" (every section) or "tabs" (a page each)
   E.page = (() => { try { return localStorage.getItem(PAGE_KEY) || "ops"; } catch (_) { return "ops"; } })();
   const stage = $("ed-stage"), head = $("ed-head"), kb = $("ed-keys");
+  const srcsEl = $("ed-srcs");
   // the KEEP / CANCEL card (live.js) when it sits fixed at the bottom (a phone): its room as --lbh, for the save bar
   // and POOL's moving card to sit above it
   const lbar = $("loadbar");
@@ -107,87 +118,88 @@ export function mountEditor(ctx) {
   const stepSlot = (k, d) => { const o = E.s.midi.slots[k]; return setSlot(k, { value: (o.touched ? o.value : 0) + d, touched: true }); };
   const untouch = (k) => setSlot(k, { value: 0, touched: false });
 
-  // ---------------------------------------------------------------- the small parts
-  // an arc of a knob's ring (FIZZ NEON: 270°, from the lower left), t0..t1 of its range
-  const arcD = (cx, cy, R, t0, t1) => {
-    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, at = (t) => a0 + (a1 - a0) * t, pt = (a) => [cx + R * Math.cos(a), cy + R * Math.sin(a)];
-    const [x0, y0] = pt(at(t0)), [x1, y1] = pt(at(t1));
-    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 ${Math.abs(t1 - t0) * 270 > 180 ? 1 : 0} ${t1 > t0 ? 1 : 0} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
-  };
-  // a value's ring: the dark ring, the value an arc in its colour (from the middle for a signed value)
-  const ringSvg = (id, cx, cy, R, vb) => {
-    const r = info(id), f = frac(id, v(id)), z = r.min < 0 ? frac(id, 0) : 0;
-    return `<svg viewBox="${vb}" aria-hidden="true"><path d="${arcD(cx, cy, R, 0, 1)}" class="track"/>${Math.abs(f - z) > 0.002 ? `<path d="${arcD(cx, cy, R, Math.min(z, f), Math.max(z, f))}" class="fill"/>` : ""}</svg>`;
-  };
-  // a value chip: its ring, its name, its text; dragged up / down, the wheel, the arrows
-  // (--l, --w: the value's part of its range, for the computer's fit, where a chip is a small tile with a bar)
+  // ---------------------------------------------------------------- the cells (design 12: every value a cell of one grid)
+  // cell: [column, row, width, height] on the panel's grid (or a page's)
+  const area = ([c, r, w = 1, h = 1]) => `grid-area:${r} / ${c} / span ${h} / span ${w}`;
+  // (--l, --w: the value's part of its range, the tile's bar; from the middle for a signed value)
   const span = (id) => { const r = info(id), f = frac(id, v(id)), z = r.min < 0 ? frac(id, 0) : 0; return `--l:${Math.min(z, f).toFixed(3)};--w:${Math.abs(f - z).toFixed(3)}`; };
-  const chip = (id, label = info(id).name, c = "--text", cls = "") =>
-    `<span class="vc ${cls}" data-id="${id}" data-y="${id}" tabindex="0" style="--c:var(${c});${span(id)}" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">${ringSvg(id, 12, 12, 8.5, "0 0 24 24")}<small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
-  // a picker chip (a long list: the destinations, the sources): a click opens the list
-  const pick = (id, label, c = "--text", cls = "") =>
-    `<span class="vc pick ${cls}" data-id="${id}" data-y="${id}" data-pick="${id}" tabindex="0" style="--c:var(${c})" role="button" aria-label="${esc(label)}: ${esc(text(id, v(id)))}"><small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b></span>`;
-  // a segmented choice (a short list)
-  const seg = (id, c = "--text", labels = null) => {
-    const r = info(id);
-    return `<span class="vseg" style="--c:var(${c})" role="group" aria-label="${esc(r.name)}">${Array.from({ length: r.max - r.min + 1 }, (_, k) => {
-      const x = r.min + k, on = v(id) === x;
-      return `<button data-set="${id}:${x}" class="${on ? "on" : ""}" aria-pressed="${on}">${esc(labels ? labels[k] : text(id, x))}</button>`;
-    }).join("")}</span>`;
-  };
-  // an on / off value as one pill, lit when on
-  const tog = (id, label, c = "--text") => `<button class="vtog ${v(id) ? "on" : ""}" data-set="${id}:${v(id) ? 0 : 1}" aria-pressed="${!!v(id)}" style="--c:var(${c})">${esc(label)}</button>`;
-  // a caption over a part
-  const cap = (label, html) => `<span class="capt"><small>${esc(label)}</small>${html}</span>`;
-  // the same with only some of the values: [[value, label], ..]
-  const segOf = (id, c, pairs) => `<span class="vseg" style="--c:var(${c})" role="group" aria-label="${esc(info(id).name)}">${pairs.map(([x, l]) =>
-    `<button data-set="${id}:${x}" class="${v(id) === x ? "on" : ""}" aria-pressed="${v(id) === x}">${esc(l)}</button>`).join("")}</span>`;
-  // an arc (a dial): from the left end, or from the middle for a signed value
-  // (kn: the knob row under OPERATORS, NEON: DRIVE and LEVEL there a second time; data-kn tells the two apart)
-  function dial(id, label, c, kn = false) {
-    return `<span class="dial${kn ? " knob" : ""}" data-id="${id}" data-y="${id}"${kn ? ' data-kn="1"' : ""} tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">
-      ${ringSvg(id, 35, 34, 27, "0 0 70 62")}<b>${esc(text(id, v(id)))}</b><small>${esc(label)}</small></span>`;
+  // design 13: a value a route moves: its destination (data-dest), a dot each route in its source's colour
+  const destAttr = (id) => (TILE_DEST[id] !== undefined ? ` data-dest="${TILE_DEST[id]}"` : "");
+  const routesOn = (id) => { const d = TILE_DEST[id]; return d === undefined ? [] : E.rt.filter((x) => x.dest === d); };
+  function marks(id) {
+    const rs = routesOn(id);
+    if (!rs.length) return "";
+    return `<span class="mks">${rs.slice(0, 3).map((x) => `<i style="--m:var(${x.c})" data-route="${x.kind}${x.k}" role="button" aria-label="${esc(x.name)} → ${esc(DEST_NAMES[x.dest])}"></i>`).join("")}` +
+      `${rs.length > 3 ? `<em>+${rs.length - 3}</em>` : ""}</span>`;
   }
-  // a horizontal bar, dragged sideways
-  const bar = (id, label, c) => {
-    const r = info(id), f = frac(id, v(id)), z = r.min < 0 ? frac(id, 0) : 0;
-    return `<span class="vbar" data-id="${id}" data-x="${id}" tabindex="0" style="--c:var(${c})" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(text(id, v(id)))}">
-      <small>${esc(label)}</small><b>${esc(text(id, v(id)))}</b><i><span style="left:${(Math.min(z, f) * 100).toFixed(1)}%;width:${(Math.abs(f - z) * 100).toFixed(1)}%"></span></i></span>`;
+  const modded = (id) => { const rs = routesOn(id); return rs.length ? { cls: " modded", st: `;--m:var(${rs[0].c})` } : { cls: "", st: "" }; };
+  // a value: its name over its value, a bar; dragged up / down, the wheel, the arrows
+  function T(id, label, c, cell, cls = "") {
+    const m = modded(id), t = text(id, v(id));
+    return `<div class="t${cls ? ` ${cls}` : ""}${m.cls}" data-id="${id}" data-y="${id}"${destAttr(id)} tabindex="0" role="slider" aria-label="${esc(label)}" aria-valuetext="${esc(t)}" ` +
+      `style="${area(cell)};--c:var(${c});${span(id)}${m.st}"><small>${esc(label)}</small><b>${esc(t)}</b>${marks(id)}</div>`;
+  }
+  // a cell kept where a value is not used now (SHAPE on a type without it, AHD's fourth): dimmed, "—"
+  const DIM = (label, cell) => `<div class="t dim0" style="${area(cell)};--c:var(--muted)" aria-hidden="true"><small>${esc(label)}</small><b>—</b></div>`;
+  // a long list: a click opens the picker
+  function P(id, label, c, cell, cls = "") {
+    const m = modded(id), t = text(id, v(id));
+    return `<div class="t pk${cls ? ` ${cls}` : ""}${m.cls}" data-id="${id}" data-pick="${id}"${destAttr(id)} tabindex="0" role="button" aria-label="${esc(label)}: ${esc(t)}" ` +
+      `style="${area(cell)};--c:var(${c})${m.st}"><small>${esc(label)}</small><b>${esc(t)}</b>${marks(id)}</div>`;
+  }
+  // a few choices in one cell: a click the next (its pips show which)
+  function TG(id, label, c, cell) {
+    const r = info(id), x = v(id), nx = x >= r.max ? r.min : x + 1;
+    return `<div class="t tg" data-id="${id}" data-set="${id}:${nx}" tabindex="0" role="button" aria-label="${esc(label)}: ${esc(text(id, x))}" style="${area(cell)};--c:var(${c})">` +
+      `<small>${esc(label)}</small><b>${esc(text(id, x))}</b><span class="pips">${Array.from({ length: r.max - r.min + 1 }, (_, k) => `<i class="${x === r.min + k ? "on" : ""}"></i>`).join("")}</span></div>`;
+  }
+  // a choice of a few, side by side: [[value, label], ..]
+  function SG(id, label, c, cell, pairs = null, cls = "") {
+    const r = info(id), opts = pairs || Array.from({ length: r.max - r.min + 1 }, (_, k) => [r.min + k, text(id, r.min + k)]);
+    return `<div class="sg${cls ? ` ${cls}` : ""}" style="${area(cell)};--c:var(${c})" role="group" aria-label="${esc(label || r.name)}">${label ? `<small>${esc(label)}</small>` : ""}` +
+      `<span class="opts">${opts.map(([x, l]) => `<button data-set="${id}:${x}" class="${v(id) === x ? "on" : ""}" aria-pressed="${v(id) === x}">${esc(l)}</button>`).join("")}</span></div>`;
+  }
+  // an operator: its name in a ring, its ratio big (dragged); a click picks it
+  function OPT(o, cell) {
+    const [nm, rid, , c] = OPS[o], t = text(rid, v(rid)), [w, f] = t.includes(".") ? t.split(".") : [t, ""], m = modded(rid);
+    return `<div class="t op${E.op === o ? " on" : ""}${m.cls}" data-id="${rid}" data-y="${rid}" data-op="${o}"${destAttr(rid)} tabindex="0" role="slider" aria-label="RATIO ${nm}" aria-valuetext="${esc(t)}" ` +
+      `style="${area(cell)};--c:var(${c})${m.st}"><span class="ring">${nm}</span><b>${esc(w)}${f ? `<small>.${esc(f)}</small>` : ""}</b>${marks(rid)}</div>`;
+  }
+  // a drawing: a block of cells, drawn in its own pixels (measured: E.dims)
+  const D = (key, c, cell, draw, inner = "", cls = "") => {
+    const [w, h] = E.dims.get(key) || [240, 120];
+    return `<div class="gd${cls ? ` ${cls}` : ""}" data-dk="${key}" style="${area(cell)};--c:var(${c})">${draw(w, h)}${inner}</div>`;
   };
-  // a handle in a drawing: x, y its place (the viewBox's), the ids it moves sideways / up and down, the drawing's
-  // pixels for each value's whole range
-  const handle = (x, y, { xid = -1, yid = -1, xs = 300, ys = 120, c = "--yellow", r = 9, label = "" } = {}) =>
-    `<circle class="hd" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" style="--c:var(${c})" tabindex="0" role="slider" aria-label="${esc(label || [xid, yid].filter((i) => i >= 0).map((i) => info(i).name).join(" · "))}"` +
-    `${xid >= 0 ? ` data-x="${xid}" data-xs="${xs}"` : ""}${yid >= 0 ? ` data-y="${yid}" data-ys="${ys}"` : ""} data-id="${yid >= 0 ? yid : xid}"/>`;
+  // a destination without a value of its own (PITCH, P AB2, R ALL, the A+B macros): a pad while a source is dragged
+  const PAD = (d, cell, pre = "") => `<div class="pad" data-dest="${d}" style="${area(cell)}">${pre ? `<small>${pre}</small>` : ""}${PADS[d]}</div>`;
+  // a section's frame on the grid: a line in the gaps around its cells, its name on it
+  const FR = (k, nm, c, cell) => `<div class="fr fr-${k}" style="${area(cell)};--c:var(${c})" aria-hidden="true"><span class="lg"><i></i>${esc(nm)}</span></div>`;
+  // an on / off value as a pill in a drawing's corner
+  const pill = (id, label) => `<button class="pl${v(id) ? " on" : ""}" data-set="${id}:${v(id) ? 0 : 1}" aria-pressed="${!!v(id)}">${esc(label)}</button>`;
 
-  // ---------------------------------------------------------------- drawings that fit their box
-  // (NEON fit, the owner 2026-10-29: on a computer the whole panel fits the window: a drawing's box takes the room its
-  // section leaves (CSS), and the drawing is drawn again in the box's proportions: its viewBox follows the box, VB
-  // units a pixel, nothing stretched. Elsewhere a box keeps the drawing's own proportions, no taller than a phone
-  // allows.)
-  const FIT_MQ = window.matchMedia("(min-width: 1200px) and (min-height: 700px)");
-  const VB = 1.25;
-  const box = (key, w0, h0, draw) => {
-    const [w, h] = E.dims.get(key) || [w0, h0];
-    return `<div class="dbox" data-dk="${key}" style="--ar:${w0} / ${h0}">${draw(w, h)}</div>`;
-  };
-  // each box measured: a drawing whose box changed is drawn again (-> true)
+  // a handle in a drawing: a small ring (r 4, ~9.5 px), an invisible r 12 ring takes the pointer; x, y its place (the
+  // drawing's pixels), the ids it moves sideways / up and down, the pixels for each value's whole range
+  const HR = 4, HIT = 12;
+  const handle = (x, y, { xid = -1, yid = -1, xs = 300, ys = 120, c = "--yellow", label = "" } = {}) =>
+    `<g class="hg" style="--c:var(${c})" tabindex="0" role="slider" aria-label="${esc(label || [xid, yid].filter((i) => i >= 0).map((i) => info(i).name).join(" · "))}"` +
+    `${xid >= 0 ? ` data-x="${xid}" data-xs="${xs}"` : ""}${yid >= 0 ? ` data-y="${yid}" data-ys="${ys}"` : ""} data-id="${yid >= 0 ? yid : xid}">` +
+    `<circle class="hit" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${HIT}"/><circle class="hd" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${HR}"/></g>`;
+
+  // each drawing's box measured: a drawing whose box changed is drawn again (-> true)
   function measure() {
     let again = false;
-    stage.querySelectorAll(".dbox[data-dk]").forEach((b) => {
-      const k = b.dataset.dk, old = E.dims.get(k);
-      const w = Math.round(b.clientWidth * VB), h = Math.round(b.clientHeight * VB);
+    stage.querySelectorAll(".gd[data-dk]").forEach((b) => {
+      const k = b.dataset.dk, old = E.dims.get(k), w = Math.round(b.clientWidth), h = Math.round(b.clientHeight);
       if (w < 40 || h < 24) return;
-      if (!old || Math.abs(old[0] - w) > 4 || Math.abs(old[1] - h) > 4) { E.dims.set(k, [w, h]); again = true; }
+      if (!old || Math.abs(old[0] - w) > 2 || Math.abs(old[1] - h) > 2) { E.dims.set(k, [w, h]); again = true; }
     });
     return again;
   }
-  const tabs = () => E.mode === "tabs";
 
-  // ---------------------------------------------------------------- envelopes
-  // ADSR: attack to the top, decay to the sustain level, held, released; handles on the corners
-  function adsr(ids, c, { w = 380, h = 150, ahd = false, label = "" } = {}) {
-    const [a, d, s, r] = ids, X = (w - 30) * 0.27 / 127, top = label ? 30 : 14, bot = h - 10, Y = (lv) => bot - (bot - top) * lv / 127;
+  // ---------------------------------------------------------------- the drawings
+  // ADSR (or AHD): attack to the top, decay to the sustain level, held, released; handles on the corners
+  function adsr(ids, c, { w, h, ahd = false, top = 14 }) {
+    const [a, d, s, r] = ids, X = (w - 30) * 0.27 / 127, bot = h - 10, Y = (lv) => bot - (bot - top) * lv / 127;
     const p0 = [10, bot], p1 = [10 + v(a) * X, top];
     let pts, hds;
     if (ahd) {                                       // AHD: ATK, HOLD (NOTE: as long as the key), DEC to nothing
@@ -195,7 +207,6 @@ export function mountEditor(ctx) {
       pts = [p0, p1, p2, p3];
       hds = handle(p1[0], p1[1], { xid: a, xs: 127 * X, c }) + handle(p2[0], p2[1], { xid: Q.HOLD, xs: 127 * X, c: "--yellow" }) +
         handle(p3[0], p3[1], { xid: Q.EDEC, xs: 127 * X, c });
-      if (hold >= 127) hds += `<text x="${p2[0] - 6}" y="${top + 22}" class="lab" text-anchor="end">NOTE</text>`;
     } else {
       const p2 = [p1[0] + v(d) * X, Y(v(s))], p3 = [p2[0] + 0.16 * (w - 30), Y(v(s))], p4 = [p3[0] + v(r) * X, bot];
       pts = [p0, p1, p2, p3, p4];
@@ -203,13 +214,10 @@ export function mountEditor(ctx) {
         handle(p4[0], p4[1], { xid: r, xs: 127 * X, c });
     }
     const path = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-    return `<svg class="env" viewBox="0 0 ${w} ${h}" style="--c:var(${c})">${label ? `<text x="10" y="16" class="lab">${esc(label)}</text>` : ""}
-      <path d="${path} Z" class="area"/><path d="${path}" class="line"/>${hds}</svg>`;
+    return `<svg class="env" viewBox="0 0 ${w} ${h}" style="--c:var(${c})"><path d="${path} Z" class="area"/><path d="${path}" class="line"/>${hds}</svg>`;
   }
-
-  // ---------------------------------------------------------------- the panel's sections
   // OPERATORS: the algorithm drawn (modulators above what they modulate, carriers on the bus, the feedback a loop, the
-  // modulation's dots running), ALGO a big pink number, a card an operator (its ratio big, its offset a bar)
+  // modulation's dots running); the roundels dragged (the ratio), a click picks the operator
   function algoSvg() {
     const [mods, fb, ox, oy] = ALGOS[v(Q.ALGO) - 1], out = ox | oy, dep = [0, 0, 0, 0];
     for (let it = 0; it < 4; it++) for (let t = 0; t < 4; t++) for (let o = 0; o < 4; o++)
@@ -225,10 +233,9 @@ export function mountEditor(ctx) {
       y[o] = BUS - 62 - d * sp;
     }
     const mx = v(Q.MIX), sx = (63 - mx) / 127, sy = 1 - sx;
-    const parts = [`<line x1="150" y1="${BUS}" x2="520" y2="${BUS}" class="bus"/>`,
-      `<path d="M528 ${BUS - 12}h12v24h-12zM540 ${BUS - 12}l16-14v52l-16-14" class="spk"/><path d="M566 ${BUS - 16}a22 22 0 0 1 0 32" class="spk wave"/>`];
+    const parts = [`<line x1="150" y1="${BUS}" x2="520" y2="${BUS}" class="bus"/>`, `<path d="M528 ${BUS - 12}h12v24h-12zM540 ${BUS - 12}l16-14v52l-16-14" class="spk"/>`];
     for (let o = 0; o < 4; o++) if ((out >> o) & 1) {          // a carrier into the bus, as thick as its MIX share
-      const sh = (ox >> o) & 1 && (oy >> o) & 1 ? 1 : (ox >> o) & 1 ? sx : sy, lw = 2 + 6 * sh, cx = dep[o] ? x[o] + R + 8 : x[o];
+      const sh = (ox >> o) & 1 && (oy >> o) & 1 ? 1 : (ox >> o) & 1 ? sx : sy, lw = 1.5 + 3 * sh, cx = dep[o] ? x[o] + R + 8 : x[o];
       if (dep[o]) parts.push(`<path d="M${x[o] + R} ${y[o]} H${cx} V${BUS}" class="carrier" style="stroke-width:${lw.toFixed(1)};opacity:${(0.35 + 0.65 * sh).toFixed(2)}"/>`);
       else parts.push(`<line x1="${cx}" y1="${y[o] + R}" x2="${cx}" y2="${BUS}" class="carrier" style="stroke-width:${lw.toFixed(1)};opacity:${(0.35 + 0.65 * sh).toFixed(2)}"/>`);
       parts.push(`<circle cx="${cx}" cy="${BUS}" r="${(3 + 2 * sh).toFixed(1)}" class="joint"/>`);
@@ -238,61 +245,29 @@ export function mountEditor(ctx) {
       const sx0 = x[o] + ux * (R + 2), sy0 = y[o] + uy * (R + 2), ex = x[t] - ux * (R + 6), ey = y[t] - uy * (R + 6);
       parts.push(`<line x1="${sx0.toFixed(1)}" y1="${sy0.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" class="modl"/>` +
         `<path d="M${ex.toFixed(1)} ${ey.toFixed(1)} l${(-ux * 14 - uy * 8).toFixed(1)} ${(-uy * 14 + ux * 8).toFixed(1)} l${(uy * 16).toFixed(1)} ${(-ux * 16).toFixed(1)} z" class="arrow"/>` +
-        `<circle r="5" class="spark"><animateMotion dur="${(1.1 + 0.15 * (o + t)).toFixed(2)}s" repeatCount="indefinite" path="M${sx0.toFixed(1)} ${sy0.toFixed(1)} L${ex.toFixed(1)} ${ey.toFixed(1)}"/></circle>`);
+        `<circle r="4" class="spark"><animateMotion dur="${(1.1 + 0.15 * (o + t)).toFixed(2)}s" repeatCount="indefinite" path="M${sx0.toFixed(1)} ${sy0.toFixed(1)} L${ex.toFixed(1)} ${ey.toFixed(1)}"/></circle>`);
     }
     if (fb < 4) parts.push(`<path d="M${x[fb] + R * 0.7} ${y[fb] - R * 0.7} a26 26 0 1 1 ${R * 0.5} ${R * 0.95}" class="fb" style="stroke:var(${OPS[fb][3]})"/>`);
     OPS.forEach(([nm, rid, , c], o) => {
       parts.push(`<g class="op ${E.op === o ? "on" : ""}" data-y="${rid}" data-id="${rid}" data-op="${o}" tabindex="0" role="slider" aria-label="RATIO ${nm}" aria-valuetext="${esc(text(rid, v(rid)))}" style="--c:var(${c})">` +
         `<circle cx="${x[o]}" cy="${y[o]}" r="${R}" class="rim"/><circle cx="${x[o]}" cy="${y[o]}" r="${R - 8}" class="inner"/><text x="${x[o]}" y="${y[o] + 9}" text-anchor="middle">${nm}</text></g>`);
     });
-    return `<svg class="algosvg" viewBox="100 0 500 400">${parts.join("")}</svg>`;
+    return `<svg class="algosvg" viewBox="120 0 470 420" preserveAspectRatio="xMidYMid meet">${parts.join("")}</svg>`;
   }
-  function opsPanel() {
-    const card = ([nm, rid, oid, c], o) => {
-      const t = text(rid, v(rid)), [w, f] = t.includes(".") ? t.split(".") : [t, ""];
-      return `<div class="opc ${E.op === o ? "on" : ""}" data-op="${o}" style="--c:var(${c})"><span class="opn">${nm}</span>
-        <span class="opv" data-y="${rid}" data-id="${rid}" tabindex="0" role="slider" aria-label="RATIO ${nm}" aria-valuetext="${esc(t)}">${esc(w)}${f ? `<small>.${esc(f)}</small>` : ""}</span>
-        ${bar(oid, "OFS", c)}</div>`;
-    };
-    // (NEON: ‹ › under ALGO, the previous / next algorithm, wrapping; the knob row under it all)
-    const a = v(Q.ALGO), arrow = (nav, to, d, l) => `<button class="ol" data-set="${Q.ALGO}:${to}" data-nav="${nav}" aria-label="${l}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg></button>`;
-    const nav = `<span class="algonav">${arrow("prev", (a + 6) % 8 + 1, "M15 5l-7 7 7 7", "Previous algorithm")}${arrow("next", a % 8 + 1, "M9 5l7 7-7 7", "Next algorithm")}</span>`;
-    const num = `<span class="algo" data-y="${Q.ALGO}" data-id="${Q.ALGO}" data-ys="240" tabindex="0" role="slider" aria-label="ALGO" aria-valuetext="${a}"><small>ALGO</small><b>${a}</b></span>`;
-    return `<div class="ops"><div class="algocol">${num}${nav}</div><div class="algowrap">${algoSvg()}</div><div class="opcards">${OPS.map(card).join("")}</div></div>
-      <div class="dials knobs" role="group" aria-label="Operator values">${dial(Q.HARM, "HARM", K.c1, true)}${dial(Q.DTUN, "DTUN", K.c2, true)}${dial(Q.FDBK, "FDBK", K.c4, true)}${dial(Q.MIX, "MIX", K.c3, true)}` +
-      `${dial(Q.DRIVE, "DRIVE", "--orange", true)}${dial(Q.LEVEL, "LEVEL", K.c2, true)}</div>`;
-  }
-
-  // OP ENV: the two operator envelopes (A: operator A; B: B1 and B2) as shapes, DELAY a handle at the start, LEVEL a
-  // bar, the operators' TRIG and RESET
+  // OP ENV: the two operator envelopes (A: operator A; B: B1 and B2): DELAY a handle at the start, the attack, the
+  // decay to END
   const OPENV = [[Q.AATK, Q.ADEC, Q.AEND, Q.ALEV, Q.ADLY, Q.ATRIG, Q.ARST], [Q.BATK, Q.BDEC, Q.BEND, Q.BLEV, Q.BDLY, Q.BTRIG, Q.BRST]];
-  // an operator envelope's line in w x h
   function envSvg(k, w, h) {
-    const X = (w - 30) * 0.3 / 127, top = 18, bot = h - 12, Y = (lv) => bot - (bot - top) * lv / 127;
-    const line = (j) => {
-      const [atk, dec, end, , dly] = OPENV[j], p0 = [12 + v(dly) * X, bot], p1 = [p0[0] + v(atk) * X, top], p2 = [p1[0] + v(dec) * X, Y(v(end))], p3 = [w - 12, Y(v(end))];
-      return { p0, p1, p2, p3, d: `M12 ${bot} L${p0[0].toFixed(1)} ${bot} L${p1[0].toFixed(1)} ${top} L${p2[0].toFixed(1)} ${p2[1].toFixed(1)} L${p3[0]} ${p3[1].toFixed(1)}` };
-    };
-    const [atk, dec, end, , dly] = OPENV[k], c = k ? K.c3 : K.c2, L = line(k);
-    return `<svg class="env" viewBox="0 0 ${w} ${h}"><path d="${L.d} L${L.p3[0]} ${bot} Z" class="area"/><path d="${L.d}" class="line"/>
-      ${handle(L.p0[0], bot, { xid: dly, xs: 127 * X, c: "--muted", r: 8 })}${handle(L.p1[0], top, { xid: atk, xs: 127 * X, c, r: 10 })}${handle(L.p2[0], L.p2[1], { xid: dec, xs: 127 * X, yid: end, ys: bot - top, c: "--yellow", r: 10 })}</svg>`;
+    const X = (w - 30) * 0.3 / 127, top = 30, bot = h - 12, Y = (lv) => bot - (bot - top) * lv / 127;
+    const [atk, dec, end, , dly] = OPENV[k], c = k ? K.c3 : K.c2;
+    const p0 = [12 + v(dly) * X, bot], p1 = [p0[0] + v(atk) * X, top], p2 = [p1[0] + v(dec) * X, Y(v(end))], p3 = [w - 12, Y(v(end))];
+    const d = `M12 ${bot} L${p0[0].toFixed(1)} ${bot} L${p1[0].toFixed(1)} ${top} L${p2[0].toFixed(1)} ${p2[1].toFixed(1)} L${p3[0]} ${p3[1].toFixed(1)}`;
+    return `<svg class="env" viewBox="0 0 ${w} ${h}" style="--c:var(${c})"><path d="${d} L${p3[0]} ${bot} Z" class="area"/><path d="${d}" class="line"/>` +
+      `${handle(p0[0], bot, { xid: dly, xs: 127 * X, c: "--muted" })}${handle(p1[0], top, { xid: atk, xs: 127 * X, c })}${handle(p2[0], p2[1], { xid: dec, xs: 127 * X, yid: end, ys: bot - top })}</svg>`;
   }
-  function openvPanel() {
-    const env = (k) => {
-      const [atk, dec, end, lev, dly, trg, rst] = OPENV[k], c = k ? K.c3 : K.c2;
-      return `<div class="sub envc" style="--c:var(${c})"><div class="row"><span class="cn">ENV ${k ? "B" : "A"}</span><span class="kv">${k ? "B1 · B2" : "A"}</span>
-          <span class="tgs">${tog(trg, "TRIG", c)}${tog(rst, "RESET", c)}</span></div>
-        ${box(`env${k}`, 420, 150, (w, h) => envSvg(k, w, h))}
-        <div class="row wrap">${chip(atk, "ATK", c)}${chip(dec, "DEC", c)}${chip(end, "END", c)}${chip(dly, "DLY", c)}${chip(lev, "LEVEL", c)}</div></div>`;
-    };
-    return `<div class="duo">${env(0)}${env(1)}</div>`;
-  }
-
-  // FILTER: the machine as chips, its curve with FREQ and RESO (GAIN on the EQ) the handle; the filter envelope; the
-  // band's BASE / WIDTH and before / after
+  // FILTER: its curve, FREQ and RESO (GAIN on the EQ) the handle
   function curve(w, h) {
-    const ft = v(Q.FTYPE), f = v(Q.FREQ) / 12700, r = v(Q.RESO) / 12700, sh = v(Q.FSHAPE) / 127, N = 90;
-    const db = [];
+    const ft = v(Q.FTYPE), f = v(Q.FREQ) / 12700 * 0.82 + 0.06, r = v(Q.RESO) / 12700, sh = v(Q.FSHAPE) / 127, N = 90, db = [];
     for (let i = 0; i <= N; i++) {
       const lr = (i / N - f) * 9;                  // octaves from the cutoff
       const w2 = Math.pow(2, lr), lp = (n) => -10 * Math.log10(1 + Math.pow(w2, 2 * n)), hp = (n) => -10 * Math.log10(1 + Math.pow(1 / w2, 2 * n));
@@ -304,73 +279,28 @@ export function mountEditor(ctx) {
       else if (ft === 7) d = (v(Q.FGAIN) / 64) * 15 * Math.exp(-lr * lr * (0.4 + 3 * sh));
       db.push(Math.max(-36, Math.min(20, d)));
     }
-    const t0 = Math.min(30, h * 0.14), sp = h - t0 - Math.min(20, h * 0.1), Y = (d) => t0 + sp * (20 - d) / 56, xs = (i) => 10 + (w - 20) * i / N;
+    const t0 = Math.min(26, h * 0.14), sp = h - t0 - Math.min(16, h * 0.1), Y = (d) => t0 + sp * (20 - d) / 56, xs = (i) => 10 + (w - 20) * i / N;
     const path = db.map((d, i) => `${i ? "L" : "M"}${xs(i).toFixed(1)} ${Y(d).toFixed(1)}`).join(" ");
-    const hx = xs(f * N), hy = Y(db[Math.round(f * N)]) - 2;
-    const yid = ft === 7 ? Q.FGAIN : ft === 0 ? -1 : Q.RESO;
-    const tx = hx > w - 170 ? Math.max(10, hx - 170) : hx + 20, ty = Math.max(24, Math.min(h - 34, hy > 80 ? hy - 38 : hy + 44));   // (the values beside the handle, clear of the curve)
-    return `<svg class="curve" viewBox="0 0 ${w} ${h}" style="--c:var(${K.c4})">
-      ${[1, 2, 3, 4, 5].map((k) => `<line x1="${(w * k / 6).toFixed(0)}" y1="20" x2="${(w * k / 6).toFixed(0)}" y2="${h - 18}" class="grid"/>`).join("")}
-      <path d="${path} L${w - 10} ${h - 18} L10 ${h - 18} Z" class="area"/><path d="${path}" class="line"/>
-      ${handle(hx, Math.max(16, hy), { xid: Q.FREQ, xs: w - 20, yid, ys: sp * 0.8, r: 14, label: "FREQ" })}
-      <text x="${tx.toFixed(0)}" y="${ty.toFixed(0)}" class="val">${esc(text(Q.FREQ, v(Q.FREQ)))}</text>
-      ${yid >= 0 ? `<text x="${tx.toFixed(0)}" y="${(ty + 26).toFixed(0)}" class="sub">${ft === 7 ? "GAIN" : ft >= 5 ? "FDBK" : "RESO"} ${esc(text(yid, v(yid)))}</text>` : ""}</svg>`;
+    const hx = xs(f * N), hy = Y(db[Math.round(f * N)]) - 2, yid = ft === 7 ? Q.FGAIN : ft === 0 ? -1 : Q.RESO;
+    return `<svg class="curve" viewBox="0 0 ${w} ${h}" style="--c:var(${K.c4})">${[1, 2, 3, 4, 5].map((k) => `<line x1="${(w * k / 6).toFixed(0)}" y1="14" x2="${(w * k / 6).toFixed(0)}" y2="${h - 12}" class="grid"/>`).join("")}` +
+      `<path d="${path} L${w - 10} ${h - 12} L10 ${h - 12} Z" class="area"/><path d="${path}" class="line"/>` +
+      `${handle(hx, Math.max(14, hy), { xid: Q.FREQ, xs: (w - 20) * 0.82, yid, ys: sp * 0.8, c: K.c4, label: "FREQ" })}</svg>`;
   }
-  function filterPanel() {
-    const ft = v(Q.FTYPE), m = MACH.findIndex(([, l]) => l.includes(ft));
-    const machines = `<span class="vseg mach" style="--c:var(${K.c4})" role="group" aria-label="MACHINE">${MACH.map(([nm, l], k) =>
-      `<button data-set="${Q.FTYPE}:${k === 0 ? (ft <= 2 ? ft : 1) : l[0]}" class="${k === m ? "on" : ""}" aria-pressed="${k === m}">${nm}</button>`).join("")}</span>`;
-    const legacy = m === 0 ? segOf(Q.FTYPE, K.c4, [[0, "OFF"], [1, "LP12"], [2, "HP12"]]) : "";
-    const shape = m >= 2 ? chip(Q.FSHAPE, m === 2 ? "TYPE" : m === 5 ? "Q" : "LPF", K.c3) : "";
-    return `<div class="row wrap">${machines}${legacy}</div>
-      <div class="duo filt"><div class="sub fcurve">${box("curve", 600, 300, curve)}
-          <div class="row wrap">${m === 5 ? chip(Q.FGAIN, "GAIN", K.c2) : chip(Q.RESO, m >= 3 && m <= 4 ? "FDBK" : "RESO", K.c2)}${shape}${chip(Q.FKTRK, "KEY TRK", K.c3)}</div></div>
-        <div class="sub fenv">${box("fenv", 420, 150, (w, h) => adsr([Q.FATK, Q.FDEC, Q.FSUS, Q.FREL], K.c4, { w, h, label: "ENV" }))}
-          <div class="row wrap">${chip(Q.FDEPTH, "DEPTH", K.c4, "big")}${chip(Q.FDLY, "DLY", K.c4)}</div>
-          <div class="row wrap">${chip(Q.FATK, "ATK", K.c4)}${chip(Q.FDEC, "DEC", K.c4)}${chip(Q.FSUS, "SUS", K.c4)}${chip(Q.FREL, "REL", K.c4)}</div></div></div>
-      <div class="row wrap">${chip(Q.BASE, "BASE", K.c1)}${chip(Q.WIDTH, "WIDTH", K.c2)}${seg(Q.BWPOST, K.c3, ["BASE · WIDTH BEFORE", "AFTER"])}</div>`;
-  }
-
-  // AMP: the amp envelope (ADSR or AHD), LEVEL, the mix (PAN, the chorus, delay and reverb sends)
-  const mixTiles = () => `<div class="mix" role="group" aria-label="Pan and sends">${chip(MIX_IDS.pan, "PAN", "--text", "pan")}` +
-    `${chip(MIX_IDS.chorus, "CHO", "--cyan")}${chip(MIX_IDS.delay, "DEL", "--yellow")}${chip(MIX_IDS.reverb, "REV", "--violet")}</div>`;
-  function ampPanel() {
-    const ahd = v(Q.AMOD) === 1;
-    return `<div class="row">${seg(Q.AMOD, K.c3)}</div>
-      ${box(`amp${ahd ? 1 : 0}`, 520, 170, (w, h) => adsr([Q.EATK, Q.EDEC, Q.ESUS, Q.EREL], K.c3, { w, h, ahd }))}
-      <div class="row wrap">${ahd ? chip(Q.EATK, "ATK", K.c3) + chip(Q.HOLD, "HOLD", "--yellow") + chip(Q.EDEC, "DEC", K.c3)
-        : chip(Q.EATK, "ATK", K.c3) + chip(Q.EDEC, "DEC", K.c3) + chip(Q.ESUS, "SUS", K.c3) + chip(Q.EREL, "REL", K.c3)}</div>
-      ${tabs() ? bar(Q.LEVEL, "LEVEL", K.c3) : ""}${mixTiles()}`;   // (one panel: LEVEL in the knob row; a page: here too)
-  }
-
-  // DRIVE and its route; CRUSH (the bits, the rate, before / after)
+  // DRIVE · CRUSH: a sine through the crusher (its bits, its rate)
   function crushSvg(w, h) {
     const bits = v(Q.BITS), srr = v(Q.SRR), q = bits ? Math.max(2, Math.round(2 + 14 * (1 - bits / 127))) : 0, hold = srr ? 1 + Math.floor(srr / 9) : 1;
     let d = "", last = 0;
-    for (let i = 0; i <= 120; i++) {
-      if (i % hold === 0) { let s = Math.sin(i / 120 * Math.PI * 4); if (q) s = Math.round(s * q) / q; last = s; }
-      d += `${i ? "L" : "M"}${(10 + (w - 20) * i / 120).toFixed(1)} ${(h / 2 - last * (h / 2 - 10)).toFixed(1)}`;
+    for (let i = 0; i <= 160; i++) {
+      if (i % hold === 0) { let s = Math.sin(i / 160 * Math.PI * 6); if (q) s = Math.round(s * q) / q; last = s; }
+      d += `${i ? "L" : "M"}${(10 + (w - 20) * i / 160).toFixed(1)} ${(h / 2 - last * (h / 2 - 7)).toFixed(1)}`;
     }
     return `<svg class="crush" viewBox="0 0 ${w} ${h}" style="--c:var(--pink)"><path d="${d}" class="line"/></svg>`;
   }
-  function drivePanel() {
-    // (the computer's fit: the drawing, then the two routes as pickers beside BITS and SRR; DRIVE in the knob row)
-    // (one panel: DRIVE in the knob row; a page: its dial here too)
-    return `${tabs() ? `<div class="row drv">${dial(Q.DRIVE, "DRIVE", "--orange")}</div>` : ""}${box("crush", 380, 90, crushSvg)}` +
-      `<div class="row wrap">${pick(Q.DRPRE, "DRIVE", "--orange")}${pick(Q.CRPOST, "CRUSH", "--pink")}${chip(Q.BITS, "BITS", "--pink")}${chip(Q.SRR, "SRR", "--pink")}</div>`;
-    // (the computer's fit: DRIVE in the knob row only)
-  }
-
-  // a wave's glyph (TRI SINE SQR SAW RAMP EXP RAND), for the wave's choice
-  const WAVE_D = ["M2 14 L8 4 L14 14 L20 4 L26 14", "M2 9 Q5 0 8 9 T14 9 T20 9 T26 9", "M2 14 V4 H9 V14 H16 V4 H23 V14", "M2 4 L12 14 V4 L22 14 V4",
-    "M2 14 L12 4 V14 L22 4 V14", "M2 4 Q4 13 12 14 M12 4 Q14 13 22 14", "M2 10 H7 V4 H12 V13 H17 V7 H22 V11 H26"];
-  const waveSeg = (id, c) => `<span class="vseg waves" style="--c:var(${c})" role="group" aria-label="WAVE">${WAVE_D.map((d, k) =>
-    `<button data-set="${id}:${k}" class="${v(id) === k ? "on" : ""}" aria-pressed="${v(id) === k}" aria-label="${esc(text(id, k))}" title="${esc(text(id, k))}"><svg viewBox="0 0 28 18" aria-hidden="true"><path d="${d}"/></svg></button>`).join("")}</span>`;
-  // LFO: each a card: its wave (moving), its destination a chip, SPEED MULT DEPTH FADE PHASE, TRIG and the wave chosen
+  // LFO: its wave (moving), the plug at its right
   function wavePath(k, w, h) {
     const wv = v(lfo(k, LF.WAVE)), sp = Math.abs(v(lfo(k, LF.SPEED))) / 6400, dp = v(lfo(k, LF.DEPTH)) / 6400, ph = v(lfo(k, LF.PHASE)) / 128;
     const fade = v(lfo(k, LF.FADE)), cyc = 1.2 + 3.3 * sp + (v(lfo(k, LF.MULT)) % 12) / 8, amp = (0.12 + 0.88 * Math.abs(dp)) * (dp < 0 ? -1 : 1);
-    const N = 160, pts = [];
+    const N = 160, pts = [], mid = h / 2 + 6, A = Math.max(4, h / 2 - 16);
     let seed = 7 + k;
     const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff * 2 - 1;
     let held = rnd(), lastStep = -1;
@@ -381,55 +311,143 @@ export function mountEditor(ctx) {
       else if (wv === 3) y = 1 - 2 * p; else if (wv === 4) y = 2 * p - 1; else if (wv === 5) y = 2 * Math.exp(-4 * p) - 1;
       else { const st = Math.floor(t * cyc * 2 + ph * 2); if (st !== lastStep) { held = rnd(); lastStep = st; } y = held; }
       const fm = fade < 0 ? Math.min(1, t * 64 / Math.max(1, -fade)) : fade > 0 ? Math.max(0, 1 - t * 64 / Math.max(1, 64 - fade + 1) * 0.5 * (fade / 63)) : 1;
-      pts.push([10 + (w - 20) * t, h / 2 - y * amp * fm * (h / 2 - 8)]);
+      pts.push([10 + (w - 64) * t, mid - y * amp * fm * A]);
     }
     return pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
   }
-  function lfoPanel() {
-    const wave = (k, w, h) => {
-      const d = wavePath(k, w, h);
-      return `<svg class="wave" viewBox="0 0 ${w} ${h}"><line x1="10" y1="${h / 2}" x2="${w - 10}" y2="${h / 2}" class="axis"/><path d="${d}" class="line"/><circle r="6" class="spark"><animateMotion dur="${(3.2 - 2.4 * Math.abs(v(lfo(k, LF.SPEED))) / 6400).toFixed(2)}s" repeatCount="indefinite" path="${d}"/></circle></svg>`;
-    };
-    const card = (k) => {
-      const c = LFOC[k];
-      return `<div class="sub lfoc" style="--c:var(${c})"><div class="row lfh"><span class="cn">LFO ${k + 1}</span></div>
-        ${box(`lfo${k}`, 420, 80, (w, h) => wave(k, w, h))}
-        <div class="row wrap">${pick(lfo(k, LF.DEST), "DEST", c, "dest")}${pick(lfo(k, LF.WAVE), "WAVE", c)}${pick(lfo(k, LF.TRIG), "TRIG", c)}${chip(lfo(k, LF.SPEED), "SPEED", c)}${chip(lfo(k, LF.DEPTH), "DEPTH", c)}${chip(lfo(k, LF.MULT), "MULT", c)}${chip(lfo(k, LF.FADE), "FADE", c)}${chip(lfo(k, LF.PHASE), "PHASE", c)}</div></div>`;
-    };
-    return `<div class="lfos">${[0, 1, 2].map(card).join("")}</div>`;
-  }
+  const waveSvg = (k, w, h) => {
+    const d = wavePath(k, w, h);
+    return `<svg class="wave" viewBox="0 0 ${w} ${h}" style="--c:var(${LFOC[k]})"><line x1="10" y1="${h / 2 + 6}" x2="${w - 54}" y2="${h / 2 + 6}" class="axis"/><path d="${d}" class="line"/>` +
+      `<circle r="3" class="spark"><animateMotion dur="${(3.2 - 2.4 * Math.abs(v(lfo(k, LF.SPEED))) / 6400).toFixed(2)}s" repeatCount="indefinite" path="${d}"/></circle></svg>`;
+  };
 
-  // MOD: the eight modulation slots as cables, each from its source to its destination, as thick as its depth
-  function modPanel() {
-    return Array.from({ length: 8 }, (_, k) => {
-      const src = v(mod(k, 0)), dp = v(mod(k, 2)), c = dp < 0 ? "--orange" : "--cyan";
-      if (!src) return `<div class="mrow empty"><span class="mk">${k + 1}</span><button class="madd" data-set="${mod(k, 0)}:1" aria-label="Modulation slot ${k + 1}: add">+</button></div>`;
-      const wv = Math.max(1.5, Math.abs(dp) / 14);
-      return `<div class="mrow" style="--c:var(${c})"><span class="mk">${k + 1}</span>${pick(mod(k, 0), "SRC", K.alg, "src")}
-        <svg class="cable" viewBox="0 0 160 34" data-x="${mod(k, 2)}" data-id="${mod(k, 2)}" data-xs="160"><path d="M4 17 C50 ${dp >= 0 ? 0 : 34} 110 ${dp >= 0 ? 34 : 0} 156 17" style="stroke-width:${wv.toFixed(1)}"/></svg>
-        ${pick(mod(k, 1), "DEST", "--text", "dest")}${chip(mod(k, 2), "DEPTH", c, "depth")}
-        <button class="icon mx" data-set="${mod(k, 0)}:0" aria-label="Modulation slot ${k + 1}: off"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button></div>`;
-    }).join("");
+  // ---------------------------------------------------------------- the sections' blocks
+  // o: the block's first cell { c, r } and phone (a phone's page: four across)
+  function opsBlock({ c, r, phone }) {
+    const a = v(Q.ALGO), m = modded(Q.ALGO);
+    const algoT = (cell) => `<div class="t algo algoT${m.cls}" data-id="${Q.ALGO}" data-y="${Q.ALGO}" data-ys="240"${destAttr(Q.ALGO)} tabindex="0" role="slider" aria-label="ALGO" aria-valuetext="${a}" ` +
+      `style="${area(cell)};--c:var(--kalg)${m.st}"><small>ALGO</small><b>${a}</b>${marks(Q.ALGO)}</div>`;
+    const arrow = (nav, to, d, l, cell) => `<button class="nav" data-set="${Q.ALGO}:${to}" data-nav="${nav}" aria-label="${l}" style="${area(cell)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg></button>`;
+    const nav = (c0, c1) => `<span class="algonav">${arrow("prev", (a + 6) % 8 + 1, "M15 5l-7 7 7 7", "Previous algorithm", c0)}${arrow("next", a % 8 + 1, "M9 5l7 7-7 7", "Next algorithm", c1)}</span>`;
+    const algoD = (cell) => `<div class="gd algod" style="${area(cell)};--c:var(${K.c1})">${algoSvg()}</div>`;
+    let h = "";
+    if (phone) {
+      h += algoT([c, r, 2, 2]) + algoD([c + 2, r, 2, 3]) + nav([c, r + 2], [c + 1, r + 2]) + PAD(1, [c + 2, r]) + PAD(2, [c + 3, r]) + PAD(47, [c + 2, r + 1]);
+      OPS.forEach((op, i) => { h += OPT(i, [c, r + 3 + i, 2]) + T(op[2], "OFS", op[3], [c + 2, r + 3 + i], "ofs") + T(op[4], i ? `${op[0]} KEY` : "VEL", op[3], [c + 3, r + 3 + i]); });
+      return h + T(Q.HARM, "HARM", K.c1, [c, r + 7]) + T(Q.DTUN, "DTUN", K.c2, [c + 1, r + 7]) + T(Q.FDBK, "FDBK", K.c4, [c + 2, r + 7]) + T(Q.MIX, "MIX", K.c3, [c + 3, r + 7]) +
+        SG(Q.PHRT, "PHASE RESET", K.c1, [c, r + 8, 4]);
+    }
+    h += algoT([c, r, 2, 3]) + nav([c, r + 3], [c + 1, r + 3]) + algoD([c + 2, r, 4, 4]) + PAD(1, [c + 2, r]) + PAD(2, [c + 3, r]) + PAD(47, [c + 4, r]);
+    OPS.forEach((op, i) => { h += OPT(i, [c + 6, r + i, 2]) + T(op[2], "OFS", op[3], [c + 8, r + i], "ofs") + T(op[4], i ? `${op[0]} KEY` : "VEL", op[3], [c + 9, r + i]); });
+    return h + T(Q.HARM, "HARM", K.c1, [c, r + 4]) + T(Q.DTUN, "DTUN", K.c2, [c + 1, r + 4]) + T(Q.FDBK, "FDBK", K.c4, [c + 2, r + 4]) + T(Q.MIX, "MIX", K.c3, [c + 3, r + 4]) +
+      SG(Q.PHRT, "PHASE RESET", K.c1, [c + 4, r + 4, 6]);
   }
-
-  const VO = 110;                                  // (the VOICE page's first value)
-  // PLAY: the operators' phase reset, the key tracks and the velocity, the portamento (its glide drawn)
-  function playPanel() {
-    const pt = v(Q.PTIM), on = v(Q.PORT);
-    const glide = box("glide", 380, 90, (w, h) => {
-      const gw = w - 120, gx = 60 + gw * (pt / 127), lo = h - 20, hi = Math.min(20, h * 0.25);
-      return `<svg class="glide" viewBox="0 0 ${w} ${h}" style="--c:var(--yellow)"><path d="M10 ${lo} H60 ${on ? `C${(60 + gx) / 2} ${lo} ${(60 + gx) / 2} ${hi} ${gx.toFixed(1)} ${hi}` : `V${hi}`} H${w - 10}" class="line ${on ? "" : "dim"}"/>
-      ${on ? handle(gx, hi, { xid: Q.PTIM, xs: gw, c: "--yellow", r: 10 }) : ""}</svg>`;
+  function openvBlock({ c, r, phone }) {
+    let h = "";
+    [0, 1].forEach((k) => {
+      const [atk, dec, end, lev, dly, trg, rst] = OPENV[k], col = k ? K.c3 : K.c2;
+      const cc = phone ? c : c + 5 * k, rr = phone ? r + 4 * k : r;
+      const cap = `<span class="cap">ENV ${k ? "B" : "A"}<span class="hud">${k ? "B1 · B2" : "A"}</span></span><span class="pills">${pill(trg, "TRIG")}${pill(rst, "RESET")}</span>`;
+      h += D(`env${k}`, col, [cc, rr, phone ? 4 : 5, phone ? 2 : 4], (w, hh) => envSvg(k, w, hh), cap);
+      if (phone) {
+        [49, 50, 51, 52].forEach((d, i) => { h += PAD(d, [cc + i, rr + 1], "A+B"); });
+        h += PAD(48, [cc + 1, rr + 3], "A+B");
+        h += T(atk, "ATK", col, [cc, rr + 2]) + T(dec, "DEC", col, [cc + 1, rr + 2]) + T(end, "END", col, [cc + 2, rr + 2]) + T(dly, "DLY", col, [cc + 3, rr + 2]) + T(lev, "LEVEL", col, [cc, rr + 3]);
+      } else {
+        [49, 50, 51, 52, 48].forEach((d, i) => { h += PAD(d, [cc + i, rr + 3], "A+B"); });
+        h += T(atk, "ATK", col, [cc, rr + 4]) + T(dec, "DEC", col, [cc + 1, rr + 4]) + T(end, "END", col, [cc + 2, rr + 4]) + T(dly, "DLY", col, [cc + 3, rr + 4]) + T(lev, "LEVEL", col, [cc + 4, rr + 4]);
+      }
     });
-    return `<div class="row wrap">${cap("PHASE RESET", seg(Q.PHRT, K.c1))}</div>
-      <div class="bars">${chip(Q.AKEY, "A KEY", K.c2)}${chip(Q.B1KEY, "B1 KEY", K.c3)}${chip(Q.B2KEY, "B2 KEY", K.c4)}${chip(Q.VEL, "VEL", K.c1)}</div>
-      <div class="sub" style="--c:var(--yellow)"><span class="cn">PORTAMENTO</span>${glide}
-        <div class="row wrap">${seg(Q.PORT, "--yellow")}${chip(Q.PTIM, "TIME", "--yellow")}${cap("SLOPE", seg(Q.PSLOPE, "--yellow"))}</div></div>
-      <div class="sub" style="--c:var(--violet)"><span class="cn">VOICE</span>
-        <div class="row wrap">${seg(VO, K.c1)}${chip(VO + 1, "UNISON", K.c2)}${chip(VO + 2, "DETUNE", K.c3)}${chip(VO + 3, "SPREAD", K.c4)}${pick(VO + 4, "PRIORITY", K.alg)}</div></div>`;
+    return h;
   }
-  // 2026-10-26: the VOICE page's values (110..114: VOICE, UNISON, DETUNE, SPREAD, PRIORITY), with PLAY's portamento
-  const PANELS = { ops: opsPanel, openv: openvPanel, filter: filterPanel, amp: ampPanel, drive: drivePanel, lfo: lfoPanel, mod: modPanel, play: playPanel };
+  function filterBlock({ c, r, phone }) {
+    const ft = v(Q.FTYPE), shp = ft === 4 ? "TYPE" : ft === 7 ? "Q" : ft >= 5 ? "LPF" : "SHAPE";
+    const R = (cell) => (ft === 7 ? T(Q.FGAIN, "GAIN", K.c2, cell) : T(Q.RESO, ft >= 5 ? "FDBK" : "RESO", K.c2, cell));
+    const SH = (cell) => (ft >= 4 ? T(Q.FSHAPE, shp, K.c3, cell) : DIM("SHAPE", cell));
+    const fenv = (cell) => D("fenv", K.c4, cell, (w, h) => adsr([Q.FATK, Q.FDEC, Q.FSUS, Q.FREL], K.c4, { w, h, top: 30 }), '<span class="cap">ENV</span>');
+    if (phone) {
+      return D("curve", K.c4, [c, r, 4, 3], curve) + T(Q.FREQ, "FREQ", K.c4, [c, r + 3]) + R([c + 1, r + 3]) + SH([c + 2, r + 3]) + T(Q.FKTRK, "KEY TRK", K.c3, [c + 3, r + 3]) +
+        T(Q.BASE, "BASE", K.c1, [c, r + 4]) + T(Q.WIDTH, "WIDTH", K.c2, [c + 1, r + 4]) + SG(Q.BWPOST, "BASE · WIDTH", K.c3, [c + 2, r + 4, 2], [[0, "BEFORE"], [1, "AFTER"]]) +
+        fenv([c, r + 5, 4, 2]) + T(Q.FATK, "ATK", K.c4, [c, r + 7]) + T(Q.FDEC, "DEC", K.c4, [c + 1, r + 7]) + T(Q.FSUS, "SUS", K.c4, [c + 2, r + 7]) + T(Q.FREL, "REL", K.c4, [c + 3, r + 7]) +
+        T(Q.FDEPTH, "DEPTH", K.c4, [c, r + 8]) + T(Q.FDLY, "DLY", K.c4, [c + 1, r + 8]) + SG(Q.FTYPE, "TYPE", K.c4, [c + 2, r + 8, 2], FILTER_TYPES.slice(0, 3), "ftype") +
+        SG(Q.FTYPE, "", K.c4, [c, r + 9, 4], FILTER_TYPES.slice(3), "ftype");
+    }
+    return D("curve", K.c4, [c, r, 6, 3], curve) + fenv([c + 6, r, 4, 3]) +
+      T(Q.FREQ, "FREQ", K.c4, [c, r + 3]) + R([c + 1, r + 3]) + SH([c + 2, r + 3]) + T(Q.FKTRK, "KEY TRK", K.c3, [c + 3, r + 3]) + T(Q.BASE, "BASE", K.c1, [c + 4, r + 3]) + T(Q.WIDTH, "WIDTH", K.c2, [c + 5, r + 3]) +
+      T(Q.FATK, "ATK", K.c4, [c + 6, r + 3]) + T(Q.FDEC, "DEC", K.c4, [c + 7, r + 3]) + T(Q.FSUS, "SUS", K.c4, [c + 8, r + 3]) + T(Q.FREL, "REL", K.c4, [c + 9, r + 3]) +
+      SG(Q.FTYPE, "TYPE", K.c4, [c, r + 4, 6], FILTER_TYPES, "ftype") + T(Q.FDEPTH, "DEPTH", K.c4, [c + 6, r + 4]) + T(Q.FDLY, "DLY", K.c4, [c + 7, r + 4]) +
+      SG(Q.BWPOST, "BASE · WIDTH", K.c3, [c + 8, r + 4, 2], [[0, "BEFORE"], [1, "AFTER"]]);
+  }
+  // AMP: the amp envelope (ADSR or AHD: ENV), LEVEL, the mix (PAN, the chorus, delay and reverb sends)
+  function ampBlock({ c, r, phone }) {
+    const ahd = v(Q.AMOD) === 1, e = phone ? r + 2 : r + 3;
+    const env = ahd ? T(Q.EATK, "ATK", K.c3, [c, e]) + T(Q.HOLD, "HOLD", "--yellow", [c + 1, e]) + T(Q.EDEC, "DEC", K.c3, [c + 2, e]) + DIM("", [c + 3, e])
+      : T(Q.EATK, "ATK", K.c3, [c, e]) + T(Q.EDEC, "DEC", K.c3, [c + 1, e]) + T(Q.ESUS, "SUS", K.c3, [c + 2, e]) + T(Q.EREL, "REL", K.c3, [c + 3, e]);
+    const mix = (m) => T(MIX_IDS.pan, "PAN", "--text", [c, m], "pan") + T(MIX_IDS.chorus, "CHO", "--cyan", [c + 1, m]) + T(MIX_IDS.delay, "DEL", "--yellow", [c + 2, m]) + T(MIX_IDS.reverb, "REV", "--violet", [c + 3, m]);
+    const draw = (cell) => D("amp", K.c3, cell, (w, h) => adsr([Q.EATK, Q.EDEC, Q.ESUS, Q.EREL], K.c3, { w, h, ahd }));
+    if (phone) return draw([c, r, 4, 2]) + env + T(Q.LEVEL, "LEVEL", K.c3, [c, r + 3]) + TG(Q.AMOD, "ENV", K.c3, [c + 1, r + 3]) + mix(r + 4);
+    return draw([c, r, 5, 3]) + env + T(Q.LEVEL, "LEVEL", K.c3, [c + 4, r + 3]) + mix(r + 4) + TG(Q.AMOD, "ENV", K.c3, [c + 4, r + 4]);
+  }
+  // DRIVE and its route; CRUSH (the bits, the rate, before / after)
+  function driveBlock({ c, r, phone }) {
+    return D("crush", "--pink", [c, r, phone ? 4 : 5, 2], crushSvg) + T(Q.DRIVE, "DRIVE", "--orange", [c, r + 2]) + TG(Q.DRPRE, "ROUTE", "--orange", [c + 1, r + 2]) +
+      T(Q.BITS, "BITS", "--pink", [c + 2, r + 2]) + T(Q.SRR, "SRR", "--pink", [c + 3, r + 2]) + TG(Q.CRPOST, "ROUTE", "--pink", phone ? [c, r + 3] : [c + 4, r + 2]);
+  }
+  // PLAY: the portamento (PORTA, TIME, SLOPE) and the voice (VOICE, UNISON, DETUNE, SPREAD, PRIO)
+  const VO = 110;                                  // (the VOICE page's first value)
+  function playBlock({ c, r, phone }) {
+    const porta = SG(Q.PORT, "PORTA", "--yellow", [c, r, 3]) + T(Q.PTIM, "TIME", "--yellow", [c + 3, r]);
+    if (phone) {
+      return porta + TG(Q.PSLOPE, "SLOPE", "--yellow", [c, r + 1]) + TG(VO, "VOICE", K.c1, [c + 1, r + 1]) + T(VO + 1, "UNISON", K.c2, [c + 2, r + 1]) + T(VO + 2, "DETUNE", K.c3, [c + 3, r + 1]) +
+        T(VO + 3, "SPREAD", K.c4, [c, r + 2]) + P(VO + 4, "PRIO", K.alg, [c + 1, r + 2]);
+    }
+    return porta + TG(Q.PSLOPE, "SLOPE", "--yellow", [c + 4, r]) + TG(VO, "VOICE", K.c1, [c, r + 1]) + T(VO + 1, "UNISON", K.c2, [c + 1, r + 1]) + T(VO + 2, "DETUNE", K.c3, [c + 2, r + 1]) +
+      T(VO + 3, "SPREAD", K.c4, [c + 3, r + 1]) + P(VO + 4, "PRIO", K.alg, [c + 4, r + 1]);
+  }
+  // LFO: each its wave and plug, DEST WAVE TRIG SPEED, DEPTH MULT FADE PHASE
+  function lfoBlock({ c, r, phone }) {
+    let h = "";
+    for (let k = 0; k < 3; k++) {
+      const col = LFOC[k], cc = phone ? c : c + 4 * k, rr = phone ? r + 4 * k : r, dh = phone ? 2 : 3;
+      const plug = `<span class="cap">LFO ${k + 1}</span><span class="jack${sameSrc(E.arm, { kind: "lfo", k }) ? " isarmed" : ""}" data-lfo="${k}" tabindex="0" role="button" aria-label="LFO ${k + 1}" style="--c:var(${col})"></span>`;
+      h += D(`lfo${k}`, col, [cc, rr, 4, dh], (w, hh) => waveSvg(k, w, hh), plug, "lfosrc");
+      h += P(lfo(k, LF.DEST), "DEST", col, [cc, rr + dh]) + P(lfo(k, LF.WAVE), "WAVE", col, [cc + 1, rr + dh]) + P(lfo(k, LF.TRIG), "TRIG", col, [cc + 2, rr + dh]) +
+        T(lfo(k, LF.SPEED), "SPEED", col, [cc + 3, rr + dh]) + T(lfo(k, LF.DEPTH), "DEPTH", col, [cc, rr + dh + 1]) + P(lfo(k, LF.MULT), "MULT", col, [cc + 1, rr + dh + 1]) +
+        T(lfo(k, LF.FADE), "FADE", col, [cc + 2, rr + dh + 1]) + T(lfo(k, LF.PHASE), "PHASE", col, [cc + 3, rr + dh + 1]);
+    }
+    return h;
+  }
+  // MOD: the eight sources (each its colour: dragged onto a value, a route), the eight slots (four cells each, the
+  // same size full or empty): SRC, the cable (its depth), DEST, DEPTH, ×
+  function modBlock({ c, r, phone }) {
+    let h = "";
+    for (let i = 1; i <= 8; i++) {
+      const cell = phone ? [c + (i - 1) % 4, r + Math.floor((i - 1) / 4)] : [c + i - 1, r];
+      h += `<div class="src${sameSrc(E.arm, { kind: "mod", src: i }) ? " isarmed" : ""}" data-src="${i}" tabindex="0" role="button" aria-label="${SRC_NAMES[i]}" style="${area(cell)};--c:var(${SRC_COLOURS[i]})"><span class="grip"></span>${SRC_NAMES[i]}</div>`;
+    }
+    for (let k = 0; k < 8; k++) {
+      const cell = phone ? [c, r + 2 + k, 4] : [k < 4 ? c : c + 4, r + 1 + (k % 4), 4], src = v(mod(k, 0));
+      if (!src) { h += `<div class="mslot empty" data-slot="${k}" style="${area(cell)}"><span class="sn">${k + 1}</span><button class="madd" data-set="${mod(k, 0)}:1" aria-label="Modulation slot ${k + 1}: add">+</button></div>`; continue; }
+      const dp = v(mod(k, 2)), wv = Math.max(1, Math.abs(dp) / 32), col = SRC_COLOURS[src], dc = dp < 0 ? "--orange" : col;
+      h += `<div class="mslot" data-slot="${k}" style="${area(cell)};--c:var(${col})">` +
+        `<div class="t pk" data-id="${mod(k, 0)}" data-pick="${mod(k, 0)}" tabindex="0" role="button" aria-label="SRC ${k + 1}: ${esc(SRC_NAMES[src])}" style="--c:var(${col})"><small>SRC</small><b>${esc(SRC_NAMES[src])}</b><span class="sn">${k + 1}</span></div>` +
+        `<div class="cab" data-x="${mod(k, 2)}" data-id="${mod(k, 2)}" style="--c:var(${dc})" aria-hidden="true"><svg viewBox="0 0 100 30" preserveAspectRatio="none"><path d="M6 15 C38 ${dp >= 0 ? 2 : 28} 62 ${dp >= 0 ? 28 : 2} 94 15" style="stroke-width:${wv.toFixed(1)}" vector-effect="non-scaling-stroke"/></svg></div>` +
+        `<div class="t pk" data-id="${mod(k, 1)}" data-pick="${mod(k, 1)}" tabindex="0" role="button" aria-label="DEST ${k + 1}: ${esc(text(mod(k, 1), v(mod(k, 1))))}" style="--c:var(--text)"><small>DEST</small><b>${esc(text(mod(k, 1), v(mod(k, 1))))}</b></div>` +
+        `<div class="t" data-id="${mod(k, 2)}" data-y="${mod(k, 2)}" tabindex="0" role="slider" aria-label="DEPTH ${k + 1}" aria-valuetext="${esc(text(mod(k, 2), dp))}" style="--c:var(${dc});${span(mod(k, 2))}"><small>DEPTH</small><b>${esc(text(mod(k, 2), dp))}</b></div>` +
+        `<button class="mx" data-set="${mod(k, 0)}:0" aria-label="Modulation slot ${k + 1}: off">${I_X}</button></div>`;
+    }
+    return h;
+  }
+  const BLOCKS = { ops: opsBlock, openv: openvBlock, filter: filterBlock, amp: ampBlock, drive: driveBlock, lfo: lfoBlock, mod: modBlock, play: playBlock };
+  // a section's cells for the mode: the panel's (its place on the 20 x 15 grid, its frame), a page's (from the first
+  // cell), a phone's (four across)
+  function blockHtml(k) {
+    if (E.mode === "panel") {
+      const [c, r, w, h] = SEC_BOX[k], [, nm, col] = SECTIONS.find((x) => x[0] === k);
+      return FR(k, nm, col, [c, r, w, h]) + BLOCKS[k]({ c, r, phone: false });
+    }
+    return BLOCKS[k]({ c: 1, r: 1, phone: E.lay === "phone" });
+  }
 
   // ---------------------------------------------------------------- the frame: header, the panel, keys
   // the header: the track the editor follows big (pink: LIVE; dim: only shown, TRACK off), the place, the name, the
@@ -555,46 +573,104 @@ export function mountEditor(ctx) {
     const ci = stage.querySelector("#ed-cc");
     if (ci && document.activeElement !== ci) { ci.focus(); ci.select(); }
   }
-  // the panel: every section at once (a synth's front panel); a section drawn again only when its drawing changed
+  // the panel: every section at once; a section drawn again only when its cells changed
   const drawn = new Map();
-  // one panel or pages: the panel (three columns) where the window is big enough and every column holds its sections
-  // (measured), else a page a section, its tabs under the head
-  const COLS = [["ops", "mod"], ["openv", "filter", ["amp", "drive"]], ["lfo", "play"]];
+  // one panel or pages: the panel where the window holds it (about 1400 x 860 with the keys, 1280 x 760 without), its
+  // cells big enough (measured); else a page a section under tabs (a phone: four across)
   const pagesEl = $("ed-pages");
-  const over = () => [...stage.querySelectorAll(".fcol")].some((c) => c.scrollHeight > c.clientHeight + 1);
   const shown = () => !$("tab-edit").hidden;
+  const wantPanel = () => (E.kbOn ? window.innerWidth >= 1400 && window.innerHeight >= 860 : window.innerWidth >= 1280 && window.innerHeight >= 760);
+  const layOf = (m) => (m === "panel" ? "panel" : window.innerWidth < 700 ? "phone" : "page");
+  const bound = () => window.innerWidth > 900 || window.innerWidth > window.innerHeight;   // (the card the window's height)
   let decided = false;                               // (a decide() asked for the next frame)
   function setMode(m) {
-    if (E.mode !== m) { E.mode = m; drawn.clear(); }
+    const lay = layOf(m);
+    if (E.mode !== m || E.lay !== lay) { E.mode = m; E.lay = lay; drawn.clear(); E.dims.clear(); }
     stage.classList.toggle("panel", m === "panel");
     stage.classList.toggle("paged", m === "tabs");
+    stage.classList.toggle("phone", lay === "phone");
     pagesEl.hidden = m !== "tabs";
+    if (srcsEl) srcsEl.hidden = m !== "tabs";
+    SECTIONS.forEach(([k]) => {
+      const s = stage.querySelector(`[data-sec="${k}"]`);
+      if (s) { s.style.setProperty("--pc", lay === "phone" ? 4 : SEC_BOX[k][2]); s.style.setProperty("--pr", lay === "phone" ? PHONE_ROWS[k] : SEC_BOX[k][3]); }
+    });
     renderPages();
   }
-  // the mode tried afresh: the panel first where the window may hold it
+  // the panel's cells too small (or the grid over its room): pages
+  const tooSmall = () => {
+    const t = [...stage.querySelectorAll(".t:not(.algoT):not(.op)")].find((e) => e.offsetWidth > 0);
+    return !t || t.offsetHeight < 28 || t.offsetWidth < 44;
+  };
+  // the mode tried afresh
   function decide() {
     if (!E.s || E.s.midi || !shown()) return;
-    if (FIT_MQ.matches) {
-      setMode("panel");
-      renderStage();
-      if (!over()) return;
-    }
-    setMode("tabs");
+    setMode(wantPanel() ? "panel" : "tabs");
     renderStage();
+    if (E.mode === "panel" && tooSmall()) { setMode("tabs"); renderStage(); }
+  }
+  // the cells' type sized to the cells (and a page's rows to the room)
+  function fit() {
+    if (E.mode === "tabs") {
+      const k = E.page, rows = E.lay === "phone" ? PHONE_ROWS[k] : SEC_BOX[k][3];
+      let prow = 54;
+      if (E.lay !== "phone" && bound() && stage.clientHeight > 100) {
+        const cs = getComputedStyle(stage), gap = parseFloat(cs.getPropertyValue("--gap")) || 10, room = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 6;
+        prow = Math.max(46, Math.min(104, Math.floor((room - gap * (rows - 1)) / rows)));
+      }
+      stage.style.setProperty("--prow", `${prow}px`);
+    }
+    const t = [...stage.querySelectorAll(".t:not(.algoT):not(.op):not(.dim0)")].find((e) => e.offsetWidth > 0);
+    if (t) {
+      const r = t.getBoundingClientRect(), max = E.mode === "panel" ? 21 : 26;
+      stage.style.setProperty("--ch", `${Math.round(r.height)}px`);
+      stage.style.setProperty("--vf", `${Math.max(12, Math.min(max, Math.round(r.height * 0.36), Math.round(r.width * 0.235)))}px`);
+      stage.classList.toggle("narrow", r.width < 57);
+    }
+    const al = [...stage.querySelectorAll(".algoT")].find((e) => e.offsetWidth > 0);
+    if (al) stage.style.setProperty("--algof", `${Math.round(Math.min(al.clientHeight * 0.66, al.clientWidth * 0.62))}px`);
   }
   function renderPages() {
-    if (pagesEl.hidden) { pagesEl.innerHTML = ""; return; }
+    if (pagesEl.hidden) { if (pagesEl.innerHTML) { pagesEl.innerHTML = ""; pagesEl.dataset.h = ""; } renderSrcs(); return; }
     if (!SECTIONS.some(([k]) => k === E.page)) E.page = "ops";
-    pagesEl.innerHTML = SECTIONS.map(([k, nm, c]) => `<button class="tube${k === E.page ? " on" : ""}" role="tab" data-page="${k}" aria-selected="${k === E.page}" ` +
-      `tabindex="${k === E.page ? 0 : -1}" style="--c:var(${c})"><i class="pdot" aria-hidden="true"></i>${nm}</button>`).join("");
+    const s = curSrc(), reach = s ? SECTIONS.filter(([k]) => [...stage.querySelectorAll(`[data-sec="${k}"] [data-dest]`)].some((e) => litOK(s, +e.dataset.dest))).map(([k]) => k) : [];
+    const html = SECTIONS.map(([k, nm, c]) => `<button class="tube${k === E.page ? " on" : ""}" role="tab" data-page="${k}" aria-selected="${k === E.page}" ` +
+      `tabindex="${k === E.page ? 0 : -1}" style="--c:var(${c})${s ? `;--s:var(${srcColour(s)})` : ""}"><i class="pdot" aria-hidden="true"></i>${nm}${reach.includes(k) ? '<i class="reach" aria-hidden="true"></i>' : ""}</button>`).join("");
+    if (pagesEl.dataset.h !== html) {
+      pagesEl.innerHTML = html;
+      pagesEl.dataset.h = html;
+      const on = pagesEl.querySelector(".on");
+      if (on && on.scrollIntoView && !E.md) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     stage.querySelectorAll(".pn[data-sec]").forEach((e) => e.classList.toggle("cur", e.dataset.sec === E.page));
-    const on = pagesEl.querySelector(".on");
-    if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+    renderSrcs();
+  }
+  // design 13 on pages: the sources' strip under the tabs (LFO 1..3, then the MOD sources); × disarms
+  function renderSrcs() {
+    if (!srcsEl) return;
+    if (srcsEl.hidden) { if (srcsEl.firstChild) srcsEl.innerHTML = ""; return; }
+    if (!srcsEl.firstChild) {
+      const chip = (s) => `<button class="src${s.kind === "lfo" ? " lfo" : ""}" ${s.kind === "lfo" ? `data-lfo="${s.k}"` : `data-src="${s.src}"`} style="--c:var(${srcColour(s)})" aria-pressed="false"><span class="grip"></span>${srcName(s)}</button>`;
+      srcsEl.innerHTML = `<button class="disarm" id="ed-disarm" aria-label="Done" hidden>${I_X}</button>${[0, 1, 2].map((k) => chip({ kind: "lfo", k })).join("")}<span class="sep"></span>` +
+        `${[1, 2, 3, 4, 5, 6, 7, 8].map((i) => chip({ kind: "mod", src: i })).join("")}`;
+    }
+    const x = srcsEl.querySelector("#ed-disarm");
+    x.hidden = !E.arm;
+    if (E.arm) x.style.setProperty("--c", `var(${srcColour(E.arm)})`);
+    const full = E.s && isFull(E.s.values);
+    srcsEl.querySelectorAll(".src").forEach((e) => {
+      const s = srcOf(e), a = sameSrc(E.arm, s);
+      e.classList.toggle("isarmed", a);
+      e.classList.toggle("from", !!(E.md && E.md.moved && sameSrc(E.md.src, s)));
+      e.classList.toggle("full", a && s.kind === "mod" && full);
+      e.setAttribute("aria-pressed", String(a));
+    });
   }
   function page(k, focus = false) {
     E.page = k;
     try { localStorage.setItem(PAGE_KEY, k); } catch (_) { /* (this page only) */ }
     renderPages();
+    fit();
     if (measure()) renderStage();                    // (its drawings, drawn in their boxes now they show)
     if (focus) { const b = pagesEl.querySelector(".on"); if (b) b.focus(); }
   }
@@ -606,47 +682,44 @@ export function mountEditor(ctx) {
     const i = SECTIONS.findIndex(([k]) => k === E.page), n = SECTIONS.length;
     page(SECTIONS[(i + d + n) % n][0], true);
   });
-  const refit = () => { if (!E.s || E.s.midi) return; if (measure()) renderStage(); };
+  const refit = () => { if (!E.s || E.s.midi) return; fit(); if (measure()) renderStage(); };
   if (typeof ResizeObserver === "function") new ResizeObserver(refit).observe(stage);
   let rz = 0;
   window.addEventListener("resize", () => { if (!rz) rz = requestAnimationFrame(() => { rz = 0; decide(); }); });
-  FIT_MQ.addEventListener("change", decide);
   function renderStage() {
     if (!E.s) return;
     const mode = E.s.midi ? "midi" : "fm";
     if (stage.dataset.mode !== mode) { stage.dataset.mode = mode; stage.classList.toggle("midi", mode === "midi"); stage.innerHTML = ""; drawn.clear(); }
-    if (E.s.midi) { stage.classList.remove("panel", "paged"); pagesEl.hidden = true; renderMidi(); return; }
+    if (E.s.midi) { stage.classList.remove("panel", "paged", "phone", "modon", "full"); pagesEl.hidden = true; if (srcsEl) srcsEl.hidden = true; renderSrcs(); disarm(false); closeCard(); renderMidi(); return; }
     if (!stage.querySelector(".pn")) {
-      // (in columns for the computer's fit: each column's sections share its height; elsewhere the columns are
-      // display: contents and the sections the grid's own items)
-      const sec = (k) => { const [, nm, c] = SECTIONS.find((x) => x[0] === k); return `<section class="pn pn-${k}" data-sec="${k}" style="--c:var(${c})" aria-label="${nm}">` +
-        `<div class="pnh"><i class="pdot" aria-hidden="true"></i>${nm}</div><div class="pnb"></div></section>`; };
-      stage.innerHTML = COLS.map((col, i) => `<div class="fcol fc${i + 1}">${col.map((x) => (Array.isArray(x) ? `<div class="fpair">${x.map(sec).join("")}</div>` : sec(x))).join("")}</div>`).join("");
+      stage.innerHTML = SECTIONS.map(([k, nm, c]) => `<section class="pn pn-${k}" data-sec="${k}" style="--c:var(${c})" aria-label="${nm}"></section>`).join("");
       drawn.clear();
-      setMode(E.mode || (FIT_MQ.matches ? "panel" : "tabs"));
+      setMode(E.mode || (wantPanel() ? "panel" : "tabs"));
       if (!decided) { decided = true; requestAnimationFrame(() => { decided = false; decide(); }); }
     }
+    E.rt = routes(E.s.values);
     const keep = document.activeElement && stage.contains(document.activeElement) ? focusKey(document.activeElement) : null;
     let any = false;
     for (const [k] of SECTIONS) {
-      const html = PANELS[k]();
+      const html = blockHtml(k);
       if (drawn.get(k) === html) continue;
       drawn.set(k, html);
-      stage.querySelector(`[data-sec="${k}"] .pnb`).innerHTML = html;
+      stage.querySelector(`[data-sec="${k}"]`).innerHTML = html;
       any = true;
     }
+    renderCard();
     if (!any) return;
-    if (E.mode === "panel" && over()) { setMode("tabs"); renderStage(); return; }   // (the panel ran over: pages)
+    fit();
     if (measure()) { renderStage(); return; }       // (a drawing's box changed: drawn again in it)
     if (E.drag) { const el = findKey(E.drag.key); if (el) dragMark(el); }
     if (keep) { const el = findKey(keep); if (el && el.focus && el !== document.activeElement) el.focus({ preventScroll: true }); }
     if (E.picker) openPicker(E.picker.id, true);
+    if (E.arm || E.md) markLit(); else if (!pagesEl.hidden) renderPages();
   }
   // an element's identity across renders: its ids, its kind
-  const focusKey = (el) => [el.tagName, el.dataset.x || "", el.dataset.y || "", el.dataset.id || "", el.dataset.op || "", el.dataset.kn || "", el.dataset.nav || ""].join("|");
-  const findKey = (key) => [...stage.querySelectorAll("[data-id],[data-nav]")].find((e) => focusKey(e) === key);
-  // the element dragged: lit; a knob's wiggle goes on from where it was (the section is drawn again under the drag)
-  const dragMark = (el) => { el.classList.add("dragging"); if (E.drag) el.style.setProperty("--wd", `-${Math.round(performance.now() - E.drag.t0)}ms`); };
+  const focusKey = (el) => [el.tagName, el.dataset.x || "", el.dataset.y || "", el.dataset.id || "", el.dataset.op || "", el.dataset.nav || "", el.dataset.src || "", el.dataset.lfo || ""].join("|");
+  const findKey = (key) => [...stage.querySelectorAll("[data-id],[data-nav],[data-src],[data-lfo]")].find((e) => focusKey(e) === key);
+  const dragMark = (el) => { el.classList.add("dragging"); };
   function renderKeys() {
     const lo = 53 + 12 * E.oct, ph = (n) => E.held.has(n);
     const wk = WHITE.map((o, i) => `<button class="wk ${ph(lo + o) ? "down" : ""}" data-n="${lo + o}" style="left:${(i * 100 / 16).toFixed(3)}%;width:${(100 / 16).toFixed(3)}%" aria-label="${noteName(lo + o)}"></button>`).join("");
@@ -658,6 +731,186 @@ export function mountEditor(ctx) {
   const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const noteName = (n) => `${NOTE[n % 12]}${Math.floor(n / 12) - 1}`;
   function render() { renderHead(); renderStage(); renderKeys(); decide(); }
+
+  // ---------------------------------------------------------------- design 13: drag to modulate
+  // a source from its element: an LFO's plug (or its chip on the strip), a MOD source
+  const srcOf = (el) => (el.dataset.lfo !== undefined ? { kind: "lfo", k: +el.dataset.lfo } : { kind: "mod", src: +el.dataset.src });
+  const curSrc = () => (E.md && E.md.moved ? E.md.src : E.arm);
+  // a value lit for a source: a drop there routes it (or opens the route it has); every slot used: none
+  const litOK = (s, d) => { const p = plan(E.s.values, s, d); return p.act === "set" || p.act === "card"; };
+  function markLit() {
+    const s = curSrc();
+    stage.classList.toggle("modon", !!s);
+    if (s) stage.style.setProperty("--s", `var(${srcColour(s)})`); else stage.style.removeProperty("--s");
+    stage.classList.toggle("full", !!(s && s.kind === "mod" && isFull(E.s.values)));
+    stage.querySelectorAll("[data-dest]").forEach((e) => e.classList.toggle("lit", !!s && litOK(s, +e.dataset.dest)));
+    stage.querySelectorAll(".src[data-src], .jack[data-lfo]").forEach((e) => {
+      const me = srcOf(e);
+      e.classList.toggle("from", !!s && sameSrc(me, s));
+      e.classList.toggle("isarmed", sameSrc(E.arm, me));
+    });
+    if (!s) stage.querySelectorAll(".hot").forEach((e) => e.classList.remove("hot"));
+    renderPages();
+  }
+  function arm(s) { E.arm = s; closeCard(); markLit(); }
+  function disarm(redraw = true) { if (!E.arm) return; E.arm = null; if (redraw) markLit(); }
+  const toggleArm = (s) => (sameSrc(E.arm, s) ? disarm() : arm(s));
+  // a drop (or a tap on a lit value): the route made (live: PARAMs), its card, or FULL
+  function apply(s, d) {
+    const p = plan(E.s.values, s, d);
+    if (p.act === "set") for (const [id, x] of p.sets) set(id, x);
+    else if (p.act === "card") { renderStage(); openCard(p.route); }
+    else if (p.act === "full") flashFull();
+    return p;
+  }
+  function flashFull() {
+    stage.classList.add("full", "fullflash");
+    clearTimeout(E.fullT);
+    E.fullT = setTimeout(() => { stage.classList.remove("fullflash"); if (!curSrc()) stage.classList.remove("full"); }, 900);
+  }
+  // the drag's cable from the source to the pointer, its plug, its label
+  let ov = null;
+  function drawCable(x1, y1) {
+    const d = E.md;
+    if (!ov) { ov = document.createElement("div"); ov.className = "dragov"; ov.setAttribute("aria-hidden", "true"); document.body.appendChild(ov); }
+    const [x0, y0] = d.c0, full = d.src.kind === "mod" && isFull(E.s.values) && !d.hot, mx = (x0 + x1) / 2, sag = Math.min(160, Math.abs(x1 - x0) * 0.25 + 60);
+    ov.style.setProperty("--s", `var(${srcColour(d.src)})`);
+    const lab = `${esc(srcName(d.src))}${d.hot ? ` <svg viewBox="0 0 12 12"><path d="M2 6h8M7 3l3 3-3 3"/></svg><b>${esc(DEST_NAMES[+d.hot.dataset.dest])}</b>` : full ? ' <span class="fullb">FULL</span>' : ""}`;
+    ov.innerHTML = `<svg><path class="cable${full ? " no" : ""}" d="M${x0} ${y0} C${x0} ${y0 + sag * 0.6} ${mx} ${Math.max(y0, y1) + sag} ${x1} ${y1}"/><circle class="plug${full ? " no" : ""}" cx="${x1}" cy="${y1}" r="6"/></svg>` +
+      `<span class="ghost${full ? " no" : ""}" style="left:${x1 + 16}px;top:${y1 + 12}px">${lab}</span>`;
+  }
+  const endCable = () => { if (ov) { ov.remove(); ov = null; } };
+  // the value under the pointer, when it is lit
+  const hotAt = (x, y) => { const e = document.elementFromPoint(x, y), t = e && e.closest("[data-dest]"); return t && stage.contains(t) && t.classList.contains("lit") ? t : null; };
+  function srcDown(ev, el) {
+    if (ev.pointerType === "mouse" && ev.button !== 0) return;
+    ev.preventDefault();
+    const r = el.getBoundingClientRect();
+    E.md = { src: srcOf(el), pid: ev.pointerId, x0: ev.clientX, y0: ev.clientY, c0: [r.left + r.width / 2, r.top + r.height / 2], moved: false, hot: null };
+    closeCard();
+  }
+  window.addEventListener("pointermove", (ev) => {
+    const d = E.md;
+    if (!d || ev.pointerId !== d.pid) return;
+    if (!d.moved) { if (Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 5) return; d.moved = true; E.arm = null; markLit(); }
+    const h = hotAt(ev.clientX, ev.clientY);
+    if (h !== d.hot) { if (d.hot) d.hot.classList.remove("hot"); d.hot = h; if (h) h.classList.add("hot"); }
+    drawCable(ev.clientX, ev.clientY);
+  });
+  window.addEventListener("pointerup", (ev) => {
+    const d = E.md;
+    if (!d || ev.pointerId !== d.pid) return;
+    E.md = null;
+    endCable();
+    if (!d.moved) { toggleArm(d.src); return; }
+    const h = d.hot;
+    if (h) h.classList.remove("hot");
+    markLit();
+    if (h) apply(d.src, +h.dataset.dest);
+    else if (d.src.kind === "mod" && isFull(E.s.values)) flashFull();
+  });
+  window.addEventListener("pointercancel", (ev) => { if (E.md && ev.pointerId === E.md.pid) { E.md = null; endCable(); markLit(); } });
+  if (srcsEl) {
+    srcsEl.addEventListener("pointerdown", (ev) => { const el = ev.target.closest(".src[data-src], .src[data-lfo]"); if (el && E.s) srcDown(ev, el); });
+    srcsEl.addEventListener("click", (ev) => { if (ev.target.closest("#ed-disarm")) disarm(); });
+    srcsEl.addEventListener("keydown", (ev) => { const el = ev.target.closest(".src"); if (el && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); toggleArm(srcOf(el)); } });
+  }
+  // armed: a tap anywhere but the stage, the strip and the tabs lets go
+  document.addEventListener("pointerdown", (ev) => {
+    if (!E.arm || stage.contains(ev.target) || (srcsEl && srcsEl.contains(ev.target)) || pagesEl.contains(ev.target)) return;
+    disarm();
+  }, true);
+
+  // a route's card: "MOD n · SRC → DEST", its DEPTH dragged (the wheel, the arrows), × takes it off
+  function openCard(r) {
+    E.card = { kind: r.kind, k: r.k };
+    if (E.cardEl) { E.cardEl.remove(); E.cardEl = null; }
+    renderCard();
+  }
+  function closeCard() { E.card = null; if (E.cardEl) { E.cardEl.remove(); E.cardEl = null; } }
+  function renderCard() {
+    if (!E.card || !E.s || E.s.midi) { if (E.cardEl) closeCard(); return; }
+    const r = routes(E.s.values).find((x) => x.kind === E.card.kind && x.k === E.card.k);
+    if (!r) { closeCard(); return; }
+    const t = routeTitle(r), f = Math.abs(frac(r.depthId, r.depth) - frac(r.depthId, 0)), key = `${r.kind}${r.k}|${r.dest}|${r.c}`;
+    if (!E.cardEl || E.cardEl.dataset.key !== key) {
+      if (E.cardEl) E.cardEl.remove();
+      const p = document.createElement("div");
+      p.className = "rtpop";
+      p.dataset.key = key;
+      p.setAttribute("role", "dialog");
+      p.setAttribute("aria-label", `${t.who} ${t.what}`);
+      p.innerHTML = `<div class="who"><small>${esc(t.who)}</small><b>${esc(r.name)} <em>→ ${esc(DEST_NAMES[r.dest])}</em></b></div>` +
+        `<div class="dep" tabindex="0" role="slider" aria-label="DEPTH"><small>DEPTH</small><b></b></div><button class="rm" aria-label="Take the route off">${I_X}</button>`;
+      document.body.appendChild(p);
+      E.cardEl = p;
+      cardEvents(p);
+      const a = [...stage.querySelectorAll(`.mks i[data-route="${r.kind}${r.k}"]`), ...stage.querySelectorAll(`[data-dest="${r.dest}"]`)].find((e) => e.offsetWidth > 0);
+      const b = a ? a.getBoundingClientRect() : { left: window.innerWidth / 2, right: window.innerWidth / 2, bottom: window.innerHeight / 2, top: window.innerHeight / 2 };
+      const w = p.offsetWidth, ph = p.offsetHeight, left = Math.max(12, Math.min(window.innerWidth - w - 12, b.left - 26));
+      const below = b.bottom + 12 + ph < window.innerHeight - 8;
+      p.style.left = `${left}px`;
+      p.style.top = `${below ? b.bottom + 12 : Math.max(8, b.top - 12 - ph)}px`;
+      p.classList.toggle("up", !below);
+      p.style.setProperty("--ax", `${Math.max(10, Math.min(w - 22, (b.left + b.right) / 2 - left - 6))}px`);
+    }
+    E.cardEl.style.setProperty("--m", `var(${r.c})`);
+    E.cardEl.style.setProperty("--w", f.toFixed(3));
+    const dep = E.cardEl.querySelector(".dep"), tx = text(r.depthId, r.depth);
+    dep.dataset.cid = String(r.depthId);
+    dep.querySelector("b").textContent = tx;
+    dep.setAttribute("aria-valuetext", tx);
+  }
+  function cardEvents(p) {
+    let cd = null;
+    p.addEventListener("pointerdown", (ev) => {
+      const dep = ev.target.closest(".dep");
+      if (!dep) return;
+      ev.preventDefault();
+      const id = +dep.dataset.cid, r = info(id);
+      cd = { id, v0: v(id), x0: ev.clientX, y0: ev.clientY, pid: ev.pointerId, span: r.max - r.min };
+      try { dep.setPointerCapture(ev.pointerId); } catch (_) { /* (gone) */ }
+      dep.classList.add("dragging");
+      dep.focus({ preventScroll: true });
+    });
+    p.addEventListener("pointermove", (ev) => {
+      if (!cd || ev.pointerId !== cd.pid) return;
+      const px = Math.max(240, Math.min(cd.span * 12, 600)), delta = (ev.clientX - cd.x0) - (ev.clientY - cd.y0);
+      set(cd.id, cd.v0 + (ev.shiftKey && isHundredths(cd.id) ? Math.round(delta) : Math.round(delta / px * cd.span * (ev.shiftKey ? 0.1 : 1))));
+    });
+    const up = () => { cd = null; const d = p.querySelector(".dep"); if (d) d.classList.remove("dragging"); };
+    p.addEventListener("pointerup", up);
+    p.addEventListener("pointercancel", up);
+    p.addEventListener("wheel", (ev) => {
+      const dep = ev.target.closest(".dep");
+      if (!dep) return;
+      ev.preventDefault();
+      const id = +dep.dataset.cid, st = tickStep(id, ev.shiftKey, accel(id));
+      set(id, v(id) + (ev.deltaY < 0 ? st : -st));
+    }, { passive: false });
+    p.addEventListener("keydown", (ev) => {
+      const dep = ev.target.closest(".dep");
+      if (!dep) return;
+      const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[ev.key];
+      if (!d) return;
+      ev.preventDefault();
+      const id = +dep.dataset.cid;
+      set(id, v(id) + d * tickStep(id, ev.shiftKey, accel(id)));
+    });
+    p.addEventListener("click", (ev) => {
+      if (!ev.target.closest(".rm") || !E.card) return;
+      const r = routes(E.s.values).find((x) => x.kind === E.card.kind && x.k === E.card.k);
+      closeCard();
+      if (r) for (const [id, x] of removeSets(r)) set(id, x);
+    });
+  }
+  document.addEventListener("pointerdown", (ev) => { if (E.cardEl && !E.cardEl.contains(ev.target) && !ev.target.closest(".mks i")) closeCard(); }, true);
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    if (E.md) { E.md = null; endCable(); markLit(); ev.preventDefault(); }
+    else if (E.cardEl) { closeCard(); ev.preventDefault(); }
+    else if (E.arm) { disarm(); ev.preventDefault(); }
+  });
 
   // ---------------------------------------------------------------- dragging, the wheel, the keys
   const primary = (el) => +(el.dataset.id ?? el.dataset.y ?? el.dataset.x);
@@ -679,6 +932,25 @@ export function mountEditor(ctx) {
       mb.classList.add("dragging");
       mb.focus({ preventScroll: true });
       setSlot(k, { value: barValue(mb, ev.clientY), touched: true });
+      return;
+    }
+    if (!E.s || E.s.midi) return;
+    // design 13: a route's dot opens its card; a source (a MOD source, an LFO's plug) is dragged or tapped (armed)
+    const dot = ev.target.closest(".mks i[data-route]");
+    if (dot) {
+      ev.preventDefault();
+      const m = /^(lfo|mod)(\d)$/.exec(dot.dataset.route), r = m && routes(E.s.values).find((x) => x.kind === m[1] && x.k === +m[2]);
+      if (r) { disarm(); openCard(r); }
+      return;
+    }
+    const sr = ev.target.closest(".src[data-src], .jack[data-lfo]");
+    if (sr) { srcDown(ev, sr); return; }
+    if (E.arm) {                                       // (armed: a lit value routes the source there; elsewhere lets go)
+      const t = ev.target.closest("[data-dest]");
+      ev.preventDefault();
+      if (t && t.classList.contains("lit")) { const s = E.arm; disarm(false); apply(s, +t.dataset.dest); markLit(); }
+      else disarm();
+      E.swallow = performance.now();
       return;
     }
     const el = ev.target.closest("[data-x],[data-y]");
@@ -733,9 +1005,8 @@ export function mountEditor(ctx) {
       else if (ux) untouch(+ux.dataset.untouch);
       return;
     }
+    if (E.swallow && performance.now() - E.swallow < 700) { E.swallow = 0; return; }   // (the tap that routed or let go)
     const b = ev.target.closest("[data-set]");
-    const oc = ev.target.closest(".opc[data-op]");
-    if (!b && oc) { E.op = +oc.dataset.op; renderStage(); return; }
     if (!b) return;
     const [id, x] = b.dataset.set.split(":").map(Number);
     set(id, x);
@@ -780,8 +1051,16 @@ export function mountEditor(ctx) {
       stepSlot(k, (up ? 1 : -1) * (ev.shiftKey ? 10 : 1));
       return;
     }
+    if (!E.s) return;
+    const enter = ev.key === "Enter" || ev.key === " ";
+    const sr = ev.target.closest(".src[data-src], .jack[data-lfo]");
+    if (sr && enter) { ev.preventDefault(); toggleArm(srcOf(sr)); return; }
+    const lt = ev.target.closest("[data-dest].lit");
+    if (lt && E.arm && enter) { ev.preventDefault(); const s = E.arm; disarm(false); apply(s, +lt.dataset.dest); markLit(); return; }
+    const sb = ev.target.closest("div[data-set]");
+    if (sb && enter) { ev.preventDefault(); const [i, x] = sb.dataset.set.split(":").map(Number); set(i, x); renderStage(); return; }
     const el = ev.target.closest("[data-id]");
-    if (!el || !E.s) return;
+    if (!el) return;
     const up = ev.key === "ArrowUp" || ev.key === "ArrowRight", dn = ev.key === "ArrowDown" || ev.key === "ArrowLeft";
     if (!up && !dn) { if (ev.key === "Enter" && el.dataset.pick !== undefined) openPicker(+el.dataset.pick); return; }
     ev.preventDefault();

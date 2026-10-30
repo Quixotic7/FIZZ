@@ -78,6 +78,10 @@
 //   - nf-play2 (2026-10-29): PLAY flat (no glow around the board, no gradient on its buttons and keys), no THIS
 //     BROWSER chip on it, key 11's longer LED; Shift-click latches (THIS BROWSER's panel; the FM-1's CC 127 held, 0 on
 //     the second click; leaving the tab lets go); 1440 x 900 and 844 x 390 screenshots in .build/test/play2;
+//   - nf-edit3 (2026-10-30): EDIT one panel on one 20 x 15 grid (every tile on its lines, MOD the same height empty or
+//     full, ALGO centred, flat: no shadows on the panel, no glow in the head, the tabs, the keys; small handles; the
+//     filter's 8-way TYPE); drag to modulate (LFO 2's plug, VEL, the card, ×, FULL, LFO 1's reach), tap to arm on the
+//     page tabs (1280 x 700) and a phone (390 x 844), a drop with TRACK on reaches ?sim as PARAMs;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -452,7 +456,7 @@ try {
   const collect = () => evaluate(`[...document.querySelectorAll('#ed-stage [data-id], #ed-stage [data-x], #ed-stage [data-y], #ed-stage [data-pick], #ed-stage [data-set]')]
     .flatMap((e) => [e.dataset.id, e.dataset.x, e.dataset.y, e.dataset.pick, e.dataset.set && e.dataset.set.split(':')[0]]).filter((x) => x !== undefined).map(Number)`);
   const secs = await evaluate("({ s: [...document.querySelectorAll('#ed-stage .pn')].map((e) => e.dataset.sec).join(), mode: __mgr.editor.state.mode, tabs: [...document.querySelectorAll('#ed-pages [data-page]')].map((b) => b.dataset.page).join() })");
-  check(secs.s === "ops,mod,openv,filter,amp,drive,lfo,play" && (secs.mode === "panel" ? secs.tabs === "" : secs.tabs === "ops,openv,play,filter,amp,drive,lfo,mod"),
+  check(secs.s === "ops,openv,play,filter,amp,drive,lfo,mod" && (secs.mode === "panel" ? secs.tabs === "" : secs.tabs === "ops,openv,play,filter,amp,drive,lfo,mod"),
     `EDIT at 1280: every section (${secs.s}) as ${secs.mode === "panel" ? "one panel" : `pages (${secs.tabs})`}`);
   (await collect()).forEach((i) => seen.add(i));
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");   // (every slot on: its cables)
@@ -462,9 +466,9 @@ try {
   for (const m of [1, 0]) { await evaluate(`__mgr.editor.set(74, ${m})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
   const missing = Array.from({ length: 110 }, (_, i) => i).filter((i) => !seen.has(i));
   check(!missing.length, `EDIT: every one of FIZZ's 110 values is on the one panel${missing.length ? `: missing ${missing.join(", ")}` : ""}`);
-  // (NEON: the knob row under OPERATORS shows DRIVE and LEVEL a second time, by design)
-  const dupIds = await evaluate(`(() => { const n = new Map(); document.querySelectorAll('#ed-stage .vc[data-id], #ed-stage .dial[data-id]:not(.knob[data-id="73"]):not(.knob[data-id="46"]), #ed-stage .vbar[data-id]').forEach((e) => n.set(e.dataset.id, (n.get(e.dataset.id) || 0) + 1)); return [...n].filter(([, c]) => c > 1).map(([k]) => k); })()`);
-  check(!dupIds.length, `EDIT: each value's chip, dial or bar once on the panel (the knob row's DRIVE and LEVEL apart)${dupIds.length ? ` (twice: ${dupIds.join(", ")})` : ""}`);
+  // (nf-edit3: every value a tile of the grid, once; DRIVE and LEVEL no longer twice)
+  const dupIds = await evaluate(`(() => { const n = new Map(); document.querySelectorAll('#ed-stage .t[data-id]').forEach((e) => n.set(e.dataset.id, (n.get(e.dataset.id) || 0) + 1)); return [...n].filter(([, c]) => c > 1).map(([k]) => k); })()`);
+  check(!dupIds.length, `EDIT: each value's tile once on the panel${dupIds.length ? ` (twice: ${dupIds.join(", ")})` : ""}`);
   check(await noScroll(), "EDIT at 1280: the panel drawn, no horizontal scroll");
   await fullShot("manager-p2-01-edit-panel.png");
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0)); __mgr.editor.set(36, 3)");
@@ -475,7 +479,7 @@ try {
   await sleep(200);
   const f1 = await evaluate("[__mgr.editor.value(34), __mgr.editor.value(35)]");
   check(f1[0] < f0[0] && f1[1] > f0[1], `EDIT: the filter's handle dragged left and up: FREQ ${f0[0]} -> ${f1[0]}, RESO ${f0[1]} -> ${f1[1]}`);
-  const fb0 = await evaluate("__mgr.editor.value(6)"), wc = await centre("#ed-stage .dial[data-id='6']");
+  const fb0 = await evaluate("__mgr.editor.value(6)"), wc = await centre("#ed-stage .t[data-id='6']");
   await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: wc.x, y: wc.y, deltaX: 0, deltaY: -100 });
   await sleep(150);
   const a0 = await evaluate("__mgr.editor.value(0)");
@@ -1255,27 +1259,22 @@ try {
   const an3 = await evaluate("__mgr.editor.value(0)");
   const alab = await evaluate("[...document.querySelectorAll('#ed-stage .algonav button')].map((b) => b.getAttribute('aria-label')).join('|')");
   check(an1 === 1 && an2 === 8 && an3 === 7 && alab === "Previous algorithm|Next algorithm", `EDIT: ALGO's › from 8 wraps to ${an1}, ‹ back to ${an2}, ‹ again ${an3} (${alab})`);
-  await size(1100, 800);                               // (below the fit: DRIVE · CRUSH's dial and AMP's LEVEL bar shown too)
+  await size(1100, 800);                               // (pages: the operators' row, DRIVE on DRIVE · CRUSH, LEVEL on AMP)
   await sleep(400);
-  const krow = await evaluate("[...document.querySelectorAll('#ed-stage .pn-ops .knobs .knob')].map((e) => e.querySelector('small').textContent).join(' ')");
-  check(krow === "HARM DTUN FDBK MIX DRIVE LEVEL", `EDIT: the knob row under OPERATORS: ${krow}`);
+  const krow = await evaluate("[...document.querySelectorAll('#ed-stage .pn-ops .t[data-id]')].filter((e) => [4, 5, 6, 7, 73, 46].includes(+e.dataset.id)).map((e) => e.querySelector('small').textContent).join(' ')");
+  check(krow === "HARM DTUN FDBK MIX", `EDIT: the operators' row: ${krow} (DRIVE and LEVEL left it)`);
   await evaluate("__mgr.editor.set(73, 20)");
   await sleep(120);
-  const kc = await centre("#ed-stage .knobs .knob[data-id='73']");
-  await mouse("mousePressed", kc.x, kc.y);
-  for (let k = 1; k <= 6; k++) { await mouse("mouseMoved", kc.x, kc.y - 10 * k, { buttons: 1 }); await sleep(25); }
-  const turning = await evaluate("(() => { const e = document.querySelector('#ed-stage .knobs .knob[data-id=\"73\"]'); return e.classList.contains('dragging') && getComputedStyle(e.querySelector('svg')).animationName === 'wiggle'; })()");
-  await mouse("mouseReleased", kc.x, kc.y - 60);
+  await drag("#ed-stage .pn-drive .t[data-id='73']", 0, -60);
   await sleep(150);
-  const kd = await evaluate(`({ v: __mgr.editor.value(73), knob: document.querySelector('#ed-stage .knobs .knob[data-id="73"] b').textContent,
-    other: document.querySelector('#ed-stage .pn-drive .dial[data-id="73"] b').textContent, still: getComputedStyle(document.querySelector('#ed-stage .knobs .knob[data-id="73"] svg')).animationName })`);
-  check(kd.v > 20 && kd.knob === kd.other && turning && kd.still === "none", `EDIT: the DRIVE knob dragged up: 20 -> ${kd.v}; DRIVE · CRUSH's dial the same (${kd.other}); it wiggles only while dragged`);
+  const kd = await evaluate(`({ v: __mgr.editor.value(73), t: document.querySelector('#ed-stage .pn-drive .t[data-id="73"] b').textContent })`);
+  check(kd.v > 20 && kd.t === String(kd.v), `EDIT: DRIVE dragged up on DRIVE · CRUSH: 20 -> ${kd.v} (${kd.t})`);
   await evaluate("__mgr.editor.set(46, 90)");
   await sleep(120);
-  await drag("#ed-stage .knobs .knob[data-id='46']", 0, 40);
+  await drag("#ed-stage .pn-amp .t[data-id='46']", 0, 40);
   await sleep(150);
-  const kl = await evaluate(`({ v: __mgr.editor.value(46), knob: document.querySelector('#ed-stage .knobs .knob[data-id="46"] b').textContent, bar: document.querySelector('#ed-stage .pn-amp .vbar[data-id="46"] b').textContent })`);
-  check(kl.v < 90 && kl.knob === kl.bar, `EDIT: the LEVEL knob dragged down: 90 -> ${kl.v}; AMP's LEVEL bar the same (${kl.bar})`);
+  const kl = await evaluate(`({ v: __mgr.editor.value(46), t: document.querySelector('#ed-stage .pn-amp .t[data-id="46"] b').textContent })`);
+  check(kl.v < 90 && kl.t === String(kl.v), `EDIT: LEVEL dragged down on AMP: 90 -> ${kl.v} (${kl.t})`);
   await size(1280, 800);
   await sleep(400);
   // one panel or pages (the owner: "keep one panel but then tabs once they are too small to fit"), every MOD slot on
@@ -1285,9 +1284,10 @@ try {
   const fitAt = async (w, h) => {
     await size(w, h);
     await sleep(700);
-    return evaluate(`(async () => { const st = document.getElementById('ed-stage'), cols = [...st.querySelectorAll('.fcol')], mode = __mgr.editor.state.mode, wait = () => new Promise((r) => setTimeout(r, 120));
+    return evaluate(`(async () => { const st = document.getElementById('ed-stage'), mode = __mgr.editor.state.mode, wait = () => new Promise((r) => setTimeout(r, 120));
       const pageOk = () => document.documentElement.scrollHeight <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1, stageOk = () => st.scrollHeight <= st.clientHeight + 1;
-      if (mode === "panel") return { mode, ok: pageOk() && stageOk() && cols.every((c) => c.scrollHeight <= c.clientHeight + 1), fit: cols.map((c) => c.scrollHeight + '/' + c.clientHeight).join(' ') };
+      const sb = st.getBoundingClientRect(), inside = () => [...st.querySelectorAll('.t, .sg, .gd, .mslot')].filter((e) => e.offsetWidth > 0).every((e) => { const r = e.getBoundingClientRect(); return r.bottom <= sb.bottom + 1 && r.right <= sb.right + 1; });
+      if (mode === "panel") return { mode, ok: pageOk() && stageOk() && inside(), fit: st.scrollHeight + '/' + st.clientHeight };
       const out = []; let ok = true;
       for (const b of [...document.querySelectorAll('#ed-pages [data-page]')]) { document.querySelector('#ed-pages [data-page="' + b.dataset.page + '"]').click(); await wait(); const good = pageOk() && stageOk(); ok = ok && good; out.push(b.dataset.page + (good ? '' : ' ' + st.scrollHeight + '/' + st.clientHeight)); }
       document.querySelector('#ed-pages [data-page="ops"]').click();
@@ -1307,7 +1307,7 @@ try {
   await evaluate("__mgr.editor.set(73, 20); __mgr.editor.set(46, 90)");
   await sleep(150);
   const wheelOn = async (sel) => { const c = await centre(sel); if (!c) return false; await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: c.x, y: c.y, deltaX: 0, deltaY: -100 }); await sleep(150); return true; };
-  const dsel = (await evaluate("__mgr.editor.state.mode")) === "panel" ? ["#ed-stage .knobs .knob[data-id='73']", "#ed-stage .knobs .knob[data-id='46']"] : ["#ed-stage .pn-drive .dial[data-id='73']", "#ed-stage .pn-amp .vbar[data-id='46']"];
+  const dsel = (await evaluate("__mgr.editor.state.mode")) === "panel" ? ["#ed-stage .pn-drive .t[data-id='73']", "#ed-stage .pn-amp .t[data-id='46']"] : ["#ed-stage .pn-drive .t[data-id='73']", "#ed-stage .pn-amp .t[data-id='46']"];
   const dw = await wheelOn(dsel[0]), lw = await wheelOn(dsel[1]);
   check(dw && lw && (await evaluate("__mgr.editor.value(73) === 21 && __mgr.editor.value(46) === 91")), `EDIT at 1280: DRIVE and LEVEL set where they show (${dsel.join(", ")})`);
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0))");
@@ -1470,7 +1470,7 @@ try {
   check(ph.mode === "tabs" && ph.pages === "ops,openv,play,filter,amp,drive,lfo,mod" && ph.wide, `EDIT at 390: pages, each reachable by its tab (${ph.pages})`);
   await evaluate("__mgr.editor.set(73, 40); __mgr.editor.set(46, 60)");
   await sleep(150);
-  const pd = await wheelOn("#ed-stage .pn-drive .dial[data-id='73']"), pl = await wheelOn("#ed-stage .pn-amp .vbar[data-id='46']");
+  const pd = await wheelOn("#ed-stage .pn-drive .t[data-id='73']"), pl = await wheelOn("#ed-stage .pn-amp .t[data-id='46']");
   check(pd && pl && (await evaluate("__mgr.editor.value(73) === 41 && __mgr.editor.value(46) === 61")), "EDIT at 390: DRIVE set on DRIVE · CRUSH's page, LEVEL on AMP's");
   await shot("manager-neon-edit-390-amp.png");
   // the keys hidden and a page shown: both remembered after a reload
@@ -1832,12 +1832,12 @@ try {
   await send("Page.navigate", { url: URL0 + "#edit" });
   await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
   await click("#t-edit");
-  await waitFor("!!__mgr.editor.sound() && !!document.querySelector('#ed-stage .pn-amp .mix')", 15000);
+  await waitFor("!!__mgr.editor.sound() && !!document.querySelector('#ed-stage .pn-amp .t[data-id=\"115\"]')", 15000);
   await sleep(700);
-  const mixAt = () => evaluate(`(() => { const sec = document.querySelector('#ed-stage .pn-amp'), els = [115, 118, 116, 117].map((i) => sec && sec.querySelector('.mix .vc[data-id="' + i + '"]'));
+  const mixAt = () => evaluate(`(() => { const sec = document.querySelector('#ed-stage .pn-amp'), els = [115, 118, 116, 117].map((i) => sec && sec.querySelector('.t[data-id="' + i + '"]'));
     return { mode: __mgr.editor.state.mode, cur: !!(sec && (sec.classList.contains('cur') || __mgr.editor.state.mode === 'panel')), labels: els.map((e) => (e ? e.querySelector('small').textContent : '-')).join(' '),
       shown: els.every((e) => e && e.offsetWidth > 30 && e.offsetHeight > 20) }; })()`);
-  const mx = (id) => evaluate(`document.querySelector('#ed-stage .pn-amp .mix .vc[data-id="${id}"] b').textContent`);
+  const mx = (id) => evaluate(`document.querySelector('#ed-stage .pn-amp .t[data-id="${id}"] b').textContent`);
   const m14 = await mixAt();
   check(m14.mode === "panel" && m14.shown && m14.labels === "PAN CHO DEL REV", `pan and sends: at 1440 x 900 on the one panel's AMP (${m14.labels})`);
   // a sound of this browser's (not the track's): dragged, the wheel, a double click
@@ -1845,19 +1845,19 @@ try {
     __mgr.editor.open(s, { label: 'MIX TEST', source: 'file' }); })()`);
   await sleep(300);
   const d0 = await evaluate("({ pan: __mgr.editor.sound().pan, rev: __mgr.editor.sound().sends.reverb })");
-  await drag("#ed-stage .pn-amp .mix .vc[data-id='115']", 0, -60);
+  await drag("#ed-stage .pn-amp .t[data-id='115']", 0, -60);
   await sleep(150);
   const r1 = await evaluate("__mgr.editor.sound().pan"), t1 = await mx(115);
-  await drag("#ed-stage .pn-amp .mix .vc[data-id='115']", 0, 160);
+  await drag("#ed-stage .pn-amp .t[data-id='115']", 0, 160);
   await sleep(150);
   const r2 = await evaluate("__mgr.editor.sound().pan"), t2 = await mx(115);
   check(d0.pan === 0 && d0.rev === 20 && r1 > 0 && t1 === `R${r1}` && r2 < 0 && t2 === `L${-r2}`, `pan and sends: PAN dragged up ${t1}, down ${t2} (from C; REVERB from 20)`);
-  await evaluate(`document.querySelector('#ed-stage .pn-amp .mix .vc[data-id="115"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
+  await evaluate(`document.querySelector('#ed-stage .pn-amp .t[data-id="115"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
   await sleep(150);
-  const wc = await centre("#ed-stage .pn-amp .mix .vc[data-id='116']");
+  const wc = await centre("#ed-stage .pn-amp .t[data-id='116']");
   await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: wc.x, y: wc.y, deltaX: 0, deltaY: -100 });
   await sleep(150);
-  await drag("#ed-stage .pn-amp .mix .vc[data-id='118']", 0, -60);
+  await drag("#ed-stage .pn-amp .t[data-id='118']", 0, -60);
   await sleep(150);
   const w1 = await evaluate("({ pan: __mgr.editor.sound().pan, s: __mgr.editor.sound().sends })"), tp = await mx(115), tc = await mx(118);
   check(w1.pan === 0 && tp === "C" && w1.s.delay === 1 && w1.s.chorus > 0 && tc === String(w1.s.chorus) &&
@@ -1887,14 +1887,14 @@ try {
   await sleep(200);
   const m39 = await mixAt();
   check(m39.mode === "tabs" && m39.shown && m39.cur && (await noScroll()), "pan and sends: at 390 on AMP's page, no horizontal scroll");
-  await evaluate("document.querySelector('#ed-stage .pn-amp .mix').scrollIntoView({ block: 'center' })");
+  await evaluate("document.querySelector('#ed-stage .pn-amp .t[data-id=\"115\"]').scrollIntoView({ block: 'center' })");
   await shot("manager-mix-edit-390.png");
   await size(1280, 800);
   await sleep(400);
   // a MIDI sound: no mix (a MIDI track takes no voice)
   await evaluate(`(async () => { const { newSound } = await import('./sound.js'); __mgr.editor.open(newSound('midi'), { label: 'MIDI', source: 'file' }); })()`);
   await sleep(300);
-  check(await evaluate("!!document.querySelector('#ed-stage .mpg') && !document.querySelector('#ed-stage .mix')"), "pan and sends: a MIDI sound shows none");
+  check(await evaluate("!!document.querySelector('#ed-stage .mpg') && !document.querySelector('#ed-stage .t[data-id=\"115\"]')"), "pan and sends: a MIDI sound shows none");
 
   // TRACK on: an edit is a PARAM 115..118 (this wasm takes them); NOT FOUND (stubbed): the AUDITION, 120 ms after the last
   await click("#live");
@@ -1906,7 +1906,7 @@ try {
     lk.store = (f) => { window.__stores++; return window.__ls.call(lk, f); }; })()`);
   const trkMix = () => evaluate(`(async () => { const { soundFromFrame } = await import('./sound.js'); const s = soundFromFrame(await __mgr.S.link.dumpTrack(__mgr.live.state.t + 1)); return { pan: s.pan, ...s.sends }; })()`);
   const drained = () => waitFor("!__mgr.live.state.pumping && !__mgr.live.state.q.size", 5000);
-  await drag("#ed-stage .pn-amp .mix .vc[data-id='115']", 0, 50);
+  await drag("#ed-stage .pn-amp .t[data-id='115']", 0, 50);
   await evaluate("__mgr.editor.set(116, 50); __mgr.editor.set(117, 60); __mgr.editor.set(118, 70)");
   await drained();
   await sleep(200);
@@ -2851,6 +2851,218 @@ try {
     await idle();
   }
   // ---- (end of nf-speed)
+  // ---- nf-edit3 (the owner, 2026-10-30): EDIT's one panel on one grid (design 12) and drag to modulate (design 13), flat.
+  // At 1440 x 900: every value tile on the grid (its edges on the grid's lines within 1 px, the same size for the same
+  // span), none overflowing; the MOD area as tall with 0 routes as with 8; ALGO's number centred; no shadow on the
+  // tiles, frames, drawings, choices, sources; the head, the keys' toggle and the page tabs flat (no blur, no glow, no
+  // drop-shadow); an envelope's handle <= 10 px; the filter's 8-way TYPE its stored values; LFO 2's plug onto MIX (its
+  // DEST, its DEPTH kept); VEL onto FREQ (a free slot at +40), again (its card), × (gone); all 8 used: FULL, nothing
+  // changed; LFO 1 not on its own values, VEL on LFO 1's SPEED; tap to arm on a 390 x 844 phone and on the page tabs at
+  // 1280 x 700; a drop with TRACK on: PARAMs on ?sim's track
+  {
+  const SHOTS = process.env.NF_EDIT3_SHOTS || "";
+  const keep = async (name) => { await shot(`manager-nfedit3-${name}.png`); if (SHOTS) fs.copyFileSync(path.join(OUT, `manager-nfedit3-${name}.png`), path.join(SHOTS, `${name}.png`)); };
+  const V = (i) => evaluate(`__mgr.editor.value(${i})`);
+  const at = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  // a source dragged with the mouse onto a value (let go there, or held: its cable shown)
+  async function plug(from, to, hold = false) {
+    const a = await at(from), b = await at(to);
+    if (!a || !b) return false;
+    await mouse("mousePressed", a.x, a.y);
+    for (let k = 1; k <= 8; k++) { await mouse("mouseMoved", a.x + (b.x - a.x) * k / 8, a.y + (b.y - a.y) * k / 8, { buttons: 1 }); await sleep(25); }
+    if (hold) return b;
+    await mouse("mouseReleased", b.x, b.y);
+    await sleep(250);
+    return true;
+  }
+  const tap = async (sel) => { const a = await at(sel); if (!a) return false; await mouse("mousePressed", a.x, a.y); await mouse("mouseReleased", a.x, a.y); await sleep(250); return true; };
+  const touch = async (sel) => { const a = await at(sel); if (!a) return false; await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: a.x, y: a.y }] }); await sleep(60);
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); await sleep(300); return true; };
+  const routesOf = () => evaluate("__mgr.editor.sound().values.slice(86, 110).join()");
+  const fresh = (js = "") => evaluate(`(async () => { const { newSound } = await import('./sound.js'); __mgr.live.detach(); const s = newSound('fm'); s.name = 'GRID TEST'; const v = s.values;
+    v[86] = 2; v[87] = 15; v[88] = -36; v[47 + 3] = 26; v[47 + 7] = 2400; v[55 + 7] = 1600; ${js}
+    __mgr.editor.open(s, { label: 'GRID TEST', source: 'file' }); })()`);
+  await size(1440, 900);
+  await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#edit" });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await idle();
+  await click("#t-edit");
+  await sleep(1500);                                   // (the track followed first: then this browser's own sound)
+  await fresh();
+  await waitFor("__mgr.editor.state.mode === 'panel' && !!document.querySelector('#ed-stage .fr-mod') && __mgr.editor.place().label === 'GRID TEST' && !(__mgr.editor.target() && __mgr.editor.target().locked && __mgr.editor.target().locked())", 8000);
+  await sleep(600);
+  // the grid: every tile's edges on the grid's lines, the same size for the same span, nothing overflowing
+  const grid = () => evaluate(`(() => { const st = document.getElementById('ed-stage'), cs = getComputedStyle(st), sb = st.getBoundingClientRect();
+    const cols = cs.gridTemplateColumns.split(' ').map(parseFloat), rows = cs.gridTemplateRows.split(' ').map(parseFloat), cg = parseFloat(cs.columnGap), rg = parseFloat(cs.rowGap);
+    const lines = (sizes, gap, o) => { const a = [], b = []; let p = o; for (const z of sizes) { a.push(p); b.push(p + z); p += z + gap; } return [a, b]; };
+    const [c0, c1] = lines(cols, cg, sb.left + parseFloat(cs.paddingLeft) + st.clientLeft), [r0, r1] = lines(rows, rg, sb.top + parseFloat(cs.paddingTop) + st.clientTop);
+    const on = (x, L) => L.findIndex((y) => Math.abs(x - y) <= 1);
+    const bad = [], sizes = new Map(); let n = 0, over = [];
+    st.querySelectorAll('.t').forEach((t) => { const r = t.getBoundingClientRect(); if (!r.width) return; n++;
+      const a = on(r.left, c0), b = on(r.right, c1), c = on(r.top, r0), d = on(r.bottom, r1);
+      if (a < 0 || b < 0 || c < 0 || d < 0) { bad.push((t.dataset.id || t.className) + '@' + Math.round(r.left) + ',' + Math.round(r.top)); return; }
+      const k = (b - a + 1) + 'x' + (d - c + 1), w = Math.round(r.width) + 'x' + Math.round(r.height); (sizes.get(k) || sizes.set(k, new Set()).get(k)).add(w);
+      for (const e of t.querySelectorAll(':scope > small, :scope > b')) if (e.scrollWidth > e.clientWidth + 1) over.push((t.dataset.id || '') + ':' + e.textContent);
+      if (r.right > sb.right + 1 || r.bottom > sb.bottom + 1) over.push('out ' + t.dataset.id); });
+    const spans = [...sizes].map(([k, s]) => k + ':' + [...s].join('/'));
+    const uneven = [...sizes].filter(([, s]) => [...s].some((x) => [...s].some((y) => Math.abs(+x.split('x')[0] - +y.split('x')[0]) > 1 || Math.abs(+x.split('x')[1] - +y.split('x')[1]) > 1)));
+    return { n, bad, over, spans: spans.join(' '), uneven: uneven.length, cols: cols.length, rows: rows.length }; })()`);
+  const g = await grid();
+  check(g.cols === 20 && g.rows === 15 && g.n >= 80 && !g.bad.length && !g.uneven && !g.over.length,
+    `nf-edit3: at 1440 x 900 one panel, 20 x 15: ${g.n} value tiles on the grid's lines, the same size a span (${g.spans}), none overflowing${g.bad.length ? `; off the grid: ${g.bad.slice(0, 6).join(" ")}` : ""}${g.over.length ? `; overflowing: ${g.over.slice(0, 6).join(" ")}` : ""}`);
+  await keep("panel-1440");
+  // the MOD area the same with 0 and 8 routes
+  const modH = () => evaluate(`(() => { const f = document.querySelector('#ed-stage .fr-mod').getBoundingClientRect(), s = [...document.querySelectorAll('#ed-stage .mslot')].map((e) => e.getBoundingClientRect());
+    return [Math.round(f.height), Math.round(Math.max(...s.map((r) => r.bottom)) - Math.min(...s.map((r) => r.top))), document.querySelectorAll('#ed-stage .mslot').length]; })()`);
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0))");
+  await sleep(250);
+  const m0 = await modH();
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => { __mgr.editor.set(86 + 3 * k, 1 + k); __mgr.editor.set(87 + 3 * k, 30 + k); __mgr.editor.set(88 + 3 * k, 20); })");
+  await sleep(250);
+  const m8 = await modH(), g8 = await grid();
+  check(m0.join() === m8.join() && m0[2] === 8 && !g8.bad.length && !g8.uneven, `nf-edit3: the MOD area ${m0[0]} px (slots ${m0[1]} px) with 0 routes, ${m8[0]} (${m8[1]}) with 8; the grid unchanged`);
+  // ALGO centred; flat: no shadow on the panel's parts, none glowing in the head, the toggle, the tabs; handles small
+  const flat = await evaluate(`(() => { const st = document.getElementById('ed-stage'), al = st.querySelector('.algoT'), b = al.querySelector('b').getBoundingClientRect(), a = al.getBoundingClientRect();
+    const sh = [...st.querySelectorAll('.t, .fr, .gd, .sg, .src, .mslot, .nav')].filter((e) => getComputedStyle(e).boxShadow !== 'none').map((e) => e.className);
+    const glow = (e, pseudo) => { const c = getComputedStyle(e, pseudo), bs = c.boxShadow; if (c.textShadow !== 'none' || (c.filter !== 'none' && /drop-shadow/.test(c.filter))) return true;
+      if (bs === 'none') return false; return bs.split(/,(?![^(]*\\))/).some((l) => { const n = (l.replace(/rgba?\\([^)]*\\)/, '').match(/-?[\\d.]+px/g) || []).map(parseFloat); const col = (l.match(/rgba?\\([^)]*\\)/) || [''])[0];
+        return !/inset/.test(l) && n[2] > 0 && !/^rgba?\\(0, 0, 0/.test(col); }); };
+    const head = [...document.querySelectorAll('#ed-head, #ed-head *, #ed-pages *, #ed-srcs *, #ed-keys *')].filter((e) => glow(e) || glow(e, '::before') || glow(e, '::after')).map((e) => e.id || e.className);
+    const hd = [...st.querySelectorAll('.env .hd')].map((e) => Math.max(e.getBoundingClientRect().width, e.getBoundingClientRect().height));
+    const hit = [...st.querySelectorAll('.env .hit')].map((e) => e.getBoundingClientRect().width);
+    return { dx: Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2), dy: Math.abs((b.top + b.bottom) / 2 - (a.top + a.bottom) / 2), sh, head, hd: Math.max(...hd), hdn: hd.length, hit: Math.min(...hit) }; })()`);
+  check(flat.dx <= 2 && flat.dy <= 2, `nf-edit3: ALGO's number centred in its block (off by ${flat.dx.toFixed(1)}, ${flat.dy.toFixed(1)} px)`);
+  check(!flat.sh.length, `nf-edit3: no box-shadow on the tiles, frames, drawings, choices, sources, slots${flat.sh.length ? `: ${flat.sh.slice(0, 5).join(" | ")}` : ""}`);
+  check(!flat.head.length, `nf-edit3: flat: no glow (blur, text-shadow, drop-shadow) in EDIT's head, the keys' toggle, the page tabs, the keys${flat.head.length ? `: ${flat.head.slice(0, 6).join(" | ")}` : ""}`);
+  check(flat.hdn >= 9 && flat.hd <= 10 && flat.hit >= 20, `nf-edit3: the envelopes' ${flat.hdn} handles ${flat.hd.toFixed(1)} px at most, a ${flat.hit.toFixed(0)} px hit ring`);
+  // the filter's TYPE: one 8-way choice, its stored values; SHAPE's cell kept (dimmed) where unused
+  const ft = [];
+  for (let k = 0; k < 8; k++) { await click(`#ed-stage .sg.ftype [data-set="36:${k}"]`); await sleep(60); ft.push(await V(36)); }
+  const ftl = await evaluate("[...document.querySelectorAll('#ed-stage .sg.ftype button')].map((b) => b.textContent).join(' ')");
+  await click('#ed-stage .sg.ftype [data-set="36:1"]');
+  await sleep(100);
+  const dim = await evaluate("(() => { const d = document.querySelector('#ed-stage .pn-filter .t.dim0'); return d && d.textContent; })()");
+  check(ft.join() === "0,1,2,3,4,5,6,7" && ftl === "OFF LP12 HP12 LP24 MULTI COMB+ COMB− EQ" && dim === "SHAPE—", `nf-edit3: the filter's TYPE (${ftl}) sets ${ft.join(" ")}; LP12: SHAPE dimmed "—" in its cell`);
+  // design 13: LFO 2's plug onto MIX: its DEST, its DEPTH as it was
+  await fresh("v[55 + 7] = 0;");
+  await sleep(400);
+  const held = await plug('#ed-stage .jack[data-lfo="1"]', '#ed-stage .t[data-id="7"]', true);
+  const lit = await evaluate("({ n: document.querySelectorAll('#ed-stage .lit').length, hot: (document.querySelector('#ed-stage .hot') || { dataset: {} }).dataset.id, l1: document.querySelectorAll('#ed-stage .t.lit[data-id=\"47\"]').length, cable: !!document.querySelector('.dragov .cable') })");
+  await keep("drag-lfo2-1440");
+  await mouse("mouseReleased", held.x, held.y);
+  await sleep(250);
+  check(lit.hot === "7" && lit.l1 === 1 && lit.cable && (await V(58)) === 14 && (await V(62)) === 0 && (await evaluate("!!document.querySelector('#ed-stage .t[data-id=\"7\"] .mks i[data-route=\"lfo1\"]')")),
+    `nf-edit3: LFO 2's plug dragged (${lit.n} values lit, LFO 1's SPEED among them) onto MIX: its DEST MIX, its DEPTH ${await V(62)} kept (no bump); MIX marked`);
+  // VEL onto FREQ: the first free slot at +40; again: its card; × takes it off
+  const b2 = await plug('#ed-stage .src[data-src="1"]', '#ed-stage .t[data-id="34"]', true);
+  await keep("drag-vel-1440");
+  await mouse("mouseReleased", b2.x, b2.y);
+  await sleep(250);
+  const r1 = await routesOf();
+  check(r1.startsWith("2,15,-36,1,25,40,0"), `nf-edit3: VEL dragged onto FREQ fills slot 2 (the first free) at +40: ${r1.split(",").slice(0, 9).join(",")}`);
+  await plug('#ed-stage .src[data-src="1"]', '#ed-stage .t[data-id="34"]');
+  const card = await evaluate("(() => { const p = document.querySelector('.rtpop'); return p ? { who: p.querySelector('.who small').textContent, what: p.querySelector('.who b').textContent, dep: p.querySelector('.dep b').textContent } : null; })()");
+  check(card && card.who === "MOD 2" && card.what === "VEL → FREQ" && card.dep === "+40" && (await routesOf()) === r1, `nf-edit3: VEL onto FREQ again opens its card (${card && `${card.who} · ${card.what} ${card.dep}`}), nothing added`);
+  const dc = await at(".rtpop .dep");
+  await mouse("mousePressed", dc.x, dc.y);
+  for (let k = 1; k <= 5; k++) { await mouse("mouseMoved", dc.x, dc.y - 12 * k, { buttons: 1 }); await sleep(25); }
+  await mouse("mouseReleased", dc.x, dc.y - 60);
+  await sleep(150);
+  const d2 = await V(91);
+  await keep("route-card-1440");
+  await click(".rtpop .rm");
+  await sleep(200);
+  check(d2 > 40 && (await V(89)) === 0 && !(await evaluate("!!document.querySelector('.rtpop')")) && !(await evaluate("!!document.querySelector('#ed-stage .t[data-id=\"34\"] .mks i')")),
+    `nf-edit3: the card's DEPTH dragged up (+40 -> ${d2}); × takes the route off (slot 2 OFF), the card and FREQ's dot gone`);
+  // a dot opens its card too
+  await tap('#ed-stage .t[data-id="35"] .mks i');
+  const card2 = await evaluate("(() => { const p = document.querySelector('.rtpop'); return p && p.querySelector('.who b').textContent; })()");
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  check(card2 === "LFO 1 → RESO", `nf-edit3: RESO's dot opens its route's card (${card2})`);
+  // all 8 used: FULL, nothing changed
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => { __mgr.editor.set(86 + 3 * k, 1 + k); __mgr.editor.set(87 + 3 * k, 30 + k); __mgr.editor.set(88 + 3 * k, 20); })");
+  await sleep(250);
+  const f0 = await evaluate("__mgr.editor.sound().values.join()");
+  const b3 = await plug('#ed-stage .src[data-src="4"]', '#ed-stage .t[data-id="42"]', true);
+  const fullOn = await evaluate("({ ghost: (document.querySelector('.dragov .ghost') || {}).textContent, full: document.getElementById('ed-stage').classList.contains('full'), atk: document.querySelector('#ed-stage .t[data-id=\"42\"]').classList.contains('lit') })");
+  await keep("drag-full-1440");
+  await mouse("mouseReleased", b3.x, b3.y);
+  await sleep(250);
+  check(/FULL/.test(fullOn.ghost || "") && fullOn.full && !fullOn.atk && (await evaluate("__mgr.editor.sound().values.join()")) === f0, `nf-edit3: all 8 slots used: AT dragged onto ATK shows "${fullOn.ghost}", the MOD frame red; dropped: nothing changed`);
+  // LFO 1 not onto its own values; VEL onto LFO 1's SPEED
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0))");
+  await sleep(200);
+  const l1d = await V(50);
+  await plug('#ed-stage .jack[data-lfo="0"]', '#ed-stage .t[data-id="47"]');
+  const l1after = await V(50);
+  await plug('#ed-stage .src[data-src="1"]', '#ed-stage .t[data-id="47"]');
+  check(l1after === l1d && (await routesOf()).startsWith("1,40,40"), `nf-edit3: LFO 1 dropped on its own SPEED: refused (DEST ${l1after}); VEL on LFO 1's SPEED: slot 1 VEL → L1SPD +40`);
+  // a drop with TRACK on: the route reaches ?sim's track as PARAMs
+  await click("#live");
+  await waitFor("__mgr.live.on()");
+  await evaluate("__mgr.live.attach()");
+  await waitFor("__mgr.editor.place().fromTarget && !__mgr.editor.sound().midi", 8000);
+  await sleep(500);
+  const tk = await evaluate("__mgr.editor.place().track");
+  const k0 = await evaluate("(() => { for (let k = 0; k < 8; k++) if (!__mgr.editor.value(86 + 3 * k)) return k; return -1; })()");
+  await plug('#ed-stage .src[data-src="3"]', '#ed-stage .t[data-id="73"]');
+  await waitFor("!__mgr.live.state.pumping && !__mgr.live.state.q.size", 5000);
+  await sleep(200);
+  const tv = await evaluate(`(async () => { const { soundFromFrame } = await import('./sound.js'); return soundFromFrame(await __mgr.S.link.dumpTrack(${tk})).values.slice(${86 + 3 * k0}, ${89 + 3 * k0}).join(); })()`);
+  check(k0 >= 0 && tv === "3,53,40", `nf-edit3: TRACK on: MW dropped on DRIVE: track ${tk + 1}'s slot ${k0 + 1} is MW → DRIVE +40 on ?sim (${tv}, PARAMs)`);
+  await click("#live");
+  await waitFor("!__mgr.live.on()", 4000);
+  // the other sizes: 1920 x 1080 and 1280 x 800 with the keys hidden one panel on the grid
+  await fresh("v[86] = 1; v[87] = 25; v[88] = 48;");
+  await size(1920, 1080);
+  await sleep(700);
+  const g19 = await grid();
+  check(g19.cols === 20 && !g19.bad.length && !g19.uneven && !g19.over.length, `nf-edit3: 1920 x 1080 one panel, ${g19.n} tiles on the grid`);
+  await keep("panel-1920");
+  await size(1280, 800);
+  await sleep(500);
+  const kbOn = await evaluate("__mgr.editor.state.kbOn");
+  if (kbOn) await click("#ed-kbtg");
+  await sleep(600);
+  const g12 = await grid(), m12 = await evaluate("__mgr.editor.state.mode");
+  check(m12 === "panel" && !g12.bad.length && !g12.uneven && (await noScroll()), `nf-edit3: 1280 x 800, the keys hidden: one panel (${g12.n} tiles on the grid)`);
+  await keep("panel-1280-keys-hidden");
+  await click("#ed-kbtg");
+  // the page tabs at 1280 x 700: tap VEL, tap FILTER's tab, tap RESO (lit): a route; × lets go
+  await size(1280, 700);
+  await sleep(700);
+  const pm = await evaluate("__mgr.editor.state.mode");
+  await click('#ed-pages [data-page="ops"]');
+  await tap('#ed-srcs .src[data-src="2"]');
+  const armed = await evaluate("({ a: !!document.querySelector('#ed-srcs .src.isarmed[data-src=\"2\"]'), x: !document.getElementById('ed-disarm').hidden, reach: [...document.querySelectorAll('#ed-pages .reach')].map((e) => e.parentNode.dataset.page).join() })");
+  await tap('#ed-pages [data-page="filter"]');
+  const lit2 = await evaluate("({ a: !!document.querySelector('#ed-srcs .src.isarmed'), n: document.querySelectorAll('#ed-stage .pn.cur .lit').length, page: __mgr.editor.state.page })");
+  await keep("pages-armed-1280x700");
+  await tap('#ed-stage .pn.cur .t[data-id="35"]');
+  const rp = await routesOf();
+  await tap('#ed-srcs .src[data-src="5"]');
+  await tap("#ed-disarm");
+  const off = await evaluate("!document.querySelector('#ed-srcs .src.isarmed') && !document.getElementById('ed-stage').classList.contains('modon')");
+  check(pm === "tabs" && armed.a && armed.x && armed.reach.includes("filter") && !armed.reach.includes("mod") && lit2.a && lit2.page === "filter" && lit2.n >= 8 && rp.startsWith("1,25,48,2,26,40") && off,
+    `nf-edit3: 1280 x 700 pages: KEY tapped (armed, the tabs it reaches marked: ${armed.reach}), FILTER's tab (${lit2.n} lit), RESO tapped: KEY → RESO +40; × lets go`);
+  // a phone: the strip under the tabs, a touch arms, a touch on a tab, a touch on a lit value
+  await size(390, 844, true);
+  await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  await sleep(800);
+  await touch('#ed-srcs .src[data-src="8"]');
+  await touch('#ed-pages [data-page="amp"]');
+  const ph = await evaluate("({ mode: __mgr.editor.state.mode, lay: __mgr.editor.state.lay, a: !!document.querySelector('#ed-srcs .src.isarmed[data-src=\"8\"]'), lit: !!document.querySelector('#ed-stage .pn-amp.cur .t.lit[data-id=\"115\"]') })");
+  await evaluate("window.scrollTo(0, 0)");
+  await keep("phone-armed-390");
+  await touch('#ed-stage .pn-amp.cur .t[data-id="115"]');
+  const rph = await routesOf();
+  check(ph.mode === "tabs" && ph.lay === "phone" && ph.a && ph.lit && rph.startsWith("1,25,48,2,26,40,8,39,40") && (await noScroll()),
+    `nf-edit3: 390 x 844: F ENV touched on the strip (armed), AMP's tab, PAN (lit) touched: F ENV → PAN +40; no horizontal scroll (${JSON.stringify(ph)} ${rph})`);
+  await send("Emulation.setTouchEmulationEnabled", { enabled: false });
+  await size(1280, 800);
+  await sleep(300);
+  }
+  // ---- (end of nf-edit3)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

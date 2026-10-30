@@ -65,6 +65,7 @@ import { readImport, markDuplicates } from "../manager/importer.js";
 import { fizzToDn2pst } from "../js/fizz2dn.js";
 import { parseFizzsnd } from "../js/library.js";
 import * as PC from "../manager/playcore.js";   // (nf-play)
+import * as MR from "../manager/modroute.js";   // (nf-edit3)
 
 const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const module = await WebAssembly.compile(fs.readFileSync(path.join(SITE, "fizz.wasm")));
@@ -1030,6 +1031,46 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     `exact names: "FM-1" picked: not FIZZ (${e1 && e1.message}); "ChoralRoot FM-1" picked: FIZZ ${v}; with none picked, "${l0.port}"`);
   l0.close(); fz.dispose();
 }
+
+// ---- nf-edit3: EDIT's drag to modulate (modroute.js): what each source reaches, a drop's plan, the filter's 8 types
+{
+  const DN = MR.DEST_NAMES, all = Array.from({ length: 63 }, (_, i) => i + 1), L1 = ["L1SPD", "L1MUL", "L1FAD", "L1WAV", "L1SPH", "L1MOD", "L1DEP"];
+  const n = (s) => all.filter((d) => MR.reaches(s, d)).length;
+  const l1own = MR.L1_OWN.map((d) => DN[d]);
+  check(DN.length === 64 && DN[0] === "NONE" && l1own.join() === L1.join() && !MR.reaches({ kind: "mod", src: 1 }, 0) && !MR.reaches({ kind: "lfo", k: 1 }, 64),
+    `modroute: 63 destinations (NONE apart); LFO 1's own seven ${l1own.join(" ")}`);
+  const r1 = n({ kind: "lfo", k: 0 }), r2 = n({ kind: "lfo", k: 1 }), r3 = n({ kind: "lfo", k: 2 }), rm = [1, 2, 3, 4, 5, 6, 7, 8].map((s) => n({ kind: "mod", src: s }));
+  check(r1 === 56 && r2 === 63 && r3 === 63 && rm.every((x) => x === 63) && MR.L1_OWN.every((d) => !MR.reaches({ kind: "lfo", k: 0 }, d) && MR.reaches({ kind: "mod", src: 1 }, d) && MR.reaches({ kind: "lfo", k: 1 }, d)),
+    `modroute: LFO 1 reaches ${r1} (not its own), LFO 2 ${r2}, LFO 3 ${r3}, each MOD source ${rm[0]} (LFO 1's own too: the firmware fix)`);
+  // every destination a value on the panel or a pad, once; the tiles' ids real values
+  const tiles = Object.keys(MR.DEST_TILE).map(Number), pads = Object.keys(MR.PADS).map(Number);
+  check(all.every((d) => tiles.includes(d) !== pads.includes(d)) && Object.values(MR.DEST_TILE).flat().every((id) => (VALUES[id] || isMix(id)) && MR.TILE_DEST[id] !== undefined),
+    `modroute: each of the 63 a value's tile (${tiles.length}) or a pad (${pads.length}: ${pads.map((d) => DN[d]).join(" ")})`);
+  check(DN[MR.TILE_DEST[Q.FREQ]] === "FREQ" && DN[MR.TILE_DEST[Q.MIX]] === "MIX" && DN[MR.TILE_DEST[Q.DRIVE]] === "DRIVE" && DN[MR.TILE_DEST[lfo(0, LF.SPEED)]] === "L1SPD" &&
+    DN[MR.TILE_DEST[MIX_IDS.pan]] === "PAN" && DN[MR.TILE_DEST[Q.RB2]] === "RAT B" && DN[MR.TILE_DEST[Q.FGAIN]] === "GAIN", "modroute: FREQ MIX DRIVE L1SPD PAN RAT B GAIN on their values");
+  // a drop's plan
+  const s = newSound("fm").values;
+  s[lfo(1, LF.DEPTH)] = 0;
+  const p1 = MR.plan(s, { kind: "lfo", k: 1 }, MR.TILE_DEST[Q.MIX]);
+  check(p1.act === "set" && JSON.stringify(p1.sets) === JSON.stringify([[lfo(1, LF.DEST), 14]]), `plan: LFO 2 on MIX sets its DEST only (its DEPTH ${s[lfo(1, LF.DEPTH)]} kept): ${JSON.stringify(p1.sets)}`);
+  const p2 = MR.plan(s, { kind: "mod", src: 1 }, 25);
+  check(p2.act === "set" && JSON.stringify(p2.sets) === JSON.stringify([[86, 1], [87, 25], [88, 40]]), `plan: VEL on FREQ fills slot 1 at +40: ${JSON.stringify(p2.sets)}`);
+  for (const [id, x] of p2.sets) s[id] = x;
+  const p3 = MR.plan(s, { kind: "mod", src: 1 }, 25), p4 = MR.plan(s, { kind: "mod", src: 2 }, 25);
+  check(p3.act === "card" && p3.route.k === 0 && p4.act === "set" && p4.sets[0][0] === 89, `plan: VEL on FREQ again: its card (MOD ${p3.route && p3.route.k + 1}); KEY on FREQ: the next free slot (${p4.sets && p4.sets[0][0]})`);
+  s[lfo(1, LF.DEST)] = 14;
+  const p5 = MR.plan(s, { kind: "lfo", k: 1 }, 14), p6 = MR.plan(s, { kind: "lfo", k: 1 }, 25);
+  check(p5.act === "card" && p6.act === "set" && p6.sets[0][1] === 25, "plan: LFO 2 on its own DEST: its card; on another value: its DEST moves");
+  for (let k = 0; k < 8; k++) { s[86 + 3 * k] = 1 + k; s[87 + 3 * k] = 30 + k; }
+  const p7 = MR.plan(s, { kind: "mod", src: 4 }, 34), p8 = MR.plan(s, { kind: "lfo", k: 0 }, 40);
+  check(MR.isFull(s) && p7.act === "full" && p8.act === "no" && MR.plan(s, { kind: "mod", src: 4 }, 33).act === "card", "plan: all 8 slots used: FULL (AT's own route still opens its card); LFO 1 on L1SPD: no");
+  const rs = MR.routes(s), rm1 = MR.removeSets(rs.find((r) => r.kind === "mod" && r.k === 2)), rl = MR.removeSets(rs.find((r) => r.kind === "lfo" && r.k === 1));
+  check(rs.length === 9 && JSON.stringify(rm1) === "[[92,0]]" && JSON.stringify(rl) === "[[58,0]]" && MR.routeTitle(rs.find((r) => r.kind === "mod" && r.k === 0)).what === "VEL → F ATK",
+    `routes: ${rs.length} (8 slots, LFO 2); × takes a slot's SOURCE off, an LFO's DEST; the card "${MR.routeTitle(rs[1]).who} · ${MR.routeTitle(rs[1]).what}"`);
+  check(MR.FILTER_TYPES.every(([x, l], i) => x === i && text(Q.FTYPE, x).replace("-", "−") === l),
+    `the filter's TYPE one 8-way choice on its stored values: ${MR.FILTER_TYPES.map(([x, l]) => `${l}=${x}`).join(" ")}`);
+}
+// ---- (end of nf-edit3)
 
 // ---- the owner's saved images (outside the repo), read offline
 {
