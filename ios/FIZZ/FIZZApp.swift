@@ -10,7 +10,7 @@ import SwiftUI
 
 @main
 struct FIZZApp: App {
-    // (the iPhone turns sideways only on PLAY)
+    // (the iPhone turns sideways on every tab, the iPad every way)
     @UIApplicationDelegateAdaptor(FizzAppDelegate.self) private var delegate
 
     var body: some Scene {

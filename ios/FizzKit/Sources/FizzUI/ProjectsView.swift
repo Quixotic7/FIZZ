@@ -17,6 +17,9 @@ import FizzKit
 struct ProjectsView: View {
     let model: UnitModel
     var wide = false
+    /// the iPhone on its side: the slots in two columns (the projects, their patterns and actions); the patterns and the
+    /// kept ones as the phone's, as wide as the screen (LandscapeRoot.swift)
+    var sideways = false
     @State private var importing = false
     @State private var sharing: SharedFile?
 
@@ -27,7 +30,7 @@ struct ProjectsView: View {
                 ProjectsPadView(model: model, pm: pm, importing: $importing, sharing: $sharing)
             } else {
                 switch pm.mode {
-                case .slots: ProjectsSlotsView(model: model, pm: pm)
+                case .slots: ProjectsSlotsView(model: model, pm: pm, sideways: sideways)
                 case .patterns: ProjectsPatternsView(model: model, pm: pm, importing: $importing, sharing: $sharing)
                 case .kept: ProjectsKeptView(model: model, pm: pm, importing: $importing)
                 }
@@ -133,58 +136,44 @@ struct ProjectsView: View {
 struct ProjectsSlotsView: View {
     let model: UnitModel
     let pm: ProjectsModel
+    /// the iPhone on its side: the name, the slots and their actions at the left, the patterns' card beside
+    var sideways = false
     @State private var renaming = false
     @State private var newName = ""
 
     var body: some View {
         let s = pm.selected
-        ScreenScroll(bottom: pm.ops.isEmpty ? 120 : 270, refresh: { await model.refresh(); if pm.ops.isEmpty { await pm.read(force: true) } }) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .center, spacing: 10) {
-                    // the name tapped (or its pencil): RENAME
-                    Button { newName = s.name; renaming = true } label: {
-                        HStack(alignment: .center, spacing: 10) {
-                            Text(s.there ? s.name : "\(s.p + 1)").fz(52, 800, em: -0.01)
-                                .foregroundStyle((s.there ? FZ.cyan : FZ.dim).color)
-                                .shadow(color: FZ.cyan.opacity(s.there ? 0.45 : 0), radius: 13)
-                                .lineLimit(1).minimumScaleFactor(0.5)
-                            if s.there && pm.online && pm.arm == nil {
-                                IconView(ProjIcons.pencil, color: FZ.cyan.color, lineWidth: 2.3, backdrop: .black).frame(width: 16, height: 16)
-                                    .frame(width: 34, height: 34)
-                                    .overlay(Circle().strokeBorder(FZ.cyan.mix(50, FZ.line).color, lineWidth: 1.5))
-                                    .transition(.scale.combined(with: .opacity))
+        Group {
+            if sideways {
+                // (the slots take the more: their names stay on one line)
+                GeometryReader { g in
+                    HStack(alignment: .top, spacing: 14) {
+                        ScreenScroll(bottom: pm.ops.isEmpty ? nil : 110, refresh: refresh) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                nameRow
+                                SlotTiles(pm: pm)
+                                SlotActions(pm: pm).padding(.top, 14)
                             }
+                            .padding(.horizontal, 6).padding(.top, 4)
                         }
-                        .frame(minHeight: 60)
-                        .contentShape(Rectangle())
+                        ScreenScroll(bottom: pm.ops.isEmpty ? nil : 110) {
+                            patternsCard.padding(.horizontal, 6).padding(.top, 4)
+                        }
+                        .frame(width: max(280, g.size.width * 0.4))
                     }
-                    .buttonStyle(ProjPress())
-                    .disabled(!(s.there && pm.online && pm.arm == nil))
-                    Spacer(minLength: 0)
-                    KeptChip(count: pm.kept.items.count, height: 40, label: true, hitPad: 2) { Task { await pm.enter(.kept) } }
                 }
-                .padding(.bottom, 10)
-                SlotTiles(pm: pm).frame(maxWidth: 560)
-                // the dots: a card that opens the patterns
-                Button { Task { await pm.enter(.patterns) } } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        PatternsHeading(pm: pm, chevron: true)
-                        PatternDots(project: s.model, playing: pm.playing && s.current ? model.status?.pattern : nil)
-                            .opacity(pm.reading ? 0.25 : 1)
-                            .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }
+            } else {
+                ScreenScroll(bottom: pm.ops.isEmpty ? 120 : 270, refresh: refresh) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        nameRow
+                        SlotTiles(pm: pm).frame(maxWidth: 560)
+                        patternsCard.frame(maxWidth: 560).padding(.top, 14)
+                        SlotActions(pm: pm).padding(.top, 14).frame(maxWidth: 560)
                     }
-                    .padding(.top, 10).padding(.bottom, 8).padding(.leading, 12).padding(.trailing, 8)
-                    .background(RoundedRectangle(cornerRadius: 18).fill(RGB(0x0c0c10).color))
-                    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(FZ.cyan.mix(28, FZ.line).color, lineWidth: 1.5))
-                    .contentShape(RoundedRectangle(cornerRadius: 18))
+                    // (inside the scroll: the open slot's glow not cut at the edges)
+                    .padding(.horizontal, 16).padding(.top, 4)
                 }
-                .buttonStyle(ProjPress(scale: 0.97))
-                .frame(maxWidth: 560)
-                .padding(.top, 14)
-                SlotActions(pm: pm).padding(.top, 14).frame(maxWidth: 560)
             }
-            // (inside the scroll: the open slot's glow not cut at the edges)
-            .padding(.horizontal, 16).padding(.top, 4)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: s.there && pm.online && pm.arm == nil)
         .alert("RENAME", isPresented: $renaming) {
@@ -192,6 +181,55 @@ struct ProjectsSlotsView: View {
             Button("RENAME") { Task { await pm.rename(to: newName) } }
             Button("CANCEL", role: .cancel) {}
         }
+    }
+
+    private func refresh() async { await model.refresh(); if pm.ops.isEmpty { await pm.read(force: true) } }
+
+    /// The name (a tap or its pencil: RENAME), KEPT n.
+    private var nameRow: some View {
+        let s = pm.selected
+        return HStack(alignment: .center, spacing: 10) {
+            // the name tapped (or its pencil): RENAME
+            Button { newName = s.name; renaming = true } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    Text(s.there ? s.name : "\(s.p + 1)").fz(52, 800, em: -0.01)
+                        .foregroundStyle((s.there ? FZ.cyan : FZ.dim).color)
+                        .shadow(color: FZ.cyan.opacity(s.there ? 0.45 : 0), radius: 13)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                    if s.there && pm.online && pm.arm == nil {
+                        IconView(ProjIcons.pencil, color: FZ.cyan.color, lineWidth: 2.3, backdrop: .black).frame(width: 16, height: 16)
+                            .frame(width: 34, height: 34)
+                            .overlay(Circle().strokeBorder(FZ.cyan.mix(50, FZ.line).color, lineWidth: 1.5))
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .frame(minHeight: 60)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(ProjPress())
+            .disabled(!(s.there && pm.online && pm.arm == nil))
+            Spacer(minLength: 0)
+            KeptChip(count: pm.kept.items.count, height: 40, label: true, hitPad: 2) { Task { await pm.enter(.kept) } }
+        }
+        .padding(.bottom, 10)
+    }
+
+    /// The patterns as dots: a card that opens them.
+    private var patternsCard: some View {
+        let s = pm.selected
+        return Button { Task { await pm.enter(.patterns) } } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                PatternsHeading(pm: pm, chevron: true)
+                PatternDots(project: s.model, playing: pm.playing && s.current ? model.status?.pattern : nil)
+                    .opacity(pm.reading ? 0.25 : 1)
+                    .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }
+            }
+            .padding(.top, 10).padding(.bottom, 8).padding(.leading, 12).padding(.trailing, 8)
+            .background(RoundedRectangle(cornerRadius: 18).fill(RGB(0x0c0c10).color))
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(FZ.cyan.mix(28, FZ.line).color, lineWidth: 1.5))
+            .contentShape(RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(ProjPress(scale: 0.97))
     }
 }
 

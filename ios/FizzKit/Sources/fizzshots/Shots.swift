@@ -32,6 +32,8 @@ struct Shots {
         if CommandLine.arguments.dropFirst(2).contains("units") { await unitShots(out); return }
         // (`fizzshots OUTDIR projects`: PROJECTS' alone)
         if CommandLine.arguments.dropFirst(2).contains("projects") { await projectShots(out); return }
+        // (`fizzshots OUTDIR landscape`: every tab on the iPhone's side, ShotsLandscape.swift)
+        if CommandLine.arguments.dropFirst(2).contains("landscape") { await landscapeShots(out); return }
 
         // looking: a model never started
         let looking = UnitModel(source: DemoLinkSource(.fizz))

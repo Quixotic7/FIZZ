@@ -21,6 +21,8 @@ import FizzKit
 struct LibraryView: View {
     let model: UnitModel
     var wide = false
+    /// the iPhone on its side: the phone's list, the preset beside it (LandscapeRoot.swift)
+    var sideways = false
     @Environment(\.fizzSnapshot) private var snapshot
     @Environment(\.fizzShotSelection) private var shotSelection
     @Environment(\.fizzBarClearance) private var clearance
@@ -54,7 +56,7 @@ struct LibraryView: View {
 
     var body: some View {
         Group {
-            if wide { padBody } else { phoneBody }
+            if wide { padBody } else if sideways { sideBody } else { phoneBody }
         }
         .overlay(alignment: .bottom) {
             if let m = moving {
@@ -222,7 +224,7 @@ struct LibraryView: View {
             return
         }
         let k = key(r)
-        if wide {
+        if wide || sideways {
             selected = selected == k ? nil : k
         } else {
             selected = k
@@ -378,7 +380,7 @@ struct LibraryView: View {
                 chips
             }
                 .padding(.bottom, 14)
-            ScreenScroll(bottom: (picks.active ? bulkHeight + 10 : clearance) + 20 + (moving != nil ? 62 : 0), lazy: true,
+            ScreenScroll(bottom: (picks.active && !sideways ? bulkHeight + 10 : clearance) + 20 + (moving != nil ? 62 : 0), lazy: true,
                          refresh: { await model.refresh() }) {
                 if filter.source == .all && !shown.mine.isEmpty { group("MY PRESETS", shown.mine.count) }
                 ForEach(shown.mine, id: \.slot) { row($0) }
@@ -404,7 +406,7 @@ struct LibraryView: View {
         }
         // (SELECT's bar in the tab bar's place, as KEPT's)
         .overlay(alignment: .bottom) {
-            if picks.active {
+            if picks.active && !sideways {
                 BulkBar(flow: bulk, shown: shown.mine + shown.factory) { tagging = BulkTagAsk() }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bulkHeight = $0 }
                     .padding(.horizontal, 12).padding(.bottom, PhoneRoot.barBottom - 6)
@@ -412,6 +414,41 @@ struct LibraryView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.active)
+    }
+
+    // MARK: iPhone on its side
+
+    /// The phone's list; beside it the preset tapped, or SELECT's panel (as the iPad's third column). KEPT: its list
+    /// alone, as wide as the screen.
+    private var sideBody: some View {
+        // (the preset's column 40 % of the width, 260..330 pt: the names keep their room on a 844-pt iPhone)
+        GeometryReader { g in sideColumns(detail: min(330, max(260, g.size.width * 0.4))) }
+    }
+
+    private func sideColumns(detail: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            phoneBody
+            if !keptOn {
+                Card(padding: 14) {
+                    let shown = filter.shown(model.rows)
+                    if picks.active {
+                        ScreenScroll(bottom: 4) { BulkPanel(flow: bulk, shown: shown.mine + shown.factory) }
+                    } else if let r = entry(selected) {
+                        ScreenScroll(bottom: 4) {
+                            PresetPanel(model: model, entry: r, wide: true, note: $note, ask: $ask, onExport: export, onMove: startMove) {
+                                selected = nil
+                            }
+                        }
+                        .id(key(r))
+                    } else {
+                        TabPlaceholder(tab: .library)
+                    }
+                }
+                .frame(width: detail)
+                .frame(maxHeight: .infinity)
+                .padding(.top, 4).padding(.bottom, clearance)
+            }
+        }
     }
 
     // MARK: iPad

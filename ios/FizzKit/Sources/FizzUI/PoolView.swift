@@ -18,6 +18,8 @@ import FizzKit
 struct PoolView: View {
     let model: UnitModel
     var wide = false
+    /// the iPhone on its side: the grid at the left, the project and the panel beside it (LandscapeRoot.swift)
+    var sideways = false
     @Environment(\.fizzSnapshot) private var snapshot
     @Environment(\.fizzShotSelection) private var shotSelection
     @Environment(\.fizzBarClearance) private var clearance
@@ -53,7 +55,7 @@ struct PoolView: View {
 
     var body: some View {
         Group {
-            if wide { padBody } else { phoneBody }
+            if wide { padBody } else if sideways { sideBody } else { phoneBody }
         }
         .confirmCard($ask)
         .hardwareKeys(model.editor)
@@ -408,6 +410,36 @@ struct PoolView: View {
             bottom.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
                 .padding(.horizontal, 12).padding(.bottom, clearance)
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.on)
+        .sheet(isPresented: $drawer) {
+            SoundsDrawer(model: model, filter: $filter, picked: pick) { id in
+                pick = id
+                selected = nil; moving = nil
+                drawer = false
+            }
+        }
+    }
+
+    // MARK: iPhone on its side
+
+    /// The grid as tall as the screen at the left; the project's name, its chips and the panel (or the selection's
+    /// bar) in a column beside it.
+    private var sideBody: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ScreenScroll(refresh: { await model.refresh() }) {
+                grid(columns: 8, height: 42).padding(.top, 6)
+            }
+            .overlay(alignment: .top) { NoteStrip(note: $note).padding(.top, 8) }
+            VStack(alignment: .leading, spacing: 0) {
+                header.padding(.top, 2).padding(.bottom, 8)
+                projectChips
+                Spacer(minLength: 10)
+                bottom
+            }
+            .frame(width: 320)
+            .padding(.bottom, clearance)
+        }
+        .padding(.horizontal, 6)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.on)
         .sheet(isPresented: $drawer) {
             SoundsDrawer(model: model, filter: $filter, picked: pick) { id in
