@@ -1150,6 +1150,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     /* the LFOs: read, then advanced; summed into their destinations (Q15 each) */
     for (k = 0; k < QD_N; k++)
         dst[k] = 0;
+    quad_ext_mods(t, v, s, p, dst);              /* QUADRILLE (e), hook 6: the modulation slots into dst (none: none),
+                                                  * before the LFOs read theirs (a slot may move LFO 1's: QD_L1*) */
     for (i = 0; i < 3u; i++) {                   /* LFO 2, 3, then 1 (2 and 3 may modulate LFO 1: QD_L1*) */
         uint32_t d, tm, ph, rv, wv;
         int32_t inc0, w, fd, sph, dep;
@@ -1226,9 +1228,6 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     }
     if (s->ticks < 0xFFFFFFFFu)
         s->ticks++;
-    if (p[QD_QP_MOD(0, QD_QM_SRC)] | p[QD_QP_MOD(1, QD_QM_SRC)] | p[QD_QP_MOD(2, QD_QM_SRC)] | p[QD_QP_MOD(3, QD_QM_SRC)] |
-        p[QD_QP_MOD(4, QD_QM_SRC)] | p[QD_QP_MOD(5, QD_QM_SRC)] | p[QD_QP_MOD(6, QD_QM_SRC)] | p[QD_QP_MOD(7, QD_QM_SRC)])
-        quad_ext_mods(t, v, s, p, dst);          /* QUADRILLE (e), hook 6: the modulation slots into dst */
 #define QMV(i, d, sc, lo, hi) clamp(p[i] + ((dst[d] * (sc)) >> 15), lo, hi)
 #define QMV2(i, d, d2, sc, lo, hi) clamp(p[i] + (((dst[d] + dst[d2]) * (sc)) >> 15), lo, hi)   /* (+ an AB macro) */
     /* the envelopes (their times, END, SUS modulated; the AB macros move A's and B's together) */

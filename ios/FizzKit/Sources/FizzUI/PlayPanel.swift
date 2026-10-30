@@ -5,7 +5,8 @@
 // PLAY's pull-down sheet (mock-up 53, RemoteFM1's PhoneSheet in its numbers): #17140F from the top, 20 pt margins,
 // DM Sans in sentence case, the title in Unbounded. Sound source (This iPhone, or the FM-1's track when one is the
 // unit), the five views (Steps among them), the six themes, FIZZ's version, the emulated FIZZ's memory with Reset,
-// MIDI & audio, and the app's tab bar above the grabber. Swiped up, Done, the grabber or a tap on the scrim puts it away.
+// MIDI & audio (its page: MIDI/MidiAudioPage.swift, mock-up 55), and the app's tab bar above the grabber. Swiped up,
+// Done, the grabber or a tap on the scrim puts it away.
 
 import SwiftUI
 import FizzEngine
@@ -30,7 +31,9 @@ struct PlaySheet: View {
         let compact = height < 600
         VStack(spacing: 0) {
             Group {
-                if compact {
+                if play.sheetPage != nil {
+                    MidiAudioPage(host: host, bodyHeight: max(160, height - max(top, 0) - 7 - 77 - 114))
+                } else if compact {
                     ScrollView { content.padding(.bottom, 8) }.scrollIndicators(.hidden).frame(maxHeight: height - top - 90)
                 } else {
                     content
@@ -94,8 +97,12 @@ struct PlaySheet: View {
         HStack(spacing: 8) {
             source(title: EmulatorHost.hereName.sentenceCased, detail: "FIZZ, play by touch",
                    on: play.soundNow == .here, dot: accent) { play.sound = .here }
-            // (the FM-1's card always there, as RemoteFM1's; dimmed while no FM-1 is the unit)
-            if play.fm1Offered, let u = model.unit {
+            // (the FM-1's card always there, as RemoteFM1's; dimmed while no FM-1 is the unit, and while a RemoteFM1
+            // unit is the panel: the sound stays on the phone, mock-up 57)
+            if host.panelPort != nil {
+                source(title: "FM-1", detail: "Panel · USB", on: false, dot: RGB(0x3BD47A)) {}
+                    .disabled(true).opacity(0.5)
+            } else if play.fm1Offered, let u = model.unit {
                 let t = model.editor.trackShown
                 source(title: "FM-1", detail: "\(u.via)\(t >= 0 ? " · track \(t + 1)" : "")", on: play.soundNow == .fm1,
                        dot: RGB(0x3BD47A)) { play.letGoAll(); play.sound = .fm1 }
@@ -200,13 +207,17 @@ struct PlaySheet: View {
                 .disabled(resetting)
             }
             rule
-            row(56) {
-                Text("MIDI & audio")
-                Spacer(minLength: 8)
-                Text(host.mode == .audio ? "44.1 kHz" : host.mode == .timer ? "Silent" : "Off")
-                    .foregroundStyle(SheetInk.head.color)
-                IconView(PlayIcons.chevron, color: SheetInk.soft.color, lineWidth: 2.4).frame(width: 15, height: 15)
+            Button { withAnimation(.easeInOut(duration: 0.2)) { play.sheetPage = .midi } } label: {
+                row(56) {
+                    Text("MIDI & audio")
+                    Spacer(minLength: 8)
+                    Text(host.mode == .audio ? "44.1 kHz" : host.mode == .timer ? "Silent" : "Off")
+                        .foregroundStyle(SheetInk.head.color)
+                    IconView(PlayIcons.chevron, color: SheetInk.soft.color, lineWidth: 2.4).frame(width: 15, height: 15)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(PressStyle())
         }
         .background(RoundedRectangle(cornerRadius: 20).fill(SheetInk.list.color))
         .clipShape(RoundedRectangle(cornerRadius: 20))

@@ -30,12 +30,16 @@ struct Shots {
         if !FizzFont.register() { print("Inter Tight not registered: the system font is used") }
         // (`fizzshots OUTDIR units`: the unit picker's alone)
         if CommandLine.arguments.dropFirst(2).contains("units") { await unitShots(out); return }
+        // (`fizzshots OUTDIR panel`: a RemoteFM1 unit as THIS iPHONE's panel alone, mock-up 57: ShotsPanel.swift)
+        if CommandLine.arguments.dropFirst(2).contains("panel") { await panelShots(out); return }
         // (`fizzshots OUTDIR projects`: PROJECTS' alone)
         if CommandLine.arguments.dropFirst(2).contains("projects") { await projectShots(out); return }
         // (`fizzshots OUTDIR landscape`: every tab on the iPhone's side, ShotsLandscape.swift)
         if CommandLine.arguments.dropFirst(2).contains("landscape") { await landscapeShots(out); return }
         // (`fizzshots OUTDIR play`: PLAY's alone, mock-ups 49-54)
         if CommandLine.arguments.dropFirst(2).contains("play") { await playShots(out); await backupPlayShots(out); return }
+        // (`fizzshots OUTDIR midi`: PLAY's MIDI & audio page and learn, mock-ups 55-56, ShotsMidi.swift)
+        if CommandLine.arguments.dropFirst(2).contains("midi") { await midiShots(out); return }
 
         // looking: a model never started
         let looking = UnitModel(source: DemoLinkSource(.fizz))
@@ -124,8 +128,10 @@ struct Shots {
         await projectShots(out)
         await keptShots(out)
         await playShots(out)
+        await midiShots(out)
         await backupPlayShots(out)
         await unitShots(out)
+        await panelShots(out)
     }
 
     // ---- ▶ play a backup (mock-up 44): the demo FM-1's backups with ▶, yesterday's played in a throwaway FIZZ

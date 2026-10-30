@@ -19,7 +19,8 @@ let package = Package(
         // the app's screens and models (they also build on macOS, for the snapshots and the tests)
         .target(
             name: "FizzUI",
-            dependencies: ["FizzKit", "FizzData", "FizzEngine"],
+            dependencies: ["FizzKit", "FizzData", "FizzEngine", "CMidiMap"],
+            exclude: ["MIDI/PROVENANCE.md"],
             resources: [.copy("Resources/InterTight.ttf"), .copy("Resources/OFL.txt"),
                         .copy("Resources/ChakraPetch-Bold.ttf"), .copy("Resources/OFL-ChakraPetch.txt"),
                         .copy("Resources/DMSans.ttf"), .copy("Resources/OFL-DMSans.txt"),
@@ -35,6 +36,9 @@ let package = Package(
         .binaryTarget(name: "CFizzCore", path: "Frameworks/FizzCore.xcframework"),
         // libremotefm1's portable core (RemoteFM1 f44af95, MPL-2.0, unchanged: Sources/CRemoteFM1/PROVENANCE.md)
         .target(name: "CRemoteFM1", exclude: ["PROVENANCE.md"], publicHeadersPath: "include"),
+        // the learned MIDI map's mapper (RemoteFM1IOS af91bc5's RFMMidiMap, MPL-2.0: Sources/CMidiMap/PROVENANCE.md)
+        // behind FIZZ's C face (FizzMidiMap.h)
+        .target(name: "CMidiMap", exclude: ["PROVENANCE.md"], publicHeadersPath: "include"),
         // the emulated FIZZ: the core's clock, sound, panel and flash; a MIDITransport and LinkSource onto it; a
         // RemoteFM1 unit as its panel (PanelLink)
         .target(name: "FizzEngine", dependencies: ["FizzKit", "CFizzCore", "CRemoteFM1"]),
@@ -50,7 +54,7 @@ let package = Package(
         ),
         .testTarget(
             name: "FizzUITests",
-            dependencies: ["FizzUI", "FizzKit", "FizzData"],
+            dependencies: ["FizzUI", "FizzKit", "FizzData", "CMidiMap", "FizzEngine"],
             resources: [.copy("Resources/lib.fizzlib")]
         ),
         .testTarget(name: "FizzEngineTests", dependencies: ["FizzEngine", "FizzKit", "FizzUI", "CRemoteFM1"]),
