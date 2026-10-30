@@ -1,0 +1,88 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ Manager, two FM-1s and PORTS (2026-10-29: unitpicker.js, ports.js): the picker's PORTS button, a row per FM-1
+   (its port's name; another firmware greyed, named, not to pick), and the LOG's panel: LOG | PORTS, the counts, one row
+   per port (in, out, asked, what answered). Everything under #upick-pop and #logbox. */
+
+/* the picker */
+#upick-pop .uphead .ports { --c: var(--cyan); margin-left: auto; height: 30px; padding: 0 12px; font-size: 11px; display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; }
+#upick-pop .uphead .ports .ic { width: 14px; height: 14px; color: var(--cyan); }
+#upick-pop .urow .nm b { min-width: 0; }
+#upick-pop .urow .nm .pn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#upick-pop .urow .nm b .usb { flex: none; }
+#upick-pop .urow .nm .vline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#upick-pop .urow .nm .vline .usb { flex: none; }
+#upick-pop .urow.nofizz { --c: var(--muted); cursor: not-allowed; border: 1.5px solid #22222A; background: repeating-linear-gradient(135deg, transparent 0 9px, rgba(255, 255, 255, .025) 9px 18px); }
+#upick-pop .urow.nofizz .big { color: #3E3E48; }
+#upick-pop .urow.nofizz .nm b { color: #6E6E78; }
+#upick-pop .urow.nofizz .usb { --c: #5A5A64; }
+#upick-pop .urow .ban { width: 30px; height: 30px; flex: none; color: #4A4A54; }
+#upick-pop .urow .ban svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2; }
+#upick-pop .fwchip, #logbox .fwchip { --c: #8D8D96; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; flex: none; white-space: nowrap;
+  background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); font-weight: 900; font-size: 11px; letter-spacing: .1em; }
+#logbox .fwchip.fizz { --c: var(--green); }
+#logbox .fwchip.red { --c: var(--red); }
+
+/* LOG | PORTS: one panel under the bar */
+#logbox .lpanel { position: fixed; right: 16px; top: calc(var(--toph) + 8px); width: 720px; max-width: calc(100vw - 32px); max-height: calc(100vh - var(--toph) - 24px); z-index: 9;
+  background: var(--panel); border: 1.5px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, .8);
+  display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+#logbox .lpanel pre { position: static; width: auto; max-width: none; max-height: min(50vh, 520px); overflow: auto; margin: 0; padding: 4px 2px; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none; font: 500 12px/1.5 ui-monospace, Menlo, monospace; color: var(--body); white-space: pre-wrap; }
+#logbox .lpanel pre[hidden], #logbox .pview[hidden] { display: none; }
+#logbox .lphead { display: flex; align-items: center; gap: 10px; min-width: 0; }
+#logbox .lpseg { --c: var(--cyan); display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; flex: none;
+  border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); }
+#logbox .lpseg button { height: 32px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; display: inline-flex; align-items: center;
+  font-weight: 800; font-size: 11px; letter-spacing: .12em; color: var(--body); cursor: pointer; }
+#logbox .lpseg button.on { background: var(--c); color: #000; box-shadow: 0 0 14px -3px var(--c); }
+#logbox .lphead .when { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
+#logbox .lphead .again { --c: var(--yellow); height: 38px; padding: 0 14px; font-size: 11px; display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; white-space: nowrap; }
+#logbox .lphead .again[hidden] { display: none; }
+#logbox .lphead .again svg, #logbox .lphead .cp svg { width: 16px; height: 16px; fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#logbox .lphead .again.spin svg { animation: spin .8s linear infinite; }
+#logbox .lphead .cp { --c: var(--body); width: 38px; height: 38px; padding: 0; display: grid; place-items: center; border-radius: 50%; flex: none; }
+#logbox .lphead .when:empty + .again[hidden] + .cp { margin-left: auto; }
+#logbox .lphead .cp.done { --c: var(--green); border-color: var(--green); }
+#logbox .pview { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; }
+#logbox .pstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#logbox .pstat { border-radius: 14px; padding: 10px 14px; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+#logbox .pstat .num { font-size: 30px; line-height: 1; color: var(--c); }
+#logbox .pstat .lbl { color: var(--body); }
+#logbox .ptab { display: flex; flex-direction: column; gap: 6px; }
+#logbox .prow { display: grid; grid-template-columns: minmax(0, 1fr) 46px 46px 64px 250px; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px;
+  border-radius: 12px; border: 1.5px solid var(--line); }
+#logbox .prow.hd { min-height: 0; border: 0; padding-bottom: 0; }
+#logbox .prow.hd .lbl { text-align: center; }
+#logbox .prow.hd .lbl:first-child, #logbox .prow.hd .lbl:last-child { text-align: left; }
+#logbox .prow .pn { font-weight: 800; font-size: 15px; color: var(--text); display: flex; align-items: center; gap: 8px; min-width: 0; }
+#logbox .prow .pn .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#logbox .prow .pn .usb { flex: none; }
+#logbox .prow .io { justify-self: center; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+#logbox .prow .io.no { background: transparent; box-shadow: inset 0 0 0 1.5px var(--dim); }
+#logbox .prow .ask { justify-self: center; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed var(--dim); }
+#logbox .prow .ask.y { border: 0; background: color-mix(in srgb, var(--yellow) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--yellow); }
+#logbox .prow .ask svg { width: 14px; height: 14px; fill: none; stroke: var(--yellow); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+#logbox .prow .ans { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#logbox .prow .ans .hud { font-size: 12px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#logbox .prow .ans .none { color: var(--dim); font-weight: 800; }
+#logbox .prow.fizz { border-color: color-mix(in srgb, var(--green) 55%, transparent); background: color-mix(in srgb, var(--green) 6%, transparent); box-shadow: 0 0 18px -8px var(--green); }
+#logbox .prow.fizz .ans .hud { color: var(--green); }
+#logbox .prow.other { border-color: color-mix(in srgb, var(--red) 35%, transparent); }
+#logbox .prow.other .ans .hud { color: var(--red); }
+#logbox .prow.quiet .pn { color: var(--muted); }
+
+/* a phone: the panel the screen's width; a port two lines (the name, in, out, asked; then what answered) */
+@media (max-width: 700px) {
+  #logbox .lpanel { left: 12px; right: 12px; width: auto; max-width: none; padding: 14px; gap: 12px; border-radius: 18px; }
+  #logbox .lphead { gap: 8px; }
+  #logbox .lpseg button { padding: 0 14px; }
+  #logbox .lphead .again { padding: 0 12px; }
+  #logbox .lphead .again .lk { display: none; }
+  #logbox .pstats { gap: 6px; }
+  #logbox .pstat { flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 10px; }
+  #logbox .pstat .num { font-size: 26px; }
+  #logbox .prow.hd { display: none; }
+  #logbox .prow { grid-template-columns: minmax(0, 1fr) auto auto auto; column-gap: 8px; row-gap: 8px; padding: 10px 12px; }
+  #logbox .prow .ans { grid-column: 1 / -1; }
+  #logbox .prow.quiet .ans:has(.none) { display: none; }
+}

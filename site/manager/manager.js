@@ -10,6 +10,8 @@
 // pool's changes shown at once (then read back until the unit agrees), IMPORT takes FIZZ's own files.
 //   ?sim        a simulated FM-1 (simfizz.js: the browser FIZZ for its SysEx) instead of Web MIDI: headless checks
 //   &bt         (with ?sim) its port named "FM-1 C1F0 Bluetooth", as the Bluetooth package's
+//   ?sim=two    (tests) two FM-1s running FIZZ ("FIZZ FM-1" over USB, "FM-1 C1F0 Bluetooth"), one running RemoteFM1 and
+//               one in its update loader, and two other ports never asked; __simTwo.unplug(k) / plug(k)
 //   ?depth=N    the backup's requests outstanding (1, the default: one at a time); &gap=MS their spacing
 import { findFizz, FZER, isBlePort } from "./fizzlink.js";
 import { makeFizzbak, readBackup, backupFileName, soundKey } from "./fizzbak.js";
@@ -28,6 +30,8 @@ import { mountExport } from "./exporter.js";
 import { BrowserFizz } from "./browserfizz.js";
 import { BrowserUnit, BROWSER_ID } from "./browserunit.js";
 import { mountUnit } from "./unitpicker.js";
+import { mountPorts } from "./ports.js";
+import { PortScan, reportText } from "./portscan.js";
 import { mountLive } from "./live.js";
 import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySound, isMidiBlob, blob6, isMix } from "./sound.js";
 import { browserRows, recordOf, keepIn, dropFrom, blankImage, asHost } from "./browserlib.js";
@@ -210,13 +214,19 @@ function renderUnit() {
 
 // FM: the FM-1's side: Web MIDI (granted, or ?sim's fake), an FM-1 running FIZZ found on it while the browser's FIZZ is
 // the unit (found), the browser FIZZ's version and STATUS when it was last the unit
-const FM = { access: null, found: null, probing: false, bver: "", bstat: null, bmem: null, sig: "" };
+const FM = { access: null, found: null, probing: false, bver: "", bstat: null, bmem: null, sig: "", want: null, linking: null };
+// (two FM-1s, 2026-10-29: want, the port picked in the picker (null: the first FM-1 running FIZZ); linking, the port
+// findFizz is opening. Every probe of FM.access's ports takes its turn (a port asked by two at once can lose a frame))
+let midiQ = Promise.resolve();
+function midiTurn(fn) { const r = midiQ.then(fn, fn); midiQ = r.catch(() => {}); return r; }
 // the FM-1 as the unit (CONNECT FM-1, the picker's FM-1, ⇄ FM-1): Web MIDI asked for here (a click: its prompt), else
 // the browser's FIZZ stays the unit and the page says why
-async function connect() {
+async function connect(port = null) {
   if (S.busy || attaching) { toast("Wait: a write is still going", "--orange"); return; }
   if (!FM.access && !(await openMidi())) return;
+  FM.want = port;
   if (S.mode === "browser") leaveBrowser();
+  else if (S.link && port && port !== S.link.port) { log(`leaving "${S.link.port}" for "${port}"`); dropLink(); S.unit = null; }   // (another FM-1 picked)
   S.mode = "fm1";
   S.access = FM.access;
   const why = await attach();
@@ -235,6 +245,7 @@ async function openMidi() {
     catch (_) { say("MIDI (SysEx) was not allowed. Allow it for this site in the address bar, then CONNECT FM-1.", "--orange"); return null; }
   }
   FM.access.onstatechange = onState;
+  scanSoon();
   return FM.access;
 }
 async function midiGranted() {
@@ -246,7 +257,7 @@ async function midiGranted() {
 async function findUnit() {
   if (!FM.access) return null;
   try {
-    const link = await findFizz(FM.access, { log: () => {} });
+    const link = await midiTurn(() => findFizz(FM.access, { log: () => {} }));
     try { const version = await link.identity(); return version ? { id: link.id, port: link.port, version } : null; } finally { link.close(); }
   } catch (_) { return null; }
 }
@@ -259,7 +270,9 @@ async function attach() {
   if (S.mode === "fm1") say("");
   let why = "";
   try {
-    const link = await findFizz(S.access, { log });
+    const own = S.mode === "fm1" && S.access === FM.access;   // (the FM-1's Web MIDI: the port picked, its turn)
+    const link = own ? await midiTurn(async () => { const l = await findFizz(S.access, { log, port: FM.want }); FM.linking = l.port; return l; })
+      : await findFizz(S.access, { log });
     link.log = log;
     link.onLost = () => lost();
     S.link = link;
@@ -295,7 +308,7 @@ async function attach() {
     }[e.code] || esc(e.message);
     log(`connect: ${e.code || ""} ${e.message}`);
   } finally {
-    attaching = false;
+    attaching = false; FM.linking = null;
     renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
     if (S.link && !$("tab-projects").hidden) projtab.show();
     unitUi.render();
@@ -316,8 +329,10 @@ function lost() {
 let stateT = null;
 function onState(ev) {
   const p = ev && ev.port;
+  portsChanged(p);
   if (S.mode === "fm1") {
-    if (p && p.state === "disconnected" && S.link) { try { S.link.close(); } catch (_) { /* gone */ } lost(); }
+    // (only the unit's own port: another FM-1 unplugged leaves this one be)
+    if (p && p.state === "disconnected" && S.link && (p.name === S.link.port || S.link.link.lost)) { try { S.link.close(); } catch (_) { /* gone */ } lost(); }
     return;
   }
   // the browser's FIZZ the unit: an FM-1 running FIZZ that comes is offered (⇄ FM-1), never taken by itself (a port
@@ -340,6 +355,44 @@ async function watchFm1() {
   if (f && (!FM.found || FM.found.id !== f.id)) log(`an FM-1 running FIZZ ${f.version} on "${f.port}": ⇄ FM-1 to use it`);
   FM.found = f;
   unitUi.render();
+}
+// ---------------------------------------------------------------- PORTS (portscan.js): every port, what answered
+// The picker lists every FM-1 that answered (FIZZ: a row to pick; another firmware: greyed, named); PORTS shows them
+// all. Asked once each (a port that comes back is asked again), LOOK AGAIN asks them all; never the unit's own port
+const PS = { scan: null, t: null, again: false };
+const curPort = () => (FM.linking ? { port: FM.linking, id: null }
+  : S.mode === "fm1" && S.link && S.access === FM.access ? { port: S.link.port, id: S.link.id, version: short(S.unit && S.unit.version).replace(/-.*$/, "") } : null);
+function portScan() { if (!PS.scan && FM.access) PS.scan = new PortScan(FM.access, { skip: curPort, log }); return PS.scan; }
+function scanSoon(again = false, ms = 250) {
+  if (!FM.access) return;
+  PS.again = PS.again || again;
+  clearTimeout(PS.t);
+  PS.t = setTimeout(async () => {
+    const a = PS.again;
+    PS.again = false;
+    await midiTurn(() => portScan().run({ again: a }));
+    unitUi.render(); portsUi.render();
+  }, ms);
+}
+function portsChanged(p) {
+  if (p && p.state === "disconnected" && PS.scan) PS.scan.forget(p.name);
+  unitUi.render(); portsUi.render();
+  if (portsSig() !== PS.sig) { PS.sig = portsSig(); scanSoon(false, 600); }
+}
+// the picker's FM-1 rows: every pair that answered (the one in use, the one found), in the access's order
+function unitsView() {
+  const sc = portScan();
+  if (!sc) return null;
+  const out = [];
+  for (const p of sc.report().ports) {
+    if (!p.inn || !p.out) continue;
+    const found = S.mode === "browser" && FM.found && FM.found.port === p.name ? FM.found : null;
+    if (!p.id && !found) continue;
+    const fizz = p.fizz || !!found;
+    out.push({ port: p.name, ble: p.ble, fizz, fw: fizz ? "FIZZ" : p.fw, on: p.current && S.mode === "fm1",
+      version: found ? short(found.version).replace(/-.*$/, "") : p.version });
+  }
+  return out;
 }
 // ---------------------------------------------------------------- the progress screen
 const P = { t0: 0, tick: null, nsec: 0, lib: 0 };
@@ -1971,11 +2024,13 @@ function leaveBrowser() {
   loadBrowserLib();
   unitUi.render();
 }
-// the picker's rows, ⇄ FM-1: never while a write runs
-function pick(u) {
-  if (u === S.mode && (S.link || attaching || booting)) return;
+// the picker's rows (an FM-1's: its port), ⇄ FM-1 (the one found): never while a write runs
+function pick(u, port = null) {
+  if (u === "fm1" && !port && S.mode === "browser" && FM.found) port = FM.found.port;
+  const same = u === "browser" || !port || (S.link ? S.link.port === port : FM.want === port);
+  if (u === S.mode && same && (S.link || attaching || booting)) return;
   if (S.busy || attaching || booting) { toast("Wait: a write is still going", "--orange"); return; }
-  if (u === "fm1") connect(); else useBrowser();
+  if (u === "fm1") connect(port); else useBrowser();
 }
 // the sound: the page's first click starts it (FIZZ moved into the audio worklet); the pill then mutes it
 function wake(ev) {
@@ -2036,7 +2091,9 @@ async function keepBrowserBak(host) {
   log(`kept ${name} in this browser (${file.length} B)`);
 }
 const unitUi = mountUnit({
-  $, pick, connect, sound: soundClick, reset: resetBrowser,
+  $, pick, connect: () => connect(), sound: soundClick, reset: resetBrowser,
+  ports: () => { portsUi.open("ports"); scanSoon(false, 0); },
+  open: () => scanSoon(false, 0),
   view: () => {
     const br = S.mode === "browser", u = S.unit && S.link ? S.unit : null;
     const fv = short(u && u.version).replace(/-.*$/, "");
@@ -2051,25 +2108,44 @@ const unitUi = mountUnit({
       via: (br ? FM.found && isBlePort(FM.found.port) : !!(S.link && S.link.viaBle)) ? "ble" : "usb",
       sound: br ? (!BU || !BU.engine ? "off" : BU.waking ? "look" : BU.running ? (muted ? "mute" : "on") : "off") : null,
       mem: memView(),
+      units: unitsView(),
+      port: !br && S.link ? S.link.port : "",
     };
   },
 });
+const portsUi = mountPorts({ $, report: () => (PS.scan ? PS.scan.report() : { at: null, ports: [], n: { in: 0, out: 0, asked: 0, fizz: 0 } }),
+  again: () => scanSoon(true, 0), shown: () => scanSoon(false, 0), text: (r) => reportText(r), log: () => logLines.join("\n"),
+  busy: () => !!(PS.scan && PS.scan.running) });
 
 // ---------------------------------------------------------------- the simulated FM-1 (?sim)
 async function simAccess() {
-  const [{ SimFizz }, { createEngine }, { storeSound }] = await Promise.all([import("./simfizz.js"), import("../engine/engine.js"), import("../js/fizz_sysex.js")]);
+  const [{ SimFizz, SimPort }, { createEngine }, { storeSound }] = await Promise.all([import("./simfizz.js"), import("../engine/engine.js"), import("../js/fizz_sysex.js")]);
   const module = await WebAssembly.compileStreaming(fetch("../fizz.wasm"));
+  const fill = (sim, demo) => {
+    demo.forEach(([name, t], k) => {
+      const blob = new Uint8Array(96); blob[0] = 0x51; blob[1] = 5; blob[2] = k % 8; blob[3] = (2 * k) % 16; blob[50] = (10 * k) % 100;
+      sim.engine.midiIn(storeSound({ name, blob, tags: 1 << t, pan: (k % 5) - 2, reverb: 10 * (k % 4) }));
+      sim.run(40);
+    });
+    sim.run(2500);
+  };
   const sim = new SimFizz({ createEngine, module, frameMs: Math.max(0, +(Q.get("frame") ?? 1)), playing: Q.has("playing"),
     ...(Q.has("bt") ? { name: "FM-1 C1F0 Bluetooth" } : {}) });   // (?sim&bt: the port named as the Bluetooth package's)
   await sim.boot();
-  const demo = [["SUB DROP", 0], ["GLASS BELL", 2], ["NIGHT PAD", 3], ["WIRE LEAD", 4], ["TIN KICK", 5], ["DUSTY EP", 1], ["BUBBLE FX", 6], ["ROUND BASS", 0],
-    ["SODA PLUCK", 2], ["SLOW CLOUD", 3], ["ZAP SNARE", 5], ["TOY ORGAN", 1], ["HOLLOW LD", 4], ["FIZZ HAT", 5]];
-  demo.forEach(([name, t], k) => {
-    const blob = new Uint8Array(96); blob[0] = 0x51; blob[1] = 5; blob[2] = k % 8; blob[3] = (2 * k) % 16; blob[50] = (10 * k) % 100;
-    sim.engine.midiIn(storeSound({ name, blob, tags: 1 << t, pan: (k % 5) - 2, reverb: 10 * (k % 4) }));
-    sim.run(40);
-  });
-  sim.run(2500);
+  fill(sim, [["SUB DROP", 0], ["GLASS BELL", 2], ["NIGHT PAD", 3], ["WIRE LEAD", 4], ["TIN KICK", 5], ["DUSTY EP", 1], ["BUBBLE FX", 6], ["ROUND BASS", 0],
+    ["SODA PLUCK", 2], ["SLOW CLOUD", 3], ["ZAP SNARE", 5], ["TOY ORGAN", 1], ["HOLLOW LD", 4], ["FIZZ HAT", 5]]);
+  if (Q.get("sim") === "two") {                        // (tests: two FM-1s running FIZZ, RemoteFM1, the loader, two others)
+    const b = new SimFizz({ createEngine, module, frameMs: Math.max(0, +(Q.get("frame") ?? 1)), id: "FM-1_46001200", name: "FM-1 C1F0 Bluetooth" });
+    await b.boot();
+    fill(b, [["BEE BASS", 0], ["MOTH PAD", 3], ["WASP LEAD", 4]]);
+    const all = [sim, b, new SimPort("FM-1", "FM-1_52010200"), new SimPort("FM1 Update", "ota-FM1_0001"), new SimPort("IAC Driver Bus 1"), new SimPort("Roto-Control")];
+    const acc = { inputs: new Map(), outputs: new Map(), onstatechange: null, sysexEnabled: true };
+    all.forEach((d, k) => { d.access = acc; acc.inputs.set(`in${k}`, d.input); acc.outputs.set(`out${k}`, d.output); });
+    window.__simTwo = { all, unplug: (k) => all[k].unplug(), plug: (k) => all[k].replug() };
+    window.__sim = sim;
+    log("simulated FM-1s (?sim=two): FIZZ on USB and Bluetooth, RemoteFM1, the update loader");
+    return acc;
+  }
   if (Q.get("sim") === "away") {                       // (Web MIDI allowed, the FM-1 not plugged in: __simPlug(true) plugs it)
     const acc = { inputs: new Map(), outputs: new Map(), onstatechange: null, sysexEnabled: true };
     sim.access = acc;
