@@ -71,12 +71,12 @@ public final class ProjectsModel {
     /// iPhone: the slots (mock-up 14), a project's patterns (18), the kept ones (19)
     public var mode: Mode = .slots
     /// The store as read, the changes applied (nil: not read yet)
-    public private(set) var view: FizzProjectsView?
+    public internal(set) var view: FizzProjectsView?
     /// The slot looked at (0..7)
     public private(set) var sel = 0
     /// The patterns selected (0..63)
-    public private(set) var pats: Set<Int> = []
-    public private(set) var anchor = -1
+    public internal(set) var pats: Set<Int> = []
+    public internal(set) var anchor = -1
     /// What PASTE pastes
     public private(set) var clip: FizzClip?
     public private(set) var reading = false
@@ -88,9 +88,21 @@ public final class ProjectsModel {
     /// WRITE TO FM-1's screen (nil: not writing)
     public private(set) var writing: ProjectsWrite?
     public let kept: KeptStore
+    /// A pattern lifted and dragged (ProjectsDrag.swift; projtab.js D)
+    public internal(set) var lift: ProjectsLift?
+    /// What dropping the lifted (or TO…'s) pattern does to each project's pool
+    public internal(set) var plan: FizzDropPlan?
+    /// The TO… sheet (projtab.js SH)
+    public internal(set) var to: ProjectsTo?
+    /// iPad: the project beside the selected one (nil: the next one there), and KEPT shown in its place
+    public internal(set) var beside: Int?
+    public var padKept = false
+    @ObservationIgnored let zones = ProjectsDropZones()
+    @ObservationIgnored var springTask: Task<Void, Never>?
+    @ObservationIgnored var springKeys: Task<Void, Never>?
 
     @ObservationIgnored weak var unit: UnitModel?
-    @ObservationIgnored private var session: Int?
+    @ObservationIgnored var session: Int?
     @ObservationIgnored private(set) var baseImage: [UInt8]?
     @ObservationIgnored private var baseWritten: Int?
     @ObservationIgnored private var unnote: Task<Void, Never>?
@@ -133,10 +145,11 @@ public final class ProjectsModel {
     public var slots: [ProjectSlot] { (0..<nproj).map(slot) }
     public var selected: ProjectSlot { slot(sel) }
     /// Patterns pasted (yellow) and cleared (dashed) in slot p by the changes waiting.
-    public func pasted(_ p: Int) -> Set<Int> { Set(ops.filter { $0.q == p && $0.kind == .paste }.flatMap(\.at)) }
+    public func pasted(_ p: Int) -> Set<Int> { Set(ops.filter { $0.q == p && ($0.kind == .paste || $0.kind == .drop) }.flatMap(\.at)) }
     public func cleared(_ p: Int) -> Set<Int> {
         let now = view?.project(p)
-        return Set(ops.filter { $0.q == p && $0.kind == .clear }.flatMap(\.ks).filter { now?.pats[$0] == nil })
+        let moved = ops.filter { $0.kind == .drop && $0.move && $0.fromP == p }.map(\.fromK)
+        return Set((ops.filter { $0.q == p && $0.kind == .clear }.flatMap(\.ks) + moved).filter { now?.pats[$0] == nil })
     }
 
     // MARK: showing the tab
@@ -554,7 +567,7 @@ public final class ProjectsModel {
     }
 
     /// projtab.js refuse, as a short state.
-    private func refuse(_ r: FizzProjectsRefusal) {
+    func refuse(_ r: FizzProjectsRefusal) {
         switch r.code {
         case "poolfull": say("POOL FULL", FZ.orange)
         case "full", "libfull": say("STORE FULL", FZ.orange)
