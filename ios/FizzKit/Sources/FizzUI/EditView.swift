@@ -49,7 +49,7 @@ struct EditView: View {
             }
             .sheet(isPresented: $tagsOpen) { EditTagsSheet(e: e) }
             // (+ NEW's sound unsaved and EDIT left: asked first; mock-up 46)
-            .alert("\(e.sound?.name ?? "NEW") IS NOT SAVED", isPresented: Binding(get: { e.leaving != nil },
+            .alert("\(e.sound?.name ?? "NEW") IS NOT SAVED", isPresented: Binding(get: { e.asking != nil },
                                                                               set: { _ in })) {
                 Button("SAVE AS NEW") { Task { await e.answerLeaving(.save) } }
                 Button("DISCARD", role: .destructive) { Task { await e.answerLeaving(.discard) } }

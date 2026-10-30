@@ -151,30 +151,71 @@ struct EditMixTests {
         e.hide()
     }
 
-    /// Leaving EDIT with + NEW's sound unsaved: EDIT again, asked; DISCARD drops it and goes on.
+    /// Leaving EDIT with + NEW's sound unsaved: the tab guard says no and asks (no tab change, no bounce); STAY
+    /// keeps it, DISCARD drops it and goes on; IMPORT's sheet over EDIT does not ask.
     @Test func leavingAsksFirst() async throws {
         let (m, _) = await connected()
         let e = m.editor
         m.editTarget = .new(midi: false)
         await e.show()
         #expect(e.unsavedNew)
-        e.tabChanged(from: .edit, to: .library)
-        #expect(e.leaving == .library && m.goTo == .edit && e.shown)
-        m.goTo = nil
+        #expect(e.mayLeave(from: .library, to: .pool), "not on EDIT: no question")
+        #expect(!e.mayLeave(from: .edit, to: .library))
+        #expect(e.asking == .leave(.library) && m.goTo == nil && e.shown)
         await e.answerLeaving(.stay)
-        #expect(e.leaving == nil && e.unsavedNew && m.goTo == nil)
-        e.tabChanged(from: .edit, to: .pool)
-        #expect(e.leaving == .pool)
-        m.goTo = nil
+        #expect(e.asking == nil && e.unsavedNew && m.goTo == nil && e.shown)
+        #expect(!e.mayLeave(from: .edit, to: .pool))
+        #expect(e.asking == .leave(.pool))
         await e.answerLeaving(.discard)
-        #expect(e.leaving == nil && !e.unsavedNew && m.goTo == .pool)
+        #expect(e.asking == nil && !e.unsavedNew && m.goTo == .pool)
+        m.goTo = nil
+        #expect(e.mayLeave(from: .edit, to: .pool), "nothing unsaved: the tab goes")
         e.tabChanged(from: .edit, to: .pool)
-        #expect(e.leaving == nil && !e.shown)
+        #expect(!e.shown)
         // IMPORT's sheet over EDIT is not leaving it
         m.editTarget = .new(midi: false)
         await e.show()
-        e.tabChanged(from: .edit, to: .importer)
-        #expect(e.leaving == nil)
+        #expect(e.mayLeave(from: .edit, to: .importer) && e.asking == nil)
+        // SAVE AS NEW: stored, then on to the tab
+        let free = try #require(e.firstFreeMine)
+        #expect(!e.mayLeave(from: .edit, to: .backup))
+        await e.answerLeaving(.save)
+        #expect(e.asking == nil && !e.unsavedNew && e.place.slot == free && m.goTo == .backup)
+        e.hide()
+    }
+
+    /// Another sound opened into EDIT over + NEW's unsaved sound (LIBRARY, KEPT, IMPORT, + NEW again): asked first;
+    /// STAY keeps the new one, DISCARD opens the other, SAVE AS NEW stores the new one and opens the other.
+    @Test func replacingAsksFirst() async throws {
+        let (m, _) = await connected()
+        let e = m.editor
+        m.editTarget = .new(midi: false)
+        await e.show()
+        #expect(e.set(EditMix.pan, -5))
+        let r = try #require(m.mine.first)
+        m.editTarget = .preset(r)
+        await e.show()
+        #expect(e.asking == .replace(.preset(r)) && e.unsavedNew && e.sound?.name == "INIT" && e.value(EditMix.pan) == -5)
+        await e.answerLeaving(.stay)
+        #expect(e.asking == nil && e.unsavedNew && e.sound?.name == "INIT" && e.value(EditMix.pan) == -5)
+        // + NEW again: asked too; DISCARD opens it
+        m.editTarget = .new(midi: true)
+        await e.show()
+        #expect(e.asking == .replace(.new(midi: true)))
+        await e.answerLeaving(.discard)
+        #expect(e.asking == nil && e.sound?.isMidi == true && e.unsavedNew)
+        // SAVE AS NEW: the MIDI sound stored, then the preset opened
+        let free = try #require(e.firstFreeMine)
+        m.editTarget = .preset(r)
+        await e.show()
+        #expect(e.asking == .replace(.preset(r)))
+        await e.answerLeaving(.save)
+        #expect(e.asking == nil && !e.unsavedNew && e.sound?.name == r.name && e.place.label == "MY PRESETS \(r.slot)")
+        #expect(m.mine.contains { $0.slot == free && $0.name == "MIDI" })
+        // nothing unsaved: opened at once
+        m.editTarget = .preset(m.mine[1])
+        await e.show()
+        #expect(e.asking == nil && e.sound?.name == m.mine[1].name)
         e.hide()
     }
 }

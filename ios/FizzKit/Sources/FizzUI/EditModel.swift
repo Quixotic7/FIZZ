@@ -139,8 +139,8 @@ public final class EditorModel {
     public internal(set) var silent: String?
     /// the name being typed (the read-back leaves it alone)
     public var naming = false
-    /// + NEW's sound unsaved and EDIT left: the tab asked for, while the screen asks first (EditNewSound.swift)
-    public internal(set) var leaving: FizzTab?
+    /// + NEW's sound unsaved: the tab or the sound waiting while the screen asks first (NewSound.swift)
+    public internal(set) var asking: NewSoundAsk?
 
     @ObservationIgnored weak var unit: UnitModel?
     @ObservationIgnored private var baseFrame: [UInt8]?
@@ -207,8 +207,10 @@ public final class EditorModel {
     /// EDIT shown (manager.js tab("edit"): editor.show, live.show): a target asked for is opened (heard on the
     /// track); else the sound opened here is heard again, or the track is followed.
     public func show() async {
-        let t = request
+        var t = request
         request = nil
+        // (+ NEW's sound unsaved: another sound waits for the question; + NEW's own sound shows meanwhile)
+        if let x = t, asksBeforeReplacing(with: x) { t = nil }
         guard !shown || t != nil else { return }
         shown = true
         await enqueue { await self.showing(t) }.value

@@ -44,6 +44,8 @@ extension Shots {
             await e.show()
             edit(midi ? "edit-new-midi" : "edit-new-fm")
             if !midi { save(RootView(model: m, tab: .constant(.edit), wide: true), pad, out, "ipad-edit-new-fm") }
+            // (the next one would ask first)
+            e.discardNew()
         }
         e.discardNew()
         e.hide()

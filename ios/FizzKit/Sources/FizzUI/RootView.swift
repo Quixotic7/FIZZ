@@ -38,6 +38,12 @@ public struct FizzAppView: View {
         }
     }
 
+    /// The tab as the screens change it: EDIT with + NEW's sound unsaved asks before it is left, and the tab stays
+    /// until the answer (NewSound.swift).
+    private var guardedTab: Binding<FizzTab> {
+        Binding(get: { tab }, set: { new in if model.editor.mayLeave(from: tab, to: new) { tab = new } })
+    }
+
     private var playLight: Bool {
         guard let h = model.emulator else { return false }
         return h.playShown && h.play.theme.lightBody && !h.play.sheet
@@ -47,7 +53,7 @@ public struct FizzAppView: View {
         ZStack {
             // (with the emulated FIZZ the app opens straight to its tabs)
             if model.hasFallback || (entered && model.state.kind == "found") {
-                RootView(model: model, tab: $tab).transition(.opacity)
+                RootView(model: model, tab: guardedTab).transition(.opacity)
             } else {
                 ConnectView(model: model).transition(.opacity)
             }
@@ -96,7 +102,11 @@ public struct FizzAppView: View {
         // (PLAY's FIZZ badge goes back to the manager's tab last shown)
         .onChange(of: tab) { old, new in model.emulator?.play.remember(old); model.emulator?.play.remember(new) }
         // a screen asking for another tab (LIBRARY's EDIT: model.editTarget)
-        .onChange(of: model.goTo) { _, t in if let t { tab = t; model.goTo = nil } }
+        .onChange(of: model.goTo) { _, t in
+            guard let t else { return }
+            model.goTo = nil
+            if model.editor.mayLeave(from: tab, to: t) { tab = t }
+        }
         // EDIT's borrow undone when EDIT is left or the app goes to the background (EditBorrow.swift)
         .onChange(of: tab) { old, new in model.editor.tabChanged(from: old, to: new) }
         .onChange(of: phase) { _, p in model.editor.scene(p, tab: tab) }
