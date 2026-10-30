@@ -349,6 +349,12 @@ struct Shots {
         pm.dismissNote()
         pm.mode = .patterns
         save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-patterns")
+        // the selection's bar at an iPhone 13 Pro Max's size; nothing selected (all off); one pattern (TO… on)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), CGSize(width: 428, height: 926), out, "projects-patterns-max")
+        pm.clearSelection()
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-bar-none")
+        pm.tap(6)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-bar-one")
         // mock-ups 43, 48: NOIR A07 lifted over SUNDAY's chip (its card sprung open); TO… into SUNDAY; the iPad (SUNDAY
         // beside NOIR): A07 dragged onto SUNDAY A10, KEPT in that column instead. (Each pose after a render of its screen:
         // the drop targets' places are the ones it reported.)
@@ -362,6 +368,8 @@ struct Shots {
         pm.closeTo()
         pm.selectRange(from: 33, to: 34)
         save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects")
+        pm.clearSelection()
+        save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-none")
         pm.clearSelection()
         await pm.pose(p: 0, k: 6, q: 1, j: 9)
         save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-drag")

@@ -2,8 +2,8 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// PROJECTS' small parts (fizz-ios.html 14, 18-22: .pp .sch .sc .clip .emenu .pend .kc .kprow): the pattern tiles with
-// each track's trigs, the slot chips, the clip, the edit menu, the yellow bar of changes waiting with its slide to
+// PROJECTS' small parts (fizz-ios.html 14, 18-22: .pp .sch .sc .clip .pend .kc .kprow): the pattern tiles with
+// each track's trigs, the slot chips, the clip, the yellow bar of changes waiting with its slide to
 // write, the kept cards, the A-D dots, the buttons, the questions and the short states.
 
 import SwiftUI
@@ -212,7 +212,7 @@ struct PatternTileView: View {
 /// A project's 64 patterns: four banks A..D, `cols` tiles a row (8: two rows a bank; 16: one); a tap selects one, a
 /// drag across selects a range (iPad: SHIFT-tap a range, ⌘-tap one more). A pattern there is lifted by a long press
 /// (`liftDelay`; nil, iPad: a drag from it lifts it at once, ⌥ held moves it) and dragged (ProjectsDrag.swift): the grid
-/// is a drop target under `place`. Reports where each tile is (the edit menu's anchor).
+/// is a drop target under `place`.
 struct PatternGrid: View {
     let model: ProjectsModel
     let project: FizzProjectModel
@@ -228,8 +228,6 @@ struct PatternGrid: View {
     var liftDelay: Double? = 0.4
     /// a tile tapped (nil: selected)
     var onTile: ((Int) -> Void)?
-    /// the selection's first tile's frame (in the grid's space)
-    var onAnchor: (CGRect?, CGFloat) -> Void = { _, _ in }
     @State private var press: Press?
     @State private var origin: CGPoint = .zero
     @GestureState private var touching = false
@@ -283,10 +281,6 @@ struct PatternGrid: View {
             .onChange(of: project.p) { _, _ in register(CGRect(origin: origin, size: CGSize(width: g.size.width, height: height))) }
             // (a snapshot's views go at once: its places kept, for the next one's drag)
             .onDisappear { if !snapshot, model.zones.grids[place]?.q == project.p { model.zones.grids[place] = nil } }
-
-            .onChange(of: model.pats, initial: true) { _, p in onAnchor(p.min().map { frame($0, w) }, g.size.width) }
-            .onChange(of: g.size.width) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }, g.size.width) }
-            .onChange(of: tileH) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }, g.size.width) }
         }
         .frame(height: height)
     }
@@ -561,40 +555,6 @@ struct ProjRoundIcon: View {
                 .contentShape(Circle())
         }
         .buttonStyle(ProjPress())
-    }
-}
-
-// MARK: - The edit menu over a selection
-
-/// COPY, PASTE, CLEAR, TO… (one pattern), .fizzpat over the selection (.emenu): it comes with the selection, no hold.
-struct EditMenu: View {
-    let model: ProjectsModel
-    var share: () -> Void
-
-    var body: some View {
-        // (with TO… the buttons pack closer: the menu stays on a phone's grid)
-        let to = model.canTo, pad: CGFloat = to ? 9 : 14, gap: CGFloat = to ? 4 : 6
-        HStack(spacing: gap) {
-            ProjButton(title: "COPY", icon: ProjIcons.copy, color: FZ.cyan, padding: pad) { Task { await model.copy() } }
-                .fixedSize()
-            ProjButton(title: "PASTE", icon: ProjIcons.paste, color: FZ.yellow, padding: pad, enabled: model.clip != nil) { model.paste() }
-                .fixedSize()
-            ProjButton(title: "CLEAR", icon: ProjIcons.clear, style: .red, padding: pad) { model.clear() }
-                .fixedSize()
-            // TO… (one pattern there): the sheet
-            if to {
-                ProjRoundIcon(icon: ProjIcons.move, color: FZ.cyan, ring: FZ.cyan.mix(50, FZ.line), size: 40) {
-                    Task { await model.openToSelection() }
-                }
-                .padding(.horizontal, -2)
-            }
-            ProjRoundIcon(icon: Icons.share, size: to ? 40 : 42, action: share)
-                .padding(.horizontal, to ? -2 : 0)
-        }
-        .padding(6)
-        .background(Capsule().fill(RGB(0x1b1b21).color))
-        .overlay(Capsule().strokeBorder(RGB(0x3a3a44).color, lineWidth: 1.5))
-        .shadow(color: .black, radius: 15, y: 12)
     }
 }
 
