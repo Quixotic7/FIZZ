@@ -15,8 +15,6 @@ import FizzKit
 extension EditorModel {
     /// The tab changed: EDIT left (its borrow undone), or EDIT back from the phone's IMPORT sheet (its view stayed).
     public func tabChanged(from old: FizzTab, to new: FizzTab) {
-        // (+ NEW's sound unsaved: EDIT again, the screen asks first; IMPORT's sheet over EDIT is not leaving it)
-        if old == .edit && new != .edit && new != .importer && asksBeforeLeaving(to: new) { return }
         if old == .edit && new != .edit { hide() }
         if new == .edit && old == .importer { Task { await show() } }
     }

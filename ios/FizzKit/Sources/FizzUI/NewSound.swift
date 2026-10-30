@@ -5,8 +5,9 @@
 // LIBRARY's + NEW (mock-up 46): beside SELECT on the unit's lists, a sheet with two big cards, FM SOUND (a new INIT:
 // FIZZ's defaults, a track's mix) or MIDI SOUND (28 slots, slot k's CC 16 + k, untouched): sound.js newSound in
 // JavaScriptCore. Either opens in EDIT unsaved (the "NEW" label): SAVE has nothing to save over, SAVE AS NEW breathes
-// and names its place (the first free MY PRESETS place on the unit in use); nothing is stored until then, and leaving
-// EDIT asks first (SAVE AS NEW, DISCARD, or stay).
+// and names its place (the first free MY PRESETS place on the unit in use); nothing is stored until then. Leaving EDIT
+// for another tab (the tab guarded before it changes: FizzAppView) or opening another sound into EDIT asks first:
+// SAVE AS NEW (then on), DISCARD (then on), or STAY (the new sound kept, nothing else opened).
 
 import SwiftUI
 import FizzData
@@ -24,28 +25,42 @@ extension EditorModel {
         return (1...n).first { !used.contains($0) }
     }
 
-    /// EDIT left (another tab) with + NEW's sound unsaved: back to EDIT, which asks first. true: asked.
-    func asksBeforeLeaving(to t: FizzTab) -> Bool {
-        guard unsavedNew, leaving == nil, let u = unit else { return false }
-        leaving = t
-        u.goTo = .edit
+    /// The tab about to change (before it does): false while + NEW's sound is unsaved in EDIT, the question asked
+    /// instead (the tab switches on SAVE AS NEW or DISCARD). IMPORT's sheet over EDIT is not leaving it.
+    public func mayLeave(from old: FizzTab, to new: FizzTab) -> Bool {
+        guard old == .edit, new != .edit, new != .importer, unsavedNew else { return true }
+        if asking == nil { asking = .leave(new) }
+        return false
+    }
+
+    /// Another sound asked into EDIT over + NEW's unsaved sound: asked first. true: asked (the target waits).
+    func asksBeforeReplacing(with t: EditTarget) -> Bool {
+        guard unsavedNew else { return false }
+        if asking == nil { asking = .replace(t) }
         return true
     }
 
-    /// The question answered: SAVE AS NEW (then on to the tab), DISCARD (the new sound dropped), or stay.
+    /// The question answered: SAVE AS NEW (then on: the tab, or the other sound opened), DISCARD (the new sound
+    /// dropped, then on), or STAY (the new sound kept, nothing else opened).
     public func answerLeaving(_ a: LeaveAnswer) async {
-        guard let t = leaving else { return }
+        guard let q = asking else { return }
         switch a {
         case .stay:
-            leaving = nil
+            asking = nil
+            return
         case .save:
             let x = await save(asNew: true)
-            leaving = nil
-            if case .placed = x { unit?.goTo = t }
+            asking = nil
+            guard case .placed = x else { return }
         case .discard:
-            leaving = nil
+            asking = nil
             discardNew()
-            unit?.goTo = t
+        }
+        switch q {
+        case .leave(let t): unit?.goTo = t
+        case .replace(let t):
+            request = t
+            await show()
         }
     }
 
@@ -58,6 +73,12 @@ extension EditorModel {
     }
 
     public enum LeaveAnswer: Sendable { case save, discard, stay }
+}
+
+/// What waits on the question about + NEW's unsaved sound: another tab, or another sound opened into EDIT.
+public enum NewSoundAsk: Sendable, Equatable {
+    case leave(FizzTab)
+    case replace(EditTarget)
 }
 
 // MARK: - LIBRARY's + NEW
