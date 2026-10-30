@@ -5,7 +5,7 @@
 // PLAY's STEPS against the emulated FIZZ, headless (its clock run by hand): a pad held and notes played put the chord
 // into that step, read back from FIZZ's store (the pattern record's step, core/seq/pattern.c qd_step_wire); a fresh
 // chord replaces it; notes with no pad held leave the steps alone; two pads held both take it. Then the pure parts:
-// the pads' keys, the chord's rule, the keyboard's layout and range, the swipe order. (The emulator tests are in the
+// the pads' keys, the chord's rule, the keybed's notes, the swipe order. (The emulator tests are in the
 // Emulator suite: the core is the process's one.)
 
 import CoreGraphics
@@ -152,19 +152,12 @@ extension EmulatorTests {
         #expect(StepsInput.chordAdding(110, to: [60]) == [60])     // (over four octaves from the first)
     }
 
-    @Test func theKeyboard() {
-        let L = PianoLayout(size: CGSize(width: 340, height: 270), whites: 11, octave: 4)
-        #expect(L.whiteNotes == [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77])
-        #expect(L.blacks.map(\.note) == [61, 63, 66, 68, 70, 73, 75])
-        // a black key first, then the white under it; velocity's depth from the top
-        let b = L.blacks[0].rect
-        #expect(L.note(at: CGPoint(x: b.midX, y: 10))?.note == 61)
-        #expect(L.note(at: CGPoint(x: b.midX, y: 250))?.note == 60 || L.note(at: CGPoint(x: b.midX, y: 250))?.note == 62)
-        #expect(L.note(at: CGPoint(x: L.whiteFrame(4).midX, y: 260))?.note == 67)
-        #expect((L.note(at: CGPoint(x: L.whiteFrame(4).midX, y: 260))?.depth ?? 0) > 0.9)
-        #expect(L.note(at: CGPoint(x: 400, y: 100)) == nil)
-        #expect(StepsInput.range(octave: 4, whites: 11) == "C4–F5")
-        #expect(StepsInput.range(octave: 4, whites: 15) == "C4–C6")
+    @Test func theKeybed() {
+        // STEPS' keybed is RemoteFM1's (F to G): at the first octave F3 .. G5, C4 its fifth white key, G4 its ninth
+        #expect(StepsInput.keyNote(0, octave: 4) == 53 && StepsInput.keyNote(26, octave: 4) == 79)
+        #expect(StepsInput.keyNote(KeyLayout.whites[4], octave: 4) == 60 && StepsInput.keyNote(KeyLayout.whites[8], octave: 4) == 67)
+        // OCT - / +: an octave each
+        #expect(StepsInput.keyNote(0, octave: 2) == 29 && StepsInput.keyNote(0, octave: 5) == 65)
         #expect(StepsInput.name(61) == "C#4" && StepsInput.name(36) == "C2")
     }
 

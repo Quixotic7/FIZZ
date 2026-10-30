@@ -2,10 +2,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// PLAY's STEPS (mock-ups 38-40): the 16 pads are FIZZ's 16 white keys (its steps), pressed and let go as the panel's
-// keys are, so a pad held is a step held; the chromatic keyboard sends MIDI notes on channel 15, which FIZZ plays on
-// the selected track (core/app/app.h QD_MIDI_SEL) and, with a step held, puts into that step (ctl_rec.c
-// qd_rec_midi_note: the notes held together its chord, up to six; a fresh press after all let go replaces it).
+// PLAY's STEPS (mock-up 52): the 16 pads are FIZZ's 16 white keys (its steps), pressed and let go as the panel's
+// keys are, so a pad held is a step held; the keybed under them (RemoteFM1's, chromatic) sends MIDI notes on
+// channel 15, which FIZZ plays on the selected track (core/app/app.h QD_MIDI_SEL) and, with a step held, puts into
+// that step (ctl_rec.c qd_rec_midi_note: the notes held together its chord, up to six; a fresh press after all let go
+// replaces it).
 // With PLAY's SOUND on the FM-1, the pads press the FM-1's keys through its remote (channel 16, notes 53..79;
 // midi_map.h) and the notes go to it on channel 15 the same way.
 
@@ -75,7 +76,7 @@ extension PlayModel {
         }
     }
 
-    /// OCT - / +: the keyboard an octave down or up (its lowest C, C2..C5); the notes held let go first.
+    /// OCT - / +: the keybed an octave down or up (its lowest F, F1..F4); the notes held let go first.
     func stepsOctave(by d: Int) {
         let o = max(StepsInput.octaves.lowerBound, min(StepsInput.octaves.upperBound, stepsOctave + d))
         guard o != stepsOctave else { return }
@@ -119,7 +120,7 @@ public enum StepsInput {
     public static let selChannel = 14
     /// .. and its remote's, the panel as if by hand (channel 16; QD_MIDI_REMOTE)
     public static let remoteChannel = 15
-    /// The keyboard's lowest C: C2 .. C5
+    /// OCT - / +'s range (the keybed's lowest F: F1 .. F4)
     public static let octaves = 2...5
 
     /// Pad i's key (FizzEmulator's 0 F3 .. 26 G5): the i-th white key.
@@ -141,59 +142,7 @@ public enum StepsInput {
         return "\(l[((n % 12) + 12) % 12])\(n / 12 - 1)"
     }
 
-    /// The range a keyboard of `whites` white keys from C<octave> shows ("C4–F5").
-    public static func range(octave: Int, whites: Int) -> String {
-        let lo = 12 * (octave + 1)
-        return "\(name(lo))–\(name(PianoLayout(size: CGSize(width: 100, height: 100), whites: whites, octave: octave).whiteNotes.last ?? lo))"
-    }
-}
-
-/// A chromatic keyboard from C<octave>: `whites` white keys across, the black keys over their gaps (the mock-up's
-/// piano: black keys 62 % of a white's pitch wide, 58 % of the height).
-public struct PianoLayout: Sendable, Equatable {
-    public let size: CGSize
-    public let whites: Int
-    public let octave: Int
-    public let gap: CGFloat
-
-    public init(size: CGSize, whites: Int, octave: Int, gap: CGFloat = 4) {
-        self.size = size
-        self.whites = max(1, whites)
-        self.octave = octave
-        self.gap = gap
-    }
-
-    static let whiteSemis = [0, 2, 4, 5, 7, 9, 11]
-
-    public var pitch: CGFloat { (size.width + gap) / CGFloat(whites) }
-    public var keyWidth: CGFloat { pitch - gap }
-    public var blackWidth: CGFloat { pitch * 0.62 }
-    public var blackHeight: CGFloat { (size.height * 0.58).rounded() }
-
-    /// The white keys' MIDI notes, left to right.
-    public var whiteNotes: [Int] {
-        (0..<whites).map { 12 * (octave + 1) + 12 * ($0 / 7) + Self.whiteSemis[$0 % 7] }
-    }
-
-    public func whiteFrame(_ i: Int) -> CGRect {
-        CGRect(x: CGFloat(i) * pitch, y: 0, width: keyWidth, height: size.height)
-    }
-
-    /// The black keys: (the note, its frame); one after each C, D, F, G, A that is not the last white.
-    public var blacks: [(note: Int, rect: CGRect)] {
-        whiteNotes.enumerated().compactMap { i, n in
-            guard i < whites - 1, [0, 2, 5, 7, 9].contains(n % 12) else { return nil }
-            let cx = CGFloat(i + 1) * pitch - gap / 2
-            return (n + 1, CGRect(x: cx - blackWidth / 2, y: 0, width: blackWidth, height: blackHeight))
-        }
-    }
-
-    /// The note under a point and where on its key (0 far end .. 1 near end); black keys first.
-    public func note(at p: CGPoint) -> (note: Int, depth: CGFloat)? {
-        guard p.y >= 0, p.y <= size.height else { return nil }
-        for b in blacks where b.rect.contains(p) { return (b.note, (p.y - b.rect.minY) / max(1, b.rect.height)) }
-        let i = Int(((p.x + gap / 2) / pitch).rounded(.down))
-        guard (0..<whites).contains(i) else { return nil }
-        return (whiteNotes[i], p.y / max(1, size.height))
-    }
+    /// The note of STEPS' keybed key k (RemoteFM1's keys, F to G: k 0 is F3 at octave 4); OCT - / + move it an
+    /// octave (octave 2..5: F1 .. F4 its lowest).
+    public static func keyNote(_ k: Int, octave: Int) -> Int { 53 + 12 * (octave - 4) + k }
 }

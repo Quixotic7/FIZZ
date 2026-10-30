@@ -348,16 +348,8 @@ struct PadRoot: View {
 
     var body: some View {
         if tab == .play, let host = model.emulator {
-            // PLAY: the rail slims to its icons, the panel takes the rest (mock-up 33)
-            // (the LCD full screen: the rail slides away)
-            let full = host.play.lcdFull
-            HStack(spacing: 0) {
-                SlimRail(tab: $tab).frame(width: 84).padding(.top, insets.top).frame(width: full ? 0 : 84).clipped()
-                Rectangle().fill(FZ.line.color).frame(width: full ? 0 : 1)
-                PlayView(model: model, host: host, tab: $tab, wide: true)
-            }
-            .background(Color.black)
-            .animation(PlayNav.spring, value: full)
+            // PLAY: no rail, the whole screen is the panel (mock-up 51); its FIZZ badge and its sheet's tab bar lead out
+            PlayView(model: model, host: host, tab: $tab, wide: true)
         } else {
             tabs
         }

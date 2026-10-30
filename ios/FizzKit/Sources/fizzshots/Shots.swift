@@ -34,6 +34,8 @@ struct Shots {
         if CommandLine.arguments.dropFirst(2).contains("projects") { await projectShots(out); return }
         // (`fizzshots OUTDIR landscape`: every tab on the iPhone's side, ShotsLandscape.swift)
         if CommandLine.arguments.dropFirst(2).contains("landscape") { await landscapeShots(out); return }
+        // (`fizzshots OUTDIR play`: PLAY's alone, mock-ups 49-54)
+        if CommandLine.arguments.dropFirst(2).contains("play") { await playShots(out); await backupPlayShots(out); return }
 
         // looking: a model never started
         let looking = UnitModel(source: DemoLinkSource(.fizz))
@@ -154,6 +156,12 @@ struct Shots {
         p.showNow()
         save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-play-ringed")
         save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-backup")
+        // 54: CONTROLS (BUTTONS, MAIN's knobs) on the backup: the chip is the backup's pill
+        p.view = .panel
+        p.knobsKN = false
+        p.showNow()
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-controls-backup")
+        p.view = .full
         p.showNow()
         save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play-backup")
         await host.endBackup()
@@ -256,7 +264,7 @@ struct Shots {
         m.stop()
     }
 
-    // ---- PLAY and the app with no FM-1 (mock-ups 23, 27, 29-33): the emulated FIZZ itself, its screen drawn by its core
+    // ---- PLAY and the app with no FM-1 (mock-ups 23, 27, 49-54): the emulated FIZZ itself, its screen drawn by its core
     @MainActor
     static func playShots(_ out: URL) async {
         let tmp = FileManager.default.temporaryDirectory
@@ -279,11 +287,14 @@ struct Shots {
         let p = host.play
         p.theme = .tangerine
         p.showNow()
+        p.knobsKN = false
         for (v, name) in [(PlayViewKind.full, "play-full"), (.keys, "play-keys"), (.panel, "play-panel"), (.screen, "play-screen")] {
             p.view = v
+            if v == .keys { p.knobsKN = true }
             save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, name)
         }
-        // STEPS (mock-ups 38-40): step 1 held, C4 and G4 down (a render leaves PLAY, which lets go: held again each time)
+        p.knobsKN = false
+        // STEPS (mock-up 52): step 1 held, C4 and G4 down (a render leaves PLAY, which lets go: held again each time)
         p.view = .steps
         e.run(ms: 100)
         let hold = {
@@ -298,6 +309,8 @@ struct Shots {
         save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-steps")
         p.theme = .fizz
         hold()
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-steps-fizz")
+        hold()
         save(RootView(model: m, tab: .constant(.play), wide: false), CGSize(width: 844, height: 390), out, "play-steps-landscape")
         p.theme = .tangerine
         hold()
@@ -308,8 +321,13 @@ struct Shots {
         p.sheet = true
         save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-sheet")
         p.sheet = false
-        p.theme = .fizz
         save(RootView(model: m, tab: .constant(.play), wide: false), CGSize(width: 844, height: 390), out, "play-landscape")
+        p.theme = .fizz
+        save(RootView(model: m, tab: .constant(.play), wide: false), CGSize(width: 844, height: 390), out, "play-landscape-fizz")
+        for t in PlayTheme.allCases where t != .tangerine && t != .fizz {
+            p.theme = t
+            save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-full-\(t.rawValue)")
+        }
         p.theme = .tangerine
         save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play")
         // the LCD full screen (a double tap on it)

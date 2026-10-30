@@ -2,12 +2,12 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// PLAY (mock-ups 29-33): the emulated FIZZ, full-screen, on the owner's RemoteFM1 panel with FIZZ's names. Its views:
-// FULL (knobs, F1 / F2, the screen, KN1-4, the buttons, the keybed), the linked PANEL / KEYS (the screen big, one
-// knob set, BUTTONS or KEYS below), STEPS (mock-ups 38-40: the 16 steps as pads, a chromatic keyboard; PlaySteps*.swift),
-// SCREEN; a swipe sideways on the screen moves between them. Landscape and the iPad
-// lay it all out in one band (PhoneWide, PadWide). The handle (or a swipe down) drops the sheet (PlayPanel.swift),
-// which carries the app's tab bar.
+// PLAY (mock-ups 49-54): the emulated FIZZ on an exact copy of RemoteFM1's panel, with FIZZ's names, its screen and
+// its extras. Its views: FULL (MAIN's knobs, F1 / F2, the screen, KN1-4, the buttons, the keybed), CONTROLS (the
+// screen big, one knob set, BUTTONS or KEYS below), STEPS (the 16 steps and a chromatic keybed; PlaySteps*.swift),
+// SCREEN; four page dots, or a swipe sideways on the screen. The iPhone on its side and the iPad (no rail: the whole
+// screen is the panel) lay FULL out in one band. The grabber (or a pull down) drops the sheet (PlayPanel.swift), which
+// carries the app's tab bar; the FIZZ badge goes back to the manager. Where everything sits: PlayRFMLayout.swift.
 
 import SwiftUI
 import FizzEngine
@@ -20,7 +20,7 @@ public struct PlayView: View {
     let model: UnitModel
     let host: EmulatorHost
     @Binding var tab: FizzTab
-    /// the iPad (its slim rail beside)
+    /// the iPad
     var wide = false
     @Environment(\.fizzInsets) private var insets
     @Environment(\.fizzSnapshot) private var snapshot
@@ -64,7 +64,8 @@ public struct PlayView: View {
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.86), value: play.sheet)
         .animation(PlayNav.spring, value: play.lcdFull)
-        .hidingStatusBar(play.lcdFull)
+        // (the iPad's panel has no status bar, as RemoteFM1's PadWide)
+        .hidingStatusBar(play.lcdFull || wide)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: play.view)
         .persistentSystemOverlays(.hidden)
         .deferringSystemGestures()
@@ -79,275 +80,98 @@ public struct PlayView: View {
 
     private func closeSheet() { play.sheet = false }
 
-    // MARK: the layouts
+    // MARK: the board
+
+    /// The board for this size: the iPhone upright (the iPad standing too), on its side, or the iPad.
+    static func board(for full: CGSize, wide: Bool) -> PlayBoard {
+        full.width > full.height ? (wide ? .pad : .phoneWide) : .phone
+    }
 
     @ViewBuilder
     private func board(full: CGSize, top: CGFloat) -> some View {
-        if full.width > full.height {
-            if play.view == .steps {
-                if wide { stepsPad(full, top) } else { stepsWide(full) }
-            } else if wide { padWide(full, top) } else { phoneWide(full) }
-        } else {
-            phonePortrait(full, top)
-        }
+        let kind = Self.board(for: full, wide: wide)
+        let L = PlayLayout.of(play.view, on: kind, knobsKN: play.knobsKN)
+        let bs = L.size
+        let u = min(full.width / bs.width, full.height / bs.height)
+        // upright: the mock-ups' 844 include a 47 pt status bar; a taller one moves the board down as far as it fits
+        let y0 = kind == .phone ? max(0, min(top - 47 * u, full.height - bs.height * u)) : (full.height - bs.height * u) / 2
+        panel(L, u)
+            .frame(width: bs.width * u, height: bs.height * u, alignment: .topLeading)
+            .offset(x: (full.width - bs.width * u) / 2, y: y0)
     }
 
-    /// Portrait (390 x 798 below the status bar; the iPad standing too).
     @ViewBuilder
-    private func phonePortrait(_ full: CGSize, _ top: CGFloat) -> some View {
-        let y0 = max(0, top - 4)
-        let u = min(full.width / 390, (full.height - y0) / 798, wide ? 1.6 : 1.2)
-        let x0 = (full.width - 390 * u) / 2
-        let b = Board(u: u)
+    private func panel(_ L: PlayLayout, _ u: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
-            header(b, CGRect(x: 16, y: 4, width: 358, height: 36))
-            switch play.view {
-            case .full: full390(b)
-            case .panel, .keys: linked390(b)
-            case .steps: steps390(b)
-            case .screen: screen390(b)
-            }
-        }
-        .frame(width: 390 * u, height: 798 * u, alignment: .topLeading)
-        .offset(x: x0, y: y0)
-    }
-
-    /// FULL (mock-up 29).
-    @ViewBuilder
-    private func full390(_ b: Board) -> some View {
-        mainKnobs(b, size: 46, gap: 8).place(b, 16, 50, 148, 140)
-        FPair(model: play, w: b.s(148), h: b.s(52), font: b.s(14)).place(b, 16, 200, 148, 52)
-        screen(b, 202).place(b, 172, 50, 202, 202)
-        HStack(spacing: 0) {
-            PanelLED(size: b.s(10))
-            Spacer(minLength: 0)
-            knRow(b, size: 46, spaced: true)
-        }
-        .place(b, 16, 270, 358, 70)
-        well(b, bw: 52, bh: 42, gap: 6, font: 12).place(b, 14, 354, 362, 110)
-        // (the iPad standing: all 16 keys at once)
-        LEDKeybed(model: play, w: b.s(358), h: b.s(272), keyW: wide ? nil : b.s(40)).place(b, 16, 484, 358, 272)
-    }
-
-    /// PANEL / KEYS (mock-up 31): the screen big, one knob set, BUTTONS or KEYS.
-    @ViewBuilder
-    private func linked390(_ b: Board) -> some View {
-        let p = play.theme.palette
-        screen(b, 340).place(b, 25, 46, 340, 340)
-        Group {
-            if play.knobsKN { knRow(b, size: 50, spaced: true) } else { mainRow(b, size: 50) }
-        }
-        .place(b, 12, 398, 366, 74)
-        HStack(spacing: b.s(6)) {
-            setChip(b, "MAIN", on: !play.knobsKN) { play.knobsKN = false }
-            setChip(b, "KN 1–4", on: play.knobsKN) { play.knobsKN = true }
-        }
-        .place(b, 0, 476, 390, 36)
-        HStack(spacing: 0) {
-            deckChip(b, "BUTTONS", on: play.view == .panel) { play.view = .panel }
-            deckChip(b, "KEYS", on: play.view == .keys) { play.view = .keys }
-        }
-        .padding(b.s(3))
-        .background(Capsule().fill(.black.opacity(0.16)))
-        .place(b, 95, 520, 200, 40)
-        if play.view == .keys {
-            LEDKeybed(model: play, w: b.s(358), h: b.s(184), keyW: wide ? nil : b.s(40), numbers: true)
-                .place(b, 16, 568, 358, 184)
-        } else {
-            well(b, bw: 50, bh: 48, gap: 8, font: 12).place(b, 15, 566, 360, 124)
-            FPair(model: play, w: b.s(200), h: b.s(48), font: b.s(14)).place(b, 95, 702, 200, 48)
-        }
-        dots(b, p).place(b, 0, 756, 390, 28)
-    }
-
-    /// STEPS (mock-up 38): the screen and KN 1-4, the 16 pads in two rows, OCT - / + with the range, the keyboard.
-    @ViewBuilder
-    private func steps390(_ b: Board) -> some View {
-        let p = play.theme.palette
-        screen(b, 196).place(b, 16, 46, 196, 196)
-        VStack(spacing: b.s(18)) {
-            HStack(spacing: 0) {
-                knob(b, "KN1", .k1, size: 46).frame(maxWidth: .infinity)
-                knob(b, "KN2", .k2, size: 46).frame(maxWidth: .infinity)
-            }
-            HStack(spacing: 0) {
-                knob(b, "KN3", .k3, size: 46).frame(maxWidth: .infinity)
-                knob(b, "KN4", .k4, size: 46).frame(maxWidth: .infinity)
-            }
-        }
-        .place(b, 222, 54, 152, 180)
-        StepPads(model: play, w: b.s(358), h: b.s(138)).place(b, 16, 256, 358, 138)
-        HStack(spacing: 0) {
-            OctButton(model: play, up: false, w: b.s(132), h: b.s(40), font: b.s(14))
-            Spacer(minLength: 0)
-            Text(StepsInput.range(octave: play.stepsOctave, whites: 11)).petch(b.s(16), em: 0.06)
-                .foregroundStyle(p.label.color).contentTransition(.numericText())
-            Spacer(minLength: 0)
-            OctButton(model: play, up: true, w: b.s(132), h: b.s(40), font: b.s(14))
-        }
-        .place(b, 16, 404, 358, 44)
-        StepsKeyboard(model: play, w: b.s(358), h: b.s(290), whites: 11).place(b, 16, 460, 358, 290)
-        dots(b, p).place(b, 0, 756, 390, 28)
-    }
-
-    /// STEPS on its side (mock-up 39): the screen at the left, KN 1-4, OCT - / + and the FIZZ badge across the top,
-    /// the pads in two rows beside the screen, two octaves of keys across the bottom.
-    @ViewBuilder
-    private func stepsWide(_ full: CGSize) -> some View {
-        let u = min(full.width / 844, full.height / 390)
-        let b = Board(u: u)
-        ZStack(alignment: .topLeading) {
-            handle(b).place(b, 378, -8, 88, 32)
-            screen(b, 172).place(b, 50, 16, 172, 172)
-            knRow(b, size: 36, spaced: true).place(b, 236, 10, 336, 66)
-            OctPair(model: play, w: b.s(128), h: b.s(48), font: b.s(13)).place(b, 580, 18, 128, 48)
-            FizzBadge(height: b.s(30), logo: b.s(20), word: b.s(13)) { toManager() }.place(b, 712, 20, 82, 44)
-            StepPads(model: play, w: b.s(558), h: b.s(110)).place(b, 236, 80, 558, 110)
-            StepsKeyboard(model: play, w: b.s(744), h: b.s(176), whites: 15).place(b, 50, 204, 744, 176)
-        }
-        .frame(width: 844 * u, height: 390 * u, alignment: .topLeading)
-        .offset(x: (full.width - 844 * u) / 2, y: (full.height - 390 * u) / 2)
-    }
-
-    /// STEPS on the iPad (mock-up 40): the screen at 300 with all eight knobs beside it, the pads in one row, OCT + / -
-    /// stacked at the keys' left with the lowest C between.
-    @ViewBuilder
-    private func stepsPad(_ full: CGSize, _ top: CGFloat) -> some View {
-        let p = play.theme.palette
-        let u = min(full.width / 1096, (full.height - top) / 780)
-        let b = Board(u: u)
-        ZStack(alignment: .topLeading) {
-            header(b, CGRect(x: 36, y: 14, width: 1024, height: 36), badge: false)
-            screen(b, 300).place(b, 36, 66, 300, 300)
-            mainRow(b, size: 62).place(b, 380, 70, 680, 120)
-            knRow(b, size: 62, spaced: true).place(b, 380, 220, 680, 120)
-            StepPads(model: play, w: b.s(1024), h: b.s(104), rows: 1).place(b, 36, 386, 1024, 104)
-            VStack(spacing: 0) {
-                OctButton(model: play, up: true, w: b.s(68), h: b.s(104), font: b.s(15), stacked: true)
-                Spacer(minLength: 0)
-                Text(StepsInput.name(12 * (play.stepsOctave + 1))).petch(b.s(14), em: 0.06).foregroundStyle(p.keyText.color)
-                    .contentTransition(.numericText())
-                Spacer(minLength: 0)
-                OctButton(model: play, up: false, w: b.s(68), h: b.s(104), font: b.s(15), stacked: true)
-            }
-            .padding(b.s(6))
-            .background(RoundedRectangle(cornerRadius: b.s(16)).fill(p.bed.color))
-            .place(b, 36, 506, 80, 262)
-            StepsKeyboard(model: play, w: b.s(932), h: b.s(262), whites: 15).place(b, 128, 506, 932, 262)
-        }
-        .frame(width: 1096 * u, height: 780 * u, alignment: .topLeading)
-        .offset(x: (full.width - 1096 * u) / 2, y: top)
-    }
-
-    /// SCREEN: the screen alone.
-    @ViewBuilder
-    private func screen390(_ b: Board) -> some View {
-        screen(b, 358).place(b, 16, 197, 358, 358)
-        dots(b, play.theme.palette).place(b, 0, 756, 390, 28)
-    }
-
-    /// iPhone landscape (mock-up 32, PhoneWide): 844 x 390, the whole screen.
-    @ViewBuilder
-    private func phoneWide(_ full: CGSize) -> some View {
-        let u = min(full.width / 844, full.height / 390)
-        let b = Board(u: u)
-        ZStack(alignment: .topLeading) {
-            handle(b).place(b, 378, 0, 88, 32)
-            mainKnobs(b, size: 38, gap: 4).place(b, 40, 18, 156, 122)
-            FPair(model: play, w: b.s(136), h: b.s(48), font: b.s(14)).place(b, 56, 144, 136, 48)
-            screen(b, 172).place(b, 202, 20, 172, 172)
-            HStack(spacing: 0) {
-                PanelLED(size: b.s(10))
-                Spacer(minLength: 0)
-                knRow(b, size: 38, spaced: true)
-            }
-            .place(b, 386, 16, 318, 60)
-            // (the manager: the badge, small, at the end of the knobs' row)
-            FizzBadge(height: b.s(30), logo: b.s(20), word: b.s(13)) { toManager() }.place(b, 712, 24, 82, 44)
-            well(b, bw: 58, bh: 38, gap: 8, font: 12).place(b, 386, 88, 408, 104)
-            LEDKeybed(model: play, w: b.s(744), h: b.s(170)).place(b, 50, 206, 744, 170)
-        }
-        .frame(width: 844 * u, height: 390 * u, alignment: .topLeading)
-        .offset(x: (full.width - 844 * u) / 2, y: (full.height - 390 * u) / 2)
-    }
-
-    /// iPad landscape (mock-up 33, PadWide): 1096 x 780 beside the slim rail.
-    @ViewBuilder
-    private func padWide(_ full: CGSize, _ top: CGFloat) -> some View {
-        let y0 = top
-        let u = min(full.width / 1096, (full.height - y0) / 780)
-        let b = Board(u: u)
-        ZStack(alignment: .topLeading) {
-            header(b, CGRect(x: 36, y: 14, width: 1024, height: 36), badge: false)
-            mainKnobs(b, size: 64, gap: 24).place(b, 36, 70, 192, 216)
-            FPair(model: play, w: b.s(192), h: b.s(56), font: b.s(16)).place(b, 36, 300, 192, 56)
-            screen(b, 300).place(b, 256, 66, 300, 300)
-            HStack(spacing: 0) {
-                PanelLED(size: b.s(12))
-                Spacer(minLength: 0)
-                knRow(b, size: 64, spaced: true)
-            }
-            .place(b, 588, 66, 472, 96)
-            well(b, bw: 67, bh: 60, gap: 10, font: 14).place(b, 588, 214, 472, 150)
-            LEDKeybed(model: play, w: b.s(1024), h: b.s(356)).place(b, 36, 404, 1024, 356)
-        }
-        .frame(width: 1096 * u, height: 780 * u, alignment: .topLeading)
-        .offset(x: (full.width - 1096 * u) / 2, y: y0)
-    }
-
-    // MARK: the parts placed
-
-    /// The pill (THIS iPHONE, FM-1 while the keys play it, or a backup's: BackupPlay.swift), the handle, FIZZ.
-    @ViewBuilder
-    private func header(_ b: Board, _ r: CGRect, badge: Bool = true) -> some View {
-        let p = play.theme.palette
-        ZStack {
-            HStack {
-                if let bk = host.backup {
-                    BackupPill(backup: bk, scale: b.s(1), pick: { model.openPicker(fromPlay: true) },
-                               close: { Task { await host.endBackup() } })
-                } else {
-                Button { model.openPicker(fromPlay: true) } label: {    // (the unit picker; the handle drops the sheet)
-                    HStack(spacing: b.s(7)) {
-                        if play.soundNow == .fm1 {
-                            Circle().fill(RGB(0x3BD47A).color).frame(width: b.s(8), height: b.s(8))
-                                .shadow(color: RGB(0x3BD47A).color, radius: 4)
-                            Text("FM-1").fz(b.s(13), 800, em: 0.06)
-                        } else {
-                            IconView(PlayIcons.phone, color: p.label.color, lineWidth: 2.4).frame(width: b.s(16), height: b.s(16))
-                            Text(EmulatorHost.hereName).fz(b.s(13), 800, em: 0.06)
-                        }
-                    }
-                    .foregroundStyle(p.label.color)
-                    .padding(.leading, b.s(10)).padding(.trailing, b.s(13))
-                    .frame(height: b.s(32))
-                    .background(Capsule().fill(.black.opacity(0.14)))
-                    .fixedSize()
+            pullArea(L, u)
+            if let c = L.chip { chip(c, u).offset(x: c.x * u, y: c.y * u) }
+            grabber(L.grabber, u)
+            badge(L, u)
+            ForEach(L.knobs, id: \.name) { k in knob(k, u) }
+            if let t = L.tray {
+                Group {
+                    if play.view == .steps { OctTray(model: play, well: t, u: u) }
+                    else { ButtonWell(model: play, buttons: [.f1, .f2], well: t, u: u) }
                 }
-                .buttonStyle(PressStyle())
-                }
-                Spacer(minLength: 0)
-                if badge { FizzBadge(height: b.s(36), logo: b.s(26), word: b.s(17)) { toManager() } }
+                .offset(x: t.x * u, y: t.y * u)
             }
-            handle(b).frame(width: b.s(88), height: b.s(44))
+            screen(L.screen.width * u).offset(x: L.screen.minX * u, y: L.screen.minY * u)
+            if let r = L.led { PanelLED(size: r.width * u).offset(x: r.minX * u, y: r.minY * u) }
+            if let w = L.well { ButtonWell(model: play, buttons: PlayInput.well, well: w, u: u).offset(x: w.x * u, y: w.y * u) }
+            if let w = L.pads { StepPads(model: play, well: w, u: u).offset(x: w.x * u, y: w.y * u) }
+            if let k = L.keybed {
+                LEDKeybed(model: play, w: k.frame.width * u, h: k.frame.height * u, keyW: k.keyW.map { $0 * u },
+                          numbers: k.numbers, plays: play.view == .steps ? .notes : .fizz)
+                    .offset(x: k.frame.minX * u, y: k.frame.minY * u)
+            }
+            if let y = L.knobSwitchY { knobSwitch(u).frame(width: L.size.width * u).offset(y: (y - 16) * u) }
+            if let d = L.deck { deck(u).frame(width: d.width * u, height: d.height * u).offset(x: d.minX * u, y: d.minY * u) }
+            if let d = L.dots { dots(u).frame(width: d.width * u, height: d.height * u).offset(x: d.minX * u, y: d.minY * u) }
         }
-        .background(Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance: 12).onEnded { v in
-            if v.translation.height > 24 { play.sheet = true }
-        }))
-        .place(b, r.minX, r.minY, r.width, r.height)
     }
 
-    /// The FIZZ badge: the manager's tab last shown.
-    private func toManager() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = play.managerTab }
+    // MARK: the header
+
+    /// The header's row (from the top to under the chip): a pull down drops the sheet.
+    private func pullArea(_ L: PlayLayout, _ u: CGFloat) -> some View {
+        let h = (L.chip.map { $0.y + $0.height } ?? L.grabber.maxY) + 10
+        return Color.clear.contentShape(Rectangle())
+            .frame(width: L.size.width * u, height: h * u)
+            .gesture(DragGesture(minimumDistance: 12).onEnded { v in if v.translation.height > 24 { play.sheet = true } })
     }
 
-    /// The handle: a tap or a swipe down drops the sheet.
-    private func handle(_ b: Board) -> some View {
-        Capsule().fill(play.theme.palette.label.color).opacity(0.55).frame(width: b.s(40), height: b.s(5))
-            .frame(width: b.s(88), height: b.s(44))
+    /// RemoteFM1's status chip as FIZZ's unit: THIS iPHONE (THIS iPAD), FM-1 with a green dot while the keys play it,
+    /// or a ▶-played backup's yellow pill (BackupPlay.swift). A tap: the unit picker.
+    @ViewBuilder
+    private func chip(_ c: PlayLayout.Chip, _ u: CGFloat) -> some View {
+        let p = play.theme.palette
+        if let bk = host.backup {
+            BackupPill(backup: bk, height: c.height * u, font: c.font * u, pick: { model.openPicker(fromPlay: true) },
+                       close: { Task { await host.endBackup() } })
+        } else {
+            let fm1 = play.soundNow == .fm1
+            Button { model.openPicker(fromPlay: true) } label: {
+                HStack(spacing: 9 * u) {
+                    Circle().fill(fm1 ? RGB(0x3BD47A).color : p.label.color).frame(width: 7 * u, height: 7 * u)
+                    Text(fm1 ? "FM-1" : EmulatorHost.hereName).dm(c.font * u, 500).lineLimit(1).fixedSize()
+                }
+                .foregroundStyle(p.label.color)
+                .padding(.leading, 11 * u).padding(.trailing, 13 * u)
+                .frame(height: c.height * u)
+                .background(Capsule().fill(.black.opacity(0.14)))
+                .fixedSize()
+            }
+            .buttonStyle(PressStyle())
+        }
+    }
+
+    /// The grabber: a tap or a pull down drops the sheet.
+    private func grabber(_ r: CGRect, _ u: CGFloat) -> some View {
+        Capsule().fill(play.theme.palette.label.color).opacity(0.55).frame(width: r.width * u, height: r.height * u)
+            .frame(width: 88 * u, height: 44 * u)
             .contentShape(Rectangle())
             .gesture(sheetPull)
+            .offset(x: (r.midX - 44) * u, y: (r.midY - 22) * u)
     }
 
     /// A tap, or a pull down: the sheet.
@@ -357,9 +181,25 @@ public struct PlayView: View {
         }
     }
 
+    /// The FIZZ badge in RemoteFM1's wordmark's place (round, beside KN4, on the iPhone's side): the manager.
+    private func badge(_ L: PlayLayout, _ u: CGFloat) -> some View {
+        let b = L.badge
+        return FizzBadge(height: b.height * u, round: b.round, scale: u) { toManager() }
+            .fixedSize()
+            .frame(width: L.size.width * u - b.right * u, height: b.height * u, alignment: .trailing)
+            .offset(y: b.top * u)
+    }
+
+    /// The FIZZ badge: the manager's tab last shown.
+    private func toManager() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = play.managerTab }
+    }
+
+    // MARK: the parts placed
+
     /// The LCD; a swipe sideways on it moves to the next view.
-    private func screen(_ b: Board, _ s: CGFloat) -> some View {
-        LiveLCD(play: play, size: b.s(s))
+    private func screen(_ s: CGFloat) -> some View {
+        LiveLCD(play: play, size: s)
             .contentShape(Rectangle())
             .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named(PlayNav.space)) }) { lcdFrom = $0 }
             // a double tap: the LCD full screen
@@ -370,108 +210,94 @@ public struct PlayView: View {
             })
     }
 
-    private func knob(_ b: Board, _ label: String, _ k: FizzKnob?, size: CGFloat) -> some View {
+    /// A knob by its name: MASTER absolute, the others detents.
+    private func knob(_ k: PlayLayout.Knob, _ u: CGFloat) -> some View {
         let p = play.theme.palette
-        let mark: RGB = switch k {
-        case .select: KnobInk.select
-        case .algo: KnobInk.algorithm
-        case .k1: KnobInk.kn[0]
-        case .k2: KnobInk.kn[1]
-        case .k3: KnobInk.kn[2]
-        case .k4: KnobInk.kn[3]
-        default: p.mark
+        let fk: FizzKnob? = switch k.name {
+        case "SELECT": .select
+        case "PRESETS": .presets
+        case "ALGORITHM": .algo
+        case "KN1": .k1
+        case "KN2": .k2
+        case "KN3": .k3
+        case "KN4": .k4
+        default: nil
         }
         let play = self.play
-        if let k {
-            return PlayKnob(label: label, size: b.s(size), angle: play.angles[k] ?? 0, mark: mark, p: p,
-                            turn: { play.turn(k, by: $0) })
-        }
-        return PlayKnob(label: label, size: b.s(size), angle: play.masterAngle, mark: mark, p: p,
-                        absolute: (start: { play.master }, set: { play.setMaster($0) }))
-    }
-
-    /// MASTER, SELECT / PRESETS, ALGORITHM in two rows.
-    private func mainKnobs(_ b: Board, size: CGFloat, gap: CGFloat) -> some View {
-        VStack(spacing: b.s(gap)) {
-            HStack(spacing: 0) {
-                knob(b, "MASTER", nil, size: size).frame(maxWidth: .infinity)
-                knob(b, "SELECT", .select, size: size).frame(maxWidth: .infinity)
-            }
-            HStack(spacing: 0) {
-                knob(b, "PRESETS", .presets, size: size).frame(maxWidth: .infinity)
-                knob(b, "ALGORITHM", .algo, size: size).frame(maxWidth: .infinity)
+        let w = (k.size + 44) * u, h = (k.labelSize + 6 + k.size) * u
+        return Group {
+            if let fk {
+                PlayKnob(label: k.name, size: k.size * u, labelSize: k.labelSize * u, gap: 6 * u, shadow: k.shadow * u,
+                         angle: play.angles[fk] ?? 0, p: p, turn: { play.turn(fk, by: $0) })
+            } else {
+                PlayKnob(label: k.name, size: k.size * u, labelSize: k.labelSize * u, gap: 6 * u, shadow: k.shadow * u,
+                         angle: play.masterAngle, p: p, absolute: (start: { play.master }, set: { play.setMaster($0) }))
             }
         }
+        .frame(width: w, height: h, alignment: .top)
+        .offset(x: k.cx * u - w / 2, y: k.labelTop * u)
     }
 
-    /// The main set in one row (the linked views).
-    private func mainRow(_ b: Board, size: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            knob(b, "MASTER", nil, size: size)
-            Spacer(minLength: 0)
-            knob(b, "SELECT", .select, size: size)
-            Spacer(minLength: 0)
-            knob(b, "PRESETS", .presets, size: size)
-            Spacer(minLength: 0)
-            knob(b, "ALGORITHM", .algo, size: size)
-        }
-    }
-
-    private func knRow(_ b: Board, size: CGFloat, spaced: Bool) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array([FizzKnob.k1, .k2, .k3, .k4].enumerated()), id: \.offset) { i, k in
-                if i > 0 { Spacer(minLength: 0) }
-                knob(b, "KN\(i + 1)", k, size: size)
-            }
-        }
-    }
-
-    private func well(_ b: Board, bw: CGFloat, bh: CGFloat, gap: CGFloat, font: CGFloat) -> some View {
-        ButtonWell(model: play, buttons: PlayInput.well, cols: 6, bw: b.s(bw), bh: b.s(bh), gap: b.s(gap), pad: b.s(10),
-                   font: b.s(font))
-    }
-
-    private func setChip(_ b: Board, _ t: String, on: Bool, _ go: @escaping () -> Void) -> some View {
-        Button(action: go) {
-            Text(t).petch(b.s(12), em: 0.1).foregroundStyle(play.theme.palette.label.color)
-                .padding(.horizontal, b.s(12)).frame(height: b.s(36))
-                .background(Capsule().fill(.black.opacity(on ? 0.18 : 0)))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func deckChip(_ b: Board, _ t: String, on: Bool, _ go: @escaping () -> Void) -> some View {
+    /// CONTROLS: MAIN | KN 1-4.
+    private func knobSwitch(_ u: CGFloat) -> some View {
         let p = play.theme.palette
-        return Button(action: go) {
-            Text(t).petch(b.s(13), em: 0.1).foregroundStyle((on ? p.keyText : p.label).color)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Capsule().fill(on ? p.key.color : .clear))
-                .contentShape(Capsule())
+        return HStack(spacing: 4 * u) {
+            ForEach([false, true], id: \.self) { kn in
+                let on = play.knobsKN == kn
+                Button { play.knobsKN = kn } label: {
+                    Text(kn ? "KN 1–4" : "MAIN").petch(11 * u, em: 0.12).padding(.leading, 11 * u * 0.12)
+                        .foregroundStyle(p.label.color)
+                        .padding(.horizontal, 12 * u).frame(height: 32 * u)
+                        .background(Capsule().fill(.black.opacity(on ? 0.14 : 0)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
     }
 
-    /// FULL / the linked view / STEPS / SCREEN.
-    private func dots(_ b: Board, _ p: PlayTheme.Palette) -> some View {
+    /// CONTROLS: BUTTONS | KEYS.
+    private func deck(_ u: CGFloat) -> some View {
+        let p = play.theme.palette
+        return HStack(spacing: 0) {
+            ForEach([PlayViewKind.panel, .keys], id: \.self) { v in
+                let on = play.view == v
+                Button { play.view = v } label: {
+                    Text(v == .panel ? "BUTTONS" : "KEYS").petch(12.5 * u, em: 0.12).padding(.leading, 12.5 * u * 0.12)
+                        .foregroundStyle((on ? p.keyText : p.label).color)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Capsule().fill(on ? p.key.color : .clear))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3 * u)
+        .background(Capsule().fill(.black.opacity(0.14)))
+    }
+
+    /// FULL / CONTROLS / STEPS / SCREEN.
+    private func dots(_ u: CGFloat) -> some View {
+        let p = play.theme.palette
         let at = switch play.view {
         case .full: 0
         case .panel, .keys: 1
         case .steps: 2
         case .screen: 3
         }
-        return HStack(spacing: 0) {
+        return HStack(spacing: 4 * u) {
             ForEach(0..<4, id: \.self) { i in
                 Button {
                     play.view = switch i {
                     case 0: .full
                     case 2: .steps
                     case 3: .screen
-                    default: play.view == .panel ? .panel : .keys
+                    default: play.view == .keys ? .keys : .panel
                     }
                 } label: {
                     Capsule().fill(p.label.color).opacity(i == at ? 1 : 0.35)
-                        .frame(width: b.s(i == at ? 22 : 8), height: b.s(8))
-                        .frame(width: b.s(36), height: b.s(28))
+                        .frame(width: (i == at ? 22 : 8) * u, height: 8 * u)
+                        .frame(width: 36 * u, height: 24 * u)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -487,56 +313,8 @@ struct LiveLCD: View {
     var body: some View { LCDScreen(image: play.lcd, size: size, p: play.theme.palette) }
 }
 
-/// A layout's unit: its sizes are the mock-up's points times `u`.
-struct Board {
-    let u: CGFloat
-    func s(_ v: CGFloat) -> CGFloat { v * u }
-}
-
-extension View {
-    /// At (x, y), w x h of the mock-up's points, in a top-left aligned container.
-    func place(_ b: Board, _ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> some View {
-        frame(width: b.s(w), height: b.s(h)).offset(x: b.s(x), y: b.s(y))
-    }
-}
-
-/// The iPad's rail while PLAY shows: the logo, the tabs as icons (PLAY lit), IMPORT's "+" at the foot.
-struct SlimRail: View {
-    @Binding var tab: FizzTab
-
-    var body: some View {
-        VStack(spacing: 10) {
-            BubbleLogo().frame(width: 34, height: 34).padding(.bottom, 8)
-            ForEach(FizzTab.bar) { t in
-                let on = t == tab
-                Button { tab = t } label: {
-                    IconView(t.icon, color: on ? .black : t.tint.color, lineWidth: 2, backdrop: on ? t.tint.color : .black)
-                        .frame(width: 24, height: 24)
-                        .frame(width: 56, height: 56)
-                        .background(Circle().fill(on ? t.tint.color : t.tint.opacity(0.09)))
-                        .overlay(Circle().strokeBorder(on ? t.tint.color : t.tint.mix(38, FZ.nav).color, lineWidth: 1.5))
-                        .shadow(color: on ? t.tint.opacity(0.5) : .clear, radius: 9)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer(minLength: 0)
-            Button { tab = .importer } label: {
-                IconView(Icons.plus, color: .black, lineWidth: 3).frame(width: 26, height: 26)
-                    .frame(width: 52, height: 52)
-                    .background(Circle().fill(FZ.violet.color))
-                    .shadow(color: FZ.violet.opacity(0.55), radius: 10)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.top, 14).padding(.bottom, 24)
-        .frame(maxWidth: .infinity)
-        .background(Color.black)
-    }
-}
-
 private extension View {
-    /// (the LCD full screen: the status bar hidden too)
+    /// (the LCD full screen, the iPad's panel: the status bar hidden)
     @ViewBuilder func hidingStatusBar(_ on: Bool) -> some View {
         #if os(iOS)
         statusBarHidden(on)
