@@ -8,6 +8,8 @@
 // let go (SESSION 0). Nothing else is sent to any unit.
 //
 //   cd ios/FizzKit && FIZZ_PANEL_PORT="FM-1" FIZZ_PANEL_SECONDS=60 swift test --filter realUnitAsThePanel
+// FIZZ_PANEL_STILL=1: PLAY tapped twice first, so FIZZ leaves its animated power-on screen for the still step view
+// (the stats then show the frames stop once the screen is on the unit).
 
 import FizzKit
 import Foundation
@@ -36,6 +38,14 @@ extension EmulatorTests {
         let e = FizzEmulator(storage: nil)
         e.boot(flash: nil)
         print("panel test: FIZZ's clock: \(e.start(sound: true))")
+        if ProcessInfo.processInfo.environment["FIZZ_PANEL_STILL"] != nil {
+            try await Task.sleep(for: .milliseconds(1500))
+            e.tap(.play)
+            try await Task.sleep(for: .milliseconds(100))
+            e.tap(.play)
+            try await Task.sleep(for: .milliseconds(500))
+            print("panel test: FIZZ \(e.uiInfo())")
+        }
         defer { e.stop() }
         let link = PanelLink(transport: try scanner.open(found[0].0, channelMessages: true), emulator: e)
         link.log = { print($0) }
