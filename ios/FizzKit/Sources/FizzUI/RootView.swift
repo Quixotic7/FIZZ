@@ -216,10 +216,10 @@ struct PhoneRoot: View {
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: Self.barBottom + TabBar.height + 12)
                 .allowsHitTesting(false)
-                .opacity(tab == .library && model.kept.selecting ? 0 : 1)
+                .opacity(tab == .library && model.libraryBarUp ? 0 : 1)
             if tab == .projects { ProjectsPhoneBar(model: model) }
-            // (KEPT's SELECT bar takes its place)
-            if !(tab == .library && model.kept.selecting) {
+            // (KEPT's or the unit's SELECT bar takes its place)
+            if !(tab == .library && model.libraryBarUp) {
                 TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, Self.barBottom)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -227,7 +227,7 @@ struct PhoneRoot: View {
             AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, Self.barBottom + TabBar.height + 10)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.kept.selecting)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.libraryBarUp)
         .ignoresSafeArea(edges: .bottom)
     }
 }

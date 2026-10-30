@@ -114,6 +114,8 @@ public final class UnitModel {
     public let projectsTab: ProjectsModel
     /// KEPT: the phone's own presets, Documents/Presets (KeptPresets.swift)
     public let kept: KeptPresets
+    /// LIBRARY's SELECT on the unit's presets (LibrarySelect.swift)
+    public let picks = LibraryPicks()
     /// The emulated FIZZ (EmulatorHost.swift): PLAY plays it, and it is the unit while no FM-1 is plugged in.
     public let emulator: EmulatorHost?
     /// An FM-1 found but not taken while the emulated FIZZ stays the unit: update mode, not FIZZ, two units
