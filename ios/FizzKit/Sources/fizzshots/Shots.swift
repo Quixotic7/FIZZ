@@ -104,6 +104,10 @@ struct Shots {
         }.padding(20).background(Color.black), CGSize(width: 760, height: 120), out, "tag-icons")
         save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "pool:3"), phone, out, "pool")
         save(RootView(model: m, tab: .constant(.pool), wide: true).environment(\.fizzShotSelection, "pool:3"), pad, out, "ipad-pool")
+        // POOL's SELECT: three ticked (3 and 6 locked by steps), the bulk bar; MOVE waiting for its place
+        save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "poolsel:2,3,6"), phone, out, "pool-select")
+        save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "poolmove:2,3,6"), phone, out, "pool-select-move")
+        save(RootView(model: m, tab: .constant(.pool), wide: true).environment(\.fizzShotSelection, "poolsel:2,3,6"), pad, out, "ipad-pool-select")
         save(LogSheetShot(model: m), phone, out, "log")
 
         // ---- I5: EDIT
