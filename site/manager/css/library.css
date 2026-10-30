@@ -413,3 +413,63 @@
 #l-sel .legend { display: flex; gap: 16px; font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
 #l-sel .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
 #l-sel .legend .lp { background: var(--cream); } #l-sel .legend .lj { background: var(--green); }
+
+/* ---- parity (2026-10-29): + NEW (FM or MIDI), LOAD ON FM-1 under the name, the IN THIS BROWSER card */
+#tab-library .lhead .nnew { --c: var(--cream); height: 40px; padding: 0 18px; font-size: 12px; gap: 7px; flex: none; }
+#tab-library .lhead .nnew svg { width: 14px; height: 14px; fill: none; stroke: #000; stroke-width: 3; stroke-linecap: round; }
+#tab-library .lhead .nnew:disabled { opacity: .4; animation: none; }
+#tab-library .nnwrap { position: fixed; inset: 0; z-index: 9; }
+#tab-library .nnwrap.under { top: var(--toph); }
+#tab-library .scrimx { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); }
+#tab-library .nnwrap.under .scrimx { background: rgba(0, 0, 0, .45); }
+#tab-library .newpop { position: fixed; width: 440px; max-width: calc(100vw - 24px); border-radius: 24px; padding: 16px; background: #0B0B10; border: 1.5px solid var(--line);
+  box-shadow: 0 30px 80px -10px #000, 0 0 0 1px #000; display: flex; flex-direction: column; gap: 12px; animation: slidein .2s var(--snap) both; }
+#tab-library .newpop::before { content: ""; position: absolute; top: -9px; right: var(--nub, 60px); width: 16px; height: 16px; background: #0B0B10;
+  border-left: 1.5px solid var(--line); border-top: 1.5px solid var(--line); transform: rotate(45deg); }
+#tab-library .newpop .uphead { padding: 2px 4px; }
+#tab-library .nkinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#tab-library .nk { --c: var(--pink); border-radius: 18px; padding: 16px 14px 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; color: var(--text); font: inherit; }
+#tab-library .nk.midi { --c: var(--midi); }
+#tab-library .nk .art { height: 86px; width: 100%; display: grid; place-items: center; }
+#tab-library .nk .art svg { height: 86px; width: auto; max-width: 100%; overflow: visible; }
+#tab-library .nk .nkn { font-weight: 900; font-size: 26px; letter-spacing: .04em; color: var(--text); line-height: 1; }
+#tab-library .nk .hud { font-size: 11px; color: var(--c); }
+#tab-library .nk.on, #tab-library .nk:focus-visible { box-shadow: 0 0 22px -4px var(--c), inset 0 0 16px -8px var(--c); border-color: var(--c); background: color-mix(in srgb, var(--c) 10%, transparent);
+  outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 3px; }
+#tab-library .nkinds:hover .nk.on:not(:hover) { box-shadow: none; outline-color: transparent; border-color: color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); }
+#tab-library .nk:hover { border-color: var(--c); box-shadow: 0 0 22px -4px var(--c); }
+#tab-library .ndest { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 4px; }
+#tab-library .ndest .arrow { color: var(--muted); font-weight: 900; }
+#tab-library .ndest .usb svg { width: 18px; height: 13px; }
+#tab-library .ndest .usb.br { --c: var(--browser); }
+#tab-library .ndest .usb .bglyph { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+#tab-library .ndest .hud { font-size: 11px; color: var(--cream); }
+#tab-library .newpop.sheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; border-radius: 28px 28px 0 0; border: 0; border-top: 1.5px solid var(--line);
+  padding: 10px 16px calc(30px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -30px 60px -10px #000; animation: slideup .25s var(--snap) both; }
+#tab-library .newpop.sheet::before { display: none; }
+#tab-library .newpop .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--dim); margin: 0 auto 4px; }
+@media (min-width: 1181px) { #tab-library .lhead { flex-wrap: nowrap; } }
+@media (max-width: 1180px) {
+  #tab-library .lhead .nnew { width: 40px; height: 40px; padding: 0; font-size: 0; letter-spacing: 0; gap: 0; }
+  #tab-library .lhead .nnew svg { width: 16px; height: 16px; }
+}
+/* LOAD ON FM-1: the label, then the track 1..6 and LOAD on one row */
+#l-sel .ldon { display: flex; flex-direction: column; gap: 8px; }
+#l-sel .ldon .lbl { display: flex; align-items: center; gap: 7px; }
+#l-sel .ldon .lbl .u { color: var(--green); }
+#l-sel .ldon .lbl .u.br { color: var(--browser); }
+#l-sel .ldrow { display: flex; gap: 8px; align-items: center; min-width: 0; }
+#l-sel .ldrow .ltrk { flex: 1 1 auto; min-width: 0; }
+#l-sel .ldrow .load { --c: var(--pink); height: 42px; padding: 0 16px; font-size: 11px; flex: none; }
+#l-sel .ldrow .load.on { --c: var(--green); }
+#l-sel .ldrow .load svg { width: 18px; height: 16px; fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* the IN THIS BROWSER card: its place in the browser's colour */
+#l-sel .selsrc.bsrc { color: var(--browser); }
+#l-sel .selsrc .bglyph { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; flex: none; }
+#l-sel .selid .bigname { min-width: 0; width: 100%; }
+#l-sel #l-bname { border-bottom: 2px solid var(--line); padding-bottom: 2px; caret-color: var(--cyan); }
+#l-sel #l-bname:focus { border-bottom-color: color-mix(in srgb, var(--cyan) 60%, transparent); }
+@media (max-width: 900px) and (orientation: landscape) {
+  #l-sel .ldrow .load { height: 34px; padding: 0 12px; }
+  #l-sel .ldrow .load svg { display: none; }
+}

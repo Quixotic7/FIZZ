@@ -898,6 +898,26 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   lk.close(); u.dispose();
 }
 
+// ---- nf-new (parity 2026-10-29): + NEW and the IN THIS BROWSER card's store edits (browserlib.js): a new sound kept
+// with the mix defaults, a preset changed in place (its id kept, pan and sends with it), DUPLICATE's name
+{
+  const { replaceIn, uniqueName } = await import("../manager/browserlib.js");
+  const nw = newSound("fm"), rec0 = recordOf({ name: nw.name, blob: blob6(nw), pan: nw.pan, chorus: nw.sends.chorus, delay: nw.sends.delay, reverb: nw.sends.reverb, tags: 0 });
+  const k0 = keepIn(null, [rec0]), r0 = browserRows(k0.image)[0];
+  check(k0.added === 1 && r0 && r0.name === "INIT" && r0.lib.pan === MIX_DEFAULTS.pan && r0.lib.sends.reverb === MIX_DEFAULTS.reverb && r0.lib.sends.chorus === 0 && r0.lib.sends.delay === 0,
+    `nf-new: + NEW into an empty browser store: ${r0 && r0.name} at ${r0 && r0.slot}, the mix defaults (pan ${r0 && r0.lib.pan}, reverb ${r0 && r0.lib.sends.reverb})`);
+  const mixed = recordOf({ name: "PANNED", blob: blob6(nw), pan: -20, chorus: 5, delay: 7, reverb: 90, tags: 2 });
+  const k1 = keepIn(k0.image, [mixed]), p1 = browserRows(k1.image).find((x) => x.name === "PANNED");
+  const re = replaceIn(k1.image, p1.slot, recordOf({ name: "PANNED X", blob: p1.lib.blob, pan: p1.lib.pan, chorus: p1.lib.sends.chorus, delay: p1.lib.sends.delay, reverb: p1.lib.sends.reverb, tags: 6 }));
+  const p2 = browserRows(re).find((x) => x.slot === p1.slot);
+  check(p2 && p2.name === "PANNED X" && p2.id === p1.id && p2.tags === 6 && p2.lib.pan === -20 && p2.lib.sends.reverb === 90 && p2.lib.sends.chorus === 5 && p2.lib.sends.delay === 7 && browserRows(re).length === 2,
+    `nf-new: a browser preset renamed and tagged in place: ${p2 && p2.name}, id ${p2 && p2.id} kept, pan ${p2 && p2.lib.pan}, reverb ${p2 && p2.lib.sends.reverb}`);
+  let threw = false;
+  try { replaceIn(re, 200, mixed); } catch (_) { threw = true; }
+  const un = [uniqueName("SUB DROP", ["SUB DROP"]), uniqueName("SUB DROP 2", ["SUB DROP", "SUB DROP 2"]), uniqueName("ABCDEFGHIJKL", ["ABCDEFGHIJKL"]), uniqueName("NEW", [])];
+  check(threw && un.join("|") === "SUB DROP 2|SUB DROP 3|ABCDEFGHIJ 2|NEW", `nf-new: an empty place refused; DUPLICATE's names: ${un.join(", ")}`);
+}
+
 // ---- the owner's saved images (outside the repo), read offline
 {
   const dir = path.resolve(SITE, "../../FIZZ-saves");

@@ -83,11 +83,13 @@
         <div class="lfind"><label class="find tube"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><input type="search" id="l-q" placeholder="Find a sound" aria-label="Find a sound" autocomplete="off" spellcheck="false"><span class="hud slash" aria-hidden="true">/</span></label>
           <div class="srcmenu"><button id="l-src" class="tube on srcbtn" aria-haspopup="menu" aria-expanded="false">MINE ▾</button><div class="srcpop" id="l-srcpop" role="menu" hidden></div></div></div>
         <button id="l-select" class="ol selbtn" aria-pressed="false">SELECT</button>
-        <button id="l-export-all" class="ol exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT ALL</button></div>
+        <button id="l-export-all" class="ol exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT ALL</button>
+        <button id="l-new" class="arc breathe nnew" aria-haspopup="dialog" aria-expanded="false" aria-controls="l-newpop" aria-label="New sound" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg>NEW</button></div>
       <div class="cases" id="l-list"></div>
     </div>
     <aside class="card sel" id="l-sel" aria-label="The sound picked"></aside>
     <aside class="card bulk tube on" id="l-bulk" aria-label="The sounds selected" hidden></aside>
+    <div class="nnwrap" id="l-newwrap" hidden><div class="scrimx" id="l-newscrim"></div><div class="newpop" id="l-newpop" role="dialog" aria-label="New sound"></div></div>
   </section>
 
   <section id="tab-edit" class="body edit" role="tabpanel" aria-labelledby="t-edit" hidden>

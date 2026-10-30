@@ -8,9 +8,12 @@
 //   recordOf({name, blob (128), pan, chorus, delay, reverb, tags}) -> a MY PRESETS record ('S' 5, id 0)
 //   keepIn(img, recs) -> {image, added, same, full}     (each into the first free place; one already there skipped)
 //   dropFrom(img, slots) -> image
+//   replaceIn(img, slot, rec) -> image   (the record at that place swapped for rec: its id and flags kept, so a project
+//                                          that plays it plays the new sound: RENAME, TAGS, EDIT's SAVE)
+//   uniqueName(name, taken) -> a name not taken: NAME, else NAME 2, NAME 3 .. (12 characters at most; DUPLICATE)
 //   blankImage() -> an empty store in the browser FIZZ's layout
 import { readRegion, buildImage, LAYOUTS, layoutOf, convertImage } from "./fizzstore.js";
-import { modelOf, imageOf, addPreset, removePreset } from "./projects.js";
+import { modelOf, imageOf, addPreset, removePreset, rkey, RK } from "./projects.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 
 const NAME = 13, BLOB = 128, LIBLEN = 2 + NAME + BLOB + 8;
@@ -62,4 +65,26 @@ export function dropFrom(img, slots) {
   const m = modelOf(img);
   for (const s of slots) removePreset(m, s - 1);
   return imageOf(m);
+}
+
+export function replaceIn(img, slot, rec) {
+  const m = modelOf(img), k = rkey(RK.LIB, 0, slot - 1), old = m.lib.get(k);
+  if (!old || old.length !== LIBLEN) throw new Error(`no preset at ${slot}`);
+  const r = rec.slice(), o = 2 + NAME + BLOB;
+  r[o] = old[o]; r[o + 1] = old[o + 1]; r[o + 3] = old[o + 3];
+  m.lib.set(k, r);
+  return imageOf(m);
+}
+
+// (the iOS app's KeptPresets.uniqueName: a trailing number counted on)
+export function uniqueName(name, taken) {
+  const t = new Set(taken);
+  if (!t.has(name)) return name;
+  let base = name, n = 2;
+  const m = / (\d+)$/.exec(name);
+  if (m) { base = name.slice(0, m.index); n = +m[1] + 1; }
+  for (;; n++) {
+    const tail = ` ${n}`, c = base.slice(0, NAME - 1 - tail.length).trim() + tail;
+    if (!t.has(c)) return c;
+  }
 }

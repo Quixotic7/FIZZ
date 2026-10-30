@@ -357,9 +357,10 @@ export function mountLive(ctx) {
       L.on = false; L.cap = false; render(); if (ctx.changed) ctx.changed();
     },
     // EDIT shown: the editor follows the FM-1's track, unless it holds a preset or a file opened in this browser
+    // (held: LIBRARY's + NEW and a browser preset opened in EDIT keep the editor, TRACK on or off)
     show() {
       const p = editor.place();
-      if (canRead() && (L.follow || L.on || !p.source || p.source === "new")) attach();
+      if (canRead() && !p.held && (L.follow || L.on || !p.source || p.source === "new")) attach();
     },
     hide() { stopPoll(); },
     // SAVE's frame options: on, the track plays the saved preset (LOAD, not edited)
