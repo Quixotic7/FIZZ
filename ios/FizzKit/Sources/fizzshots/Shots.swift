@@ -30,6 +30,8 @@ struct Shots {
         if !FizzFont.register() { print("Inter Tight not registered: the system font is used") }
         // (`fizzshots OUTDIR units`: the unit picker's alone)
         if CommandLine.arguments.dropFirst(2).contains("units") { await unitShots(out); return }
+        // (`fizzshots OUTDIR projects`: PROJECTS' alone)
+        if CommandLine.arguments.dropFirst(2).contains("projects") { await projectShots(out); return }
 
         // looking: a model never started
         let looking = UnitModel(source: DemoLinkSource(.fizz))
@@ -286,7 +288,27 @@ struct Shots {
         pm.dismissNote()
         pm.mode = .patterns
         save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-patterns")
+        // mock-ups 43, 48: NOIR A07 lifted over SUNDAY's chip (its card sprung open); TO… into SUNDAY; the iPad (SUNDAY
+        // beside NOIR): A07 dragged onto SUNDAY A10, KEPT in that column instead. (Each pose after a render of its screen:
+        // the drop targets' places are the ones it reported.)
+        pm.clearSelection()
+        await pm.pose(p: 0, k: 6, q: 1, spring: true)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-lift")
+        pm.endLift()
+        await pm.openTo(p: 0, k: 6)
+        pm.setToProject(1)
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-to")
+        pm.closeTo()
+        pm.selectRange(from: 33, to: 34)
         save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects")
+        pm.clearSelection()
+        await pm.pose(p: 0, k: 6, q: 1, j: 9)
+        save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-drag")
+        pm.endLift()
+        pm.padKept = true
+        save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects-kept")
+        pm.padKept = false
+        pm.selectRange(from: 33, to: 34)
         pm.mode = .kept
         if let k = pm.kept.items.first {
             pm.keptSel = k.id

@@ -225,6 +225,8 @@ struct PhoneRoot: View {
             }
             // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
             AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, Self.barBottom + TabBar.height + 10)
+            // PROJECTS' TO… sheet, over the tab bar (ProjectsDragViews.swift)
+            if tab == .projects { ProjectsToLayer(model: model) }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.kept.selecting)

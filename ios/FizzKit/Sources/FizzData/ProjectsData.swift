@@ -54,7 +54,7 @@ public struct FizzProjectModel: Sendable, Equatable, Identifiable {
 
 /// A change waiting for WRITE TO FM-1.
 public struct FizzProjectsOp: Sendable, Equatable {
-    public enum Kind: String, Sendable { case paste, clear, load }
+    public enum Kind: String, Sendable { case paste, clear, load, drop }
     public var kind: Kind
     /// the slot it changes (0..7)
     public var q: Int
@@ -63,9 +63,14 @@ public struct FizzProjectsOp: Sendable, Equatable {
     /// the clip's project, the kept project's name
     public var name: String
     public var poolAdded: Int, presetsAdded: Int, copies: Int
+    /// a pattern dragged (.drop): where it came from (slot, pattern), moved (its own place cleared) or copied
+    public var fromP = -1, fromK = -1, move = false
 
     init(js v: FizzJSValue) {
         kind = Kind(rawValue: v["kind"]?.string ?? "") ?? .paste
+        fromP = v["from"]?["p"]?.int ?? -1
+        fromK = v["from"]?["k"]?.int ?? -1
+        move = v["move"]?.bool ?? false
         q = v["q"]?.int ?? 0
         at = (v["at"]?.array ?? []).compactMap(\.int)
         ks = (v["ks"]?.array ?? []).compactMap(\.int)
@@ -130,6 +135,37 @@ public struct FizzClip: Sendable, Equatable {
     }
 }
 
+/// What dropping one pattern on each project does to its pool (entry.js pjDropPlan; projects.js pastePatterns tried).
+public struct FizzDropPlan: Sendable, Equatable {
+    public struct Target: Sendable, Equatable {
+        /// the slot (0..7)
+        public var q: Int
+        /// the pool sounds that come along, those it has already; its pool now and after
+        public var added: Int, there: Int, pool: Int, after: Int
+        /// its pool has no room: refused (as PASTE)
+        public var full: Bool
+        /// each of the pattern's pool sounds already in its pool
+        public var had: [Bool]
+    }
+    /// the pool sounds the pattern plays (its locks' places), their tag colours (projects.js colours: "--blue" ..)
+    public var sounds: Int
+    public var colours: [String]
+    public var targets: [Target]
+
+    init(js v: FizzJSValue) {
+        sounds = v["sounds"]?.int ?? 0
+        colours = (v["colours"]?.array ?? []).compactMap(\.string)
+        targets = (v["targets"]?.array ?? []).map { t in
+            Target(q: t["q"]?.int ?? 0, added: t["added"]?.int ?? 0, there: t["there"]?.int ?? 0, pool: t["pool"]?.int ?? 0,
+                   after: t["after"]?.int ?? 0, full: t["full"]?.bool ?? false, had: (t["had"]?.array ?? []).map { $0.bool ?? false })
+        }
+    }
+
+    public init(sounds: Int, colours: [String], targets: [Target]) { self.sounds = sounds; self.colours = colours; self.targets = targets }
+
+    public func target(_ q: Int) -> Target? { targets.first { $0.q == q } }
+}
+
 /// A kept project's file made (KEEP), or renamed.
 public struct FizzKeptFile: Sendable, Equatable {
     public var bytes: [UInt8]
@@ -186,6 +222,17 @@ extension FizzDataEngine {
     /// The clip's patterns into slot q from pattern j on.
     public func projectsPaste(_ h: Int, q: Int, j: Int, clip: Int) async throws -> Result<FizzProjectsView, FizzProjectsRefusal> {
         try await edit("pjPaste", [.int(h), .int(q), .int(j), .int(clip)])
+    }
+
+    /// A pattern dragged (projtab.js land): slot p's pattern k copied to slot q's pattern j, its pool sounds into q's pool
+    /// (reused where q has them; a full pool refused, "poolfull"); move: its own place cleared. One change.
+    public func projectsDrop(_ h: Int, p: Int, k: Int, q: Int, j: Int, move: Bool) async throws -> Result<FizzProjectsView, FizzProjectsRefusal> {
+        try await edit("pjDrop", [.int(h), .int(p), .int(k), .int(q), .int(j), .bool(move)])
+    }
+
+    /// What dropping slot p's pattern k on each project there does to its pool.
+    public func projectsDropPlan(_ h: Int, p: Int, k: Int) async throws -> FizzDropPlan {
+        FizzDropPlan(js: try await call("pjDropPlan", [.int(h), .int(p), .int(k)]))
     }
 
     public func projectsClear(_ h: Int, q: Int, ks: [Int]) async throws -> Result<FizzProjectsView, FizzProjectsRefusal> {
@@ -267,9 +314,13 @@ extension FizzDataEngine {
                             colours: (v["colours"]?.array ?? []).compactMap(\.string))
     }
 
-    /// The demo unit's store with its projects' patterns (synthetic; the ones of `prev` kept by name, else by slot).
-    public func demoPatterns(_ image: [UInt8], prev: [UInt8]?, projects: [(slot: Int, name: String, pats: Int, demo: Bool)]) async throws -> [UInt8] {
-        let ps: [FizzJSValue] = projects.map { ["slot": .int($0.slot), "name": .string($0.name), "pats": .int($0.pats), "demo": .bool($0.demo)] }
+    /// The demo unit's store with its projects' patterns (synthetic; the ones of `prev` kept by name, else by slot; pools:
+    /// a slot's pool filled to that many places).
+    public func demoPatterns(_ image: [UInt8], prev: [UInt8]?, projects: [(slot: Int, name: String, pats: Int, demo: Bool)],
+                             pools: [Int: Int] = [:]) async throws -> [UInt8] {
+        let ps: [FizzJSValue] = projects.map {
+            ["slot": .int($0.slot), "name": .string($0.name), "pats": .int($0.pats), "demo": .bool($0.demo), "pool": .int(pools[$0.slot] ?? 0)]
+        }
         let v = try await call("demoPatterns", [.bytes(image), ["prev": prev.map { .bytes($0) } ?? .null, "projects": .array(ps)]])
         guard let b = v.bytes else { throw FizzDataError.bridge("demoPatterns") }
         return b
