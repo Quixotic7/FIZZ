@@ -60,6 +60,9 @@
 //     and the pill; NEW on an empty PROJECTS slot (the FM-1 and THIS BROWSER); LOAD ON FM-1 onto a track 1..6 (kept);
 //   - EDIT pan and sends (2026-10-29): PAN, CHO, DEL, REV on AMP (panel, page, phone), dragged, SAVE AS NEW; live
 //     PARAM 115..118, NOT FOUND's AUDITION (stubbed); the browser's FIZZ the same;
+//   - nf-units (2026-10-29): two FM-1s (?sim=two) in the picker, each by its port with USB or BLUETOOTH; RemoteFM1 and
+//     the update loader greyed and named, not to pick; the second picked answers alone; PORTS from the picker and the
+//     LOG (every port, what answered); the second unplugged: its row gone at once; a phone with no horizontal scroll;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -1933,6 +1936,131 @@ try {
   await evaluate("__mgr.bfizz.ask = window.__ba; window.__bstub = false");
   }
   // ---- (end of EDIT pan and sends)
+  // ---- nf-units: two FM-1s in the picker, PORTS
+  // (?sim=two: "FIZZ FM-1" (USB) and "FM-1 C1F0 Bluetooth" running FIZZ, "FM-1" running RemoteFM1, "FM1 Update" in
+  // its loader, "IAC Driver Bus 1" and "Roto-Control" never asked. Each FIZZ its own row named by its port, the one in
+  // use checked; the others greyed with their firmware, not to pick; picking the second talks to it alone (its replies:
+  // its own presets; the first sent nothing meanwhile); PORTS from the picker and from LOG, every port with what
+  // answered; the second unplugged: its row gone at once, the first still the unit; a phone: no horizontal scroll)
+  {
+  const SHOTS = process.env.NF_UNITS_SHOTS || "";
+  const keep = async (name) => { await shot(`manager-${name}.png`); if (SHOTS) fs.copyFileSync(path.join(OUT, `manager-${name}.png`), path.join(SHOTS, `${name}.png`)); };
+  await size(1440, 900);
+  await send("Page.navigate", { url: URL0.replace("?sim&", "?sim=two&") + "#library" });
+  const two = await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0 && !!window.__simTwo", 60000);
+  await idle();
+  const rowsOf = () => evaluate(`[...document.querySelectorAll('#upick-pop .urow[data-port]')].map((r) => ({ port: r.dataset.port, u: r.dataset.u || '',
+    via: ((r.querySelector('.usb') || {}).textContent || '').trim(), fw: ((r.querySelector('.fwchip') || r.querySelector('.nm .hud')) || {}).textContent || '',
+    on: r.classList.contains('on') && !!r.querySelector('.radio.y'), grey: r.classList.contains('nofizz') && r.getAttribute('aria-disabled') === 'true',
+    shown: r.offsetWidth > 100 }))`);
+  const byPort = (rs) => Object.fromEntries(rs.map((r) => [r.port, r]));
+  await realClick("#unit");
+  const up4 = await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 4", 10000);
+  await sleep(300);
+  const r1 = await rowsOf(), b1 = byPort(r1), n1 = await evaluate("document.querySelector('#upick-pop .uphead .hud').textContent");
+  check(two && up4 && r1.length === 4 && r1.every((r) => r.shown) && n1 === "5" &&
+    b1["FIZZ FM-1"].u === "fm1" && b1["FIZZ FM-1"].via === "USB" && b1["FIZZ FM-1"].on && /^FIZZ /.test(b1["FIZZ FM-1"].fw) &&
+    b1["FM-1 C1F0 Bluetooth"].u === "fm1" && b1["FM-1 C1F0 Bluetooth"].via === "BLUETOOTH" && !b1["FM-1 C1F0 Bluetooth"].on && b1["FM-1 C1F0 Bluetooth"].fw === "FIZZ 0.12.0",
+    `nf-units: the picker lists each FM-1 by its port: ${r1.map((r) => `${r.port} ${r.via} ${r.fw}${r.on ? " (checked)" : ""}${r.grey ? " (greyed)" : ""}`).join(" | ")}; UNIT ${n1}`);
+  await keep("units-desktop-two-fm1");
+  // the greyed rows: named by their firmware, a click does nothing
+  check(b1["FM-1"] && b1["FM-1"].grey && b1["FM-1"].fw === "REMOTEFM1" && b1["FM1 Update"] && b1["FM1 Update"].grey && b1["FM1 Update"].fw === "UPDATE MODE" && !b1["FM-1"].u,
+    `nf-units: the ports not running FIZZ greyed with their firmware: FM-1 ${b1["FM-1"] && b1["FM-1"].fw}, FM1 Update ${b1["FM1 Update"] && b1["FM1 Update"].fw}`);
+  await realClick("#upick-pop .urow[data-port='FM-1']");
+  await realClick("#upick-pop .urow[data-port='FM1 Update']");
+  await sleep(800);
+  check(await evaluate("!document.getElementById('upick').hidden && __mgr.S.mode === 'fm1' && __mgr.S.link && __mgr.S.link.port === 'FIZZ FM-1' && !document.getElementById('logbox').open"),
+    "nf-units: a greyed row can't be picked (the picker stays, the unit unchanged)");
+  // PORTS from the picker: every port, what answered
+  await realClick("#up-ports");
+  const pv = await waitFor("document.getElementById('logbox').open && !document.getElementById('lp-view').hidden && document.querySelectorAll('#lp-view .prow:not(.hd)').length === 6 && document.getElementById('upick').hidden", 8000);
+  await sleep(1200);
+  const ptab = () => evaluate(`({ rows: [...document.querySelectorAll('#lp-view .prow:not(.hd)')].map((r) => ({ name: r.dataset.port, cls: r.className.replace('prow', '').trim(),
+      io: r.querySelectorAll('.io:not(.no)').length, asked: r.querySelector('.ask').classList.contains('y'), via: ((r.querySelector('.usb') || {}).textContent || '').trim(),
+      ans: (r.querySelector('.ans').innerText || '').replace(/\\s+/g, ' ').trim() })),
+    stats: [...document.querySelectorAll('#lp-view .pstat')].map((s) => s.innerText.replace(/\\s+/g, ' ').trim()).join(), seg: document.querySelector('#lpanel .lpseg .on').textContent,
+    when: document.getElementById('lp-when').textContent, fits: document.getElementById('lpanel').getBoundingClientRect().right <= innerWidth })`);
+  const t1 = await ptab(), pb = Object.fromEntries(t1.rows.map((r) => [r.name, r]));
+  check(pv && t1.seg === "PORTS" && t1.rows.length === 6 && t1.rows.every((r) => r.io === 2) && t1.stats === "6 IN,6 OUT,4 ASKED,2 FIZZ" && /^\d\d:\d\d:\d\d$/.test(t1.when) && t1.fits &&
+    /FM-1_46\d+ FIZZ/.test(pb["FIZZ FM-1"].ans) && pb["FIZZ FM-1"].cls.includes("fizz") && pb["FIZZ FM-1"].via === "USB" &&
+    /FM-1_46001200 FIZZ 0\.12\.0/.test(pb["FM-1 C1F0 Bluetooth"].ans) && pb["FM-1 C1F0 Bluetooth"].via === "BLUETOOTH" &&
+    /FM-1_52010200 REMOTEFM1/.test(pb["FM-1"].ans) && pb["FM-1"].cls === "other" && /ota-FM1_0001 UPDATE MODE/.test(pb["FM1 Update"].ans) &&
+    !pb["IAC Driver Bus 1"].asked && pb["IAC Driver Bus 1"].ans === "—" && pb["IAC Driver Bus 1"].cls === "quiet" && !pb["Roto-Control"].asked &&
+    ["FIZZ FM-1", "FM-1 C1F0 Bluetooth", "FM-1", "FM1 Update"].every((n) => pb[n].asked),
+    `nf-units: PORTS from the picker (${t1.stats}): ${t1.rows.map((r) => `${r.name}: ${r.asked ? r.ans : "not asked"}`).join(" | ")}`);
+  await keep("ports-desktop");
+  // PORTS from the LOG: LOG first, then its PORTS
+  await click("#lp-log");
+  await realClick("#logbox summary");
+  await waitFor("!document.getElementById('logbox').open", 2000);
+  await realClick("#logbox summary");
+  const lg = await waitFor("document.getElementById('logbox').open && !document.getElementById('log').hidden && document.getElementById('lp-view').hidden && document.getElementById('log').textContent.length > 0", 3000);
+  await realClick("#lp-ports");
+  const lp = await waitFor("!document.getElementById('lp-view').hidden && document.getElementById('log').hidden && document.querySelectorAll('#lp-view .prow:not(.hd)').length === 6", 3000);
+  check(lg && lp, "nf-units: the LOG opens on its lines; its PORTS shows the same table");
+  await realClick("#logbox summary");
+  // picking the second: that one answers (its own presets), the first is sent nothing meanwhile; the header follows
+  const cmds = (k) => `Object.values(__simTwo.all[${k}].counts.cmds).reduce((x, y) => x + y, 0)`;
+  await realClick("#unit");
+  await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 4", 5000);
+  const a0 = await evaluate(cmds(0)), bb0 = await evaluate(cmds(1));
+  await realClick("#upick-pop .urow[data-port='FM-1 C1F0 Bluetooth']");
+  const sw = await waitFor("__mgr.S.mode === 'fm1' && __mgr.S.link && __mgr.S.link.port === 'FM-1 C1F0 Bluetooth' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await idle();
+  await sleep(600);
+  await evaluate("__mgr.refreshRows()");
+  await idle();
+  const s2 = await evaluate(`({ id: __mgr.S.unit.id, mine: __mgr.S.unit.rows.filter((r) => r.source === 'mine').map((r) => r.name.trim()).join(),
+    pill: (document.querySelector('#unit small') || {}).textContent || '', a: ${cmds(0)}, b: ${cmds(1)}, lib: document.getElementById('tab-library').innerText })`);
+  check(sw && s2.id === "FM-1_46001200" && s2.mine === "BEE BASS,MOTH PAD,WASP LEAD" && /BEE BASS/.test(s2.lib) && !/SUB DROP/.test(s2.lib) && s2.a === a0 && s2.b > bb0 && / · BLUETOOTH$/.test(s2.pill),
+    `nf-units: the second picked: its replies (${s2.id}, MY PRESETS ${s2.mine}), the first sent nothing (${s2.a - a0} commands; the second ${s2.b - bb0}); the pill "${s2.pill}"`);
+  await realClick("#unit");
+  await sleep(400);
+  const r2 = byPort(await rowsOf());
+  check(r2["FM-1 C1F0 Bluetooth"].on && !r2["FIZZ FM-1"].on, "nf-units: the picker marks the second as the one in use");
+  // back on the first; then the second unplugged: its row gone at once (the picker open), PORTS too, the first kept
+  await realClick("#upick-pop .urow[data-port='FIZZ FM-1']");
+  const back = await waitFor("__mgr.S.link && __mgr.S.link.port === 'FIZZ FM-1' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await idle();
+  // a phone: the sheet and PORTS, no horizontal scroll
+  await size(390, 844, true);
+  await sleep(500);
+  await click("#unit");
+  await sleep(600);
+  const ph1 = await evaluate("({ sheet: document.getElementById('upick').classList.contains('sheet'), n: document.querySelectorAll('#upick-pop .urow').length, w: document.getElementById('upick-pop').scrollWidth <= document.getElementById('upick-pop').clientWidth + 1 })");
+  const ns1 = await noScroll();
+  await keep("units-phone-two-fm1");
+  await click("#up-ports");
+  await sleep(900);
+  const ph2 = await evaluate("(() => { const p = document.getElementById('lpanel').getBoundingClientRect(); return { l: p.left, r: p.right, w: innerWidth, rows: document.querySelectorAll('#lp-view .prow:not(.hd)').length, over: [...document.querySelectorAll('#lp-view .prow')].some((x) => x.scrollWidth > x.clientWidth + 1) }; })()");
+  const ns2 = await noScroll();
+  await keep("ports-phone");
+  await click("#logbox summary");
+  check(back && ph1.sheet && ph1.n === 5 && ph1.w && ns1 && ph2.l >= 0 && ph2.r <= ph2.w && ph2.rows === 6 && !ph2.over && ns2,
+    `nf-units: a phone (390 x 844): the picker a sheet with ${ph1.n} rows, PORTS within the screen (${Math.round(ph2.l)}..${Math.round(ph2.r)}), no horizontal scroll`);
+  await size(1440, 900);
+  await sleep(400);
+  await realClick("#unit");
+  await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 4", 5000);
+  await evaluate("__simTwo.unplug(1)");
+  const gone = await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 3 && !document.querySelector(\"#upick-pop .urow[data-port='FM-1 C1F0 Bluetooth']\")", 3000);
+  await sleep(1500);
+  const kept = await evaluate("__mgr.S.mode === 'fm1' && __mgr.S.link && __mgr.S.link.port === 'FIZZ FM-1' && !!document.querySelector(\"#upick-pop .urow[data-port='FIZZ FM-1'].on\")");
+  await click("#upick-scrim");
+  await click("#lp-ports");
+  if (!(await evaluate("document.getElementById('logbox').open"))) await realClick("#logbox summary");
+  await realClick("#lp-ports");
+  await sleep(500);
+  const t3 = await ptab();
+  check(gone && kept && t3.rows.length === 5 && !t3.rows.some((r) => r.name === "FM-1 C1F0 Bluetooth") && t3.stats === "5 IN,5 OUT,3 ASKED,1 FIZZ",
+    `nf-units: the second unplugged: its row gone at once (picker and PORTS: ${t3.stats}), the first still the unit`);
+  // plugged in again: asked again, its row back
+  await evaluate("__simTwo.plug(1)");
+  const again = await waitFor("document.querySelectorAll('#lp-view .prow.fizz').length === 2", 8000);
+  check(again, "nf-units: plugged in again: asked again, back in PORTS as FIZZ");
+  await realClick("#logbox summary");
+  }
+  // ---- (end of nf-units)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

@@ -2,10 +2,13 @@
 // The header's unit (the offline mode, 2026-10-29): the unit pill (THIS BROWSER orange, or the FM-1 green), the sound
 // pill while the browser's FIZZ is the unit, the FM-1 beside it (a dashed circle when absent; found: a green ⇄ FM-1),
 // and the unit picker (a popover from the pill; a bottom sheet on a phone): THIS BROWSER (its ••• a MEMORY drawer with
-// RESET), the FM-1 (its port: USB or BLUETOOTH), CONNECT FM-1.
-//   const u = mountUnit({ $, view, pick(unit), connect(), sound(), reset() }); u.render(); u.open(); u.close()
+// RESET), the FM-1 (its port: USB or BLUETOOTH), CONNECT FM-1. Two FM-1s (2026-10-29): every FM-1 that answered its
+// own row, named by its port: FIZZ a row to pick (the one in use checked), another firmware greyed with its name
+// (REMOTEFM1, M-VAVE, UPDATE MODE); PORTS (the LOG's PORTS view) in the picker's head.
+//   const u = mountUnit({ $, view, pick(unit, port), connect(), sound(), reset(), ports(), open() }); u.render(); u.open(); u.close()
 //   view() -> { mode: "fm1" | "browser", look, bver, fver, fsub, found, via: "usb" | "ble", sound: null | "off" | "look" | "on" | "mute",
-//               mem: { lib: [used, all], prj: [used, all], all } | null }
+//               mem: { lib: [used, all], prj: [used, all], all } | null, port: the FM-1's in use,
+//               units: [{ port, ble, fizz, fw, version, on }] | null (no Web MIDI: the one FM-1 row as before) }
 import { esc } from "./ui.js";
 
 const IC = {
@@ -17,6 +20,8 @@ const IC = {
   usb: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v15M12 3l-2.5 3h5zM12 14l-5-3V8.5M12 16.5l5-3V11"/><circle cx="12" cy="19.5" r="1.8" fill="currentColor"/><rect x="15.5" y="9" width="3" height="2.5" fill="currentColor"/><circle cx="7" cy="7.8" r="1.4" fill="currentColor"/></svg>',
   bt: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>',
   plug: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6.5 8h11v3.5a5.5 5.5 0 0 1-11 0zM12 17v4"/></svg>',
+  ports: '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6"/></svg>',
+  ban: '<svg viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="12"/><path d="M6.5 23.5l17-17"/></svg>',
 };
 // the browser: a window with FIZZ's bubbles inside; the FM-1: its screen, four knobs, the keys
 const G = {
@@ -31,6 +36,7 @@ const NONE = "– – –";
 const VIA = { usb: "USB", ble: "BLUETOOTH" };
 const viaChip = (v) => `<span class="usb ${v === "ble" ? "ble" : ""}">${v === "ble" ? IC.bt : IC.usb}${VIA[v] || "USB"}</span>`;
 const phone = () => window.matchMedia("(max-width: 900px)").matches;
+const LONG = 11;   // (a port name longer: its USB / BLUETOOTH under it, beside the version)
 
 export function mountUnit(ctx) {
   const { $ } = ctx;
@@ -56,14 +62,28 @@ export function mountUnit(ctx) {
         <span class="radio ${br ? "y" : ""}">${br ? IC.check : ""}</span></div>`;
     const drawer = U.more ? `<div class="drawer tube" id="up-mem"><span class="lbl">MEMORY</span><span class="cells" role="img" aria-label="The store ${pct(v.mem)} used">${cells(v.mem)}</span>
         <span class="hud">${pct(v.mem)}</span><button class="ol reset" id="up-reset">RESET</button></div>` : "";
-    const fmRow = fmFound
+    const units = v.units || [], fizz = units.filter((u) => u.fizz);
+    // (no Web MIDI, or nothing answered yet: the one FM-1 row as before, the one in use or found, else dashed)
+    const one = !units.length && fmFound
       ? `<div class="urow fm tube ${fmOn ? "on" : ""}" data-u="fm1" role="button" tabindex="0" aria-pressed="${fmOn}">${G.fm1Big}
           <div class="nm"><b>FM-1 ${viaChip(v.via)}</b><span class="hud">${esc(v.fver ? `FIZZ ${v.fver.replace(/-.*$/, "")}` : "FIZZ")}</span></div>
           <span class="radio ${fmOn ? "y" : ""}">${fmOn ? IC.check : ""}</span></div>`
-      : `<div class="urow fm ants off" data-u="fm1" role="button" tabindex="0" aria-disabled="true">${G.fm1Big}
-          <div class="nm"><b>FM-1 ${viaChip("usb")}</b><span class="hud">${NONE}</span></div><span class="radio"></span></div>`;
-    const go = fmFound ? "" : `<button class="arc breathe connect" id="up-connect">${IC.plug}CONNECT FM-1</button>`;
-    put(pop, `${phone() ? '<div class="grab" aria-hidden="true"></div>' : ""}<div class="uphead"><span class="lbl">UNIT</span><span class="hud">2</span></div>${brRow}${drawer}${fmRow}${go}`);
+      : !units.length ? `<div class="urow fm ants off" data-u="fm1" role="button" tabindex="0" aria-disabled="true">${G.fm1Big}
+          <div class="nm"><b>FM-1 ${viaChip("usb")}</b><span class="hud">${NONE}</span></div><span class="radio"></span></div>` : "";
+    const rows = units.map((u) => {
+      const via = viaChip(u.ble ? "ble" : "usb"), long = u.port.length > LONG, nm = `<span class="pn">${esc(u.port)}</span>`;
+      if (!u.fizz)
+        return `<div class="urow fm nofizz" data-port="${esc(u.port)}" aria-disabled="true" title="${esc(u.port)}: ${esc(u.fw)}">${G.fm1Big}
+          <div class="nm"><b>${nm}${long ? "" : via}</b><span class="vline">${long ? via : ""}<span class="fwchip">${esc(u.fw)}</span></span></div><span class="ban">${IC.ban}</span></div>`;
+      const on = !!u.on;
+      return `<div class="urow fm tube ${on ? "on" : ""}" data-u="fm1" data-port="${esc(u.port)}" role="button" tabindex="0" aria-pressed="${on}" title="${esc(u.port)}">${G.fm1Big}
+          <div class="nm"><b>${nm}${long ? "" : via}</b><span class="vline">${long ? via : ""}<span class="hud">${esc(u.version ? `FIZZ ${u.version}` : "FIZZ")}</span></span></div>
+          <span class="radio ${on ? "y" : ""}">${on ? IC.check : ""}</span></div>`;
+    }).join("");
+    const go = fmFound || fizz.length ? "" : `<button class="arc breathe connect" id="up-connect">${IC.plug}CONNECT FM-1</button>`;
+    const n = 1 + (units.length || 1);
+    put(pop, `${phone() ? '<div class="grab" aria-hidden="true"></div>' : ""}<div class="uphead"><span class="lbl">UNIT</span><span class="hud">${n}</span>` +
+      `<button class="ol ports" id="up-ports">${IC.ports}PORTS</button></div>${brRow}${drawer}${one}${rows}${go}`);
   }
   function place() {
     if (phone()) { pop.style.left = pop.style.right = pop.style.top = ""; pop.style.removeProperty("--nub"); return; }
@@ -83,7 +103,8 @@ export function mountUnit(ctx) {
     put(pill, br
       ? `${G.browser}<span class="ul"><span class="this">THIS </span>BROWSER</span>${sub ? `<small>${esc(sub)}</small>` : ""}${IC.chev}`
       : `<span class="dot"></span><span class="ul">${v.look ? "FM-1…" : "FM-1"}</span>${sub ? `<small>${esc(sub)}</small>` : ""}${IC.chev}`);
-    pill.setAttribute("aria-label", `Unit: ${br ? "this browser" : "the FM-1"}. Choose`);
+    pill.setAttribute("aria-label", `Unit: ${br ? "this browser" : `the FM-1${v.port ? ` on ${v.port}` : ""}`}. Choose`);
+    pill.title = br || !v.port ? "" : v.port;
     pill.setAttribute("aria-expanded", String(U.open));
     // the sound, while the browser's FIZZ is the unit
     spk.hidden = !br || !v.sound;
@@ -120,6 +141,7 @@ export function mountUnit(ctx) {
     box.hidden = false;
     box.classList.toggle("sheet", phone());
     render();
+    if (ctx.open) ctx.open();
     const first = pop.querySelector(".urow");
     if (first) first.focus({ preventScroll: true });
   }
@@ -140,10 +162,12 @@ export function mountUnit(ctx) {
     if (t.closest("#up-more")) { ev.stopPropagation(); U.more = !U.more; render(); return; }
     if (t.closest("#up-reset")) { close(false); await ctx.reset(); return; }
     if (t.closest("#up-connect")) { close(false); await ctx.connect(); return; }
+    if (t.closest("#up-ports")) { close(false); ctx.ports(); return; }
     const row = t.closest(".urow");
+    if (row && row.classList.contains("nofizz")) return;   // (another firmware: not to pick)
     if (!row || row.getAttribute("aria-disabled") === "true") { if (row) { close(false); ctx.connect(); } return; }
     close(false);
-    ctx.pick(row.dataset.u);
+    ctx.pick(row.dataset.u, row.dataset.port || null);
   });
   pop.addEventListener("keydown", (ev) => {
     if ((ev.key === "Enter" || ev.key === " ") && ev.target.classList.contains("urow")) { ev.preventDefault(); ev.target.click(); }
