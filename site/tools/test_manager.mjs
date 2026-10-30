@@ -35,6 +35,8 @@
 //   - nf-units (two FM-1s, PORTS, 2026-10-29): the firmware an id names (FIZZ and its version, REMOTEFM1, M-VAVE,
 //     M-VAVE OPEN, UPDATE MODE), a port asked once (the handshake only, a short wait), other gear never asked, the
 //     unit in use never asked; findFizz on the port picked (the second FIZZ, not the first);
+//   - nf-flat (2026-10-30): the stylesheets (not edit.css) declare no glow (a coloured blurred or offset box-shadow, a
+//     coloured text-shadow or drop-shadow), the lights kept (PLAY's LEDs, the unit pill's dot, the restore's FM-1 key);
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
@@ -1029,6 +1031,51 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   check(e1 && e1.code === "notfizz" && /FM-1_52000203/.test(e1.message) && l.port === "ChoralRoot FM-1" && l.id === "FM-1_4600" && v && l0.port === "ChoralRoot FM-1",
     `exact names: "FM-1" picked: not FIZZ (${e1 && e1.message}); "ChoralRoot FM-1" picked: FIZZ ${v}; with none picked, "${l0.port}"`);
   l0.close(); fz.dispose();
+}
+
+// ---- nf-flat (the owner, 2026-10-30: "Flatten everything."): the Manager's stylesheets (EDIT's edit.css and editor.js
+// left to their own rebuild) declare no glow, hovers and passing states too: a box-shadow layer with a blur or an
+// offset only in black (a floating layer lifted), a zero-blur ring (a hairline border) in any colour; no coloured
+// text-shadow or drop-shadow filter; no breathe keyframes; the lights kept: PLAY's power LED, REC and the keys' LEDs, the
+// unit pill's dot, the restore's lit FM-1 key. Nor a shadow in the modules' inline styles.
+{
+  const LIGHTS = new Set(["#tab-play .pb .rec", "#tab-play .led0", "#tab-play .k.lit::after", "#tab-play .k.hot::after", "#tab-play .k.held::after", ".unit .dot", ".fm1 .key.lit"]);
+  const split = (s, sep) => { const o = []; let d = 0, c = ""; for (const ch of s) { if (ch === "(") d++; if (ch === ")") d--; if (ch === sep && !d) { o.push(c); c = ""; } else c += ch; } o.push(c); return o.map((x) => x.trim()).filter(Boolean); };
+  const black = (c) => !c || /^(#000|#000000|black|transparent)$/i.test(c) || /^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*(,\s*[\d.]+\s*)?\)$/i.test(c);
+  const layer = (l) => { const t = split(l, " "), n = t.filter((x) => /^-?[\d.]+(px|em|rem)?$/.test(x)).map(parseFloat); return { n, c: t.filter((x) => x !== "inset" && !/^-?[\d.]+(px|em|rem)?$/.test(x)).join(" ") }; };
+  function* rules(css, kf = "") {
+    for (let i = 0; i < css.length;) {
+      const open = css.indexOf("{", i); if (open < 0) return;
+      let d = 1, j = open + 1;
+      for (; d && j < css.length; j++) { if (css[j] === "{") d++; else if (css[j] === "}") d--; }
+      const sel = css.slice(i, open).trim().replace(/\s+/g, " "), body = css.slice(open + 1, j - 1);
+      if (/^@(media|supports)/.test(sel)) yield* rules(body, kf);
+      else if (sel.startsWith("@keyframes")) { yield { sel, body: "" }; yield* rules(body, sel); }
+      else if (!sel.startsWith("@")) yield { sel: kf ? `${kf} ${sel}` : sel, body };
+      i = j;
+    }
+  }
+  const bad = [];
+  const files = fs.readdirSync(path.join(SITE, "manager/css")).filter((f) => f.endsWith(".css") && f !== "edit.css").sort();
+  for (const f of files) {
+    const css = fs.readFileSync(path.join(SITE, "manager/css", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const r of rules(css)) {
+      if (/^@keyframes (breathe|pulse|pulse-g|newglow|keyp)$/.test(r.sel)) bad.push(`${f}: ${r.sel}`);
+      if (split(r.sel, ",").every((s) => LIGHTS.has(s))) continue;
+      for (const m of r.body.matchAll(/(?:^|;|\s)(box-shadow|text-shadow|-webkit-filter|filter)\s*:\s*([^;]+)/g)) {
+        const [, prop, v] = m;
+        if (v.trim() === "none") continue;
+        if (prop === "box-shadow") { for (const l of split(v, ",")) { const { n, c } = layer(l); if (!black(c) && (n[0] || n[1] || n[2])) bad.push(`${f}: ${r.sel} { box-shadow: ${l} }`); } }
+        else if (prop === "text-shadow") { for (const l of split(v, ",")) if (!black(layer(l).c)) bad.push(`${f}: ${r.sel} { text-shadow: ${l} }`); }
+        else for (const ds of v.matchAll(/drop-shadow\(((?:[^()]|\([^()]*(?:\([^()]*\))?[^()]*\))*)\)/g)) if (!black(layer(ds[1]).c)) bad.push(`${f}: ${r.sel} { ${prop}: ${ds[0]} }`);
+      }
+    }
+  }
+  const js = fs.readdirSync(path.join(SITE, "manager")).filter((f) => f.endsWith(".js") && f !== "editor.js")
+    .filter((f) => /box-shadow|boxShadow|text-shadow|textShadow|drop-shadow/.test(fs.readFileSync(path.join(SITE, "manager", f), "utf8")));
+  check(!bad.length && !js.length, `nf-flat: ${files.length} stylesheets (not edit.css) declare no glow, the ${LIGHTS.size} lights kept; no shadow in the modules' inline styles${bad.length || js.length ? `: ${[...bad.slice(0, 8), ...js].join(" | ")}${bad.length > 8 ? ` … ${bad.length} in all` : ""}` : ""}`);
+  const kept = files.flatMap((f) => [...rules(fs.readFileSync(path.join(SITE, "manager/css", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""))].filter((r) => LIGHTS.has(r.sel) && /box-shadow/.test(r.body)).map((r) => r.sel));
+  check(kept.length === LIGHTS.size, `nf-flat: the lights keep their glow (${kept.join(", ")})`);
 }
 
 // ---- the owner's saved images (outside the repo), read offline

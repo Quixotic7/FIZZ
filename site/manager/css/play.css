@@ -3,8 +3,8 @@
    green), the views, the themes, and the board: the FM-1 as the iOS app's PLAY draws it (its palettes as --body ..
    --ledDim on the board, play.js), laid out in board units and scaled to fit. A phone on its side: the Manager's bar
    gives way to a strip; upright: the tiles, the views, the board stacked. The board's buttons and keys flat (a fill
-   and a border, no gradient), the board itself with no glow around it (the owner, 2026-10-29). Everything scoped under
-   #tab-play. */
+   and a border, no gradient), the board itself with no glow around it (the owner, 2026-10-29); the chrome round it flat
+   too (2026-10-30): only the lights glow (the power LED, REC, the keys' LEDs). Everything scoped under #tab-play. */
 :root { --play: var(--blue); }
 #tab-play { flex-direction: column; gap: 14px; padding: 16px 28px 18px; align-items: stretch; }
 
@@ -20,20 +20,20 @@
 #tab-play .tg .t .hud { font-size: 11px; color: var(--c); white-space: nowrap; }
 #tab-play .tg:not(.on) { --c: var(--muted); }
 #tab-play .tg:not(.on) .g { color: var(--muted); }
-#tab-play .tick { width: 22px; height: 22px; border-radius: 50%; background: var(--c); display: grid; place-items: center; box-shadow: 0 0 12px -2px var(--c); flex: none; }
+#tab-play .tick { width: 22px; height: 22px; border-radius: 50%; background: var(--c); display: grid; place-items: center; flex: none; }
 #tab-play .tick svg { width: 13px; height: 13px; fill: none; stroke: #000; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
 #tab-play .views { --c: var(--play); display: inline-flex; gap: 4px; padding: 4px; border-radius: 16px; border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); }
 #tab-play .vw { width: 74px; height: 44px; border: 0; border-radius: 12px; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   color: var(--muted); font-weight: 800; font-size: 11px; letter-spacing: .12em; padding: 0; transition: background .16s, color .16s; }
 #tab-play .vw svg { width: 26px; height: 15px; fill: currentColor; }
 #tab-play .vw:not(.on):hover { color: var(--text); }
-#tab-play .vw.on { background: var(--c); color: #000; box-shadow: 0 0 16px -3px var(--c); }
+#tab-play .vw.on { background: var(--c); color: #000; }
 #tab-play .views.ico .vw { width: 52px; height: 40px; }
 #tab-play .themes { display: flex; gap: 8px; align-items: center; }
 #tab-play .th { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #000; box-shadow: 0 0 0 1.5px var(--dim); position: relative; padding: 0; transition: box-shadow .16s; }
 #tab-play .th i { position: absolute; inset: 7px; border-radius: 50%; }
 #tab-play .th:hover { box-shadow: 0 0 0 1.5px var(--muted); }
-#tab-play .th.on { box-shadow: 0 0 0 2px var(--play), 0 0 14px -2px var(--play); }
+#tab-play .th.on { box-shadow: 0 0 0 2px var(--play); }
 #tab-play .rot { display: none; width: 44px; height: 40px; border-radius: 12px; padding: 0; color: var(--body); }
 #tab-play .rot svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #tab-play .pstrip { display: none; }
@@ -49,17 +49,17 @@
 #tab-play .board > * { position: absolute; }
 #tab-play .petch { font-family: "Chakra Petch", sans-serif; font-weight: 700; }
 #tab-play .bpill { --c: var(--tc); height: 30px; padding: 0 12px 0 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-weight: 900; font-size: 12px; letter-spacing: .1em; color: var(--text);
-  border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 14%, #000); box-shadow: 0 0 16px -3px var(--c); white-space: nowrap; }
+  border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 14%, #000); white-space: nowrap; }
 #tab-play .bpill .g { width: 18px; height: 18px; color: var(--c); }
-#tab-play .bpill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+#tab-play .bpill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 #tab-play .bpill .hud { color: var(--c); font-size: 11px; font-weight: 400; }
 #tab-play .klbl { letter-spacing: .08em; font-size: 13px; color: var(--label); text-align: center; white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
 #tab-play .knob { border-radius: 50%; transform: translate(-50%, -50%); cursor: ns-resize; touch-action: none;
   background: radial-gradient(circle, var(--knob) 0 60%, transparent 61%), repeating-conic-gradient(color-mix(in srgb, var(--knob) 72%, #fff 28%) 0 5deg, var(--knob) 5deg 10deg);
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--knob) 80%, #fff 10%), 0 6px 14px rgba(0, 0, 0, .45); transition: box-shadow .16s; }
 #tab-play .knob .kmark { position: absolute; inset: 0; border-radius: 50%; }
-#tab-play .knob .kmark::after { content: ""; position: absolute; left: 50%; top: 11%; height: 24%; width: 7%; min-width: 3px; transform: translateX(-50%); border-radius: 3px; background: var(--m); box-shadow: 0 0 8px var(--m); }
-#tab-play .knob.hot { box-shadow: 0 0 0 1.5px var(--m), 0 0 22px -4px var(--m), 0 6px 14px rgba(0, 0, 0, .45); }
+#tab-play .knob .kmark::after { content: ""; position: absolute; left: 50%; top: 11%; height: 24%; width: 7%; min-width: 3px; transform: translateX(-50%); border-radius: 3px; background: var(--m); }
+#tab-play .knob.hot { box-shadow: 0 0 0 1.5px var(--m), 0 6px 14px rgba(0, 0, 0, .45); }
 #tab-play .well { border-radius: 20px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); }
 #tab-play .pb { border-radius: 12px; cursor: pointer; touch-action: none; background: var(--key); box-shadow: inset 0 0 0 1.5px var(--hi);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; letter-spacing: .02em; color: var(--keyText); line-height: 1.05; text-align: center;
@@ -91,7 +91,7 @@
 #tab-play .ovw i { flex: 1; border-radius: 2px; background: var(--key); }
 #tab-play .ovw i.in { background: var(--hi); }
 #tab-play .ovw i.t { background: color-mix(in srgb, var(--ledDim) 75%, transparent); }
-#tab-play .ovw .win { position: absolute; top: -3px; bottom: -3px; border: 2px solid var(--keyText); border-radius: 6px; box-shadow: 0 0 10px -2px #fff; pointer-events: none; }
+#tab-play .ovw .win { position: absolute; top: -3px; bottom: -3px; border: 2px solid var(--keyText); border-radius: 6px; pointer-events: none; }
 #tab-play .bseg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); }
 #tab-play .bseg button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 12px; letter-spacing: .1em; color: color-mix(in srgb, var(--keyText) 55%, transparent); }
 #tab-play .bseg button.on { background: var(--hi); color: var(--keyText); }
@@ -131,10 +131,10 @@
   #tab-play .pstrip .back .chv { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
   #tab-play .pstrip .bub { width: 28px; height: 28px; }
   #tab-play .tgpill { --c: var(--green); height: 34px; padding: 0 12px 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-weight: 900; font-size: 12px; letter-spacing: .08em; color: var(--text);
-    border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 11%, transparent); box-shadow: 0 0 16px -3px var(--c); white-space: nowrap; }
+    border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 11%, transparent); white-space: nowrap; }
   #tab-play .tgpill:disabled { opacity: 1; cursor: default; }
   #tab-play .tgpill.br { --c: var(--orange); }
-  #tab-play .tgpill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  #tab-play .tgpill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
   #tab-play .tgpill .hud { color: var(--c); font-size: 11px; font-weight: 400; }
   #tab-play .tgpill .ic { width: 12px; height: 12px; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 2; }
   #tab-play .tgpill .g { width: 18px; height: 18px; color: var(--c); }

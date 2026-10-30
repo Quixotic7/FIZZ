@@ -34,7 +34,7 @@
   border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); }
 #logbox .lpseg button { height: 32px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; display: inline-flex; align-items: center;
   font-weight: 800; font-size: 11px; letter-spacing: .12em; color: var(--body); cursor: pointer; }
-#logbox .lpseg button.on { background: var(--c); color: #000; box-shadow: 0 0 14px -3px var(--c); }
+#logbox .lpseg button.on { background: var(--c); color: #000; }
 #logbox .lphead .when { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
 #logbox .lphead .again { --c: var(--yellow); height: 38px; padding: 0 14px; font-size: 11px; display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; white-space: nowrap; }
 #logbox .lphead .again[hidden] { display: none; }
@@ -57,7 +57,7 @@
 #logbox .prow .pn { font-weight: 800; font-size: 15px; color: var(--text); display: flex; align-items: center; gap: 8px; min-width: 0; }
 #logbox .prow .pn .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #logbox .prow .pn .usb { flex: none; }
-#logbox .prow .io { justify-self: center; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+#logbox .prow .io { justify-self: center; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); }
 #logbox .prow .io.no { background: transparent; box-shadow: inset 0 0 0 1.5px var(--dim); }
 #logbox .prow .ask { justify-self: center; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed var(--dim); }
 #logbox .prow .ask.y { border: 0; background: color-mix(in srgb, var(--yellow) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--yellow); }
@@ -65,7 +65,7 @@
 #logbox .prow .ans { display: flex; align-items: center; gap: 8px; min-width: 0; }
 #logbox .prow .ans .hud { font-size: 12px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #logbox .prow .ans .none { color: var(--dim); font-weight: 800; }
-#logbox .prow.fizz { border-color: color-mix(in srgb, var(--green) 55%, transparent); background: color-mix(in srgb, var(--green) 6%, transparent); box-shadow: 0 0 18px -8px var(--green); }
+#logbox .prow.fizz { border-color: color-mix(in srgb, var(--green) 55%, transparent); background: color-mix(in srgb, var(--green) 6%, transparent); }
 #logbox .prow.fizz .ans .hud { color: var(--green); }
 #logbox .prow.other { border-color: color-mix(in srgb, var(--red) 35%, transparent); }
 #logbox .prow.other .ans .hud { color: var(--red); }

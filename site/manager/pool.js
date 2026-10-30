@@ -30,7 +30,7 @@ export function mountPool(ctx) {
   const shown = () => !$("tab-pool").hidden;
 
   // a place (FIZZ NEON, the board PhonePool): its number in HUD at the corner; a sound's in its tag's colour with a
-  // ring, its name where the tile is wide enough, a glowing dot when steps use it
+  // ring, its name where the tile is wide enough, a dot when steps use it
   function tile(k, e) {
     const u = P.users.get(k), cls = ["ps"];
     if (P.sel === k) cls.push("sel");

@@ -78,6 +78,9 @@
 //   - nf-play2 (2026-10-29): PLAY flat (no glow around the board, no gradient on its buttons and keys), no THIS
 //     BROWSER chip on it, key 11's longer LED; Shift-click latches (THIS BROWSER's panel; the FM-1's CC 127 held, 0 on
 //     the second click; leaving the tab lets go); 1440 x 900 and 844 x 390 screenshots in .build/test/play2;
+//   - nf-flat (2026-10-30, "Flatten everything."): no glow outside EDIT on every tab at 1440 x 900, the progress
+//     screen, the picker, PORTS, a toast, + NEW, a confirm, LIBRARY at 390, THIS BROWSER's header (no coloured
+//     box-shadow / text-shadow / drop-shadow but the lights kept, nothing breathing); screenshots in .build/test/flat;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -2851,6 +2854,112 @@ try {
     await idle();
   }
   // ---- (end of nf-speed)
+  // ---- nf-flat (the owner, 2026-10-30: "Flatten everything."): no NEON glow left outside EDIT (rebuilt on its own):
+  // every tab at 1440 x 900 (a preset picked in LIBRARY, a place in POOL), the progress screen, the unit picker, PORTS,
+  // a toast, + NEW's popover, a confirm box, LIBRARY at 390 x 844, THIS BROWSER's header and PROJECTS: no element (nor
+  // its ::before / ::after) with a coloured box-shadow (a zero-blur ring is a hairline border: linework; a black one lifts
+  // a floating layer), a coloured text-shadow or drop-shadow filter, but the lights kept (PLAY's power LED, REC and the
+  // keys' LEDs, the unit pill's dot, the restore's lit FM-1 key); no animation running a coloured shadow (none breathing)
+  {
+    const FLAT_SCAN = String.raw`(() => {
+      const KEEP = ["#tab-play .led0", "#tab-play .pb .rec", ".unit .dot", ".fm1 .key.lit"], KEEP_AFTER = ["#tab-play .k"], SKIP = "#tab-edit";
+      const split = (s) => { const o = []; let d = 0, c = ""; for (const ch of s) { if (ch === "(") d++; if (ch === ")") d--; if (ch === "," && !d) { o.push(c.trim()); c = ""; } else c += ch; } if (c.trim()) o.push(c.trim()); return o; };
+      const col = (l) => { let m = l.match(/rgba?\(([^)]*)\)/); if (m) { const v = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { c: [v[0] / 255, v[1] / 255, v[2] / 255], a: v.length > 3 ? v[3] : 1, rest: l.replace(m[0], "") }; }
+        m = l.match(/color\(srgb ([^)]*)\)/); if (m) { const v = m[1].split(/[ /]+/).filter(Boolean).map(Number); return { c: v.slice(0, 3), a: v.length > 3 ? v[3] : 1, rest: l.replace(m[0], "") }; }
+        if (/#000\b|#000000\b|\bblack\b/.test(l)) return { c: [0, 0, 0], a: 1, rest: l.replace(/#000000|#000|black/, "") };
+        if (/transparent/.test(l)) return { c: [0, 0, 0], a: 0, rest: l.replace("transparent", "") };
+        return { c: [1, 1, 1], a: 1, rest: l }; };
+      const black = (k) => k.a === 0 || k.c.every((x) => x <= 0.01);
+      const lens = (r) => (r.match(/-?[\d.]+px/g) || []).map(parseFloat);
+      const shadowBad = (v) => !!v && v !== "none" && split(v).some((l) => { const k = col(l), n = lens(k.rest); return !black(k) && (n[0] || n[1] || n[2]); });
+      const textBad = (v) => !!v && v !== "none" && split(v).some((l) => !black(col(l)));
+      const filterBad = (v) => !!v && [...v.matchAll(/drop-shadow\(((?:[^()]|\([^)]*\))*)\)/g)].some((m) => !black(col(m[1])));
+      const look = (el, pseudo) => { const cs = getComputedStyle(el, pseudo), why = [];
+        if (shadowBad(cs.boxShadow)) why.push("box-shadow " + cs.boxShadow);
+        if (textBad(cs.textShadow)) why.push("text-shadow " + cs.textShadow);
+        if (filterBad(cs.filter)) why.push("filter " + cs.filter);
+        return why; };
+      const name = (el) => (el.id ? "#" + el.id : el.tagName.toLowerCase()) + (el.classList.length ? "." + [...el.classList].join(".") : "");
+      const bad = [];
+      for (const el of document.querySelectorAll("body *")) {
+        if (el.closest(SKIP)) continue;
+        if (!KEEP.some((s) => el.matches(s))) for (const w of look(el, null)) bad.push(name(el) + ": " + w);
+        for (const ps of ["::before", "::after"]) { if (getComputedStyle(el, ps).content === "none" || (ps === "::after" && KEEP_AFTER.some((s) => el.matches(s)))) continue; for (const w of look(el, ps)) bad.push(name(el) + ps + ": " + w); }
+      }
+      const anim = [];
+      for (const a of document.getAnimations()) {
+        const t = a.effect && a.effect.target; if (!t || t.closest(SKIP) || a.playState !== "running" || [...KEEP, ...KEEP_AFTER].some((s) => t.matches(s))) continue;
+        const glow = a.effect.getKeyframes().some((f) => shadowBad(f.boxShadow) || textBad(f.textShadow) || filterBad(f.filter));
+        if (a.animationName === "breathe" || glow) anim.push(name(t) + ": " + (a.animationName || "?"));
+      }
+      return { n: bad.length, bad: [...new Set(bad)], anim: [...new Set(anim)] };
+    })()`;
+    const flat = async (what, file) => {
+      if (file) await shot(path.join("flat", file));
+      const r = await evaluate(FLAT_SCAN), all = [...r.bad, ...r.anim.map((a) => `animation ${a}`)];
+      check(!all.length, `nf-flat: ${what}: no glow${all.length ? ` (${all.slice(0, 6).join(" | ")}${all.length > 6 ? ` … ${all.length} in all` : ""})` : ""}`);
+    };
+    const progDone = () => waitFor("document.getElementById('prog').hidden", 120000);
+    fs.mkdirSync(path.join(OUT, "flat"), { recursive: true });
+    await size(1440, 900);
+    await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) });
+    await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.rows.length > 0", 40000);
+    await idle();
+    await progDone();
+    for (const t of ["backup", "library", "edit", "pool", "projects", "import", "play"]) {
+      await realClick(`#t-${t}`);
+      await sleep(700);
+      if (t === "projects" && !(await evaluate("document.getElementById('prog').hidden"))) { await flat("the progress screen (reading PROJECTS)", "progress-1440.png"); await progDone(); await sleep(500); }
+      if (t === "library") { await click("#l-list .cas"); await sleep(400); }
+      if (t === "pool") { await click("#tab-pool .ps.full"); await sleep(400); }
+      await flat(`${t.toUpperCase()} at 1440 x 900`, `${t}-1440.png`);
+    }
+    await realClick("#t-library");
+    await sleep(500);
+    await realClick("#l-new");
+    await waitFor("!document.getElementById('l-newwrap').hidden", 3000);
+    await sleep(400);
+    await flat("+ NEW's popover", "library-newpop-1440.png");
+    await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    await sleep(300);
+    if (!(await evaluate("document.getElementById('l-newwrap').hidden"))) { await click("#l-newscrim"); await sleep(300); }
+    await realClick("#unit");
+    await waitFor("!document.getElementById('upick').hidden", 3000);
+    await sleep(400);
+    await flat("the unit picker", "picker-1440.png");
+    await click("#upick-scrim");
+    await sleep(300);
+    await evaluate("document.getElementById('logbox').open = true");
+    await click("#lp-ports");
+    await sleep(900);
+    await flat("the LOG's PORTS", "ports-1440.png");
+    await evaluate("document.getElementById('logbox').open = false");
+    await evaluate("(() => { const el = document.getElementById('toast'); el.style.setProperty('--c', 'var(--green)'); el.textContent = '+1 on the FM-1'; el.hidden = false; })()");
+    await sleep(500);
+    await flat("a toast", "toast-1440.png");
+    await evaluate("document.getElementById('toast').hidden = true");
+    await evaluate("import('./ui.js').then((m) => { m.confirmBox({ title: 'DELETE', what: 'SUB DROP', go: 'DELETE', undo: 'cleared' }); return true; })");
+    await sleep(600);
+    await flat("a confirm box", "confirm-1440.png");
+    await click("#cf-no");
+    await sleep(300);
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await sleep(800);
+    await flat("LIBRARY at 390 x 844", "library-390.png");
+    await size(1440, 900);
+    await sleep(400);
+    await realClick("#unit");
+    await waitFor("!document.getElementById('upick').hidden", 3000);
+    await realClick("#upick-pop .urow[data-u='browser']");
+    await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && !!__mgr.S.unit && __mgr.S.unit.rows.length > 0", 40000);
+    await idle();
+    await realClick("#t-projects");
+    await progDone();
+    await sleep(800);
+    await flat("THIS BROWSER: the header (the sound pill, the unit pill) and PROJECTS", "projects-browser-1440.png");
+    await size(1280, 800);
+  }
+  // ---- (end of nf-flat)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);
