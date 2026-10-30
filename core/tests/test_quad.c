@@ -1246,6 +1246,64 @@ static void t_mods(void)
     }
 }
 
+/* E4 onto LFO 1's own values (the slots run before the LFOs read theirs): a slot -> L1SPD / L1DEP sounds as the
+ * stored value moved by the slot's amount, bit for bit; a slot onto an ordinary destination (FREQ) as the stored FREQ
+ * moved by it */
+static int32_t m_amt(int x, int dep, int32_t sc) { return ((x * 32767 / 127 * dep / 127) * sc) >> 15; }   /* (Q15) */
+static void t_mods_lfo1(void)
+{
+    enum { NB = 300, N = NB * CTL };
+    static int32_t a[N], b[N], c[N];
+    static const int VEL[2] = {30, 120};
+    int16_t p0[QD_QUAD_NP], p[QD_QUAD_NP], q[QD_QUAD_NP];
+    int k;
+    quad_init3(p0);
+    drv_patch(p0);
+    memcpy(p0, part_patch, sizeof p0);
+    p0[QP_FTYPE] = QF_LP12, p0[QP_FREQ] = 3000, p0[QP_RESO] = 2000, p0[QP_FDBK] = 100, p0[QP_ALEV] = 110, p0[QP_BLEV] = 110;
+    p0[QP_LFO(0, QL_DEST)] = QD_FREQ, p0[QP_LFO(0, QL_DEPTH)] = 5000, p0[QP_LFO(0, QL_SPEED)] = 800;
+    p0[QP_LFO(0, QL_WAVE)] = QW_SINE, p0[QP_LFO(0, QL_TRIG)] = QT_TRIG;   /* (the voice's phase: the stored rate's) */
+    memset(&m_midi, 0, sizeof m_midi);
+    /* VEL -> L1SPD, depth 40: at each velocity LFO 1 at SPEED + the slot's amount */
+    for (k = 0; k < 2; k++) {
+        memcpy(p, p0, sizeof p), memcpy(q, p0, sizeof q);
+        m_slot(p, 1, QD_MS_VEL, QD_L1SPD, 40);
+        q[QP_LFO(0, QL_SPEED)] = (int16_t)(p0[QP_LFO(0, QL_SPEED)] + m_amt(VEL[k], 40, 12700));
+        m_render(p, 48, VEL[k], NB, a), m_render(q, 48, VEL[k], NB, b), m_render(p0, 48, VEL[k], NB, c);
+        CHECK(m_same(a, b, N), "VEL %d -> L1SPD: LFO 1 at SPEED %d (8.00 stored)", VEL[k], q[QP_LFO(0, QL_SPEED)]);
+        CHECK(!m_same(a, c, N), "VEL %d -> L1SPD: the sound moved", VEL[k]);
+    }
+    memcpy(p, p0, sizeof p);
+    m_slot(p, 1, QD_MS_VEL, QD_L1SPD, 40);
+    m_render(p, 48, 120, 40, a);
+    k = (int)QS(0).lph[0];
+    m_render(p, 48, 30, 40, a);
+    CHECK((uint32_t)k > QS(0).lph[0], "VEL -> L1SPD: velocity 120's LFO 1 the further on (%08x, %08x)", (unsigned)k,
+          (unsigned)QS(0).lph[0]);
+    /* MW -> L1DEP, depth 64, LFO 1's DEPTH 0: MW 0 none (as no LFO), MW 127 LFO 1 at the slot's depth */
+    memcpy(p, p0, sizeof p), memcpy(q, p0, sizeof q);
+    p[QP_LFO(0, QL_DEPTH)] = 0, q[QP_LFO(0, QL_DEPTH)] = 0;
+    m_slot(p, 4, QD_MS_MW, QD_L1DEP, 64);
+    m_render(p, 48, 100, NB, a), m_render(q, 48, 100, NB, b);
+    CHECK(m_same(a, b, N), "MW 0 -> L1DEP: LFO 1 silent");
+    m_midi.mw = 127;
+    q[QP_LFO(0, QL_DEPTH)] = (int16_t)m_amt(127, 64, 12700);
+    m_render(p, 48, 100, NB, a), m_render(q, 48, 100, NB, c);
+    CHECK(m_same(a, c, N), "MW 127 -> L1DEP: LFO 1 at DEPTH %d", q[QP_LFO(0, QL_DEPTH)]);
+    CHECK(!m_same(a, b, N), "MW 127 -> L1DEP: the sound moved");
+    memset(&m_midi, 0, sizeof m_midi);
+    /* an ordinary destination as it was: VEL -> FREQ is the stored FREQ moved by its amount (LFO 1 off: its share
+     * and the slot's would round as one) */
+    for (k = 0; k < 2; k++) {
+        memcpy(p, p0, sizeof p), memcpy(q, p0, sizeof q);
+        p[QP_LFO(0, QL_DEPTH)] = 0, q[QP_LFO(0, QL_DEPTH)] = 0;
+        m_slot(p, 0, QD_MS_VEL, QD_FREQ, 50);
+        q[QP_FREQ] = (int16_t)(p0[QP_FREQ] + m_amt(VEL[k], 50, 12700));
+        m_render(p, 48, VEL[k], NB, a), m_render(q, 48, VEL[k], NB, b);
+        CHECK(m_same(a, b, N), "VEL %d -> FREQ: the sound as FREQ %d", VEL[k], q[QP_FREQ]);
+    }
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1)
@@ -1264,6 +1322,7 @@ int main(int argc, char **argv)
     t_machines();
     t_crush();
     t_mods();
+    t_mods_lfo1();
     printf("test_quad: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
