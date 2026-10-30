@@ -64,6 +64,10 @@ public actor FizzLink {
 
     let transport: any MIDITransport
     let clock: any FizzClock
+    /// The emulated FIZZ (MIDITransport.isEmulated): its frames sent with no gap.
+    public nonisolated let isEmulated: Bool
+    /// GAP_MS between frames; none to the emulated FIZZ (it takes every frame at once).
+    let gap: Double
     public private(set) var idText: String
     public private(set) var portName: String
     public private(set) var isClosed = false
@@ -81,6 +85,8 @@ public actor FizzLink {
                 portName: String = "") {
         self.transport = transport
         self.clock = clock
+        self.isEmulated = transport.isEmulated
+        self.gap = transport.isEmulated ? 0 : Self.gapMs
         self.idText = idText
         self.portName = portName.isEmpty ? transport.name : portName
         Task { await self.read() }
@@ -129,10 +135,10 @@ public actor FizzLink {
     func send(_ bytes: [UInt8], region: Int? = nil) async throws -> Bool {
         if isClosed { throw FizzLinkError.lost }
         let t = clock.now, at = max(t, nextAt)
-        nextAt = at + Self.gapMs
+        nextAt = at + gap
         if at > t { try? await clock.sleep(ms: at - t) }
         // (a sleep that ran late, or another frame sent while this one waited: the gap from the last real send)
-        while clock.now < lastSent + Self.gapMs { try? await clock.sleep(ms: lastSent + Self.gapMs - clock.now) }
+        while clock.now < lastSent + gap { try? await clock.sleep(ms: lastSent + gap - clock.now) }
         if isClosed { throw FizzLinkError.lost }
         if let region, !regionAlive(region) { return false }
         do { try transport.send(bytes) } catch {
@@ -140,7 +146,7 @@ public actor FizzLink {
             throw FizzLinkError.lost
         }
         lastSent = clock.now
-        nextAt = max(nextAt, lastSent + Self.gapMs)
+        nextAt = max(nextAt, lastSent + gap)
         return true
     }
 
