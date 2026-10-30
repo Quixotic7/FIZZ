@@ -427,13 +427,24 @@ function progClose() { clearInterval(P.tick); $("prog").hidden = true; }
 $("p-cancel").addEventListener("click", () => { if (S.abort) S.abort.abort(); });
 
 // ---------------------------------------------------------------- back up
+// nf-speed (the owner, 2026-10-29: "loading and writing to browser take the same long time as writing to the FM-1"):
+// THIS BROWSER the unit, its store is read and written in this page (browserunit.js readStore / writeStore, in the
+// link's turn), not over the SysEx paced for the FM-1; an FM-1's goes over the link as before
+const direct = () => (S.mode === "browser" && BU && BU.engine && S.access === BU.access ? BU : null);
+async function storeRead(link, o) {
+  const d = direct();
+  if (!d) return link.backup(o);
+  const t0 = performance.now(), r = await link.turn(() => d.readStore());
+  log(`read: THIS BROWSER's store, ${r.size} B in the page in ${(performance.now() - t0).toFixed(0)} ms; CRC-32 ${r.crc.toString(16)}`);
+  return r;
+}
 async function readUnit(label, { presetsOnly = false } = {}) {
   const link = S.link, u = S.unit;
   S.abort = new AbortController();
   progOpen(label, u.info ? u.info.size : 4096);
   let image = null, stats = null, crc = null, summary = null;
   if (!presetsOnly) {
-    const r = await link.backup({ depth: DEPTH, gapMs: GAP, signal: S.abort.signal, onProgress: (f, off) => progSet(f * 0.85, off) });
+    const r = await storeRead(link, { depth: DEPTH, gapMs: GAP, signal: S.abort.signal, onProgress: (f, off) => progSet(f * 0.85, off) });
     image = r.image; stats = r.stats; crc = r.crc;
     summary = readRegion(image);
     u.summary = summary;
@@ -805,10 +816,10 @@ $("rs-cancel").addEventListener("click", closeRestore);
 $("rs-go").addEventListener("click", () => (R.mode === "full" ? restoreFull() : addPresets()));
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("rs").hidden && !S.busy) closeRestore(); });
 
-async function refresh() {
+async function refresh({ now = false } = {}) {
   const link = S.link;
-  for (let t = 0; t < 10; t++) {                     // (FIZZ starts again on the restored store)
-    await new Promise((r) => setTimeout(r, 500));
+  for (let t = 0; t < 10; t++) {                     // (FIZZ starts again on the restored store; THIS BROWSER's: started)
+    if (t || !now) await new Promise((r) => setTimeout(r, 500));
     const v = await link.identity();
     if (v || t === 9) { S.unit.version = v; break; }
   }
@@ -840,8 +851,10 @@ async function restoreImage(image, name, label = "CHECKING") {
   S.busy = true; renderUnit(); renderBaks();
   S.abort = new AbortController();
   progOpen(label, image.length);
+  const d = direct();
   try {
-    await S.link.restore(image, {
+    if (d) { const w = await S.link.turn(() => d.writeStore(image)); log(`restore: THIS BROWSER's store, ${image.length} B written in the page in ${w.ms} ms`); }
+    else await S.link.restore(image, {
       signal: S.abort.signal,
       onPhase: (ph) => {
         if (ph === "write") { $("p-label").textContent = "WRITING · DO NOT UNPLUG"; $("p-label").classList.add("warn"); $("p-pct").classList.add("write"); $("p-cancel").hidden = true; }
@@ -852,7 +865,7 @@ async function restoreImage(image, name, label = "CHECKING") {
     progClose();
     toast(`Written: ${name}`);
     log(`restored ${name}`);
-    await refresh().catch((e) => log(`after the restore: ${e.code || ""} ${e.message}`));   // (written: a lost read is not a failed write)
+    await refresh({ now: !!d }).catch((e) => log(`after the restore: ${e.code || ""} ${e.message}`));   // (written: a lost read is not a failed write)
     return true;
   } catch (e) {
     progClose();
@@ -880,7 +893,7 @@ async function readStore(label) {
   S.abort = new AbortController();
   progOpen(label, S.unit.info ? S.unit.info.size : 4096);
   try {
-    const r = await S.link.backup({ depth: DEPTH, gapMs: GAP, signal: S.abort.signal, onProgress: (f, off) => progSet(f, off) });
+    const r = await storeRead(S.link, { depth: DEPTH, gapMs: GAP, signal: S.abort.signal, onProgress: (f, off) => progSet(f, off) });
     S.unit.summary = readRegion(r.image);
     return r.image;
   } catch (e) {

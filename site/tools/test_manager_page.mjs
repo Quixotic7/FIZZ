@@ -66,6 +66,8 @@
 //   - nf-units (2026-10-29): two FM-1s (?sim=two) in the picker, each by its port with USB or BLUETOOTH; RemoteFM1 and
 //     the update loader greyed and named, not to pick; the second picked answers alone; PORTS from the picker and the
 //     LOG (every port, what answered); the second unplugged: its row gone at once; a phone with no horizontal scroll;
+//   - nf-speed (2026-10-29): THIS BROWSER's PROJECTS LOAD, WRITE and BACK UP read and written in the page, each under a
+//     threshold, the moved pattern there after a re-read and in the running browser FIZZ; the FM-1 (?sim) still paced;
 //   - nf-askload (2026-10-29): LOAD ON FM-1 of an IN THIS BROWSER preset the FM-1 lacks asks ADD · MY PRESETS n (the
 //     first free place): CANCEL sends nothing, ADD stores it there and opens the unit's browser; one it has opens at
 //     once; MY PRESETS full: FULL, nothing sent;
@@ -2458,6 +2460,82 @@ try {
   await realClick("#logbox summary");
   }
   // ---- (end of nf-units)
+  // ---- nf-speed: THIS BROWSER's store read and written in the page (the owner, 2026-10-29: "loading and writing to
+  // browser take the same long time as writing to the FM-1"). The FM-1 (?sim) first: its PROJECTS read FZBR by FZBR,
+  // its WRITE pulled twice by FZSR's 512-byte reads, as before. Then THIS BROWSER (the sound on: the worklet): a LOAD
+  // and a WRITE of a pasted pattern dropped (moved) elsewhere each under SPEED_MS (measured ~16 ms and ~95 ms here;
+  // before: ~9 s and ~6.5 s over the SysEx), no FZBR or FZSR read sent; the moved pattern there after a re-read, in the
+  // running browser FIZZ's own flash and in the one kept in this browser
+  {
+    const SPEED_MS = { read: 1000, write: 1500 };   // (load-proof: well over the measured, far under the SysEx's)
+    const PJ = "__mgr.projtab.state";
+    const editDemo = (who) => `(() => { const s = ${who}, e = s.engine, t = e.info().panelTable;
+      const set = (b, k) => { e.setPanel({ keys: k >>> 0, buttons: b >>> 0, enc: new Int32Array(7), keyVel: new Uint8Array(27) }); s.run(80); };
+      set(1 << t.btnId[6], 0); set(0, 0); set(0, 1 << 2); set(0, 0); set(0, 1 << 4); set(0, 0); s.run(2500); return true; })()`;   // (HOME, two keys: the demo's A01 its own record)
+    const timedRead = `(async () => { ${PJ}.base = null; const t = performance.now(); await __mgr.projtab.show(); return Math.round(performance.now() - t); })()`;
+    const timedWrite = `(async () => { const t = performance.now(); document.querySelector('#pj-pending [data-act="write"]').click(); await new Promise((r) => setTimeout(r, 20));
+      while (${PJ}.ops.length || __mgr.S.busy || __mgr.S.writing || __mgr.S.editing) await new Promise((r) => setTimeout(r, 5)); return Math.round(performance.now() - t); })()`;
+    const logHas = (re) => evaluate(`${re}.test(document.getElementById('log').textContent)`);
+    await size(1280, 800);
+    await send("Page.navigate", { url: URL0 + "#projects" });
+    await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.status", 60000);
+    await waitFor(`!!${PJ}.base && !__mgr.S.busy`, 60000);
+    await evaluate(editDemo("__sim"));
+    await idle();
+    // the FM-1: the paced SysEx
+    const f0 = await evaluate("({ r: __sim.counts.fzbr, w: __sim.counts.fzsrReads, size: __mgr.S.unit.info.size })");
+    const fmRead = await evaluate(timedRead);
+    const f1 = await evaluate("({ r: __sim.counts.fzbr, w: __sim.counts.fzsrReads })");
+    const fk = await evaluate(`(async () => { const P = await import('./projects.js'), m = ${PJ}.base.model;
+      const k = [...m.prj.keys()].filter((x) => x >>> 24 === P.RK.PAT && ((x >>> 16) & 255) === 0).map((x) => x & 0xFFFF).find((x) => P.copyPatterns(m, 0, [x]).pats.length);
+      if (k === undefined) return null;
+      const j = P.project(m, 0).pats.findIndex((s, i) => !s && i > 8);
+      ${PJ}.ops.push({ kind: 'drop', q: 0, j, clip: P.copyPatterns(m, 0, [k]), from: { p: 0, k }, move: false }); ${PJ}.cache = null; __mgr.projtab.render();
+      return { k, j, rec: Array.from(m.prj.get(P.rkey(P.RK.PAT, 0, k))).join() }; })()`);
+    const fmWrite = fk ? await evaluate(timedWrite) : -1;
+    const f2 = await evaluate("({ r: __sim.counts.fzbr, w: __sim.counts.fzsrReads })");
+    await evaluate(timedRead);
+    const fmBack = fk && (await evaluate(`(async () => { const P = await import('./projects.js'), b = ${PJ}.base.model.prj.get(P.rkey(P.RK.PAT, 0, ${fk.j})); return !!b && Array.from(b).join() === ${JSON.stringify(fk.rec)}; })()`));
+    check(fk && f1.r - f0.r >= Math.ceil(f0.size / 256) && f2.w - f1.w >= 2 * Math.ceil(f0.size / 512) && fmBack && (await logHas("/restore: FZOK/")) && !(await logHas("/THIS BROWSER's store/")),
+      `nf-speed: the FM-1 (?sim) still paced: its read ${f1.r - f0.r} FZBR (${fmRead} ms), its WRITE ${f2.w - f1.w} FZSR reads (${fmWrite} ms), the drop there after a re-read`);
+    // THIS BROWSER, the sound on: the clip of the FM-1's pattern pasted at A10, then dropped (moved) to A12, one WRITE
+    const clip = fk ? await evaluate(`(async () => { const P = await import('./projects.js'); window.__nfClip = P.copyPatterns(${PJ}.base.model, 0, [${fk.k}]); return true; })()`) : false;
+    await realClick("#unit");
+    await waitFor("!document.getElementById('upick').hidden", 3000);
+    await realClick("#upick-pop .urow[data-u='browser']");
+    const bOn = await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && !!__mgr.bu() && !__mgr.bu().quiet && !__mgr.bu().waking", 40000);
+    await waitFor(`!!${PJ}.base && !__mgr.S.busy`, 60000);
+    await idle();
+    const b0 = await evaluate("({ r: __mgr.bu().counts.fzbr, w: __mgr.bu().counts.fzsrReads })");
+    const bRead = await evaluate(timedRead);
+    const staged = clip && (await evaluate(`(async () => { const P = await import('./projects.js'), J = ${PJ}, m = P.cloneModel(J.base.model);
+      P.pastePatterns(m, 0, 9, window.__nfClip);
+      const drop = { kind: 'drop', q: 0, j: 11, clip: P.copyPatterns(m, 0, [9]), from: { p: 0, k: 9 }, move: true };
+      P.pastePatterns(m, 0, 11, drop.clip); P.clearPatterns(m, 0, [9]);
+      J.ops.push({ kind: 'paste', q: 0, j: 9, clip: window.__nfClip }, drop); J.cache = null; __mgr.projtab.render();
+      window.__nfWant = Array.from(m.prj.get(P.rkey(P.RK.PAT, 0, 11))).join(); return J.ops.length === 2 && !document.getElementById('pj-pending').hidden; })()`));
+    const bWrite = staged ? await evaluate(timedWrite) : -1;
+    const wsay = await evaluate("document.getElementById('say').textContent");
+    const bBack = await evaluate(`(async () => { const t = performance.now(); ${PJ}.base = null; await __mgr.projtab.show(); const P = await import('./projects.js'), { convertImage } = await import('./fizzstore.js');
+      const at = (m) => { const b = m.prj.get(P.rkey(P.RK.PAT, 0, 11)); return { moved: !!b && Array.from(b).join() === window.__nfWant, left: !m.prj.has(P.rkey(P.RK.PAT, 0, 9)) }; };
+      const fizz = await __mgr.bu().hostFlash();
+      return { reread: at(${PJ}.base.model), running: at(P.modelOf(convertImage(fizz, 'device'))), kept: at(P.modelOf(convertImage(__mgr.S.brow.img, 'device'))),
+        a12: !!(${PJ}.base.model && P.project(${PJ}.base.model, 0).pats[11]), ms: Math.round(performance.now() - t) }; })()`);
+    const b1 = await evaluate("({ r: __mgr.bu().counts.fzbr, w: __mgr.bu().counts.fzsrReads })");
+    const ok3 = (x) => x && x.moved && x.left;
+    check(bOn && bRead >= 0 && bRead < SPEED_MS.read && b1.r === b0.r && (await logHas("/read: THIS BROWSER's store, \\d+ B in the page/")),
+      `nf-speed: THIS BROWSER (the worklet): a PROJECTS LOAD in ${bRead} ms (under ${SPEED_MS.read}; the FM-1's ${fmRead}), no FZBR sent`);
+    check(staged && bWrite >= 0 && bWrite < SPEED_MS.write && b1.w === b0.w && !/did not finish|cut off|could not/i.test(wsay),
+      `nf-speed: THIS BROWSER: WRITE of a paste and a drop in ${bWrite} ms (under ${SPEED_MS.write}; the FM-1's ${fmWrite}), no FZSR read pulled${wsay ? ` ("${wsay}")` : ""}`);
+    check(ok3(bBack.reread) && ok3(bBack.running) && ok3(bBack.kept) && bBack.a12,
+      `nf-speed: THIS BROWSER: A10 moved to A12 after a re-read (${bBack.ms} ms), in the running FIZZ's flash and in the one kept here (${JSON.stringify(bBack)})`);
+    // BACK UP of THIS BROWSER: the same read, kept in BACKUP
+    const nb = await evaluate("__mgr.S.baks.length");
+    const bk = await evaluate("(async () => { const t = performance.now(); const r = await __mgr.backup('full'); return { ms: Math.round(performance.now() - t), ok: !!r && !!r.image } })()");
+    check(bk.ok && bk.ms < SPEED_MS.write && (await evaluate(`__mgr.S.baks.length === ${nb + 1}`)), `nf-speed: THIS BROWSER: BACK UP in ${bk.ms} ms, kept in BACKUP`);
+    await idle();
+  }
+  // ---- (end of nf-speed)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);
