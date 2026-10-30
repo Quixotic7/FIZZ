@@ -13,54 +13,76 @@ import UniformTypeIdentifiers
 
 struct BackupView: View {
     let model: UnitModel
+    /// the iPhone on its side: THIS FM-1 at the left, the backups beside it (LandscapeRoot.swift)
+    var sideways = false
     @State private var picking = false
 
     var body: some View {
-        let b = model.backups, store = b.store
-        ScreenScroll(refresh: { await model.refresh(); await store.reload() }) {
-            ThisUnitCard(model: model)
-            if let s = b.speed { SpeedLine(stats: s).padding(.top, 10).padding(.horizontal, 4) }
-            HStack(spacing: 10) {
-                Heading(text: "BACKUPS", count: "\(store.entries.count)")
-                Spacer(minLength: 0)
-                if !store.entries.isEmpty { Text(sizeText(store.totalSize)).fz(15, 800).foregroundStyle(FZ.text.color) }
-                Button { picking = true } label: {
-                    IconView(Icons.open, color: FZ.yellow.color, lineWidth: 2)
-                        .frame(width: 19, height: 19)
-                        .frame(width: 36, height: 36)
-                        .overlay(Circle().strokeBorder(FZ.yellow.mix(55, FZ.line).color, lineWidth: 1.5))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+        let store = model.backups.store
+        Group {
+            if sideways {
+                HStack(alignment: .top, spacing: 14) {
+                    ScreenScroll(refresh: { await model.refresh() }) { unitSide }.frame(width: 356)
+                    ScreenScroll(refresh: { await store.reload() }) { listSide }
                 }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, 16).padding(.bottom, 8).padding(.horizontal, 2)
-            if store.entries.isEmpty {
-                EmptyBackups()
             } else {
-                VStack(spacing: 9) {
-                    ForEach(store.entries) { e in
-                        BackupRow(entry: e, url: store.url(of: e),
-                                  old: e.isOld(unitLayout: model.layout?.name, unitTracks: model.storeTracks),
-                                  unitVersion: model.unit?.shortVersion, flash: b.added == e.name,
-                                  onDelete: { b.delete(e) }, onShare: { b.shared(e) },
-                                  onRestore: b.busy || model.actions.busy ? nil : { Task { await model.restoring.present(e) } },
-                                  emulated: e.identity == EmulatorHost.identity,
-                                  onPlay: playAction(e),
-                                  playing: b.playingName == e.name)
-                            .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
-                                                    removal: .opacity))
-                    }
+                ScreenScroll(refresh: { await model.refresh(); await store.reload() }) {
+                    unitSide
+                    listSide
                 }
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: store.entries.map(\.name))
             }
         }
-        .padding(.horizontal, 16).padding(.top, 4)
+        .padding(.horizontal, sideways ? 4 : 16).padding(.top, 4)
         .fileImporter(isPresented: $picking, allowedContentTypes: [.fizzBackup, .fizzLibrary, .data],
                       allowsMultipleSelection: true) { r in
             guard case .success(let urls) = r else { return }
             // (one file: RESTORE / ADD PRESETS offered, as the page does)
-            Task { if urls.count == 1 { await model.restoring.open(urls[0]) } else { for u in urls { await b.open(u) } } }
+            Task { if urls.count == 1 { await model.restoring.open(urls[0]) } else { for u in urls { await model.backups.open(u) } } }
+        }
+    }
+
+    /// THIS FM-1 and the last read's speed.
+    @ViewBuilder private var unitSide: some View {
+        ThisUnitCard(model: model)
+        if let s = model.backups.speed { SpeedLine(stats: s).padding(.top, 10).padding(.horizontal, 4) }
+    }
+
+    /// The backups kept.
+    @ViewBuilder private var listSide: some View {
+        let b = model.backups, store = b.store
+        HStack(spacing: 10) {
+            Heading(text: "BACKUPS", count: "\(store.entries.count)")
+            Spacer(minLength: 0)
+            if !store.entries.isEmpty { Text(sizeText(store.totalSize)).fz(15, 800).foregroundStyle(FZ.text.color) }
+            Button { picking = true } label: {
+                IconView(Icons.open, color: FZ.yellow.color, lineWidth: 2)
+                    .frame(width: 19, height: 19)
+                    .frame(width: 36, height: 36)
+                    .overlay(Circle().strokeBorder(FZ.yellow.mix(55, FZ.line).color, lineWidth: 1.5))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, sideways ? 0 : 16).padding(.bottom, 8).padding(.horizontal, 2)
+        if store.entries.isEmpty {
+            EmptyBackups()
+        } else {
+            VStack(spacing: 9) {
+                ForEach(store.entries) { e in
+                    BackupRow(entry: e, url: store.url(of: e),
+                              old: e.isOld(unitLayout: model.layout?.name, unitTracks: model.storeTracks),
+                              unitVersion: model.unit?.shortVersion, flash: b.added == e.name,
+                              onDelete: { b.delete(e) }, onShare: { b.shared(e) },
+                              onRestore: b.busy || model.actions.busy ? nil : { Task { await model.restoring.present(e) } },
+                              emulated: e.identity == EmulatorHost.identity,
+                              onPlay: playAction(e),
+                              playing: b.playingName == e.name)
+                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
+                                                removal: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: store.entries.map(\.name))
         }
     }
 }

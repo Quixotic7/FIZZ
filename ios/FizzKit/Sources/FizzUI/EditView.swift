@@ -15,6 +15,8 @@ import FizzKit
 struct EditView: View {
     let model: UnitModel
     var wide = false
+    /// the iPhone on its side: the name and the pages at the left, the page and SAVE beside (LandscapeRoot.swift)
+    var sideways = false
     @State private var confirmSave = false
     @State private var tagsOpen = false
     @State private var flash: String?
@@ -27,7 +29,7 @@ struct EditView: View {
     private var e: EditorModel { model.editor }
 
     var body: some View {
-        Group { if wide { padBody } else { phoneBody } }
+        Group { if wide { padBody } else if sideways { sideBody } else { phoneBody } }
             .overlay { turnOverlay }
             .overlay(alignment: .top) { flashView }
             // (the name typed: the keyboard covers the bottom, the page keeps its size)
@@ -75,21 +77,7 @@ struct EditView: View {
             pageChipRow
                 .padding(.bottom, 6)
                 .turnDim(e, [])
-            pageBody
-                .padding(.horizontal, 16)
-                // (the keybed open: the page's drawings give way so it sits above it where it can; what still
-                // doesn't fit goes under it)
-                .padding(.bottom, e.keysOpen ? keysHeight : 0)
-                .frame(maxHeight: .infinity, alignment: .top)
-                // (the keybed slides up over the page)
-                .overlay(alignment: .bottom) {
-                    if e.keysOpen {
-                        KeybedPanel(e: e)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { keysHeight = $0 }
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
-                .clipped()
+            pageWithKeys(inset: 16)
             HStack(spacing: 8) {
                 keysButton
                 actions(height: 46)
@@ -99,6 +87,64 @@ struct EditView: View {
         }
         // (above the tab bar, and above the KEEP / CANCEL bar while it shows)
         .padding(.bottom, auditionBar ? 96 + 66 : 96)
+    }
+
+    /// The page, the keybed sliding up over it.
+    private func pageWithKeys(inset: CGFloat) -> some View {
+        pageBody
+            .padding(.horizontal, inset)
+            // (the keybed open: the page's drawings give way so it sits above it where it can; what still
+            // doesn't fit goes under it)
+            .padding(.bottom, e.keysOpen ? keysHeight : 0)
+            .frame(maxHeight: .infinity, alignment: .top)
+            // (the keybed slides up over the page)
+            .overlay(alignment: .bottom) {
+                if e.keysOpen {
+                    KeybedPanel(e: e)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { keysHeight = $0 }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .clipped()
+    }
+
+    // MARK: iPhone on its side
+
+    /// The name and the pages (as the iPad's list) at the left; the page as the phone fits it, the keys and REVERT,
+    /// SAVE, SAVE AS NEW below it.
+    private var sideBody: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                header(nameSize: 24)
+                ScreenScroll(bottom: 10) {
+                    VStack(spacing: 6) {
+                        if e.sound?.isMidi == true {
+                            ForEach(0..<7, id: \.self) { n in
+                                pageItem("MIDI \(n + 1)", FZ.magenta, nil, on: e.midiPage == n, height: 40) { e.midiPage = n }
+                            }
+                        } else {
+                            ForEach(EditPage.allCases) { p in
+                                pageItem(p.title, p.tint, PageIcons.art(p), on: e.page == p, height: 40) { e.page = p }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 4).padding(.top, 4)
+                }
+            }
+            .frame(width: 204)
+            .turnDim(e, [])
+            VStack(spacing: 8) {
+                pageWithKeys(inset: 0)
+                HStack(spacing: 8) {
+                    keysButton
+                    actions(height: 44)
+                }
+                .turnDim(e, [])
+            }
+        }
+        .padding(.top, 2)
+        // (above the KEEP / CANCEL bar while it shows)
+        .padding(.bottom, auditionBar ? 66 : 4)
     }
 
     /// The keybed up over the page, or put away.
@@ -156,7 +202,8 @@ struct EditView: View {
     /// LIBRARY's KEEP / CANCEL bar shows (EDIT's own borrow has none).
     private var auditionBar: Bool { model.actions.pending != nil && !model.actions.borrowed }
 
-    private func pageItem(_ title: String, _ c: RGB, _ art: VectorArt?, on: Bool, _ go: @escaping () -> Void) -> some View {
+    private func pageItem(_ title: String, _ c: RGB, _ art: VectorArt?, on: Bool, height: CGFloat = 48,
+                          _ go: @escaping () -> Void) -> some View {
         Button(action: go) {
             HStack(spacing: 11) {
                 if let art { IconView(art, color: c.color, lineWidth: 2.4, backdrop: .clear).frame(width: 24, height: 22) }
@@ -164,7 +211,7 @@ struct EditView: View {
                     .minimumScaleFactor(0.75)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14).frame(height: 48)
+            .padding(.horizontal, 14).frame(height: height)
             .background(RoundedRectangle(cornerRadius: 14).fill(on ? c.mix(14, FZ.raised).color : FZ.raised.color))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(on ? c.color : FZ.line.color, lineWidth: 1.5))
             .shadow(color: on ? c.opacity(0.35) : .clear, radius: 9)

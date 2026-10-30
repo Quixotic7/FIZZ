@@ -72,19 +72,12 @@ public struct PlayView: View {
         .task(id: host.backup?.id) { if !snapshot { await play.follow() } }
         .onAppear {
             host.playShown = true
-            turnable(true)
             if play.view == .steps { play.stepsEntered() }      // (FIZZ in its step view, as on entering STEPS)
         }
-        .onDisappear { play.left(); host.playShown = false; turnable(false) }
+        .onDisappear { play.left(); host.playShown = false }
     }
 
     private func closeSheet() { play.sheet = false }
-
-    private func turnable(_ on: Bool) {
-        #if os(iOS)
-        if !snapshot { FizzAppDelegate.allowLandscape(on) }
-        #endif
-    }
 
     // MARK: the layouts
 
@@ -562,100 +555,15 @@ private extension View {
     }
 }
 
-// MARK: - Turning sideways (the iPhone: PLAY only)
+// MARK: - Turning sideways
 
 #if os(iOS)
-/// The app's delegate (FIZZApp): the iPhone's orientations, landscape only while PLAY shows.
+/// The app's delegate (FIZZApp): the iPhone turns with the hand on every tab, PLAY and the manager alike (the
+/// manager's sideways layout: LandscapeRoot.swift); so leaving PLAY keeps the way it is held (LandscapeTurning.swift).
 public final class FizzAppDelegate: NSObject, UIApplicationDelegate {
-    @MainActor static var landscape = false
-    /// (each change counted: an older change's retries stop)
-    @MainActor private static var change = 0
-    /// (a moment while a stuck window is put right: its own way allowed too)
-    @MainActor private static var nudging = false
-
     public func application(_ application: UIApplication,
                             supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        if UIDevice.current.userInterfaceIdiom == .pad { return .all }
-        return Self.landscape || Self.nudging ? .allButUpsideDown : .portrait
-    }
-
-    /// PLAY shown or left: the iPhone may turn, or turns back upright, at once (the phone held on its side too).
-    @MainActor static func allowLandscape(_ on: Bool) {
-        guard UIDevice.current.userInterfaceIdiom != .pad, landscape != on else { return }
-        landscape = on
-        change += 1
-        apply(change, tries: 12)
-    }
-
-    /// The scene is asked once it is up and active (at launch the window may not be there yet); then the window is
-    /// checked, and put right while it is still the wrong way round.
-    @MainActor private static func apply(_ n: Int, tries: Int) {
-        guard n == change else { return }
-        let scenes = windowScenes
-        guard !scenes.isEmpty, scenes.allSatisfy({ $0.activationState == .foregroundActive }) else {
-            if tries > 0 { later(0.15) { apply(n, tries: tries - 1) } }
-            return
-        }
-        for s in scenes { request(s) }
-        later(0.6) { check(n, tries: min(tries, 3)) }
-    }
-
-    @MainActor private static var windowScenes: [UIWindowScene] {
-        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.filter { $0.keyWindow != nil }
-    }
-
-    /// What to ask for: upright; or, PLAY with the iPhone held on its side, that side (else it turns when turned).
-    @MainActor private static var wanted: UIInterfaceOrientationMask? {
-        if !landscape { return .portrait }
-        // (the device's landscapeLeft is the interface's landscapeRight, and the other way round)
-        switch UIDevice.current.orientation {
-        case .landscapeLeft: return .landscapeRight
-        case .landscapeRight: return .landscapeLeft
-        default: return nil
-        }
-    }
-
-    /// The mask changed: every controller that answers for the window asks again (the root, and any sheet over it,
-    /// whose answer wins while it shows); then the scene is asked to turn.
-    @MainActor private static func request(_ s: UIWindowScene, _ want: UIInterfaceOrientationMask? = wanted) {
-        var vc = s.keyWindow?.rootViewController
-        while let v = vc {
-            v.setNeedsUpdateOfSupportedInterfaceOrientations()
-            vc = v.presentedViewController
-        }
-        guard let want else { return }
-        s.requestGeometryUpdate(.iOS(interfaceOrientations: want)) { _ in }
-    }
-
-    /// The window laid out as asked? If not, asked again. The scene can say it already is that way round while the
-    /// window is not (a request made as it settled): asking again is then taken as done and the window stays stuck
-    /// (the manager in landscape, PLAY upright); so the scene is first turned the way the window is, then back.
-    @MainActor private static func check(_ n: Int, tries: Int) {
-        guard n == change, let want = wanted else { return }
-        var again = false
-        for s in windowScenes {
-            guard let w = s.keyWindow else { continue }
-            let wide = w.bounds.width > w.bounds.height
-            let wantWide = want != .portrait
-            guard wide != wantWide, tries > 0 else { continue }
-            again = true
-            let sceneWide = s.effectiveGeometry.interfaceOrientation.isLandscape
-            if sceneWide == wantWide {
-                nudging = true
-                request(s, wide ? .landscape : .portrait)
-                later(0.4) {
-                    nudging = false
-                    if n == change { request(s) }
-                }
-            } else {
-                request(s)
-            }
-        }
-        if again { later(0.9) { check(n, tries: tries - 1) } }
-    }
-
-    @MainActor private static func later(_ seconds: Double, _ go: @escaping @MainActor () -> Void) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { MainActor.assumeIsolated { go() } }
+        Turning.allowed(pad: UIDevice.current.userInterfaceIdiom == .pad).mask
     }
 }
 #endif
