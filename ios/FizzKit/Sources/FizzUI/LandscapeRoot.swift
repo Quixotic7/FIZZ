@@ -142,3 +142,29 @@ struct LandscapePendingStrip: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: n)
     }
 }
+
+// MARK: - PROJECTS' TO…, sideways
+
+/// TO… on the iPhone's side: the iPad's card over the tab, scrolling (it is taller than the low screen).
+struct LandscapeToLayer: View {
+    let model: UnitModel
+
+    var body: some View {
+        let pm = model.projectsTab
+        ZStack {
+            if pm.to != nil {
+                Color.black.opacity(0.6).ignoresSafeArea().onTapGesture { pm.closeTo() }
+                    .transition(.opacity)
+                ScrollView {
+                    ProjectsToSheet(pm: pm, card: true).padding(.vertical, 10)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxWidth: 680)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.4, dampingFraction: 0.86), value: pm.to == nil)
+    }
+}

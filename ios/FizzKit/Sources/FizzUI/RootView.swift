@@ -185,7 +185,7 @@ struct TabScreen: View {
         case .projects: ProjectsView(model: model, wide: wide, sideways: sideways)
         case .pool: PoolView(model: model, wide: wide, sideways: sideways)
         case .edit: EditView(model: model, wide: wide, sideways: sideways)
-        case .importer: ImportSheet(model: model, inline: true)
+        case .importer: ImportSheet(model: model, inline: true, sideways: sideways)
         case .play: Color.clear      // (PhoneRoot and PadRoot show PLAY themselves)
         }
     }
@@ -248,7 +248,11 @@ struct PhoneRoot: View {
                     } else {
                         TopBar(model: model)
                     }
-                    TabScreen(model: model, tab: shown, sideways: sideways).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    TabScreen(model: model, tab: shown, sideways: sideways)
+                        // (on its side, the screen's own size whatever it holds: a screen taller than the low iPhone
+                        // runs off the bottom, never pushes the rail and the top bar away)
+                        .frame(minWidth: sideways ? 0 : nil, maxWidth: .infinity, minHeight: sideways ? 0 : nil, maxHeight: .infinity,
+                               alignment: sideways ? .top : .center)
                         .environment(\.fizzBarClearance, clearance)
                         .padding(.horizontal, sideways ? 10 : 0)
                 }
@@ -258,7 +262,7 @@ struct PhoneRoot: View {
                     if sideways {
                         if tab == .projects { ProjectsPhoneBar(model: model).environment(\.fizzBarClearance, clearance) }
                         AuditionBar(model: model).frame(maxWidth: 560).padding(.bottom, LandscapeRail.bottom)
-                        if tab == .projects { ProjectsToLayer(model: model) }
+                        if tab == .projects { LandscapeToLayer(model: model) }
                     }
                 }
             }

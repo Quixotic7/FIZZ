@@ -136,7 +136,7 @@ struct ProjectsView: View {
 struct ProjectsSlotsView: View {
     let model: UnitModel
     let pm: ProjectsModel
-    /// the iPhone on its side: the name and the slots at the left, the patterns' card and the actions beside
+    /// the iPhone on its side: the name, the slots and their actions at the left, the patterns' card beside
     var sideways = false
     @State private var renaming = false
     @State private var newName = ""
@@ -145,13 +145,21 @@ struct ProjectsSlotsView: View {
         let s = pm.selected
         Group {
             if sideways {
-                HStack(alignment: .top, spacing: 14) {
-                    ScreenScroll(refresh: refresh) {
-                        VStack(alignment: .leading, spacing: 0) { nameRow; SlotTiles(pm: pm) }.padding(.horizontal, 6).padding(.top, 4)
-                    }
-                    ScreenScroll(bottom: pm.ops.isEmpty ? nil : 200) {
-                        VStack(alignment: .leading, spacing: 0) { patternsCard; SlotActions(pm: pm).padding(.top, 14) }
+                // (the slots take the more: their names stay on one line)
+                GeometryReader { g in
+                    HStack(alignment: .top, spacing: 14) {
+                        ScreenScroll(bottom: pm.ops.isEmpty ? nil : 110, refresh: refresh) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                nameRow
+                                SlotTiles(pm: pm)
+                                SlotActions(pm: pm).padding(.top, 14)
+                            }
                             .padding(.horizontal, 6).padding(.top, 4)
+                        }
+                        ScreenScroll(bottom: pm.ops.isEmpty ? nil : 110) {
+                            patternsCard.padding(.horizontal, 6).padding(.top, 4)
+                        }
+                        .frame(width: max(280, g.size.width * 0.4))
                     }
                 }
             } else {
