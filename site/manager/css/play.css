@@ -2,7 +2,9 @@
 /* FIZZ Manager, PLAY (play.js; the parity mock-ups 01-04, 14): the target tiles (THIS BROWSER orange, the FM-1
    green), the views, the themes, and the board: the FM-1 as the iOS app's PLAY draws it (its palettes as --body ..
    --ledDim on the board, play.js), laid out in board units and scaled to fit. A phone on its side: the Manager's bar
-   gives way to a strip; upright: the tiles, the views, the board stacked. Everything scoped under #tab-play. */
+   gives way to a strip; upright: the tiles, the views, the board stacked. The board's buttons and keys flat (a fill
+   and a border, no gradient), the board itself with no glow around it (the owner, 2026-10-29). Everything scoped under
+   #tab-play. */
 :root { --play: var(--blue); }
 #tab-play { flex-direction: column; gap: 14px; padding: 16px 28px 18px; align-items: stretch; }
 
@@ -41,9 +43,7 @@
 #tab-play .bwrap { position: relative; flex: none; }
 #tab-play .board { --tc: var(--orange); position: absolute; left: 0; top: 0; transform-origin: 0 0; border-radius: 38px; touch-action: none; user-select: none; -webkit-user-select: none;
   background: linear-gradient(180deg, color-mix(in srgb, var(--body) 88%, #fff 3%), var(--body) 30%, color-mix(in srgb, var(--body) 86%, #000));
-  border: 1.5px solid color-mix(in srgb, var(--tc) 70%, transparent);
-  box-shadow: 0 0 0 5px #000, 0 0 0 6.5px color-mix(in srgb, var(--tc) 32%, transparent), 0 0 60px -12px var(--tc), inset 0 1px 0 rgba(255, 255, 255, .06);
-  transition: border-color .3s, box-shadow .3s; }
+  border: 1.5px solid color-mix(in srgb, var(--tc) 70%, transparent); box-shadow: none; transition: border-color .3s; }
 #tab-play .board.fm { --tc: var(--green); }
 #tab-play .board.l-tall { border-radius: 0; background: none; border: 0; box-shadow: none; }
 #tab-play .board > * { position: absolute; }
@@ -61,29 +61,31 @@
 #tab-play .knob .kmark::after { content: ""; position: absolute; left: 50%; top: 11%; height: 24%; width: 7%; min-width: 3px; transform: translateX(-50%); border-radius: 3px; background: var(--m); box-shadow: 0 0 8px var(--m); }
 #tab-play .knob.hot { box-shadow: 0 0 0 1.5px var(--m), 0 0 22px -4px var(--m), 0 6px 14px rgba(0, 0, 0, .45); }
 #tab-play .well { border-radius: 20px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); }
-#tab-play .pb { border-radius: 12px; cursor: pointer; touch-action: none; background: linear-gradient(180deg, var(--hi), var(--key) 22%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), inset 0 0 0 1.5px var(--hi), 0 3px 0 var(--lo);
+#tab-play .pb { border-radius: 12px; cursor: pointer; touch-action: none; background: var(--key); box-shadow: inset 0 0 0 1.5px var(--hi);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; letter-spacing: .02em; color: var(--keyText); line-height: 1.05; text-align: center;
-  transition: transform .06s, box-shadow .12s, color .12s; overflow: hidden; }
+  transition: background .08s, box-shadow .08s, color .08s; overflow: hidden; }
 #tab-play .board.l-tall .pb { font-size: 11px; letter-spacing: 0; }
 #tab-play .board.l-tall .klbl { font-size: 11px; letter-spacing: .04em; }
-#tab-play .pb.lit { color: var(--ledDim); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ledDim) 70%, transparent), 0 0 14px -5px var(--ledDim), 0 3px 0 var(--lo); }
-#tab-play .pb.on { --g: var(--green); color: var(--g); box-shadow: inset 0 0 0 1.5px var(--g), 0 0 18px -4px var(--g), inset 0 0 14px -6px var(--g), 0 3px 0 var(--lo); background: color-mix(in srgb, var(--g) 10%, var(--key)); }
-#tab-play .pb.down { transform: translateY(2px); box-shadow: inset 0 0 0 1.5px var(--tc), 0 0 22px -4px var(--tc), 0 1px 0 var(--lo); color: var(--text); }
+#tab-play .pb.lit { color: var(--ledDim); box-shadow: inset 0 0 0 1.5px var(--ledDim); }
+#tab-play .pb.on { --g: var(--green); color: var(--g); box-shadow: inset 0 0 0 1.5px var(--g); background: color-mix(in srgb, var(--g) 14%, var(--key)); }
+#tab-play .pb.down { background: color-mix(in srgb, var(--tc) 30%, var(--key)); box-shadow: inset 0 0 0 2px var(--tc); color: #fff; }
+/* latched (Shift-click): a ring just outside the cap and a dot at its top right, in the target's colour (the emulator's mark) */
+#tab-play :is(.pb, .k).latched { outline: 2px solid var(--tc); outline-offset: 3px; }
+#tab-play :is(.pb, .k).latched::before { content: ""; position: absolute; right: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--tc); box-shadow: 0 0 0 1.5px var(--body); }
 #tab-play .pb .tri { width: 0; height: 0; border-left: 7px solid var(--green); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
 #tab-play .pb .rec { width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 8px var(--red); }
 #tab-play .led0 { width: 12px; height: 12px; border-radius: 3px; background: #FF3B2F; box-shadow: 0 0 12px #FF3B2F, 0 0 4px #FF3B2F; }
 #tab-play .bezel { border-radius: 22px; background: var(--bezel); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bezel) 80%, #fff 12%), 0 10px 30px rgba(0, 0, 0, .45); cursor: grab; }
 #tab-play .bezel .lcd { position: absolute; left: var(--pad); top: var(--pad); width: calc(100% - 2 * var(--pad)); height: calc(100% - 2 * var(--pad)); border-radius: 6px; image-rendering: pixelated; display: block; background: #000; }
 #tab-play .bed { border-radius: 24px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); touch-action: none; cursor: pointer; }
-#tab-play .kstage { position: absolute; left: var(--pad); top: var(--pad); right: var(--pad); bottom: var(--pad); overflow: hidden; pointer-events: none; }
-#tab-play .k { position: absolute; border-radius: 14px; background: linear-gradient(180deg, var(--hi), var(--key) 18%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), inset 0 0 0 1.5px color-mix(in srgb, var(--hi) 80%, transparent), 0 4px 0 var(--lo); transition: transform .05s; }
+#tab-play .kstage { position: absolute; left: var(--pad); top: var(--pad); right: var(--pad); bottom: var(--pad); overflow-x: clip; overflow-y: visible; pointer-events: none; }
+#tab-play .bed.all .kstage { overflow: visible; }
+#tab-play .k { position: absolute; border-radius: 14px; background: var(--key); box-shadow: inset 0 0 0 1.5px var(--hi); transition: background .06s, box-shadow .06s; }
 #tab-play .k::after { content: ""; position: absolute; left: 50%; top: 24%; bottom: 24%; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--ledOff); }
+#tab-play .k.b11::after { top: 10%; bottom: 10%; }   /* key 11 (B11): the FM-1's longer LED */
 #tab-play .k.lit::after { background: var(--ledDim); box-shadow: 0 0 8px -1px var(--ledDim); opacity: calc(.55 + .45 * var(--a, 1)); }
 #tab-play .k.hot::after { background: var(--led); box-shadow: 0 0 12px var(--led); }
-#tab-play .k.held { transform: translateY(3px); background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 26%, var(--hi)), var(--key));
-  box-shadow: inset 0 0 0 1.5px var(--tc), 0 0 26px -4px var(--tc), 0 1px 0 var(--lo); }
+#tab-play .k.held { background: color-mix(in srgb, var(--tc) 30%, var(--key)); box-shadow: inset 0 0 0 2px var(--tc); }
 #tab-play .k.held::after { background: #fff; box-shadow: 0 0 14px var(--tc); }
 #tab-play .ovw { border-radius: 6px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); display: flex; gap: 2px; padding: 3px; touch-action: none; cursor: ew-resize; }
 #tab-play .ovw i { flex: 1; border-radius: 2px; background: var(--key); }
