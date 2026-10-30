@@ -24,15 +24,23 @@ PHONE = (446, 900)        # 414 x 868 frame + 16 px around
 IPAD = (1248, 888)        # 1216 x 856 frame + 16 px around
 LAND = (900, 446)         # the phone on its side: 868 x 414 frame + 16 px around
 PAIR = (884, 900)         # two phones side by side: 414 + 24 + 414 + 16 px around
-SHEET = (1640, 15000)   # trimmed to its content afterwards
+CMP = (884, 950)          # RemoteFM1's screen beside the copy: a 30 px label over each phone
+CMPLAND = (900, 940)      # two phones on their side, stacked, each with its label
+CMPIPAD = (1248, 1824)    # two iPads, stacked, each with its label
+SHEET = (1640, 18000)   # trimmed to its content afterwards
 
 
 def screens():
     """The screen ids, in order, read from the page's SCREENS list, with their device size."""
     src = open(PAGE, encoding='utf-8').read()
     body = src[src.index('const SCREENS = ['):]
-    return [(m.group(1), IPAD if 'ipad: true' in m.group(0) else LAND if 'land: true' in m.group(0) else PAIR if 'pair: true' in m.group(0) else PHONE)
-            for m in re.finditer(r'\{ id: "([a-z0-9-]+)"[^\n]*', body)]
+    def size(line):
+        for key, sz in (('cmpipad: true', CMPIPAD), ('cmpland: true', CMPLAND), ('cmp: true', CMP), ('ipad: true', IPAD),
+                        ('land: true', LAND), ('pair: true', PAIR)):
+            if key in line:
+                return sz
+        return PHONE
+    return [(m.group(1), size(m.group(0))) for m in re.finditer(r'\{ id: "([a-z0-9-]+)"[^\n]*', body)]
 
 
 def trim(path):
