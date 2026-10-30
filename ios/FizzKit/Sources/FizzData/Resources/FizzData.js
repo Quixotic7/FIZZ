@@ -4106,8 +4106,13 @@ function toPlain(x) {
 //   editPack(s) -> {blob, drive}: the editor's sound ({values, midi?}) packed back (sound.js blob6)
 //   editTexts([[id, v], ..]) -> [text(id, v), ..] (the tests' comparisons)
 const { VALUES, ALGOS, DEST_ORDER, Q, NP, soundFromLib, blob6, text: valueText } = __fizz_m9;
+// (mock-ups 45, 46) the mix: PAN and the sends under PARAM's ids (MIX_IDS), their rows (info: PAN -64..63, the sends
+// 0..127), PAN's texts (panText, -64 first), the defaults (MIX_DEFAULTS); newSound("fm" | "midi"): LIBRARY's + NEW
+const { MIX_DEFAULTS, MIX_IDS, newSound, panText, info: mixInfo } = __fizz_m9;
 
-const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP });
+const editMix = () => ({ ids: MIX_IDS, defaults: MIX_DEFAULTS, rows: Object.values(MIX_IDS).map((id) => mixInfo(id)),
+  panTexts: Array.from({ length: 128 }, (_, k) => panText(k - 64)) });
+const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP, mix: editMix() });
 const editPack = (s) => ({ blob: blob6(s), drive: s.values[Q.DRIVE] });
 const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
 
@@ -4414,7 +4419,7 @@ function keptLib(entries, { name, fizz = "", date = new Date() } = {}) {
     ...list.map((e, i) => ({ name: files[i], bytes: enc.encode(keptText(e.sound, e.webTags, { fizz: fizz || (e.sound.source && e.sound.source.fizz) || "" })) }))], date);
 }
 const keptFileName = (name) => soundFileName(name);
-return { BACKUP_FORMAT, EXPORT_MIDI_ONLY, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoPatterns, demoStore, editPack, editTable, editTexts, exportCarry, exportFile, hex8, importDuplicates, importRead, keptFile, keptFileName, keptLib, keptRead, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, parseFizzlib, parseFizzsnd, pjClear, pjClose, pjCopy, pjCopyKept, pjDiscard, pjFizzpat, pjFree, pjImage, pjKeep, pjKeptInfo, pjLoadKept, pjOpen, pjPaste, pjReadFizzpat, pjRebase, pjRenameKept, pjUndo, pjView, presetsFromDumps, presetsFromSummary, readBackup, readRegion, restoreFit, restorePlan, sameSound, soundFromFrame, soundFromLib, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
+return { BACKUP_FORMAT, EXPORT_MIDI_ONLY, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoPatterns, demoStore, editPack, editTable, editTexts, exportCarry, exportFile, hex8, importDuplicates, importRead, keptFile, keptFileName, keptLib, keptRead, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, newSound, parseFizzlib, parseFizzsnd, pjClear, pjClose, pjCopy, pjCopyKept, pjDiscard, pjFizzpat, pjFree, pjImage, pjKeep, pjKeptInfo, pjLoadKept, pjOpen, pjPaste, pjReadFizzpat, pjRebase, pjRenameKept, pjUndo, pjView, presetsFromDumps, presetsFromSummary, readBackup, readRegion, restoreFit, restorePlan, sameSound, soundFromFrame, soundFromLib, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
 })();
 globalThis.FizzData = Object.freeze(__fizz_m14);
 

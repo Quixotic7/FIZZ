@@ -171,6 +171,9 @@ public final class UnitActions {
     public internal(set) var borrowed = false
     /// EDIT edits a track live (its PARAMs go out with TRACK off too).
     public private(set) var editLive = false
+    /// This link's FIZZ answered a mix PARAM (115..118) NOT FOUND (older firmware): its mix edits go as the whole
+    /// sound's AUDITION from now on (live.js L.noMix; mock-up 45).
+    public internal(set) var noMix = false
 
     @ObservationIgnored weak var unit: UnitModel?
     @ObservationIgnored private var oneOff: [String: [UInt8]] = [:]
@@ -221,7 +224,7 @@ public final class UnitActions {
     func lost() {
         frames = [:]; oneOff = [:]; users = [:]
         browseWatch?.cancel(); browseWatch = nil; browsing = nil
-        pending = nil; trackOn = false; trackCapable = false; borrowed = false; editLive = false
+        pending = nil; trackOn = false; trackCapable = false; borrowed = false; editLive = false; noMix = false
         liveLink = nil; _pump = nil; _audition = nil
         job = nil
     }
@@ -620,12 +623,25 @@ public final class UnitActions {
             let p = ParamPump(link: link, clock: unit?.source.clock ?? SystemClock()), a = TrackAudition(link: link)
             Task { [weak self] in
                 await p.setOnOld { [weak self] in Task { @MainActor in self?.cannotEditLive() } }
+                // (an older FIZZ takes no mix live: remembered for this link, the sound sent instead)
+                await p.setOnRefused { [weak self] id, r in
+                    guard r == .notFound, (115...118).contains(id) else { return }
+                    Task { @MainActor in self?.mixRefused(by: p) }
+                }
             }
-            liveLink = link; _pump = p; _audition = a
+            liveLink = link; _pump = p; _audition = a; noMix = false
             pending = nil; borrowed = false
             if trackOn || editLive { Task { await p.setOn(true) } }
         }
         return (_pump!, _audition!)
+    }
+
+    /// A mix PARAM answered NOT FOUND: this link's mix edits as the whole sound from now (EDIT sends it once now).
+    private func mixRefused(by p: ParamPump) {
+        guard p === _pump else { return }
+        if !noMix { say("PARAM: this FIZZ takes no mix live: the sound is sent instead") }
+        noMix = true
+        unit?.editor.mixLater()
     }
 
     private func cannotEditLive() {
