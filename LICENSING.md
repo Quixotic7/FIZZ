@@ -42,6 +42,7 @@ copied into the MPL files.
 | FreeType's rasterizer, stroker, math and types inside plutovg (`plutovg-ft-*`) | FreeType License (FTL) | `third_party/plutovg/source/FTL.TXT`. The binary credit: "Portions of this software are copyright © 2006 The FreeType Project (www.freetype.org). All rights reserved." FIZZ's changes to these files are listed in `third_party/README.md` |
 | stb_truetype, stb_image, stb_image_write (Sean Barrett), inside plutovg | MIT OR Unlicense | `third_party/plutovg/source/plutovg-stb-*.h` |
 | Inter Tight (The Inter Project Authors), the type | SIL OFL 1.1 (no Reserved Font Name) | `assets/fonts/` (`OFL.txt`); embedded in `core/gfx/fonts_gen.h` |
+| DM Sans (The DM Sans Project Authors) and Unbounded (The Unbounded Project Authors), FIZZ for iOS's PLAY sheet and chip | SIL OFL 1.1 | `ios/FizzKit/Sources/FizzUI/Resources/` (`OFL-DMSans.txt`, `OFL-Unbounded.txt`), bundled in the iOS app |
 
 ## Credits (designs and facts, no code)
 
