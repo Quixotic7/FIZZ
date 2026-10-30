@@ -94,8 +94,12 @@ struct PlaySheet: View {
         HStack(spacing: 8) {
             source(title: EmulatorHost.hereName.sentenceCased, detail: "FIZZ, play by touch",
                    on: play.soundNow == .here, dot: accent) { play.sound = .here }
-            // (the FM-1's card always there, as RemoteFM1's; dimmed while no FM-1 is the unit)
-            if play.fm1Offered, let u = model.unit {
+            // (the FM-1's card always there, as RemoteFM1's; dimmed while no FM-1 is the unit, and while a RemoteFM1
+            // unit is the panel: the sound stays on the phone, mock-up 57)
+            if host.panelPort != nil {
+                source(title: "FM-1", detail: "Panel · USB", on: false, dot: RGB(0x3BD47A)) {}
+                    .disabled(true).opacity(0.5)
+            } else if play.fm1Offered, let u = model.unit {
                 let t = model.editor.trackShown
                 source(title: "FM-1", detail: "\(u.via)\(t >= 0 ? " · track \(t + 1)" : "")", on: play.soundNow == .fm1,
                        dot: RGB(0x3BD47A)) { play.letGoAll(); play.sound = .fm1 }

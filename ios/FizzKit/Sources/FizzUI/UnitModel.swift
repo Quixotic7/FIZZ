@@ -8,6 +8,7 @@
 
 import Foundation
 import FizzData
+import FizzEngine
 import FizzKit
 import Observation
 
@@ -137,8 +138,14 @@ public final class UnitModel {
     public internal(set) var sendingOther = false
     /// A switch picked by hand running (the picker's card ripples).
     public internal(set) var switching: UnitKey?
-    /// RemoteFM1 units seen: FM-1s that could be THIS iPHONE's panel (PanelUnits.swift; data only, the picker later).
+    /// RemoteFM1 units seen: FM-1s that could be THIS iPHONE's panel (PanelUnits.swift; the picker's cyan rows).
     public internal(set) var panelUnits: [PanelUnit] = []
+    /// What the panel last did, said a moment (linked, let go and why: PanelUI.swift).
+    public internal(set) var panelToast: PanelToast?
+    /// The RemoteFM1 units the picker was opened for by itself (once each while plugged in).
+    @ObservationIgnored var panelOffered: Set<String> = []
+    /// The panel's state and the backup playing as last seen (their changes make the toasts).
+    @ObservationIgnored var panelWas = PanelSeen()
     /// The picker opened from PLAY (PLAY's SOUND follows the pick).
     @ObservationIgnored var pickerFromPlay = false
     /// The FM-1 kept open beside THIS iPHONE (picked by hand while one is plugged in).
@@ -222,6 +229,8 @@ public final class UnitModel {
         }
         scan()
         demoPicks()
+        watchPanel()
+        demoPanel()
     }
 
     public func stop() {
@@ -536,7 +545,9 @@ public final class UnitModel {
 
     /// With the emulated FIZZ to fall back on: an FM-1 running FIZZ takes over (once nothing is being written); none,
     /// or one in update mode, not FIZZ, or two to choose from: the emulated FIZZ stays the unit, the notice says why.
-    private func offline(_ probes: [FizzProbe]) async {
+    private func offline(_ probes0: [FizzProbe]) async {
+        // (a RemoteFM1 unit is no FIZZ to take: no notice, the picker offers it as THIS iPHONE's panel instead)
+        let probes = await offerPanels(probes0)
         // THIS iPHONE picked by hand: the FM-1s known stay beside it (one kept open for SEND), a new one ends the pick
         if pinned == .here, await keepHere(probes) { return }
         var pick: Int?

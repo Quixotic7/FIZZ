@@ -5,7 +5,8 @@
 // The unit picker (mock-ups 34, 35): the app's dark sheet, one big card per unit. THIS iPHONE in the emulator theme's
 // colour, an FM-1 green with its USB / BLUETOOTH chip; the one in use ringed, glowing, ticked, a pin when picked by
 // hand; one that does not answer greyed, dashed, flickering. A tap switches the whole manager (the card ripples);
-// + BLUETOOTH, pinned at the bottom, opens iOS's Bluetooth MIDI pairing.
+// + BLUETOOTH, pinned at the bottom, opens iOS's Bluetooth MIDI pairing. A RemoteFM1 unit gets its own cyan card,
+// USE AS PANEL (mock-up 57, PanelUI*.swift), after the units answering.
 
 import SwiftUI
 import FizzKit
@@ -15,9 +16,12 @@ struct UnitPickerHost: ViewModifier {
     @Bindable var model: UnitModel
 
     func body(content: Content) -> some View {
-        content.sheet(isPresented: $model.pickerOpen, onDismiss: { model.pickerClosed() }) {
+        content
+            // (the panel's toasts, on every tab: above PLAY's page dots, or above the tab bar)
+            .overlay { PanelToastLayer(model: model, bottom: model.emulator?.playShown == true ? 30 : 84) }
+            .sheet(isPresented: $model.pickerOpen, onDismiss: { model.pickerClosed() }) {
             UnitPicker(model: model)
-                .presentationDetents([.height(UnitPicker.height(rows: model.unitRows.count))])
+                .presentationDetents([.height(UnitPicker.height(model))])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(sheetBackground.color)
                 .presentationCornerRadius(30)
@@ -42,24 +46,44 @@ struct UnitPicker: View {
 
     static let cardHeight: CGFloat = 100
     /// the sheet's height for so many cards (the heading, the cards, + BLUETOOTH)
-    static func height(rows: Int) -> CGFloat { 30 + 34 + CGFloat(rows) * (cardHeight + 12) + 8 + 60 + 34 }
+    static func height(rows: Int, panels: Int = 0) -> CGFloat {
+        30 + 34 + CGFloat(rows) * (cardHeight + 12) + CGFloat(panels) * (PanelPickCard.height + 12) + 8 + 60 + 34
+    }
+    static func height(_ model: UnitModel) -> CGFloat { height(rows: model.unitRows.count, panels: model.panelRows.count) }
 
     var body: some View {
-        let rows = model.unitRows
+        let rows = model.unitRows, panels = model.panelRows
         VStack(alignment: .leading, spacing: 0) {
-            Heading(text: "UNIT", count: "\(rows.count)").padding(.bottom, 14).padding(.leading, 4)
-            // (a few cards: the sheet is made as high as they need)
+            Heading(text: "UNIT", count: "\(rows.count + panels.count)").padding(.bottom, 14).padding(.leading, 4)
+            // (a few cards: the sheet is made as high as they need; the RemoteFM1 units after the units answering)
             VStack(spacing: 12) {
-                ForEach(rows) { r in
-                    UnitPickCard(row: r, track: track(r), switching: model.switching == r.key,
-                                 enabled: r.inUse || (model.idle && model.switching == nil)) { tap(r) }
+                ForEach(rows.filter(\.answering)) { r in card(r) }
+                ForEach(panels) { p in
+                    PanelPickCard(row: p, enabled: model.switching == nil, use: { usePanel(p) },
+                                  release: { model.stopPanel() })
                 }
+                ForEach(rows.filter { !$0.answering }) { r in card(r) }
             }
             Spacer(minLength: 8)
             BluetoothPill { BluetoothPairing.present() }
         }
         .padding(.horizontal, 18).padding(.top, 30).padding(.bottom, 12)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: rows)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: panels)
+    }
+
+    private func card(_ r: UnitRow) -> some View {
+        UnitPickCard(row: r, track: track(r), switching: model.switching == r.key,
+                     enabled: r.inUse || (model.idle && model.switching == nil)) { tap(r) }
+    }
+
+    /// USE AS PANEL: claimed, then the sheet goes (PLAY's chip and the toast say the rest).
+    private func usePanel(_ p: PanelRow) {
+        Task {
+            guard await model.usePanelTapped(p.name) else { return }
+            try? await Task.sleep(for: .milliseconds(420))
+            dismiss()
+        }
     }
 
     /// PLAY's keys on the FM-1's track: the track shown on its card.
@@ -277,7 +301,7 @@ public struct UnitPickerShot: View {
                 .blur(radius: 2).brightness(-0.3)
             Color.black.opacity(0.45)
             UnitPicker(model: model)
-                .frame(height: UnitPicker.height(rows: model.unitRows.count))
+                .frame(height: UnitPicker.height(model))
                 .padding(.bottom, 20)
                 .background(SheetShape().fill(sheetBackground.color).shadow(color: .black, radius: 30, y: -10))
                 .overlay(alignment: .top) { Capsule().fill(RGB(0x3a3a44).color).frame(width: 40, height: 5).padding(.top, 10) }

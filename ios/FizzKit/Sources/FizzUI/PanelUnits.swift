@@ -3,7 +3,7 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // RemoteFM1 units as UnitModel sees them: FM-1s running RemoteFM1's firmware, which can be THIS iPHONE's panel
-// (EmulatorHost.attachPanel, PanelLink). Data only: the picker's "USE AS PANEL" and the chip wait for mock-up 57.
+// (EmulatorHost.attachPanel, PanelLink). The picker's cyan rows, PLAY's chip and the toasts: PanelUI*.swift (57).
 //   - The scan finds them passively: 0.2 and later answer the update handshake it sends every FM-1 port anyway as
 //     "FM-1_52.." (RemoteFM1Unit.isRemoteFM1); nothing more is sent.
 //   - The picker's survey asks each one HELLO (RemoteFM1's own, harmless: the version, a session of another host), and
