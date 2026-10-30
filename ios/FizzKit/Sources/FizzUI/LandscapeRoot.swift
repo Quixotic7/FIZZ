@@ -31,12 +31,14 @@ public enum RootLayout: String, Sendable, Equatable {
 struct LandscapeRail: View {
     @Binding var tab: FizzTab
     static let width: CGFloat = 66
+    /// the room kept at the bottom (the screens run to the edge): the home indicator's, the bars' clearance
+    static let bottom: CGFloat = 16
 
     var body: some View {
         GeometryReader { g in
             let n = CGFloat(FizzTab.bar.count + 1)
             let gap: CGFloat = 6
-            let d = max(36, min(48, (g.size.height - 16 - gap * (n - 1)) / n))
+            let d = max(36, min(48, (g.size.height - 6 - Self.bottom - gap * (n - 1)) / n))
             VStack(spacing: gap) {
                 ForEach(FizzTab.bar) { t in
                     let on = t == tab
@@ -63,7 +65,7 @@ struct LandscapeRail: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(FizzTab.importer.title)
             }
-            .padding(.vertical, 8)
+            .padding(.top, 6).padding(.bottom, Self.bottom)
             .frame(width: g.size.width, height: g.size.height)
         }
         .frame(width: Self.width)
@@ -75,7 +77,7 @@ struct LandscapeTopBar: View {
     let model: UnitModel
     let tab: FizzTab
     @State private var ports = false
-    static let height: CGFloat = 46
+    static let height: CGFloat = 42
 
     var body: some View {
         HStack(spacing: 10) {
@@ -96,5 +98,47 @@ struct LandscapeTopBar: View {
         .padding(.leading, 12).padding(.trailing, 14)
         .turnDim(model.editor, [])
         .sheet(isPresented: $ports) { PortsSheet(model: model) }
+    }
+}
+
+// MARK: - Sideways, for the screens
+
+private struct SidewaysKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// The iPhone on its side (PhoneRoot sets it): the screens' bars in one row.
+    var fizzSideways: Bool {
+        get { self[SidewaysKey.self] }
+        set { self[SidewaysKey.self] = newValue }
+    }
+}
+
+// MARK: - PROJECTS' changes waiting, short
+
+/// The changes waiting in the selection's bar's height, beside it (the iPhone on its side: ProjectsPhoneBar): the
+/// count, UNDO, DISCARD, the WRITE TO FM-1 slide.
+struct LandscapePendingStrip: View {
+    let model: ProjectsModel
+
+    var body: some View {
+        let n = model.ops.count
+        HStack(spacing: 6) {
+            Text("\(n)").fz(32, 800).monospacedDigit().foregroundStyle(FZ.yellow.color)
+                .contentTransition(.numericText())
+                .fixedSize()
+                .padding(.trailing, 2)
+            ProjRoundIcon(icon: ProjIcons.undo, color: FZ.text, ring: FZ.line, size: 38) { Task { await model.undo() } }
+                .keyboardShortcut("z", modifiers: .command)
+                .accessibilityLabel("UNDO")
+            ProjRoundIcon(icon: ProjIcons.clear, color: FZ.red, ring: FZ.red.mix(45, FZ.line), size: 38) { model.discard() }
+                .accessibilityLabel("DISCARD")
+            WriteSlide(model: model, height: 46).frame(minWidth: 150)
+        }
+        .padding(.leading, 12).padding(.trailing, 6)
+        .frame(height: ProjectsSelectionBar.height)
+        .background(RoundedRectangle(cornerRadius: 22).fill(FZ.yellow.mix(10, RGB(0x0e0e12)).color))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(FZ.yellow.color, lineWidth: 2))
+        .shadow(color: FZ.yellow.opacity(0.25), radius: 12)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: n)
     }
 }

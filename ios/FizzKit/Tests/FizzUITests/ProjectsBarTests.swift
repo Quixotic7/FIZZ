@@ -91,6 +91,6 @@ struct ProjectsBarTests {
         #expect(ProjectsPatternsView.wide(714) && ProjectsPatternsView.wide(632) && !ProjectsPatternsView.wide(358))
         let w = ProjectsPatternsView.tileH(360, pending: false, clearance: 8, wide: true)
         #expect(w >= 28 && w <= 48)
-        #expect(4 + 61 + 53 + 4 * w + 3 * 12 <= 360 - ProjectsPatternsView.below(pending: false, clearance: 8))
+        #expect(4 + 61 + 53 + 4 * w + 3 * 12 <= 360 - ProjectsPatternsView.below(pending: false, clearance: 8, wide: true))
     }
 }

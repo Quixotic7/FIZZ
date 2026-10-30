@@ -48,4 +48,18 @@ struct LandscapeTests {
         #expect(Turning.allowed(pad: true, playShown: false) == Set(Turn.allCases))
         #expect(Turning.allowed(pad: true, playShown: true) == Set(Turn.allCases))
     }
+
+    @Test("PROJECTS on its side: the grid (a bank a row) ends above the one-row bars, changes waiting or not")
+    func patternsFit() {
+        // (the content under the 42-pt top bar: an iPhone 13 Pro Max's 428 and an iPhone 14's 390 pt high)
+        for screenH in [428.0 - LandscapeTopBar.height, 390 - LandscapeTopBar.height] as [CGFloat] {
+            for pending in [false, true] {
+                let below = ProjectsPatternsView.below(pending: pending, clearance: LandscapeRail.bottom, wide: true)
+                let h = ProjectsPatternsView.tileH(screenH, pending: pending, clearance: LandscapeRail.bottom, wide: true)
+                #expect(4 + 61 + 53 + 4 * h + 3 * 12 <= screenH - below, "\(screenH) pending \(pending): \(h)")
+                // (the changes waiting cost the grid nothing sideways: they sit beside the selection's bar)
+                #expect(below == ProjectsPatternsView.below(pending: false, clearance: LandscapeRail.bottom, wide: true))
+            }
+        }
+    }
 }

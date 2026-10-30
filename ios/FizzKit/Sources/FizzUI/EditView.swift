@@ -25,6 +25,7 @@ struct EditView: View {
     @State private var keysHeight: CGFloat = 200
     @FocusState private var nameFocus: Bool
     @Environment(\.fizzSnapshot) private var snapshot
+    @Environment(\.fizzBarClearance) private var clearance
 
     private var e: EditorModel { model.editor }
 
@@ -143,8 +144,8 @@ struct EditView: View {
             }
         }
         .padding(.top, 2)
-        // (above the KEEP / CANCEL bar while it shows)
-        .padding(.bottom, auditionBar ? 66 : 4)
+        // (above the home indicator, and the KEEP / CANCEL bar while it shows)
+        .padding(.bottom, clearance)
     }
 
     /// The keybed up over the page, or put away.

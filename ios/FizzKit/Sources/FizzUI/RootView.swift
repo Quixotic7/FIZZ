@@ -183,7 +183,7 @@ struct TabScreen: View {
         case .backup: BackupView(model: model, sideways: sideways)
         case .library: LibraryView(model: model, wide: wide, sideways: sideways)
         case .projects: ProjectsView(model: model, wide: wide, sideways: sideways)
-        case .pool: PoolView(model: model, wide: wide)
+        case .pool: PoolView(model: model, wide: wide, sideways: sideways)
         case .edit: EditView(model: model, wide: wide, sideways: sideways)
         case .importer: ImportSheet(model: model, inline: true)
         case .play: Color.clear      // (PhoneRoot and PadRoot show PLAY themselves)
@@ -203,10 +203,10 @@ struct PhoneRoot: View {
     /// the tab bar's distance from the screen's bottom edge
     static let barBottom: CGFloat = 24
     /// what the floating bars cover (fizzBarClearance): the tab bar and a gap, KEEP / CANCEL over it when it shows;
-    /// on its side only KEEP / CANCEL (the home indicator is the safe area's)
+    /// on its side the home indicator's room and KEEP / CANCEL
     private var clearance: CGFloat {
         let audition: CGFloat = model.actions.pending != nil ? 52 + 10 : 0
-        return sideways ? 8 + audition : Self.barBottom + TabBar.height + 12 + audition
+        return sideways ? LandscapeRail.bottom + audition : Self.barBottom + TabBar.height + 12 + audition
     }
 
     /// The tab under IMPORT's sheet while it shows (upright); on its side IMPORT is a tab of its own, as the iPad's.
@@ -257,14 +257,13 @@ struct PhoneRoot: View {
                 .overlay(alignment: .bottom) {
                     if sideways {
                         if tab == .projects { ProjectsPhoneBar(model: model).environment(\.fizzBarClearance, clearance) }
-                        AuditionBar(model: model).frame(maxWidth: 560).padding(.bottom, 8)
+                        AuditionBar(model: model).frame(maxWidth: 560).padding(.bottom, LandscapeRail.bottom)
                         if tab == .projects { ProjectsToLayer(model: model) }
                     }
                 }
             }
             .padding(.top, insets.top)
             .padding(.leading, sideways ? insets.leading : 0).padding(.trailing, sideways ? insets.trailing : 0)
-            .padding(.bottom, sideways ? insets.bottom : 0)
             if !sideways {
                 // (only round the tab bar: EDIT's and PROJECTS' action rows sit just above it, undimmed)
                 LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.45)],
@@ -286,7 +285,10 @@ struct PhoneRoot: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.libraryBarUp)
-        .ignoresSafeArea(edges: sideways ? [] : .bottom)
+        // (on its side too: the screens run to the bottom edge, their bars and scroll ends kept above the home
+        // indicator by the clearance)
+        .ignoresSafeArea(edges: .bottom)
+        .environment(\.fizzSideways, sideways)
     }
 }
 

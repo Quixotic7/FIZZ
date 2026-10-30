@@ -421,6 +421,11 @@ struct LibraryView: View {
     /// The phone's list; beside it the preset tapped, or SELECT's panel (as the iPad's third column). KEPT: its list
     /// alone, as wide as the screen.
     private var sideBody: some View {
+        // (the preset's column 40 % of the width, 260..330 pt: the names keep their room on a 844-pt iPhone)
+        GeometryReader { g in sideColumns(detail: min(330, max(260, g.size.width * 0.4))) }
+    }
+
+    private func sideColumns(detail: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 12) {
             phoneBody
             if !keptOn {
@@ -439,7 +444,7 @@ struct LibraryView: View {
                         TabPlaceholder(tab: .library)
                     }
                 }
-                .frame(width: 330)
+                .frame(width: detail)
                 .frame(maxHeight: .infinity)
                 .padding(.top, 4).padding(.bottom, clearance)
             }

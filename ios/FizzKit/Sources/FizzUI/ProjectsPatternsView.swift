@@ -99,15 +99,16 @@ struct ProjectsPatternsView: View {
     /// The tiles' height: 40 (wide: 48), less when the grid would reach under the selection's bar and the yellow bar
     /// (or the tab bar), never under 28.
     static func tileH(_ screenH: CGFloat, pending: Bool, clearance: CGFloat = 100, wide: Bool = false) -> CGFloat {
-        let room = screenH - 4 - 61 - 53 - below(pending: pending, clearance: clearance) - 3 * 12
+        let room = screenH - 4 - 61 - 53 - below(pending: pending, clearance: clearance, wide: wide) - 3 * 12
         return wide ? min(48, max(28, room / 4)) : min(40, max(28, (room - 4 * 5) / 8))
     }
 
     /// What the bars take from the screen's bottom (above the grid: the title 61, the chips 53; below it: the
     /// floating bars' clearance (upright: the tab bar 88 and a gap), the selection's bar and a gap, the yellow bar
     /// ~140 and a gap).
-    static func below(pending: Bool, clearance: CGFloat = 100) -> CGFloat {
-        clearance + ProjectsSelectionBar.height + 10 + (pending ? 140 + 10 : 0)
+    static func below(pending: Bool, clearance: CGFloat = 100, wide: Bool = false) -> CGFloat {
+        // (wide, the phone on its side: the changes waiting beside the selection's bar, one row; LandscapeRoot.swift)
+        wide ? clearance + ProjectsSelectionBar.height + 6 : clearance + ProjectsSelectionBar.height + 10 + (pending ? 140 + 10 : 0)
     }
 }
 
@@ -118,6 +119,7 @@ struct ProjectsPhoneBar: View {
     let model: UnitModel
     @State private var sharing: SharedFile?
     @Environment(\.fizzBarClearance) private var clearance
+    @Environment(\.fizzSideways) private var sideways
 
     /// The room under the bars: the floating bars' clearance (the tab bar, KEEP / CANCEL; sideways: the screen's
     /// edge), 100 (the tab bar and a gap) where none was given.
@@ -130,14 +132,23 @@ struct ProjectsPhoneBar: View {
         let pm = model.projectsTab
         VStack(spacing: 10) {
             Spacer(minLength: 0)
-            if Self.showsSelection(pm) {
+            // (on its side: one row, the changes waiting short beside the selection's bar; LandscapeRoot.swift)
+            if sideways && Self.showsSelection(pm) {
+                HStack(spacing: 8) {
+                    ProjectsSelectionBar(pm: pm) {
+                        Task { if let u = await pm.fizzpatFile() { sharing = SharedFile(url: u) } }
+                    }
+                    if !pm.ops.isEmpty { LandscapePendingStrip(model: pm).transition(.move(edge: .trailing).combined(with: .opacity)) }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if Self.showsSelection(pm) {
                 ProjectsSelectionBar(pm: pm) {
                     Task { if let u = await pm.fizzpatFile() { sharing = SharedFile(url: u) } }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            if !pm.ops.isEmpty {
-                PendingBar(model: pm)
+            if !pm.ops.isEmpty && !(sideways && Self.showsSelection(pm)) {
+                PendingBar(model: pm, inline: sideways)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
