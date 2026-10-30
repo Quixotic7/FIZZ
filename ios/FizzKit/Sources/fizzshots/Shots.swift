@@ -97,7 +97,43 @@ struct Shots {
         await projectShots(out)
         await keptShots(out)
         await playShots(out)
+        await backupPlayShots(out)
         await unitShots(out)
+    }
+
+    // ---- ▶ play a backup (mock-up 44): the demo FM-1's backups with ▶, yesterday's played in a throwaway FIZZ
+    @MainActor
+    static func backupPlayShots(_ out: URL) async {
+        let tmp = FileManager.default.temporaryDirectory
+        let e = FizzEmulator(storage: nil)
+        let host = EmulatorHost(emulator: e)
+        let m = UnitModel(source: DemoLinkSource(.fizz), emulator: host,
+                          backups: tmp.appendingPathComponent("fizzshots-bp-\(UUID().uuidString)"),
+                          projects: tmp.appendingPathComponent("fizzshots-bpp-\(UUID().uuidString)"))
+        host.launch()
+        m.start()
+        await until { m.unit?.isEmulated == false && m.dumpsLoaded && m.layout != nil }
+        do { try await DemoBackups.seed(m.backups.store) } catch { print("demo backups: \(error)") }
+        await m.backups.store.reload()
+        save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-play-rows")
+        guard let y = m.backups.store.entries.first(where: { Calendar.current.isDateInYesterday($0.date) }),
+              await m.backups.play(y), let b = host.backup?.emulator else { print("backup play: not played"); return }
+        // its demo pattern playing: the backup's own screen
+        b.tap(.home)
+        b.run(ms: 600)
+        b.tap(.play)
+        b.run(ms: 1450)
+        let p = host.play
+        p.theme = .tangerine
+        p.view = .full
+        p.showNow()
+        save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-play-ringed")
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-backup")
+        p.showNow()
+        save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play-backup")
+        await host.endBackup()
+        m.stop()
+        await host.close()
     }
 
     // ---- the unit picker and SEND between the units (mock-ups 34-36): the demo FM-1 on USB, a silent one over

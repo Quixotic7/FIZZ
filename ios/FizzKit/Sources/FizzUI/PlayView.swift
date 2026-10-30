@@ -68,7 +68,8 @@ public struct PlayView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: play.view)
         .persistentSystemOverlays(.hidden)
         .deferringSystemGestures()
-        .task { if !snapshot { await play.follow() } }
+        // (a backup played or put away: the screen follows the FIZZ now driven)
+        .task(id: host.backup?.id) { if !snapshot { await play.follow() } }
         .onAppear {
             host.playShown = true
             turnable(true)
@@ -303,12 +304,16 @@ public struct PlayView: View {
 
     // MARK: the parts placed
 
-    /// The pill (THIS iPHONE, or FM-1 while the keys play it), the handle, FIZZ.
+    /// The pill (THIS iPHONE, FM-1 while the keys play it, or a backup's: BackupPlay.swift), the handle, FIZZ.
     @ViewBuilder
     private func header(_ b: Board, _ r: CGRect, badge: Bool = true) -> some View {
         let p = play.theme.palette
         ZStack {
             HStack {
+                if let bk = host.backup {
+                    BackupPill(backup: bk, scale: b.s(1), pick: { model.openPicker(fromPlay: true) },
+                               close: { Task { await host.endBackup() } })
+                } else {
                 Button { model.openPicker(fromPlay: true) } label: {    // (the unit picker; the handle drops the sheet)
                     HStack(spacing: b.s(7)) {
                         if play.soundNow == .fm1 {
@@ -327,6 +332,7 @@ public struct PlayView: View {
                     .fixedSize()
                 }
                 .buttonStyle(PressStyle())
+                }
                 Spacer(minLength: 0)
                 if badge { FizzBadge(height: b.s(36), logo: b.s(26), word: b.s(17)) { toManager() } }
             }

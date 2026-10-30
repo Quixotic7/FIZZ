@@ -89,7 +89,8 @@ public final class PlayModel {
         stepsOctave = max(StepsInput.octaves.lowerBound, min(StepsInput.octaves.upperBound, o))
     }
 
-    var emulator: FizzEmulator? { host?.emulator }
+    /// The FIZZ PLAY drives: THIS iPHONE's, or a backup's while one plays (EmulatorHost.backup).
+    var emulator: FizzEmulator? { host?.active }
 
     /// The screen and the LEDs while PLAY shows (a .task).
     func follow() async {
@@ -146,7 +147,7 @@ public final class PlayModel {
     func keyDown(_ k: Int, velocity: Int) {
         guard (0..<27).contains(k), !held.contains(k) else { return }
         held.insert(k)
-        if sound == .fm1, let u = unit, u.unit?.isEmulated == false {
+        if soundNow == .fm1, let u = unit {
             let c = u.editor.chan, n = PlayInput.note(k, octave: u.editor.octave)
             Task { await u.actions.note(channel: c, note: n, velocity: velocity) }
         } else {
@@ -156,7 +157,7 @@ public final class PlayModel {
 
     func keyUp(_ k: Int) {
         guard held.remove(k) != nil else { return }
-        if sound == .fm1, let u = unit, u.unit?.isEmulated == false {
+        if soundNow == .fm1, let u = unit {
             let c = u.editor.chan, n = PlayInput.note(k, octave: u.editor.octave)
             Task { await u.actions.note(channel: c, note: n, velocity: 0) }
         } else {
@@ -189,8 +190,8 @@ public final class PlayModel {
 
     /// SOUND = FM-1 offered: an FM-1 is the unit.
     var fm1Offered: Bool { unit?.unit.map { !$0.isEmulated } ?? false }
-    /// SOUND as it applies (FM-1 only while one is the unit).
-    var soundNow: PlaySound { sound == .fm1 && fm1Offered ? .fm1 : .here }
+    /// SOUND as it applies (FM-1 only while one is the unit; a backup playing is always heard here).
+    var soundNow: PlaySound { sound == .fm1 && fm1Offered && host?.backup == nil ? .fm1 : .here }
 
     // MARK: the views
 

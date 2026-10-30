@@ -51,6 +51,7 @@ public enum BackupFailure: Sendable, Equatable {
     case presets(got: Int, of: Int)
     case notSaved
     case notABackup             // a file opened that does not read
+    case cannotPlay             // ▶: its store fits no emulated FIZZ
 
     public var text: String {
         switch self {
@@ -62,6 +63,7 @@ public enum BackupFailure: Sendable, Equatable {
         case .presets(let g, let o): "\(g) OF \(o) PRESETS"
         case .notSaved: "NOT SAVED"
         case .notABackup: "NOT A BACKUP"
+        case .cannotPlay: "CAN'T PLAY"
         }
     }
     public var color: RGB {
@@ -264,6 +266,9 @@ public final class BackupModel {
 
     public func dismissFailure() { failure = nil }
 
+    /// ▶ did not play it (BackupPlay.swift).
+    func reportPlayFailure(_ f: BackupFailure) { failure = f }
+
     struct Done { let entry: BackupEntry; let stats: FizzBackupStats?; let rows: [FizzListEntry]? }
 
     private static func perform(_ kind: FizzBackupKind, _ link: FizzLink, _ info: UnitInfo, _ progress: BackupProgress,
@@ -311,6 +316,8 @@ public final class BackupModel {
             unit?.backedUp(rows: d.rows, tracks: d.entry.isFull ? d.entry.tracks : nil)
             unit?.say("kept \(d.entry.name) (\(d.entry.size) B)")
             flash(d.entry.name)
+            // `-playbackup` (simulator screenshots, with `-backup full`): ▶ on the backup just made
+            if ProcessInfo.processInfo.arguments.contains("-playbackup") { Task { _ = await play(d.entry) } }
         case .failure(let e):
             unit?.say("backup: \(e)")
             if !cancelled { failure = BackupFailure.of(e) }
