@@ -80,6 +80,22 @@ struct Shots {
              phone, out, "library-search-none")
         save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "search:glass"),
              pad, out, "ipad-library-search")
+        // SELECT on the FM-1's presets (mock-ups 41, 42, 47): three GLASS ones ticked under the search, the TAG and
+        // DELETE sheets (USED BY read), the iPad's panel with TAG's row open
+        let glass = m.mine.filter { $0.name.contains("GLASS") }.prefix(3).map { "mine:\($0.slot)" }
+        m.picks.on = true
+        m.picks.set(Set(glass))
+        _ = await m.actions.bulkUsers(m.picks.rows(m.rows))
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "select: search:glass"),
+             phone, out, "library-select")
+        save(BulkTagSheetShot(model: m, selection: "select: search:glass"), phone, out, "library-select-tag")
+        save(BulkDeleteSheetShot(model: m, selection: "select: search:glass"), phone, out, "library-select-delete")
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "select: search:glass"),
+             pad, out, "ipad-library-select")
+        m.picks.tagsOpen = true
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "select: search:glass"),
+             pad, out, "ipad-library-select-tag")
+        m.picks.clear()
         // the seven tag icons (ui.js TAG_ICON) big, in their colours, to set beside the web's
         save(HStack(spacing: 20) {
             ForEach(FizzTag.allCases) { t in TagIcon(t).frame(width: 80, height: 80) }
@@ -153,6 +169,14 @@ struct Shots {
         await until { m.unitKey == .port("FIZZ FM-1") && m.dumpsLoaded && m.other?.taken != nil }
         // (the emulated FIZZ starts empty: the FM-1's first fourteen sent to it, as SEND TO THIS iPHONE does)
         _ = await m.sendToOther(rows: Array(m.mine.prefix(14)))
+        // 41 / 47: SELECT on the FM-1's presets with THIS iPHONE beside: SEND n TO THIS iPHONE
+        m.picks.on = true
+        m.picks.set(Set(m.mine.prefix(3).map { "mine:\($0.slot)" } + ["factory:2"]))
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "select:"),
+             phone, out, "units-library-select")
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "select:"),
+             pad, out, "units-ipad-library-select")
+        m.picks.clear()
         // 34: THIS iPHONE picked by hand, the FM-1 beside it, the Bluetooth one asleep
         await m.pick(.here)
         await until { m.onEmulator && m.dumpsLoaded && m.other?.taken != nil }

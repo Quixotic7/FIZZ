@@ -154,7 +154,7 @@ public final class UnitActions {
     public private(set) var restoreRun: RestoreRun?
     public private(set) var restoreFailure: RestoreFailure?
     /// Each preset's DUMP: "mine:12", "factory:3" (from connect, and read again after an edit).
-    public private(set) var frames: [String: [UInt8]] = [:]
+    public internal(set) var frames: [String: [UInt8]] = [:]
     /// USED BY: "mine:<id>", "pool:<place>" (cleared when the lists are read again).
     public private(set) var users: [String: FizzUsers] = [:]
     /// LOAD ON FM-1 while the unit's browser is open; then what came of it (true: the track loaded it).
@@ -241,7 +241,7 @@ public final class UnitActions {
 
     /// One edit (manager.js edit): not now without a unit or while a transfer runs; a refusal but IN USE said in the
     /// LOG; the FM-1 silent or gone: noAnswer.
-    private func perform<V: Sendable & Equatable>(_ what: String, place: Int = 0,
+    func perform<V: Sendable & Equatable>(_ what: String, place: Int = 0,
                                                   _ f: (FizzLink) async throws -> FizzResult<V>) async -> Answer<V> {
         guard canWrite, let link else { return Answer(result: nil, outcome: .notNow) }
         editing += 1

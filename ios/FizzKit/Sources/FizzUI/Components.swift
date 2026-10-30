@@ -210,17 +210,23 @@ struct Segmented: View {
 
 // MARK: - The preset row
 
-/// One preset (.cas): its colour's stripe, slot, algorithm glyph, NAME, POOL badge, first tag.
+/// One preset (.cas): its colour's stripe, slot, algorithm glyph, NAME, POOL badge, first tag. SELECT on: a tick
+/// before it (cream when ticked, the row ringed).
 struct PresetRow: View {
     let entry: FizzListEntry
     let algorithm: Int
     var selected = false
     var marks = true
     var nameSize: CGFloat = 16
+    /// SELECT on: the tick shown
+    var ticking = false
+    var ticked = false
 
     var body: some View {
         let tint = FizzTag.tint(mask: entry.tags)
+        let ring = ticked ? FZ.cream : FZ.cyan, lit = selected || ticked
         HStack(spacing: marks ? 10 : 8) {
+            if ticking { Tick(on: ticked, color: FZ.cream) }
             // (room for three digits: MY PRESETS 100..256 broke onto two lines)
             Text("\(entry.slot)").fz(13, 700).monospacedDigit().foregroundStyle(FZ.muted.color).lineLimit(1)
                 .frame(width: marks ? 30 : 27, alignment: .trailing)
@@ -236,16 +242,34 @@ struct PresetRow: View {
         }
         .padding(.leading, marks ? 14 : 10).padding(.trailing, marks ? 12 : 8)
         .frame(height: 56)
-        .background(RoundedRectangle(cornerRadius: 12).fill(FZ.raised.color))
+        .background(RoundedRectangle(cornerRadius: 12).fill(ticked ? FZ.cream.mix(7, FZ.raised).color : FZ.raised.color))
         .overlay(alignment: .leading) {
             RoundedRectangle(cornerRadius: 2).fill(tint.color).frame(width: 4).padding(.vertical, 9)
         }
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? FZ.cyan.color : FZ.line.color, lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(lit ? ring.color : FZ.line.color, lineWidth: 1.5))
         .background(
-            RoundedRectangle(cornerRadius: 12).stroke(FZ.cyan.opacity(selected ? 0.35 : 0), lineWidth: 4)
-                .shadow(color: FZ.cyan.opacity(selected ? 0.3 : 0), radius: 10)
+            RoundedRectangle(cornerRadius: 12).stroke(ring.opacity(lit ? 0.35 : 0), lineWidth: 4)
+                .shadow(color: ring.opacity(lit ? 0.3 : 0), radius: 10)
         )
         .contentShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// SELECT's tick: a ring, filled with a check when ticked.
+struct Tick: View {
+    let on: Bool
+    var color: RGB = FZ.cream
+    var body: some View {
+        ZStack {
+            Circle().strokeBorder(on ? .clear : FZ.dim.color, lineWidth: 2)
+            if on {
+                Circle().fill(color.color)
+                IconView(KeptArt.check, color: .black, lineWidth: 3, backdrop: color.color).frame(width: 14, height: 14)
+            }
+        }
+        .frame(width: 28, height: 28)
+        .scaleEffect(on ? 1 : 0.92)
+        .animation(.spring(response: 0.25, dampingFraction: 0.5), value: on)
     }
 }
 
