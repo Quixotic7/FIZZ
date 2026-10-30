@@ -23,6 +23,8 @@ public enum EditTarget: Sendable, Equatable {
     /// a KEPT preset (SAVE writes its file back) and + NEW on KEPT (INIT, saved to KEPT)
     case kept(KeptPreset)
     case newKept
+    /// LIBRARY's + NEW (mock-up 46): sound.js newSound, an FM sound (INIT) or a MIDI sound, unsaved until SAVE AS NEW
+    case new(midi: Bool)
 }
 
 /// Where the edited sound came from (editor.js E.place).
@@ -40,10 +42,13 @@ public struct EditPlace: Sendable, Equatable {
     public var fromTarget: Bool
     /// KEPT: the preset's file (nil: + NEW, not saved yet); a file's: the KEPT copy KEEP made (nil: none yet)
     public var kept: String?
+    /// LIBRARY's + NEW: stored nowhere yet (SAVE AS NEW stores it; leaving EDIT asks first)
+    public var unsaved: Bool
 
-    public init(label: String, source: String, slot: Int = 0, id: Int = 0, track: Int = -1, fromTarget: Bool = false, kept: String? = nil) {
+    public init(label: String, source: String, slot: Int = 0, id: Int = 0, track: Int = -1, fromTarget: Bool = false, kept: String? = nil,
+                unsaved: Bool = false) {
         self.label = label; self.source = source; self.slot = slot; self.id = id; self.track = track; self.fromTarget = fromTarget
-        self.kept = kept
+        self.kept = kept; self.unsaved = unsaved
     }
     /// A KEPT preset's place (nil: + NEW).
     public static func kept(_ id: String?) -> EditPlace { EditPlace(label: "KEPT", source: "kept", kept: id) }
@@ -51,6 +56,8 @@ public struct EditPlace: Sendable, Equatable {
     /// a sound from a file (IMPORT's EDIT): KEEP puts it on the phone, SAVE AS NEW on the unit
     public var isFile: Bool { source == "file" }
     public static let new = EditPlace(label: "NEW SOUND", source: "new")
+    /// + NEW's sound (mock-up 46): the "NEW" label, SAVE dimmed, SAVE AS NEW to the first free MY PRESETS place
+    public static let plusNew = EditPlace(label: "NEW", source: "new", unsaved: true)
 }
 
 /// EDIT's pages (editor.js SECTIONS, VOICE its own page).
@@ -132,6 +139,8 @@ public final class EditorModel {
     public internal(set) var silent: String?
     /// the name being typed (the read-back leaves it alone)
     public var naming = false
+    /// + NEW's sound unsaved: the tab or the sound waiting while the screen asks first (NewSound.swift)
+    public internal(set) var asking: NewSoundAsk?
 
     @ObservationIgnored weak var unit: UnitModel?
     @ObservationIgnored private var baseFrame: [UInt8]?
@@ -142,6 +151,8 @@ public final class EditorModel {
     /// show / hide / a track picked, one after another
     @ObservationIgnored private var chain: Task<Void, Never>?
     @ObservationIgnored let edits = SerialQueue()
+    /// an older FIZZ's mix edit: the whole sound sent 120 ms after the last one (live.js mixLater)
+    @ObservationIgnored private var mixTask: Task<Void, Never>?
     @ObservationIgnored private let notes = SerialQueue()
     /// set by LIBRARY / a file (UnitModel.editTarget), taken when EDIT shows
     var request: EditTarget?
@@ -160,7 +171,7 @@ public final class EditorModel {
     public var live: Bool { following && canRead }
     public var dirty: Bool {
         guard let s = sound, let b = base else { return false }
-        return !s.sameValues(b) || s.name != b.name || s.tags != b.tags
+        return !s.sameValues(b) || !s.sameMix(b) || s.name != b.name || s.tags != b.tags
     }
     /// SAVE over the MY preset it came from; SAVE AS NEW (manager.js canSave).
     public var canSave: Bool {
@@ -180,7 +191,10 @@ public final class EditorModel {
         return track >= 0 ? track : unitSelected
     }
 
-    public func value(_ id: Int) -> Int { sound?.values.indices.contains(id) == true ? sound!.values[id] : 0 }
+    public func value(_ id: Int) -> Int {
+        if EditMix.isMix(id) { return sound?.mixValue(id) ?? 0 }
+        return sound?.values.indices.contains(id) == true ? sound!.values[id] : 0
+    }
     public func text(_ id: Int) -> String { table?.text(id, value(id)) ?? "" }
 
     // MARK: shown, hidden, asked
@@ -193,8 +207,10 @@ public final class EditorModel {
     /// EDIT shown (manager.js tab("edit"): editor.show, live.show): a target asked for is opened (heard on the
     /// track); else the sound opened here is heard again, or the track is followed.
     public func show() async {
-        let t = request
+        var t = request
         request = nil
+        // (+ NEW's sound unsaved: another sound waits for the question; + NEW's own sound shows meanwhile)
+        if let x = t, asksBeforeReplacing(with: x) { t = nil }
         guard !shown || t != nil else { return }
         shown = true
         await enqueue { await self.showing(t) }.value
@@ -210,7 +226,7 @@ public final class EditorModel {
         } else if canRead {
             await attach()
         }
-        if sound == nil, let t = table { open(blank(t), place: .new) }
+        if sound == nil, let b = await blank() { open(b, place: .new) }
         if following && shown { startPoll() }
     }
 
@@ -265,10 +281,17 @@ public final class EditorModel {
             guard let f = await unit?.kept.full(k), let s = try? await e.editSound(lib: f.sound) else { return }
             await borrow(s, place: .kept(k.id)) { await a?.pickSound(f.sound, borrow: true) ?? .notNow }
         case .newKept:
-            guard let t = table else { return }
-            let s = blank(t)
+            guard let s = await blank() else { return }
             let lib = try? await e.libSound(s)
             await borrow(s, place: .kept(nil)) {
+                guard let lib else { return .notNow }
+                return await a?.pickSound(lib, borrow: true) ?? .notNow
+            }
+        case .new(let midi):
+            // (an FM sound heard on the track as any sound opened here; a MIDI one opens silently)
+            guard let s = try? await e.newSound(midi: midi) else { return }
+            let lib = try? await e.libSound(s)
+            await borrow(s, place: .plusNew) {
                 guard let lib else { return .notNow }
                 return await a?.pickSound(lib, borrow: true) ?? .notNow
             }
@@ -284,7 +307,19 @@ public final class EditorModel {
         say("edit: \(s.name) (\(p.label))")
     }
 
-    private func blank(_ t: EditTable) -> EditSound { EditSound(name: "INIT", values: t.defaults) }
+    /// sound.js newSound("fm"): FM TONE's defaults, named INIT, a track's mix (reverb 20).
+    /// No sound (+ NEW's discarded): the next show follows the track, or opens a blank INIT.
+    func dropSound() {
+        sound = nil
+        base = nil
+        place = .new
+    }
+
+    private func blank() async -> EditSound? {
+        if let s = try? await engine()?.newSound(midi: false) { return s }
+        guard let t = table else { return nil }
+        return EditSound(name: "INIT", values: t.defaults, pan: t.mixDefaults.pan, sends: t.mixDefaults.sends)
+    }
 
     // MARK: the track
 
@@ -407,9 +442,11 @@ public final class EditorModel {
             if rebase || base?.isMidi != s.isMidi { base = n }
             return true
         }
-        var changed = cur.values != s.values || cur.midi != s.midi
+        var changed = cur.values != s.values || cur.midi != s.midi || !cur.sameMix(s)
         cur.values = s.values
         cur.midi = s.midi
+        cur.pan = s.pan
+        cur.sends = s.sends
         if s.name != cur.name && !naming { cur.name = s.name; changed = true }
         guard changed else { return false }
         sound = cur
@@ -533,6 +570,7 @@ public final class EditorModel {
 
     /// A value turned: clamped, kept, and on the track a PARAM. false: unchanged.
     @discardableResult public func set(_ id: Int, _ v: Int) -> Bool {
+        if EditMix.isMix(id) { return setMix(id, v) }
         guard var s = sound, let t = table, s.values.indices.contains(id) else { return false }
         let x = t.clamp(id, v)
         guard s.values[id] != x else { return false }
@@ -540,6 +578,44 @@ public final class EditorModel {
         sound = s
         if live, let p = actions?.pump { edits.run { await p.param(id: id, value: x) } }
         return true
+    }
+
+    /// PAN or a send turned (mock-up 45): PARAM 115..118 on the track; a FIZZ that answered one NOT FOUND (older):
+    /// the whole sound as an AUDITION, 120 ms after the last edit (live.js). A MIDI sound has no mix (no voice).
+    private func setMix(_ id: Int, _ v: Int) -> Bool {
+        guard var s = sound, !s.isMidi, let t = table, t.info(id) != nil else { return false }
+        let x = t.clamp(id, v)
+        guard s.mixValue(id) != x else { return false }
+        s.setMix(id, x)
+        sound = s
+        guard live, let a = actions, let p = a.pump else { return true }
+        if a.noMix { mixLater() } else { edits.run { await p.param(id: id, value: x) } }
+        return true
+    }
+
+    /// The whole sound to the track once the mix edits pause (an older FIZZ: no mix PARAMs).
+    func mixLater() {
+        mixTask?.cancel()
+        // (the read-back waits: the track has the old mix until the sound goes)
+        if let p = actions?.pump { Task { await p.touch() } }
+        mixTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard let self, !Task.isCancelled else { return }
+            self.mixTask = nil
+            self.sendWhole()
+        }
+    }
+
+    /// The sound as it is now onto the followed track (an AUDITION in the PARAMs' queue: a MIDI sound's slots, an
+    /// older FIZZ's mix).
+    private func sendWhole() {
+        guard live, let s = sound, let p = actions?.pump, let e = engine() else { return }
+        let t = track, x = s.extras ?? EditExtras()
+        edits.run {
+            guard let f = try? await e.storeFrame(s, track: t, audition: true,
+                                                  extras: FizzTrackExtrasIn(id: x.id, sound: x.sound, edited: true)) else { return }
+            await p.sound(f)
+        }
     }
 
     /// A value back to its default (a double tap).
@@ -554,17 +630,7 @@ public final class EditorModel {
         m[k] = n
         s.midi = m
         sound = s
-        if live, let p = actions?.pump, let e = engine() {
-            let t = track
-            var x = s.extras ?? EditExtras()
-            x.edited = true
-            let snd = s
-            edits.run {
-                guard let f = try? await e.storeFrame(snd, track: t, audition: true,
-                                                      extras: FizzTrackExtrasIn(id: x.id, sound: x.sound, edited: true)) else { return }
-                await p.sound(f)
-            }
-        }
+        sendWhole()
         return true
     }
 
@@ -591,6 +657,8 @@ public final class EditorModel {
     public func revert() async {
         guard let b = base else { return }
         sound = b
+        mixTask?.cancel()
+        mixTask = nil
         guard live, let a = actions else { return }
         if place.fromTarget, opened == nil, let f = baseFrame {
             _ = await a.revert(to: f)
@@ -705,6 +773,7 @@ public final class EditorModel {
 
     /// Returns when the queued edits and notes went out (the tests).
     func settle() async {
+        await mixTask?.value
         await edits.drain()
         await notes.drain()
         await actions?.pump?.idle()

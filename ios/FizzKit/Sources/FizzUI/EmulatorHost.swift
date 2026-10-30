@@ -7,6 +7,9 @@
 // clock runs on a timer while it is the unit (FizzLink's SysEx needs it), with the sound while it is heard (PLAY
 // shown, TRACK on it, a keybed note, a pattern left playing), and not at all otherwise. In the background
 // FizzEmulator stops it itself and starts it again in the foreground.
+// A backup played (mock-up 44, BackupPlay.swift) runs on a throwaway FizzEmulator with no flash file: the core is the
+// process's one, so THIS iPHONE's is stopped (its flash saved) and set aside meanwhile, and on × boots again from
+// its file and takes the core back, its clock as the needs ask.
 
 import FizzEngine
 import FizzKit
@@ -22,9 +25,21 @@ public protocol EmulatorEngine: AnyObject, Sendable {
     @discardableResult func start(sound: Bool) -> FizzEmulator.ClockMode
     func stop()
     func reset()
+    /// Stopped and its whole flash saved, whatever FIZZ still held back (a backup is about to take the core).
+    func setAside()
 }
 
-extension FizzEmulator: EmulatorEngine {}
+extension EmulatorEngine {
+    public func setAside() { stop() }
+}
+
+extension FizzEmulator: EmulatorEngine {
+    /// (save(force:): a STORE just made may not be counted dirty yet; the copy syncs it first)
+    public func setAside() {
+        stop()
+        save(force: true)
+    }
+}
 
 @MainActor @Observable
 public final class EmulatorHost {
@@ -54,6 +69,10 @@ public final class EmulatorHost {
     public private(set) var notes = false
     /// Its STATUS as PLAY's sheet last read it (while an FM-1 is the unit; else UnitModel's)
     public private(set) var status: FizzStatus?
+    /// The backup PLAY plays (nil: THIS iPHONE's own FIZZ).
+    public private(set) var backup: BackupPlaying?
+    /// What PLAY drives: the backup's throwaway FIZZ while one plays, else the app's own.
+    public var active: FizzEmulator? { backup?.emulator ?? emulator }
 
     @ObservationIgnored private var wanted: FizzEmulator.ClockMode = .stopped
     @ObservationIgnored private let ops = DispatchQueue(label: "fizz.emulator.host", qos: .userInitiated)
@@ -137,8 +156,9 @@ public final class EmulatorHost {
         update()
     }
 
-    /// RESET: a fresh flash (the saved one removed); the clock as it was.
+    /// RESET: a fresh flash (the saved one removed); the clock as it was. (THIS iPHONE's: a backup playing ends first.)
     public func reset() async {
+        await endBackup()
         let e = engine
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
             ops.async { e.reset(); k.resume() }
@@ -154,7 +174,7 @@ public final class EmulatorHost {
 
     /// Its STATUS through a port of its own (PLAY's MEMORY while an FM-1 is the unit).
     public func readStatus() async {
-        guard let e = emulator, e.isBooted, e.mode != .stopped else { return }
+        guard let e = active, e.isBooted, e.mode != .stopped else { return }
         let link = FizzLink(transport: e.makeTransport(name: Self.portName), portName: Self.portName)
         status = await link.status()
         await link.close()
@@ -170,10 +190,11 @@ public final class EmulatorHost {
 
     func update() {
         guard launched, !closed else { return }
-        let e = engine
-        let c = Self.clock(playShown: playShown, serving: serving, trackOn: trackOn && serving, notes: notes,
-                           playing: wanted == .audio && e.isPlaying, now: wanted)
-        let w = c == .stopped && lent > 0 ? .timer : c          // (lend: SEND's link needs its clock)
+        // (a backup playing: its throwaway FIZZ is no unit; THIS iPHONE's stays stopped until ×)
+        let e: any EmulatorEngine = backup?.emulator ?? engine, own = backup == nil
+        let c = Self.clock(playShown: playShown, serving: serving && own, trackOn: trackOn && serving && own,
+                           notes: notes && own, playing: wanted == .audio && e.isPlaying, now: wanted)
+        let w = c == .stopped && lent > 0 && own ? .timer : c   // (lend: SEND's link needs its clock)
         guard w != wanted else { return }
         wanted = w
         ops.async { [weak self] in
@@ -191,9 +212,60 @@ public final class EmulatorHost {
     /// clock stopped.
     public func close() async {
         closed = true
-        let e = engine
-        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in ops.async { e.stop(); k.resume() } }
+        let e = engine, b = backup?.emulator
+        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
+            ops.async { b?.stop(); e.stop(); k.resume() }
+        }
         mode = .stopped
+    }
+
+    // MARK: a backup played (mock-up 44)
+
+    /// PLAY on a backup: `flash` (the core's whole image, StoreImage.hostFlash) booted in a throwaway FizzEmulator with
+    /// no flash file. THIS iPHONE's is stopped first (its flash saved: the core is the process's one) and stays
+    /// stopped, its port gone, until endBackup(). Another backup playing is thrown away first.
+    public func playBackup(flash: [UInt8], name: String, date: Date) async {
+        guard launched, !closed, emulator != nil else { return }
+        play.letGoAll()
+        let old = backup?.emulator
+        let b = FizzEmulator(storage: nil, identity: Self.identity)
+        b.log = { print("FIZZ (backup): \($0)") }
+        let own = engine
+        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
+            ops.async {
+                if let old { old.stop() } else { own.setAside() }   // (THIS iPHONE's flash saved while it has the core)
+                b.boot(flash: flash)                                // (the core taken: THIS iPHONE's transports lost)
+                k.resume()
+            }
+        }
+        backup = BackupPlaying(emulator: b, name: name, date: date)
+        wanted = .stopped
+        mode = .stopped
+        notes = false
+        update()
+        await settle()
+        poke?()                                                     // (THIS iPHONE's port gone: UnitModel looks again)
+    }
+
+    /// ×: the backup's FIZZ thrown away, THIS iPHONE's booted again from its saved flash (the core taken back) and its
+    /// clock started as the needs ask; its port back.
+    public func endBackup() async {
+        guard let b = backup else { return }
+        play.letGoAll()
+        backup = nil
+        let own = engine, throwaway = b.emulator
+        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
+            ops.async {
+                throwaway.stop()
+                own.boot()
+                k.resume()
+            }
+        }
+        wanted = .stopped
+        mode = .stopped
+        update()
+        await settle()
+        poke?()
     }
 
     /// Returns when the clock changes asked for are made.

@@ -3,7 +3,8 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // BACKUP (mock-up 06): THIS FM-1 (its version, projects, presets, the store's use and meter), BACK UP and PRESETS
-// ONLY, the last read's speed, and the backups kept: share, swipe to delete, open a file.
+// ONLY, the last read's speed, and the backups kept: ▶ play a full one (mock-up 44, BackupPlay.swift), share, swipe to
+// delete, open a file.
 
 import SwiftUI
 import FizzData
@@ -44,7 +45,9 @@ struct BackupView: View {
                                   unitVersion: model.unit?.shortVersion, flash: b.added == e.name,
                                   onDelete: { b.delete(e) }, onShare: { b.shared(e) },
                                   onRestore: b.busy || model.actions.busy ? nil : { Task { await model.restoring.present(e) } },
-                                  emulated: e.identity == EmulatorHost.identity)
+                                  emulated: e.identity == EmulatorHost.identity,
+                                  onPlay: playAction(e),
+                                  playing: b.playingName == e.name)
                             .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
                                                     removal: .opacity))
                     }
@@ -59,6 +62,15 @@ struct BackupView: View {
             // (one file: RESTORE / ADD PRESETS offered, as the page does)
             Task { if urls.count == 1 { await model.restoring.open(urls[0]) } else { for u in urls { await b.open(u) } } }
         }
+    }
+}
+
+extension BackupView {
+    /// ▶ on a full backup's row (nil: none).
+    func playAction(_ e: BackupEntry) -> (() -> Void)? {
+        let b = model.backups
+        guard b.canPlay(e) else { return nil }
+        return { Task { @MainActor in _ = await b.play(e) } }
     }
 }
 
@@ -211,6 +223,10 @@ struct BackupRow: View {
     var onRestore: (() -> Void)?
     /// the emulated FIZZ's backup (its colour, a phone)
     var emulated = false
+    /// ▶ (a full backup; nil: none)
+    var onPlay: (() -> Void)?
+    /// PLAY plays this one (its row ringed, ▶ filled)
+    var playing = false
 
     @Environment(\.fizzSnapshot) private var snapshot
     @State private var dx: CGFloat = 0
@@ -283,7 +299,8 @@ struct BackupRow: View {
     }
 
     private var card: some View {
-        HStack(spacing: 12) {
+        let emu = PlayTheme.saved.accent
+        return HStack(spacing: onPlay == nil ? 12 : 9) {
             IconView(emulated ? PlayIcons.phone : Icons.backup, color: tint.color, lineWidth: 2.2,
                      backdrop: tint.mix(18, FZ.raised).color)
                 .frame(width: 24, height: 24)
@@ -292,26 +309,32 @@ struct BackupRow: View {
                 .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(tint.color, lineWidth: 1.5))
             VStack(alignment: .leading, spacing: 2) {
                 Text(whenText(entry.date)).fz(18, 800).foregroundStyle(FZ.text.color).lineLimit(1)
-                HStack(spacing: 11) {
+                // (with ▶ beside: closer, the version smaller, as .bk:has(.bplay))
+                let tight = onPlay != nil
+                HStack(spacing: tight ? 7 : 11) {
                     if let p = entry.projects { Dot(color: FZ.green, text: "\(p.count)") }
                     Dot(color: FZ.cream, text: "\(entry.presets)")
                     Text(sizeText(entry.size)).fz(13, 700).foregroundStyle(FZ.muted.color)
                     if !version.isEmpty, old || (unitVersion != nil && version != unitVersion) {
                         let c = old ? FZ.orange : FZ.muted
-                        Text(version).fz(12, 800).foregroundStyle(c.color)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
+                        Text(version).fz(tight ? 11 : 12, 800).foregroundStyle(c.color)
+                            .padding(.horizontal, tight ? 5 : 6).padding(.vertical, tight ? 1 : 2)
                             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(c.color, lineWidth: 1.5))
+                            .fixedSize()
                     }
                 }
                 .lineLimit(1)
             }
             Spacer(minLength: 4)
+            if let onPlay { BackupPlayButton(on: playing, action: onPlay) }
             ShareIcon(url: url, onShare: onShare)
         }
         .padding(.leading, 12).padding(.trailing, 8)
         .frame(height: 70)
         .background(RoundedRectangle(cornerRadius: 16).fill(FZ.raised.color))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(FZ.line.color, lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 16)
+            .strokeBorder((playing ? emu.mix(70, FZ.line) : FZ.line).color, lineWidth: 1.5)
+            .shadow(color: playing ? emu.opacity(0.25) : .clear, radius: 9))
         .overlay(
             RoundedRectangle(cornerRadius: 16).strokeBorder(FZ.yellow.color, lineWidth: 2)
                 .shadow(color: FZ.yellow.color, radius: 10)

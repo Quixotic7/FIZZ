@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="css/neon.css">
 <link rel="stylesheet" href="css/shell.css">
 <link rel="stylesheet" href="css/unit.css">
+<link rel="stylesheet" href="css/ports.css">
 <link rel="stylesheet" href="css/library.css">
 <link rel="stylesheet" href="css/backup.css">
 <link rel="stylesheet" href="css/edit.css">
@@ -43,7 +44,10 @@
   <button id="spk" class="spk" data-state="off" hidden></button>
   <button id="unit" class="unit" data-u="browser" data-state="look" aria-haspopup="dialog" aria-expanded="false" aria-controls="upick"></button>
   <button id="fm1" class="fm1c" data-state="absent" hidden></button>
-  <details class="logbox" id="logbox"><summary aria-label="Log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>LOG</summary><pre id="log"></pre></details>
+  <details class="logbox" id="logbox"><summary aria-label="Log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>LOG</summary><div class="lpanel" id="lpanel" role="dialog" aria-label="Log and ports">
+    <div class="lphead"><div class="lpseg" role="tablist"><button role="tab" data-lp="log" id="lp-log" class="on" aria-selected="true">LOG</button><button role="tab" data-lp="ports" id="lp-ports" aria-selected="false">PORTS</button></div>
+      <span class="when hud" id="lp-when"></span><button class="ol again" id="lp-again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg><span class="lk">LOOK </span>AGAIN</button><button class="ol cp" id="lp-copy" aria-label="Copy" title="Copy"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V4.5a1.5 1.5 0 0 0-1.5-1.5H5A1.5 1.5 0 0 0 3.5 4.5V12A1.5 1.5 0 0 0 5 13.5h1.5"/></svg></button></div>
+    <pre id="log"></pre><div class="pview" id="lp-view" hidden></div></div></details>
 </header>
 <div class="upick" id="upick" hidden><div class="upscrim" id="upick-scrim"></div><div class="uppop" id="upick-pop" role="dialog" aria-label="Unit"></div></div>
 <p id="say" class="say" role="status"></p>
@@ -85,11 +89,13 @@
         <div class="lfind"><label class="find tube"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><input type="search" id="l-q" placeholder="Find a sound" aria-label="Find a sound" autocomplete="off" spellcheck="false"><span class="hud slash" aria-hidden="true">/</span></label>
           <div class="srcmenu"><button id="l-src" class="tube on srcbtn" aria-haspopup="menu" aria-expanded="false">MINE ▾</button><div class="srcpop" id="l-srcpop" role="menu" hidden></div></div></div>
         <button id="l-select" class="ol selbtn" aria-pressed="false">SELECT</button>
-        <button id="l-export-all" class="ol exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT ALL</button></div>
+        <button id="l-export-all" class="ol exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT ALL</button>
+        <button id="l-new" class="arc breathe nnew" aria-haspopup="dialog" aria-expanded="false" aria-controls="l-newpop" aria-label="New sound" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg>NEW</button></div>
       <div class="cases" id="l-list"></div>
     </div>
     <aside class="card sel" id="l-sel" aria-label="The sound picked"></aside>
     <aside class="card bulk tube on" id="l-bulk" aria-label="The sounds selected" hidden></aside>
+    <div class="nnwrap" id="l-newwrap" hidden><div class="scrimx" id="l-newscrim"></div><div class="newpop" id="l-newpop" role="dialog" aria-label="New sound"></div></div>
   </section>
 
   <section id="tab-edit" class="body edit" role="tabpanel" aria-labelledby="t-edit" hidden>

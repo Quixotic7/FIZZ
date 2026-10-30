@@ -9,7 +9,10 @@
 // MY preset can also be dragged onto another. A tap opens the preset (the phone's sheet, the iPad's third column)
 // and, with TRACK on, plays it on the track (KEEP / CANCEL). The search (manager.js l-q) narrows MY PRESETS, FACTORY
 // and KEPT by name as it is typed: on the phone a magnifier before the filter chips opens it under the sections, the
-// iPad's sits in the header; it stays while the sections change and goes with the tab.
+// iPad's sits in the header; it stays while the sections change and goes with the tab. SELECT (mock-ups 41, 42, 47;
+// LibrarySelect.swift) ticks MY PRESETS and FACTORY rows for TAG, + / − POOL, DELETE, EXPORT and SEND: on the phone
+// its bar takes the tab bar's place, on the iPad its panel the detail column; one side at a time (KEPT's or the
+// unit's), the other side greyed on the iPad.
 
 import SwiftUI
 import FizzData
@@ -41,6 +44,10 @@ struct LibraryView: View {
     /// the phone's search field shown (the iPad's always is)
     @State private var searching = false
     @FocusState private var searchFocus: Bool
+    /// SELECT's sheets (TAG, DELETE) and the phone's bar's height
+    @State private var tagging: BulkTagAsk?
+    @State private var deleting: BulkDeleteAsk?
+    @State private var bulkHeight: CGFloat = 200
 
     struct SheetKey: Identifiable, Equatable { let id: String }
 
@@ -62,9 +69,22 @@ struct LibraryView: View {
         .sheet(item: $exporting) { box in
             ExportSheet(sounds: box.sounds) { exporting = nil }
         }
+        .sheet(item: $tagging) { _ in BulkTagSheet(flow: bulk) { tagging = nil } }
+        .sheet(item: $deleting) { a in BulkDeleteSheet(flow: bulk, ask: a) { deleting = nil } }
         .onAppear {
             if snapshot, let s = shotSelection, s.hasPrefix("mine:") || s.hasPrefix("factory:") || s.hasPrefix("kept:") { selected = s }
             if snapshot { keptOn = shotSelection?.hasPrefix("kept") == true } else if model.noFM1 { keptOn = true }
+            // (fizzshots: "select:mine:2,factory:14" ticks those, " search:<name>" after it types a search too)
+            if snapshot, let s = shotSelection, s.hasPrefix("select:") {
+                let ks = s.dropFirst(7).prefix { $0 != " " }.split(separator: ",").map(String.init)
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) {
+                    model.picks.on = true
+                    if !ks.isEmpty { model.picks.set(Set(ks)) }
+                    filter.source = .all
+                }
+            }
             // (fizzshots: "search:<name>" on ALL, "kept-search:<name>" on KEPT)
             if snapshot, let s = shotSelection, let r = s.range(of: "search:") {
                 var t = Transaction()
@@ -76,9 +96,28 @@ struct LibraryView: View {
                 }
             }
         }
-        // (the search goes with the tab)
-        .onDisappear { closeSearch() }
+        // (the search and SELECT go with the tab)
+        .onDisappear {
+            closeSearch()
+            if !snapshot { model.picks.clear() }
+        }
         .onChange(of: model.noFM1) { _, no in if no { keptOn = true } }
+        // (one side at a time: KEPT shown on the phone ends the unit's SELECT; another unit too)
+        .onChange(of: keptOn) { _, k in if k && !wide { model.picks.clear() } }
+        .onChange(of: model.unitKey) { _, _ in model.picks.clear() }
+        // (`-select mine:2,mine:19` with a demo unit: SELECT on ALL with those ticked, for the simulator's screenshots)
+        .task(id: model.dumpsLoaded) {
+            let a = ProcessInfo.processInfo.arguments
+            guard !snapshot, model.dumpsLoaded, model.source is DemoUnitsSource || model.source is DemoLinkSource,
+                  let k = a.firstIndex(of: "-select"), k + 1 < a.count else { return }
+            try? await Task.sleep(for: .milliseconds(1200))
+            keptOn = false
+            filter.source = .all
+            model.picks.on = true
+            model.picks.set(Set(a[k + 1].split(separator: ",").map(String.init)))
+            if a.contains("-select-tag") { tagging = BulkTagAsk() }
+            if a.contains("-select-delete") { bulk.askDelete() }
+        }
         // (`-preset mine:2` with a demo unit: that preset's sheet open, for the simulator's screenshots)
         .task(id: model.dumpsLoaded) {
             let a = ProcessInfo.processInfo.arguments
@@ -108,6 +147,18 @@ struct LibraryView: View {
     }
 
     private func key(_ r: FizzListEntry) -> String { "\(r.source):\(r.slot)" }
+    private var picks: LibraryPicks { model.picks }
+    private var bulk: BulkFlow { BulkFlow(model: model, note: $note, ask: $ask, deleting: $deleting, exporting: $exporting) }
+
+    /// SELECT / DONE on the unit's side (KEPT's selection ends: one side at a time).
+    private func toggleSelect() {
+        if picks.active { picks.clear(); return }
+        if model.kept.selecting { setPadSelecting(false) }
+        moving = nil
+        openRow = nil
+        sheet = nil
+        picks.start()
+    }
     private var hasQuery: Bool { !NameSearch.clean(filter.query).isEmpty }
 
     private func toggleSearch() {
@@ -147,6 +198,15 @@ struct LibraryView: View {
 
     private func tap(_ r: FizzListEntry) {
         openRow = nil
+        // (SELECT on: a tap ticks; the iPad's KEPT selection gives way, as the web's pick of the other side)
+        if wide && model.kept.selecting {
+            setPadSelecting(false)
+            picks.start()
+        }
+        if picks.active {
+            picks.toggle(r)
+            return
+        }
         if let m = moving {
             guard r.source == "mine" else { return }
             moving = nil
@@ -171,7 +231,8 @@ struct LibraryView: View {
     private func row(_ r: FizzListEntry, compact: Bool = false) -> some View {
         LibraryRow(entry: r, algorithm: model.algorithm(r), selected: selected == key(r), compact: compact,
                    places: places[r.id] ?? [], canWrite: model.actions.canWrite, nameSize: wide || compact ? 15 : 16,
-                   moving: moving != nil && r.source == "mine" && r.slot == moving, dragReorder: wide,
+                   moving: moving != nil && r.source == "mine" && r.slot == moving, dragReorder: wide && !picks.active,
+                   ticking: picks.active, ticked: picks.picked(r),
                    isOpen: openRow == key(r), setOpen: { o in openRow = o ? key(r) : openRow == key(r) ? nil : openRow },
                    open: snapshot && shotSelection == "swipe:\(key(r))",
                    onTap: { tap(r) },
@@ -257,22 +318,19 @@ struct LibraryView: View {
 
     private var phoneBody: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Group {
-                if keptOn {
-                    LibrarySourceSeg(kept: $keptOn, source: $filter.source)
-                } else {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 10) {
-                            LibrarySourceSeg(kept: $keptOn, source: $filter.source).fixedSize()
-                            Spacer(minLength: 0)
-                            Count(n: filter.source == .factory ? model.factory.count : model.mine.count,
-                                  of: filter.source == .factory ? nil : nlib)
-                        }
-                        LibrarySourceSeg(kept: $keptOn, source: $filter.source)
-                    }
+            LibrarySourceSeg(kept: $keptOn, source: $filter.source)
+                .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
+            if !keptOn {
+                // (the unit's count, SELECT; Part E's + NEW beside it)
+                HStack(spacing: 10) {
+                    Count(n: filter.source == .factory ? model.factory.count : model.mine.count,
+                          of: filter.source == .factory ? nil : nlib)
+                    Spacer(minLength: 0)
+                    SelectPill(selecting: picks.active, enabled: model.unit != nil) { toggleSelect() }
+                    NewSoundButton(model: model)
                 }
+                .padding(.horizontal, 16).padding(.bottom, 12)
             }
-            .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
             if searching {
                 SearchField(text: $filter.query, focus: $searchFocus)
                     .padding(.horizontal, 16).padding(.bottom, 12)
@@ -290,7 +348,7 @@ struct LibraryView: View {
             } else {
                 unitList
             }
-            if model.actions.trackOn && !(keptOn && model.kept.selecting) {
+            if model.actions.trackOn && !(keptOn && model.kept.selecting) && !(!keptOn && picks.active) {
                 KeybedGrip(open: Binding(get: { model.editor.keysOpen }, set: { model.editor.keysOpen = $0 }))
                     .padding(.bottom, clearance - 4)
             }
@@ -312,13 +370,14 @@ struct LibraryView: View {
                 chips
             }
                 .padding(.bottom, 14)
-            ScreenScroll(bottom: clearance + 20 + (moving != nil ? 62 : 0), lazy: true, refresh: { await model.refresh() }) {
+            ScreenScroll(bottom: (picks.active ? bulkHeight + 10 : clearance) + 20 + (moving != nil ? 62 : 0), lazy: true,
+                         refresh: { await model.refresh() }) {
                 if filter.source == .all && !shown.mine.isEmpty { group("MY PRESETS", shown.mine.count) }
                 ForEach(shown.mine, id: \.slot) { row($0) }
                 if filter.source == .all && !shown.factory.isEmpty { group("FACTORY", shown.factory.count) }
                 ForEach(shown.factory, id: \.slot) { row($0) }
                 if hasQuery && shown.mine.isEmpty && shown.factory.isEmpty { NothingCalled(query: filter.query) }
-                if !shown.mine.isEmpty || !shown.factory.isEmpty {
+                if (!shown.mine.isEmpty || !shown.factory.isEmpty) && !picks.active {
                     IconPill(title: "EXPORT ALL", icon: Icons.share, ghost: true, height: 48, size: 14) {
                         export(shown.mine + shown.factory)
                     }
@@ -329,12 +388,22 @@ struct LibraryView: View {
             .overlay(alignment: .top) { if sheet == nil { NoteStrip(note: $note).padding(.top, 4) } }
             // (the keybed slides up over the rows; the KEEP / CANCEL bar is the root's)
             .overlay(alignment: .bottom) {
-                if model.editor.keysOpen {
+                if model.editor.keysOpen && !picks.active {
                     KeybedPanel(e: model.editor).transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .clipped()
         }
+        // (SELECT's bar in the tab bar's place, as KEPT's)
+        .overlay(alignment: .bottom) {
+            if picks.active {
+                BulkBar(flow: bulk, shown: shown.mine + shown.factory) { tagging = BulkTagAsk() }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bulkHeight = $0 }
+                    .padding(.horizontal, 12).padding(.bottom, PhoneRoot.barBottom - 6)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.active)
     }
 
     // MARK: iPad
@@ -361,6 +430,12 @@ struct LibraryView: View {
                         Heading(text: model.unitName, count: filter.source == .factory ? "\(model.factory.count)" : "\(model.mine.count) / \(nlib)",
                                 color: model.unitIsEmulated ? FZ.orange : FZ.green)
                         Spacer(minLength: 0)
+                        // SELECT (cream while on); Part E's + NEW beside it
+                        RoundIcon(art: KeptArt.check, color: picks.active ? FZ.cream : FZ.text, enabled: model.unit != nil, size: 36) {
+                            toggleSelect()
+                        }
+                        .background(Circle().fill(picks.active ? FZ.cream.opacity(0.18) : .clear).frame(width: 36, height: 36))
+                        NewSoundButton(model: model)
                         Button { export(shown.mine + shown.factory) } label: {
                             IconView(Icons.share, color: FZ.text.color, lineWidth: 2.2).frame(width: 18, height: 18)
                                 .frame(width: 36, height: 36)
@@ -379,12 +454,15 @@ struct LibraryView: View {
                     }
                 }
                 .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(FZ.violet.color, lineWidth: 2).opacity(unitDrop ? 1 : 0))
+                // (KEPT's SELECT: the unit's side greyed, a tap takes it back)
+                .opacity(model.kept.selecting ? 0.45 : 1)
                 .modifier(KeptDrop(accept: { s in
                     guard s.hasPrefix("kept:") else { return false }
                     sendDropped(String(s.dropFirst(5)))
                     return true
                 }, lit: $unitDrop))
-                .frame(width: 340)
+                // (SELECT on: the unit's column takes room from KEPT's, greyed, for the ticks)
+                .frame(width: picks.active ? 360 : 340)
                 Card(padding: 14) {
                     KeptHead(count: model.kept.items.count, selecting: model.kept.selecting, compact: true,
                              select: { setPadSelecting(!model.kept.selecting) }, new: newKept)
@@ -400,6 +478,7 @@ struct LibraryView: View {
                         if hasQuery && kshown.isEmpty && !model.kept.items.isEmpty { NothingCalled(query: filter.query) }
                     }
                 }
+                .opacity(picks.active ? 0.4 : 1)
                 .background(RoundedRectangle(cornerRadius: 22).fill(FZ.champagne.opacity(0.04)))
                 .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(FZ.champagne.opacity(keptDrop ? 1 : 0.45), lineWidth: keptDrop ? 2 : 1))
                 .modifier(KeptDrop(accept: { s in
@@ -407,9 +486,11 @@ struct LibraryView: View {
                     keepRow(r)
                     return true
                 }, lit: $keptDrop))
-                .frame(width: 272)
+                .frame(width: picks.active ? 252 : 272)
                 Card(padding: 18) {
-                    if let r = entry(selected) {
+                    if picks.active {
+                        BulkPanel(flow: bulk, shown: shown.mine + shown.factory)
+                    } else if let r = entry(selected) {
                         PresetPanel(model: model, entry: r, wide: true, note: $note, ask: $ask, onExport: export, onMove: startMove) {
                             selected = nil
                         }
@@ -443,6 +524,7 @@ struct LibraryView: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.kept.selecting)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: picks.active)
         .onDisappear { if model.kept.selecting { setPadSelecting(false) } }
     }
 
@@ -450,10 +532,17 @@ struct LibraryView: View {
 
     private func setPadSelecting(_ on: Bool) {
         padPicked = []
+        if on { picks.clear() }
         model.kept.selecting = on
     }
 
     private func tapKept(_ k: KeptPreset) {
+        // (the unit's rows ticked: a KEPT row takes the selection to KEPT's side, as the web's pick of the other side)
+        if picks.active {
+            setPadSelecting(true)
+            padPicked = [k.id]
+            return
+        }
         if model.kept.selecting {
             if padPicked.contains(k.id) { padPicked.remove(k.id) } else { padPicked.insert(k.id) }
             return
@@ -554,6 +643,9 @@ struct LibraryRow: View {
     var moving = false
     /// the iPad: a MY preset dragged onto another swaps them
     var dragReorder = false
+    /// SELECT on: a tick before it (a tap ticks; no swipes)
+    var ticking = false
+    var ticked = false
     /// open (only one row at a time: another one opening shuts this)
     var isOpen = false
     var setOpen: (Bool) -> Void = { _ in }
@@ -586,7 +678,8 @@ struct LibraryRow: View {
             Button {
                 if dx != 0 { withAnimation(snap) { dx = 0 } } else { onTap() }
             } label: {
-                PresetRow(entry: entry, algorithm: algorithm, selected: selected || target, marks: !compact, nameSize: nameSize)
+                PresetRow(entry: entry, algorithm: algorithm, selected: (selected && !ticking) || target, marks: !compact, nameSize: nameSize,
+                          ticking: ticking, ticked: ticked)
                     .overlay {
                         if moving {
                             RoundedRectangle(cornerRadius: 12).strokeBorder(FZ.yellow.color, lineWidth: 2.5)
@@ -598,11 +691,12 @@ struct LibraryRow: View {
             .offset(x: x)
         }
         .frame(height: 56)
-        .sidewaysPan(enabled: canWrite && !compact && !snapshot, changed: swiped, ended: letGo)
+        .sidewaysPan(enabled: canWrite && !compact && !snapshot && !ticking, changed: swiped, ended: letGo)
         .modifier(Reorder(entry: entry, enabled: dragReorder && mine && canWrite, target: $target, onDrop: onDrop, onKept: onKept))
         .modifier(KeptDrag(id: nil, entry: entry, enabled: dragReorder && !(mine && canWrite)))
         .onChange(of: dx != 0) { _, o in if o != isOpen { setOpen(o) } }
         .onChange(of: isOpen) { _, o in if !o && dx != 0 { withAnimation(snap) { dx = 0 } } }
+        .onChange(of: ticking) { _, t in if t && dx != 0 { withAnimation(snap) { dx = 0 } } }
     }
 
     /// Green, under the row: + POOL / − POOL; a tap does it.

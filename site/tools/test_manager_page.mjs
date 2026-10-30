@@ -60,6 +60,12 @@
 //     and the pill; NEW on an empty PROJECTS slot (the FM-1 and THIS BROWSER); LOAD ON FM-1 onto a track 1..6 (kept);
 //   - EDIT pan and sends (2026-10-29): PAN, CHO, DEL, REV on AMP (panel, page, phone), dragged, SAVE AS NEW; live
 //     PARAM 115..118, NOT FOUND's AUDITION (stubbed); the browser's FIZZ the same;
+//   - nf-new (parity 2026-10-29): LIBRARY's + NEW (FM / MIDI) saved onto the FM-1 or, IN THIS BROWSER the source, into
+//     the browser's store (IndexedDB read again); the IN THIS BROWSER card's rename, tags, DUPLICATE, EDIT -> SAVE,
+//     SEND, LOAD, KEEP back with pan and sends kept; RESET then + NEW; LOAD ON FM-1's track under the name; 390 x 844;
+//   - nf-units (2026-10-29): two FM-1s (?sim=two) in the picker, each by its port with USB or BLUETOOTH; RemoteFM1 and
+//     the update loader greyed and named, not to pick; the second picked answers alone; PORTS from the picker and the
+//     LOG (every port, what answered); the second unplugged: its row gone at once; a phone with no horizontal scroll;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -2051,6 +2057,318 @@ try {
   await sleep(300);
   }
   // ---- (end of nf-play)
+  // ---- nf-new (parity 2026-10-29): LIBRARY's + NEW (FM / MIDI, into the FM-1 or IN THIS BROWSER), the IN THIS BROWSER
+  // card (rename, tags, web tags, DUPLICATE, EDIT -> SAVE into the browser's store, SEND, LOAD), pan and sends kept
+  // through each, RESET then + NEW, LOAD ON FM-1's track under the name, a phone
+  {
+  await size(1280, 800);
+  await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#library" });
+  await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await idle();
+  await click("#t-library");
+  const mineRows = () => evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').map((r) => ({ slot: r.slot, id: r.id, name: r.name }))");
+  const mdump = (slot) => evaluate(`(async () => { const { parseDump } = await import('../js/fizz_sysex.js'); const { isMidiBlob } = await import('./sound.js');
+    const d = parseDump(await __mgr.S.link.dump('mine', ${slot})); return d && { name: d.name, pan: d.pan, chorus: d.chorus, delay: d.delay, reverb: d.reverb, midi: isMidiBlob(d.blob) }; })()`);
+  // (the browser's store read again from IndexedDB, not from the page's copy)
+  const bdb = () => evaluate(`(async () => { const B = await import('./browserlib.js');
+    const d = await new Promise((res) => { const r = indexedDB.open('fizz-manager'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+    const img = await new Promise((res) => { const g = d.transaction('kv').objectStore('kv').get('browserFlash'); g.onsuccess = () => res(g.result); g.onerror = () => res(null); }); d.close();
+    const u8 = img instanceof Uint8Array ? img : img ? new Uint8Array(img) : null;
+    return { len: u8 ? u8.length : -1, rows: u8 ? B.browserRows(u8).map((r) => ({ slot: r.slot, id: r.id, name: r.name, tags: r.tags, pan: r.lib.pan, ...r.lib.sends })) : [] }; })()`);
+  const stores = { on: () => evaluate("(() => { const lk = __mgr.S.link; window.__nst = 0; window.__ost = lk.store; lk.store = (...a) => { window.__nst++; return window.__ost.apply(lk, a); }; })()"),
+    off: () => evaluate("(() => { __mgr.S.link.store = window.__ost; return window.__nst; })()") };
+
+  // LOAD ON FM-1 under the name (mock 13): the label, the track 1..6 and LOAD, between the name and EDIT
+  await click("#l-filter [data-src='mine']");
+  await click("#l-list .cas[data-src='mine']");
+  await waitFor("!!document.querySelector('#l-sel .ldon #l-unit')", 8000);
+  const lay = await evaluate(`(() => { const q = (s) => document.querySelector(s).getBoundingClientRect(); const nm = q('#l-sel .selhead'), ld = q('#l-sel .ldon'), ed = q('#l-edit'), tr = q('#l-sel .ldon .ltrk');
+    return { order: nm.bottom <= ld.top + 1 && ld.bottom <= ed.top + 1, row: Math.abs(tr.top + tr.height / 2 - (q('#l-unit').top + q('#l-unit').height / 2)) < 4, n: document.querySelectorAll('#l-sel .ldon .ltrk button').length,
+      lbl: document.querySelector('#l-sel .ldon .lbl').textContent.trim(), first: document.querySelector('#l-sel .selhead').nextElementSibling.classList.contains('ldon') }; })()`);
+  await shot("manager-nfnew-load-under-name.png");
+  check(lay.order && lay.row && lay.n === 6 && lay.first && /^Load on FM-1$/i.test(lay.lbl), `nf-new: LOAD ON FM-1 under the name: "${lay.lbl}", tracks 1..${lay.n} and LOAD on one row, above EDIT`);
+
+  // + NEW -> FM: EDIT with an INIT sound; SAVE adds it to the FM-1's MY PRESETS, the mix the track's defaults
+  const m0 = await mineRows();
+  await click("#l-new");
+  await waitFor("!document.getElementById('l-newwrap').hidden", 3000);
+  const pop = await evaluate("({ kinds: [...document.querySelectorAll('#l-newpop [data-new]')].map((b) => b.dataset.new).join(), dest: document.querySelector('#l-newpop .ndest').textContent, arc: document.getElementById('l-new').classList.contains('arc') })");
+  await shot("manager-nfnew-new.png");
+  await click("#l-newpop [data-new='fm']");
+  const fmOpen = await waitFor("!document.getElementById('tab-edit').hidden && __mgr.editor.sound().name === 'INIT' && !__mgr.editor.sound().midi && __mgr.editor.place().source === 'new'", 5000);
+  const fmSnd = await evaluate("(() => { const s = __mgr.editor.sound(); return { pan: s.pan, ...s.sends, save: !document.getElementById('ed-save').disabled }; })()");
+  await click("#ed-save");
+  const fmSaved = await waitFor(`__mgr.editor.place().source === 'mine' && __mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${m0.length + 1}`, 15000);
+  await idle();
+  const fmRow = (await mineRows()).find((r) => !m0.some((q) => q.id === r.id));
+  const fmD = fmRow && (await mdump(fmRow.slot));
+  check(pop.kinds === "fm,midi" && pop.arc && /FM-1/.test(pop.dest) && pop.dest.includes(`MY PRESETS`) && fmOpen && fmSnd.save && fmSaved && fmD && fmD.name === "INIT" && !fmD.midi && fmD.pan === 0 && fmD.reverb === 20 && fmD.chorus === 0 && fmD.delay === 0,
+    `nf-new: + NEW (${pop.dest.trim()}) -> FM: EDIT on INIT, SAVE: MY PRESETS ${fmRow && fmRow.slot} on the FM-1 (pan ${fmD && fmD.pan}, reverb ${fmD && fmD.reverb})`);
+  // + NEW -> MIDI
+  await click("#t-library");
+  await click("#l-new");
+  await click("#l-newpop [data-new='midi']");
+  const miOpen = await waitFor("!document.getElementById('tab-edit').hidden && !!__mgr.editor.sound().midi && __mgr.editor.place().source === 'new'", 5000);
+  await click("#ed-save");
+  const miSaved = await waitFor(`__mgr.editor.place().source === 'mine' && __mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${m0.length + 2}`, 15000);
+  await idle();
+  const miRow = (await mineRows()).find((r) => !m0.some((q) => q.id === r.id) && r.id !== fmRow.id);
+  const miD = miRow && (await mdump(miRow.slot));
+  check(miOpen && miSaved && miD && miD.midi && miD.reverb === 20, `nf-new: + NEW -> MIDI: EDIT on a MIDI sound, SAVE: MY PRESETS ${miRow && miRow.slot}, a MIDI sound on the FM-1 (reverb ${miD && miD.reverb})`);
+
+  // IN THIS BROWSER the source: + NEW saves into the browser's store, nothing to the FM-1. Its pan and sends set in EDIT
+  await click("#t-library");
+  await click("#l-filter [data-src='browser']");
+  const b0 = await bdb(), m1 = (await mineRows()).length;
+  await stores.on();
+  await click("#l-new");
+  const bdest = await evaluate("document.querySelector('#l-newpop .ndest').textContent");
+  await click("#l-newpop [data-new='fm']");
+  await waitFor("!document.getElementById('tab-edit').hidden && __mgr.editor.place().source === 'new' && __mgr.editor.place().to === 'browser'", 5000);
+  await evaluate("(() => { __mgr.editor.state.s.name = 'PANMIX'; __mgr.editor.set(115, -20); __mgr.editor.set(117, 90); __mgr.editor.renderHead(); })()");
+  await click("#ed-save");
+  const bSaved = await waitFor("__mgr.editor.place().source === 'browser'", 8000);
+  const b1 = await bdb(), nst = await stores.off(), pm = b1.rows.find((r) => r.name === "PANMIX");
+  check(/THIS BROWSER/.test(bdest) && bSaved && b1.rows.length === b0.rows.length + 1 && pm && pm.pan === -20 && pm.reverb === 90 && nst === 0 && (await mineRows()).length === m1,
+    `nf-new: + NEW with IN THIS BROWSER the source (${bdest.trim()}): SAVE puts PANMIX in the browser's store (IndexedDB read again: ${b1.rows.length}, pan ${pm && pm.pan}, reverb ${pm && pm.reverb}); no STORE to the FM-1`);
+
+  // the card: rename, a FIZZ tag, a web tag, DUPLICATE (the mix and the web tag with it)
+  await click("#t-library");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${pm.slot}']`);
+  await waitFor("!!document.getElementById('l-bname')", 5000);
+  const card = await evaluate("[...document.querySelectorAll('#l-sel .selgo button')].map((b) => b.id).join() + '|' + [...document.querySelectorAll('#l-sel > *')].map((e) => e.className.split(' ')[0]).join()");
+  await shot("manager-nfnew-browser-card.png");
+  await evaluate("(() => { const i = document.getElementById('l-bname'); i.value = 'PANMIX R'; i.dispatchEvent(new Event('change')); })()");
+  await waitFor("__mgr.S.brow.rows.some((r) => r.name === 'PANMIX R')", 5000);
+  await click("#l-sel [data-btag='3']");
+  await waitFor(`__mgr.S.brow.rows.some((r) => r.slot === ${pm.slot} && (r.tags & 8))`, 5000);
+  await click("#l-addtag");
+  await evaluate("(() => { const i = document.querySelector('#l-sel .tagin'); i.value = 'dark'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); })()");
+  const b2 = await bdb(), pr = b2.rows.find((r) => r.slot === pm.slot);
+  const web1 = await evaluate("[...document.querySelectorAll('#l-sel [data-web]')].map((b) => b.dataset.web).join()");
+  check(card.startsWith("l-send,l-bedit,l-bdup,l-bexport,l-bdel|selhead,selsec,ldon,selgo") && pr && pr.name === "PANMIX R" && pr.id === pm.id && (pr.tags & 8) && pr.pan === -20 && pr.reverb === 90 && web1 === "DARK",
+    `nf-new: the browser card (${card}): renamed ${pr && pr.name} (id ${pr && pr.id} kept), PAD on, web tag ${web1}; pan ${pr && pr.pan}, reverb ${pr && pr.reverb} kept`);
+  await click("#l-bdup");
+  await waitFor(`__mgr.S.brow.rows.length === ${b2.rows.length + 1}`, 5000);
+  const b3 = await bdb(), dup = b3.rows.find((r) => r.name === "PANMIX R 2");
+  const dsel = await evaluate("({ sel: __mgr.S.sel && __mgr.S.sel.slot, web: [...document.querySelectorAll('#l-sel [data-web]')].map((b) => b.dataset.web).join() })");
+  check(dup && dup.pan === -20 && dup.reverb === 90 && (dup.tags & 8) && dup.id !== pr.id && dsel.sel === dup.slot && dsel.web === "DARK",
+    `nf-new: DUPLICATE: ${dup && dup.name} at ${dup && dup.slot}, picked; pan ${dup && dup.pan}, reverb ${dup && dup.reverb}, its web tag ${dsel.web}`);
+  // EDIT -> SAVE: back into the browser's store (asked), over the same place; nothing to the FM-1
+  await click(`#l-list .cas[data-src='browser'][data-slot='${pm.slot}']`);
+  await waitFor("!!document.getElementById('l-bedit')", 5000);
+  await stores.on();
+  await click("#l-bedit");
+  const eOpen = await waitFor(`!document.getElementById('tab-edit').hidden && __mgr.editor.place().source === 'browser' && __mgr.editor.place().slot === ${pm.slot} && __mgr.editor.sound().pan === -20`, 5000);
+  await evaluate("__mgr.editor.set(116, 33)");
+  await click("#ed-save");
+  await waitFor("!document.getElementById('cf').hidden", 3000);
+  await click("#cf-go");
+  await waitFor(`__mgr.S.brow.rows.some((r) => r.slot === ${pm.slot} && r.lib.sends.delay === 33)`, 8000);
+  const b4 = await bdb(), ed = b4.rows.find((r) => r.slot === pm.slot), nst2 = await stores.off();
+  check(eOpen && ed && ed.id === pm.id && ed.name === "PANMIX R" && ed.delay === 33 && ed.pan === -20 && ed.reverb === 90 && b4.rows.length === b3.rows.length && nst2 === 0 && (await mineRows()).length === m1,
+    `nf-new: EDIT -> SAVE: back into IN THIS BROWSER ${pm.slot} (id kept, delay ${ed && ed.delay}, pan ${ed && ed.pan}, reverb ${ed && ed.reverb}); no STORE to the FM-1`);
+
+  // SEND to the FM-1 and KEEP back: pan and sends with it each way; LOAD on the card opens the unit's browser on the copy sent
+  await click("#t-library");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${dup.slot}']`);
+  await waitFor("!!document.getElementById('l-send') && !document.getElementById('l-send').disabled", 8000);
+  const m2 = await mineRows();
+  await click("#l-send");
+  await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${m2.length + 1}`, 15000);
+  await idle();
+  const sRow = (await mineRows()).find((r) => !m2.some((q) => q.id === r.id)), sD = sRow && (await mdump(sRow.slot));
+  check(sD && sD.name === "PANMIX R 2" && sD.pan === -20 && sD.reverb === 90, `nf-new: SEND TO FM-1: MY PRESETS ${sRow && sRow.slot} has pan ${sD && sD.pan}, reverb ${sD && sD.reverb}`);
+  await click("#l-filter [data-src='browser']");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${dup.slot}']`);
+  await waitFor("!!document.getElementById('l-unit') && !document.getElementById('l-unit').disabled", 8000);
+  await click("#l-unit");
+  const lb = await waitFor(`!!__mgr.live.browsing() && __mgr.live.browsing().id === ${sRow ? sRow.id : -1}`, 8000);
+  const m3 = (await mineRows()).length, lbw = await evaluate("JSON.stringify(__mgr.live.browsing()) + ' ' + document.getElementById('say').textContent");
+  await evaluate("window.__sim.press('OCT-')");
+  await waitFor("!__mgr.live.browsing()", 8000);
+  check(lb && m3 === m2.length + 1, `nf-new: LOAD on the browser card: the FM-1's browser opened on MY PRESETS ${sRow && sRow.slot} (the copy sent), nothing sent again${lb && m3 === m2.length + 1 ? "" : ` (${lbw}; ${m3} MY PRESETS)`}`);
+  await idle();
+  await click("#l-filter [data-src='browser']");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${dup.slot}']`);
+  await waitFor("!!document.getElementById('l-bdel')", 5000);
+  await click("#l-bdel");
+  await waitFor("!document.getElementById('cf').hidden", 3000);
+  await click("#cf-go");
+  await waitFor(`!__mgr.S.brow.rows.some((r) => r.name === 'PANMIX R 2')`, 5000);
+  await click("#l-filter [data-src='mine']");
+  await click(`#l-list .cas[data-src='mine'][data-slot='${sRow.slot}']`);
+  await waitFor("!!document.getElementById('l-keep') && !document.getElementById('l-keep').disabled", 8000);
+  await click("#l-keep");
+  await waitFor("__mgr.S.brow.rows.some((r) => r.name === 'PANMIX R 2')", 8000);
+  const kb = (await bdb()).rows.find((r) => r.name === "PANMIX R 2");
+  check(kb && kb.pan === -20 && kb.reverb === 90, `nf-new: KEEP IN BROWSER from the FM-1: back in the browser's store, pan ${kb && kb.pan}, reverb ${kb && kb.reverb}`);
+
+  // a phone: the card and the + NEW sheet, no horizontal scroll
+  await click("#l-filter [data-src='browser']");
+  await click(`#l-list .cas[data-src='browser'][data-slot='${pm.slot}']`);
+  await size(390, 844, true);
+  await sleep(500);
+  const ph1 = await noScroll();
+  await evaluate("document.getElementById('l-sel').scrollIntoView()");
+  await sleep(300);
+  await shot("manager-nfnew-phone-card.png");
+  await evaluate("window.scrollTo(0, 0)");
+  await click("#l-new");
+  await sleep(400);
+  const sh = await evaluate("(() => { const p = document.getElementById('l-newpop'), r = p.getBoundingClientRect(); return { sheet: p.classList.contains('sheet'), bottom: Math.round(r.bottom), h: innerHeight, l: Math.round(r.left), w: Math.round(r.width) }; })()");
+  await shot("manager-nfnew-phone-new.png");
+  const ph2 = await noScroll();
+  await click("#l-newscrim");
+  check(ph1 && ph2 && sh.sheet && Math.abs(sh.bottom - sh.h) < 2 && sh.l === 0 && sh.w === 390, `nf-new: 390 x 844: the browser card and + NEW's sheet (at the foot, ${sh.w} wide), no horizontal scroll`);
+  await size(1280, 800);
+
+  // RESET (THIS BROWSER's MEMORY) with the FM-1 the unit, then + NEW in the browser: a fresh store made for it
+  await click("#unit");
+  await click("#up-more");
+  await waitFor("!!document.getElementById('up-reset')", 3000);
+  await click("#up-reset");
+  await waitFor("!document.getElementById('cf').hidden", 3000);
+  await click("#cf-go");
+  const rs = await waitFor("__mgr.S.brow.rows.length === 0 && __mgr.S.brow.img && __mgr.S.brow.img.length === 0", 10000);
+  await click("#t-library");
+  await click("#l-filter [data-src='browser']");
+  await click("#l-new");
+  await click("#l-newpop [data-new='fm']");
+  await waitFor("!document.getElementById('tab-edit').hidden && __mgr.editor.place().to === 'browser'", 5000);
+  await click("#ed-save");
+  await waitFor("__mgr.editor.place().source === 'browser'", 8000);
+  const b5 = await bdb();
+  check(rs && b5.len > 0 && b5.rows.length === 1 && b5.rows[0].name === "INIT" && b5.rows[0].reverb === 20 && (await evaluate("__mgr.S.mode === 'fm1'")),
+    `nf-new: RESET, then + NEW in the browser: a fresh store (${b5.len} B) with ${b5.rows.map((r) => r.name).join()} (reverb ${b5.rows[0] && b5.rows[0].reverb})`);
+  await click("#t-library");
+  }
+  // ---- (end of nf-new)
+  // ---- nf-units: two FM-1s in the picker, PORTS
+  // (?sim=two: "FIZZ FM-1" (USB) and "FM-1 C1F0 Bluetooth" running FIZZ, "FM-1" running RemoteFM1, "FM1 Update" in
+  // its loader, "IAC Driver Bus 1" and "Roto-Control" never asked. Each FIZZ its own row named by its port, the one in
+  // use checked; the others greyed with their firmware, not to pick; picking the second talks to it alone (its replies:
+  // its own presets; the first sent nothing meanwhile); PORTS from the picker and from LOG, every port with what
+  // answered; the second unplugged: its row gone at once, the first still the unit; a phone: no horizontal scroll)
+  {
+  const SHOTS = process.env.NF_UNITS_SHOTS || "";
+  const keep = async (name) => { await shot(`manager-${name}.png`); if (SHOTS) fs.copyFileSync(path.join(OUT, `manager-${name}.png`), path.join(SHOTS, `${name}.png`)); };
+  await size(1440, 900);
+  await send("Page.navigate", { url: URL0.replace("?sim&", "?sim=two&") + "#library" });
+  const two = await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0 && !!window.__simTwo", 60000);
+  await idle();
+  const rowsOf = () => evaluate(`[...document.querySelectorAll('#upick-pop .urow[data-port]')].map((r) => ({ port: r.dataset.port, u: r.dataset.u || '',
+    via: ((r.querySelector('.usb') || {}).textContent || '').trim(), fw: ((r.querySelector('.fwchip') || r.querySelector('.nm .hud')) || {}).textContent || '',
+    on: r.classList.contains('on') && !!r.querySelector('.radio.y'), grey: r.classList.contains('nofizz') && r.getAttribute('aria-disabled') === 'true',
+    shown: r.offsetWidth > 100 }))`);
+  const byPort = (rs) => Object.fromEntries(rs.map((r) => [r.port, r]));
+  await realClick("#unit");
+  const up4 = await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 4", 10000);
+  await sleep(300);
+  const r1 = await rowsOf(), b1 = byPort(r1), n1 = await evaluate("document.querySelector('#upick-pop .uphead .hud').textContent");
+  check(two && up4 && r1.length === 4 && r1.every((r) => r.shown) && n1 === "5" &&
+    b1["FIZZ FM-1"].u === "fm1" && b1["FIZZ FM-1"].via === "USB" && b1["FIZZ FM-1"].on && /^FIZZ /.test(b1["FIZZ FM-1"].fw) &&
+    b1["FM-1 C1F0 Bluetooth"].u === "fm1" && b1["FM-1 C1F0 Bluetooth"].via === "BLUETOOTH" && !b1["FM-1 C1F0 Bluetooth"].on && b1["FM-1 C1F0 Bluetooth"].fw === "FIZZ 0.12.0",
+    `nf-units: the picker lists each FM-1 by its port: ${r1.map((r) => `${r.port} ${r.via} ${r.fw}${r.on ? " (checked)" : ""}${r.grey ? " (greyed)" : ""}`).join(" | ")}; UNIT ${n1}`);
+  await keep("units-desktop-two-fm1");
+  // the greyed rows: named by their firmware, a click does nothing
+  check(b1["FM-1"] && b1["FM-1"].grey && b1["FM-1"].fw === "REMOTEFM1" && b1["FM1 Update"] && b1["FM1 Update"].grey && b1["FM1 Update"].fw === "UPDATE MODE" && !b1["FM-1"].u,
+    `nf-units: the ports not running FIZZ greyed with their firmware: FM-1 ${b1["FM-1"] && b1["FM-1"].fw}, FM1 Update ${b1["FM1 Update"] && b1["FM1 Update"].fw}`);
+  await realClick("#upick-pop .urow[data-port='FM-1']");
+  await realClick("#upick-pop .urow[data-port='FM1 Update']");
+  await sleep(800);
+  check(await evaluate("!document.getElementById('upick').hidden && __mgr.S.mode === 'fm1' && __mgr.S.link && __mgr.S.link.port === 'FIZZ FM-1' && !document.getElementById('logbox').open"),
+    "nf-units: a greyed row can't be picked (the picker stays, the unit unchanged)");
+  // PORTS from the picker: every port, what answered
+  await realClick("#up-ports");
+  const pv = await waitFor("document.getElementById('logbox').open && !document.getElementById('lp-view').hidden && document.querySelectorAll('#lp-view .prow:not(.hd)').length === 6 && document.getElementById('upick').hidden", 8000);
+  await sleep(1200);
+  const ptab = () => evaluate(`({ rows: [...document.querySelectorAll('#lp-view .prow:not(.hd)')].map((r) => ({ name: r.dataset.port, cls: r.className.replace('prow', '').trim(),
+      io: r.querySelectorAll('.io:not(.no)').length, asked: r.querySelector('.ask').classList.contains('y'), via: ((r.querySelector('.usb') || {}).textContent || '').trim(),
+      ans: (r.querySelector('.ans').innerText || '').replace(/\\s+/g, ' ').trim() })),
+    stats: [...document.querySelectorAll('#lp-view .pstat')].map((s) => s.innerText.replace(/\\s+/g, ' ').trim()).join(), seg: document.querySelector('#lpanel .lpseg .on').textContent,
+    when: document.getElementById('lp-when').textContent, fits: document.getElementById('lpanel').getBoundingClientRect().right <= innerWidth })`);
+  const t1 = await ptab(), pb = Object.fromEntries(t1.rows.map((r) => [r.name, r]));
+  check(pv && t1.seg === "PORTS" && t1.rows.length === 6 && t1.rows.every((r) => r.io === 2) && t1.stats === "6 IN,6 OUT,4 ASKED,2 FIZZ" && /^\d\d:\d\d:\d\d$/.test(t1.when) && t1.fits &&
+    /FM-1_46\d+ FIZZ/.test(pb["FIZZ FM-1"].ans) && pb["FIZZ FM-1"].cls.includes("fizz") && pb["FIZZ FM-1"].via === "USB" &&
+    /FM-1_46001200 FIZZ 0\.12\.0/.test(pb["FM-1 C1F0 Bluetooth"].ans) && pb["FM-1 C1F0 Bluetooth"].via === "BLUETOOTH" &&
+    /FM-1_52010200 REMOTEFM1/.test(pb["FM-1"].ans) && pb["FM-1"].cls === "other" && /ota-FM1_0001 UPDATE MODE/.test(pb["FM1 Update"].ans) &&
+    !pb["IAC Driver Bus 1"].asked && pb["IAC Driver Bus 1"].ans === "—" && pb["IAC Driver Bus 1"].cls === "quiet" && !pb["Roto-Control"].asked &&
+    ["FIZZ FM-1", "FM-1 C1F0 Bluetooth", "FM-1", "FM1 Update"].every((n) => pb[n].asked),
+    `nf-units: PORTS from the picker (${t1.stats}): ${t1.rows.map((r) => `${r.name}: ${r.asked ? r.ans : "not asked"}`).join(" | ")}`);
+  await keep("ports-desktop");
+  // PORTS from the LOG: LOG first, then its PORTS
+  await click("#lp-log");
+  await realClick("#logbox summary");
+  await waitFor("!document.getElementById('logbox').open", 2000);
+  await realClick("#logbox summary");
+  const lg = await waitFor("document.getElementById('logbox').open && !document.getElementById('log').hidden && document.getElementById('lp-view').hidden && document.getElementById('log').textContent.length > 0", 3000);
+  await realClick("#lp-ports");
+  const lp = await waitFor("!document.getElementById('lp-view').hidden && document.getElementById('log').hidden && document.querySelectorAll('#lp-view .prow:not(.hd)').length === 6", 3000);
+  check(lg && lp, "nf-units: the LOG opens on its lines; its PORTS shows the same table");
+  await realClick("#logbox summary");
+  // picking the second: that one answers (its own presets), the first is sent nothing meanwhile; the header follows
+  const cmds = (k) => `Object.values(__simTwo.all[${k}].counts.cmds).reduce((x, y) => x + y, 0)`;
+  await realClick("#unit");
+  await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 4", 5000);
+  const a0 = await evaluate(cmds(0)), bb0 = await evaluate(cmds(1));
+  await realClick("#upick-pop .urow[data-port='FM-1 C1F0 Bluetooth']");
+  const sw = await waitFor("__mgr.S.mode === 'fm1' && __mgr.S.link && __mgr.S.link.port === 'FM-1 C1F0 Bluetooth' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await idle();
+  await sleep(600);
+  await evaluate("__mgr.refreshRows()");
+  await idle();
+  const s2 = await evaluate(`({ id: __mgr.S.unit.id, mine: __mgr.S.unit.rows.filter((r) => r.source === 'mine').map((r) => r.name.trim()).join(),
+    pill: (document.querySelector('#unit small') || {}).textContent || '', a: ${cmds(0)}, b: ${cmds(1)}, lib: document.getElementById('tab-library').innerText })`);
+  check(sw && s2.id === "FM-1_46001200" && s2.mine === "BEE BASS,MOTH PAD,WASP LEAD" && /BEE BASS/.test(s2.lib) && !/SUB DROP/.test(s2.lib) && s2.a === a0 && s2.b > bb0 && / · BLUETOOTH$/.test(s2.pill),
+    `nf-units: the second picked: its replies (${s2.id}, MY PRESETS ${s2.mine}), the first sent nothing (${s2.a - a0} commands; the second ${s2.b - bb0}); the pill "${s2.pill}"`);
+  await realClick("#unit");
+  await sleep(400);
+  const r2 = byPort(await rowsOf());
+  check(r2["FM-1 C1F0 Bluetooth"].on && !r2["FIZZ FM-1"].on, "nf-units: the picker marks the second as the one in use");
+  // back on the first; then the second unplugged: its row gone at once (the picker open), PORTS too, the first kept
+  await realClick("#upick-pop .urow[data-port='FIZZ FM-1']");
+  const back = await waitFor("__mgr.S.link && __mgr.S.link.port === 'FIZZ FM-1' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await idle();
+  // a phone: the sheet and PORTS, no horizontal scroll
+  await size(390, 844, true);
+  await sleep(500);
+  await click("#unit");
+  await sleep(600);
+  const ph1 = await evaluate("({ sheet: document.getElementById('upick').classList.contains('sheet'), n: document.querySelectorAll('#upick-pop .urow').length, w: document.getElementById('upick-pop').scrollWidth <= document.getElementById('upick-pop').clientWidth + 1 })");
+  const ns1 = await noScroll();
+  await keep("units-phone-two-fm1");
+  await click("#up-ports");
+  await sleep(900);
+  const ph2 = await evaluate("(() => { const p = document.getElementById('lpanel').getBoundingClientRect(); return { l: p.left, r: p.right, w: innerWidth, rows: document.querySelectorAll('#lp-view .prow:not(.hd)').length, over: [...document.querySelectorAll('#lp-view .prow')].some((x) => x.scrollWidth > x.clientWidth + 1) }; })()");
+  const ns2 = await noScroll();
+  await keep("ports-phone");
+  await click("#logbox summary");
+  check(back && ph1.sheet && ph1.n === 5 && ph1.w && ns1 && ph2.l >= 0 && ph2.r <= ph2.w && ph2.rows === 6 && !ph2.over && ns2,
+    `nf-units: a phone (390 x 844): the picker a sheet with ${ph1.n} rows, PORTS within the screen (${Math.round(ph2.l)}..${Math.round(ph2.r)}), no horizontal scroll`);
+  await size(1440, 900);
+  await sleep(400);
+  await realClick("#unit");
+  await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 4", 5000);
+  await evaluate("__simTwo.unplug(1)");
+  const gone = await waitFor("document.querySelectorAll('#upick-pop .urow[data-port]').length === 3 && !document.querySelector(\"#upick-pop .urow[data-port='FM-1 C1F0 Bluetooth']\")", 3000);
+  await sleep(1500);
+  const kept = await evaluate("__mgr.S.mode === 'fm1' && __mgr.S.link && __mgr.S.link.port === 'FIZZ FM-1' && !!document.querySelector(\"#upick-pop .urow[data-port='FIZZ FM-1'].on\")");
+  await click("#upick-scrim");
+  await click("#lp-ports");
+  if (!(await evaluate("document.getElementById('logbox').open"))) await realClick("#logbox summary");
+  await realClick("#lp-ports");
+  await sleep(500);
+  const t3 = await ptab();
+  check(gone && kept && t3.rows.length === 5 && !t3.rows.some((r) => r.name === "FM-1 C1F0 Bluetooth") && t3.stats === "5 IN,5 OUT,3 ASKED,1 FIZZ",
+    `nf-units: the second unplugged: its row gone at once (picker and PORTS: ${t3.stats}), the first still the unit`);
+  // plugged in again: asked again, its row back
+  await evaluate("__simTwo.plug(1)");
+  const again = await waitFor("document.querySelectorAll('#lp-view .prow.fizz').length === 2", 8000);
+  check(again, "nf-units: plugged in again: asked again, back in PORTS as FIZZ");
+  await realClick("#logbox summary");
+  }
+  // ---- (end of nf-units)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

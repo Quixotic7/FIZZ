@@ -22,6 +22,8 @@
 //   new SimFizz({createEngine, module, id, playing, frameMs, tryMs, bulk, answers}); await sim.boot()
 //   sim.access (navigator.requestMIDIAccess's shape), sim.unplug(), sim.engine, sim.flash(), sim.counts, sim.tapPlay(),
 //   sim.press(label) / sim.selectTrack(t) / sim.panel(buttons, keys) (the unit's own panel: OCT- / OCT+ in its browser)
+//   new SimPort(name, id) (?sim=two's other gear: a port that answers fm1-base's handshake with `id` and nothing else,
+//   as RemoteFM1 or the update loader; id null: never answers); port.counts.hs, port.counts.other
 import { pack7, unpack7 } from "../install/fm1lib.js";
 
 const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
@@ -243,4 +245,22 @@ export class SimFizz {
     st.cut = () => { clearTimeout(wait); if (pass === 2 && this.engine) { this.engine.dispose(); this.engine = null; } this.restoring = null; };
     ask();
   }
+}
+
+export class SimPort {
+  constructor(name, id = null) {
+    this.id = id; this.gone = false; this.counts = { hs: 0, other: 0 }; this.access = null;
+    this.input = { name, state: "connected", open: async () => {}, onmidimessage: null };
+    this.output = { name, state: "connected", open: async () => {}, send: (b) => this.rx(Array.from(b)) };
+  }
+  rx(d) {
+    if (this.gone) return;
+    if (d.join() !== HS.join()) { this.counts.other++; return; }
+    this.counts.hs++;
+    if (!this.id) return;
+    const data = Uint8Array.from(msg(0x11, [...this.id].map((c) => c.charCodeAt(0)).concat(new Array(27).fill(0)).slice(0, 27)));
+    setTimeout(() => { if (!this.gone && this.input.onmidimessage) this.input.onmidimessage({ data }); }, 2);
+  }
+  unplug() { this.gone = true; this.input.state = this.output.state = "disconnected"; if (this.access && this.access.onstatechange) this.access.onstatechange({ port: this.input }); }
+  replug() { this.gone = false; this.input.state = this.output.state = "connected"; if (this.access && this.access.onstatechange) this.access.onstatechange({ port: this.input }); }
 }

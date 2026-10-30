@@ -32,6 +32,9 @@
 //     project kept on one package loaded into the other (MY PRESETS full there: its sounds as its own copies, and the
 //     wasm FIZZ plays it the same); the library cut to 128 (what is left out listed); STATUS's package bytes; a
 //     Bluetooth .fizzbak, its raw image, in the browser's FIZZ;
+//   - nf-units (two FM-1s, PORTS, 2026-10-29): the firmware an id names (FIZZ and its version, REMOTEFM1, M-VAVE,
+//     M-VAVE OPEN, UPDATE MODE), a port asked once (the handshake only, a short wait), other gear never asked, the
+//     unit in use never asked; findFizz on the port picked (the second FIZZ, not the first);
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
@@ -42,7 +45,8 @@ import { storeSound, parseDump, parseReply, trackFrame, listRequest, usersReques
 import { readFiles, storeFrame } from "../js/digitone.js";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 import { soundFromStoreFrame, parseFizzlib } from "../js/library.js";
-import { SimFizz } from "../manager/simfizz.js";
+import { SimFizz, SimPort } from "../manager/simfizz.js";
+import { PortScan, portsOf, firmwareOf, parseHandshake, probePort, reportText } from "../manager/portscan.js";
 import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
 import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage, writeStore, RESERVE, magicsOf } from "../manager/fizzstore.js";
@@ -938,6 +942,94 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   check(!bad.length, `PLAY: every layout's parts on its board, FULL with all 14 buttons and 8 knobs${bad.length ? `: ${bad.join(", ")}` : ""}`);
 }
 // ---- (end of nf-play)
+// ---- nf-new (parity 2026-10-29): + NEW and the IN THIS BROWSER card's store edits (browserlib.js): a new sound kept
+// with the mix defaults, a preset changed in place (its id kept, pan and sends with it), DUPLICATE's name
+{
+  const { replaceIn, uniqueName } = await import("../manager/browserlib.js");
+  const nw = newSound("fm"), rec0 = recordOf({ name: nw.name, blob: blob6(nw), pan: nw.pan, chorus: nw.sends.chorus, delay: nw.sends.delay, reverb: nw.sends.reverb, tags: 0 });
+  const k0 = keepIn(null, [rec0]), r0 = browserRows(k0.image)[0];
+  check(k0.added === 1 && r0 && r0.name === "INIT" && r0.lib.pan === MIX_DEFAULTS.pan && r0.lib.sends.reverb === MIX_DEFAULTS.reverb && r0.lib.sends.chorus === 0 && r0.lib.sends.delay === 0,
+    `nf-new: + NEW into an empty browser store: ${r0 && r0.name} at ${r0 && r0.slot}, the mix defaults (pan ${r0 && r0.lib.pan}, reverb ${r0 && r0.lib.sends.reverb})`);
+  const mixed = recordOf({ name: "PANNED", blob: blob6(nw), pan: -20, chorus: 5, delay: 7, reverb: 90, tags: 2 });
+  const k1 = keepIn(k0.image, [mixed]), p1 = browserRows(k1.image).find((x) => x.name === "PANNED");
+  const re = replaceIn(k1.image, p1.slot, recordOf({ name: "PANNED X", blob: p1.lib.blob, pan: p1.lib.pan, chorus: p1.lib.sends.chorus, delay: p1.lib.sends.delay, reverb: p1.lib.sends.reverb, tags: 6 }));
+  const p2 = browserRows(re).find((x) => x.slot === p1.slot);
+  check(p2 && p2.name === "PANNED X" && p2.id === p1.id && p2.tags === 6 && p2.lib.pan === -20 && p2.lib.sends.reverb === 90 && p2.lib.sends.chorus === 5 && p2.lib.sends.delay === 7 && browserRows(re).length === 2,
+    `nf-new: a browser preset renamed and tagged in place: ${p2 && p2.name}, id ${p2 && p2.id} kept, pan ${p2 && p2.lib.pan}, reverb ${p2 && p2.lib.sends.reverb}`);
+  let threw = false;
+  try { replaceIn(re, 200, mixed); } catch (_) { threw = true; }
+  const un = [uniqueName("SUB DROP", ["SUB DROP"]), uniqueName("SUB DROP 2", ["SUB DROP", "SUB DROP 2"]), uniqueName("ABCDEFGHIJKL", ["ABCDEFGHIJKL"]), uniqueName("NEW", [])];
+  check(threw && un.join("|") === "SUB DROP 2|SUB DROP 3|ABCDEFGHIJ 2|NEW", `nf-new: an empty place refused; DUPLICATE's names: ${un.join(", ")}`);
+}
+
+// ---- nf-units: two FM-1s, PORTS (portscan.js; findFizz's port)
+{
+  const f = (id) => { const r = firmwareOf(id); return r && `${r.fw}${r.version ? ` ${r.version}` : ""}`; };
+  const names = ["FM-1_46001200", "FM-1_4600", "FM-1_52010200", "FM-1_016", "FM-1_8000014", "FM1_OFFICIAL_OPEN", "ota-FM1C_1a2b", "FM-1_904"].map(f);
+  check(names.join() === "FIZZ 0.12.0,FIZZ,REMOTEFM1,M-VAVE,M-VAVE OPEN,M-VAVE OPEN,UPDATE MODE,FM-1_904" && firmwareOf(null) === null && firmwareOf("FM-1_46001200").fizz,
+    `PORTS: the firmware an id names: ${names.join(", ")}`);
+  const a = await sim(), b = await sim({ id: "FM-1_46001200", name: "FM-1 C1F0 Bluetooth" });
+  const rf = new SimPort("FM-1", "FM-1_52010200"), ota = new SimPort("FM1 Update", "ota-FM1_0001"), iac = new SimPort("IAC Driver Bus 1"), roto = new SimPort("Roto-Control", "FM-1_46001100");
+  const all = [a, b, rf, ota, iac, roto], acc = { inputs: new Map(), outputs: new Map() };
+  all.forEach((d, k) => { d.access = acc; acc.inputs.set(`i${k}`, d.input); acc.outputs.set(`o${k}`, d.output); });
+  const ps = portsOf(acc);
+  check(ps.length === 6 && ps.every((p) => p.inn && p.out) && ps.filter((p) => p.ble).map((p) => p.name).join() === "FM-1 C1F0 Bluetooth", `PORTS: ${ps.length} ports, in and out each, Bluetooth by name`);
+  const id1 = await probePort(acc, "FM-1", 400), id0 = await probePort(acc, "IAC Driver Bus 1", 200);
+  check(id1 === "FM-1_52010200" && id0 === null && rf.counts.hs === 1 && rf.counts.other === 0 && iac.counts.hs === 1 && rf.input.onmidimessage === null,
+    `PORTS: a port asked once (the handshake, nothing else): "FM-1" answered ${id1}, a quiet one nothing; its handler put back`);
+  rf.counts.hs = iac.counts.hs = 0;
+  const cmds = (u) => Object.values(u.counts.cmds).reduce((x, y) => x + y, 0), c0 = [cmds(a), cmds(b)];
+  let cur = { port: "FIZZ FM-1", id: "FM-1_46001100", version: "0.12.0" };
+  const scan = new PortScan(acc, { skip: () => cur, ms: 300 });
+  await scan.run();
+  const r = scan.report(), by = Object.fromEntries(r.ports.map((p) => [p.name, p]));
+  check(by["FIZZ FM-1"].current && by["FIZZ FM-1"].fizz && by["FM-1 C1F0 Bluetooth"].fizz && by["FM-1 C1F0 Bluetooth"].version === "0.12.0" && by["FM-1"].fw === "REMOTEFM1" &&
+    by["FM1 Update"].fw === "UPDATE MODE" && !by["IAC Driver Bus 1"].asked && !by["Roto-Control"].asked && roto.counts.hs === 0 && iac.counts.hs === 0 &&
+    r.n.in === 6 && r.n.out === 6 && r.n.asked === 4 && r.n.fizz === 2 && cmds(a) === c0[0] && cmds(b) === c0[1],
+    `PORTS: a scan: ${r.ports.map((p) => `${p.name} ${p.asked ? p.fw || "nothing" : "not asked"}`).join(" | ")}; the unit in use and other gear never asked, no FIZZ command sent`);
+  const hs = b.counts.frames;
+  await scan.run();
+  check(b.counts.frames === hs, "PORTS: a port asked once (asked again only by LOOK AGAIN or when it comes back)");
+  await scan.run({ again: true });
+  check(b.counts.frames === hs + 1 && /FM-1 C1F0 Bluetooth .*FM-1_46001200 FIZZ 0\.12\.0/.test(reportText(scan.report())), "PORTS: LOOK AGAIN asks again; the report as text");
+  const l2 = await findFizz(acc, { port: "FM-1 C1F0 Bluetooth" }), v2 = await l2.identity(), rows2 = await l2.list();
+  const l1 = await findFizz(acc);
+  check(l2.port === "FM-1 C1F0 Bluetooth" && l2.id === "FM-1_46001200" && v2 && rows2 && l1.port === "FIZZ FM-1" && cmds(b) > c0[1],
+    `findFizz on the port picked: "${l2.port}" (${l2.id}); with none, the first ("${l1.port}")`);
+  l1.close(); l2.close();
+  b.unplug();
+  scan.forget("FM-1 C1F0 Bluetooth");
+  cur = null;
+  await scan.run();
+  const r2 = scan.report();
+  check(!r2.ports.some((p) => p.name === "FM-1 C1F0 Bluetooth") && r2.n.fizz === 1 && r2.ports.find((p) => p.name === "FIZZ FM-1").asked, `PORTS: unplugged, its row gone (${r2.ports.length} ports); the unit not in use asked`);
+  a.dispose(); b.dispose();
+}
+// (the owner's two units, 2026-10-29, as CoreMIDI names them: "ChoralRoot FM-1" runs FIZZ (a dev build, FM-1_4600) and
+// "FM-1" RemoteFM1 (FM-1_52000203). "FM-1" is part of the other's name: ports are paired and picked by their exact
+// names, never a part of one)
+{
+  const rf = new SimPort("FM-1", "FM-1_52000203"), fz = await sim({ id: "FM-1_4600", name: "ChoralRoot FM-1" });
+  const acc = { inputs: new Map([["i0", rf.input], ["i1", fz.input]]), outputs: new Map([["o0", rf.output], ["o1", fz.output]]) };
+  rf.access = fz.access = acc;
+  const f0 = fz.counts.frames;
+  const id = await probePort(acc, "FM-1", 300);
+  check(id === "FM-1_52000203" && rf.counts.hs === 1 && fz.counts.frames === f0, `exact names: "FM-1" asked: RemoteFM1 answered (${id}); "ChoralRoot FM-1" was sent nothing`);
+  const scan = new PortScan(acc, { ms: 300 });
+  await scan.run();
+  const by = Object.fromEntries(scan.report().ports.map((p) => [p.name, p]));
+  check(Object.keys(by).join() === "FM-1,ChoralRoot FM-1" && by["FM-1"].fw === "REMOTEFM1" && !by["FM-1"].fizz && by["ChoralRoot FM-1"].fizz && by["ChoralRoot FM-1"].fw === "FIZZ" &&
+    by["ChoralRoot FM-1"].version === "" && by["ChoralRoot FM-1"].id === "FM-1_4600" && fz.counts.frames === f0 + 1,
+    `exact names: PORTS: FM-1 ${by["FM-1"].fw}, ChoralRoot FM-1 ${by["ChoralRoot FM-1"].fw} (${by["ChoralRoot FM-1"].id}, a dev build: no version); each asked once`);
+  let e1 = null;
+  try { (await findFizz(acc, { port: "FM-1" })).close(); } catch (x) { e1 = x; }
+  const l = await findFizz(acc, { port: "ChoralRoot FM-1" }), v = await l.identity();
+  l.close();
+  const l0 = await findFizz(acc);
+  check(e1 && e1.code === "notfizz" && /FM-1_52000203/.test(e1.message) && l.port === "ChoralRoot FM-1" && l.id === "FM-1_4600" && v && l0.port === "ChoralRoot FM-1",
+    `exact names: "FM-1" picked: not FIZZ (${e1 && e1.message}); "ChoralRoot FM-1" picked: FIZZ ${v}; with none picked, "${l0.port}"`);
+  l0.close(); fz.dispose();
+}
 
 // ---- the owner's saved images (outside the repo), read offline
 {

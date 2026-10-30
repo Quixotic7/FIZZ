@@ -49,7 +49,7 @@ struct ProjectsPatternsView: View {
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: pm.clip)
             SlotChips(model: pm)
             if let pr = s.model, pr.there {
-                PatternGrid(model: pm, project: pr, tileH: tileH) { anchor = $0; gridW = $1 }
+                PatternGrid(model: pm, project: pr, tileH: tileH, onAnchor: { anchor = $0; gridW = $1 })
                     .overlay(alignment: .topLeading) { menu }
                     .opacity(pm.reading ? 0.3 : 1)
                     .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }

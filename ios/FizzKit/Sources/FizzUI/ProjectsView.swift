@@ -6,7 +6,9 @@
 // dots on a card that opens them, LOAD / NEW / COPY TO / DELETE; the name or its pencil: RENAME; COPY TO turns MOVE
 // TO with one tap; KEPT n opens the kept ones), a project's patterns (18, ProjectsPatternsView) and the kept ones (19,
 // ProjectsKeptView), each with a chevron back to the slots. iPad: all of it on one screen (22,
-// ProjectsPadView). The store is read when the tab shows and the unit changed it (projtab.js show).
+// ProjectsPadView). The store is read when the tab shows and the unit changed it (projtab.js show). A pattern dragged
+// (43, 48; ProjectsDrag.swift): its ghost and the card a project springs open are drawn over the screen here, in the
+// space the drop targets report their places in; TO… (the phone's: PhoneRoot's ProjectsToLayer; the iPad's: here).
 
 import SwiftUI
 import FizzData
@@ -32,6 +34,35 @@ struct ProjectsView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.86), value: pm.mode)
+        .overlay {
+            GeometryReader { g in
+                if !wide, let q = pm.lift?.spring {
+                    let c = pm.zones.chips[q] ?? CGRect(x: g.size.width / 2, y: 120, width: 0, height: 0)
+                    let h = 2 * SpringCard.pad + SpringCard.head + 6 + 4 * SpringCard.row
+                    SpringCard(pm: pm, q: q)
+                        .position(x: min(max(c.midX, SpringCard.width / 2 + 12), g.size.width - SpringCard.width / 2 - 12), y: c.maxY + 4 + h / 2)
+                        .transition(.scale(scale: 0.3, anchor: .top).combined(with: .opacity))
+                }
+                ProjectsGhost(pm: pm)
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: pm.lift?.spring)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pm.lift == nil)
+        }
+        .overlay {
+            if wide, pm.to != nil {
+                ZStack {
+                    Color.black.opacity(0.6).ignoresSafeArea().onTapGesture { pm.closeTo() }
+                    ProjectsToSheet(pm: pm, card: true).padding(24)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: pm.to == nil)
+        .coordinateSpace(.named(ProjectsDropZones.space))
+        .sensoryFeedback(.impact(weight: .medium), trigger: pm.lift != nil) { _, new in new }
+        .sensoryFeedback(.selection, trigger: pm.lift?.over) { _, new in new != nil }
+        .onAppear { if !wide { pm.zones.spring = .card } }
+        .onDisappear { pm.endLift(); pm.closeTo() }
         .overlay(alignment: .top) {
             if let n = pm.note { ProjNoteStrip(note: n).padding(.top, 4).onTapGesture { pm.dismissNote() } }
         }
@@ -51,7 +82,7 @@ struct ProjectsView: View {
 
 /// `-projects <scene>` with the demo unit: PROJECTS opened in that state (simulator screenshots): patterns, select
 /// (C02-C03), top (A10), changes (SUNDAY A03-A05 pasted at NOIR C01), write (those changes written), kept, load (LOAD
-/// INTO armed), copyto.
+/// INTO armed), copyto, to (TO… for NOIR A07 into SUNDAY), dropped (A07 dropped on SUNDAY, A08 moved to C09: waiting).
 @MainActor enum ProjectsScene {
     private static var done = false
 
@@ -76,9 +107,24 @@ struct ProjectsView: View {
             await pm.enter(.kept)
             if arguments[i + 1] == "load", let k = pm.kept.items.first { pm.keptSel = k.id; pm.startLoad(k) }
         case "copyto": pm.startCopy()
+        case "to":
+            await patternsRead(pm)
+            await pm.openTo(p: 0, k: 6)
+            pm.setToProject(1)
+        case "dropped":
+            await patternsRead(pm)
+            await pm.land(p: 0, k: 6, q: 1, j: nil, move: false)
+            await pm.land(p: 0, k: 7, q: 0, j: 40, move: true)
         default: break
         }
         pm.dismissNote()
+    }
+
+    /// The patterns shown once the unit is there and its store read (the drag's scenes need them).
+    private static func patternsRead(_ pm: ProjectsModel) async {
+        for _ in 0..<300 where !pm.online { try? await Task.sleep(for: .milliseconds(50)) }
+        await pm.read(force: true)
+        await pm.enter(.patterns)
     }
 }
 
