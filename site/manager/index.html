@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="css/pool.css">
 <link rel="stylesheet" href="css/projects.css">
 <link rel="stylesheet" href="css/import.css">
+<link rel="stylesheet" href="css/play.css">
 </head>
 <body>
 <header class="top">
@@ -35,6 +36,7 @@
     <button class="tab" role="tab" id="t-pool" aria-controls="tab-pool" aria-selected="false" style="--c:var(--green)"><i></i>POOL</button>
     <button class="tab" role="tab" id="t-projects" aria-controls="tab-projects" aria-selected="false" style="--c:var(--cyan)"><i></i>PROJECTS</button>
     <button class="tab" role="tab" id="t-import" aria-controls="tab-import" aria-selected="false" style="--c:var(--violet)"><i></i>IMPORT</button>
+    <button class="tab" role="tab" id="t-play" aria-controls="tab-play" aria-selected="false" style="--c:var(--blue)"><i></i>PLAY</button>
   </nav>
   <button id="live" class="livesw" aria-pressed="false" hidden><span class="sw" aria-hidden="true"><i></i></span><span class="lw">TRACK</span><b id="live-n">–</b></button>
   <button id="refresh" class="icon refresh" aria-label="Read the FM-1 again" title="Read the FM-1 again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg></button>
@@ -147,6 +149,8 @@
       <div class="ifoot"><span class="kv" id="i-foot"></span><button id="i-clear" class="ol" hidden>CLEAR</button><button id="i-send" class="arc" disabled>↓ SEND 0 TO FM-1</button></div>
     </div>
   </section>
+
+  <section id="tab-play" class="body" role="tabpanel" aria-labelledby="t-play" hidden></section>
 </main>
 <footer class="keys scan" id="keys" hidden></footer>
 

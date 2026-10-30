@@ -12,6 +12,8 @@
 //   const u = new BrowserUnit({ log, onFlash(hostImage) }); await u.start() (in a click: the autoplay rule);
 //   await u.boot(image | null) (an FM-1 image or the browser's 1 MiB one: quiet if the sound has not started);
 //   await u.wake() (in a click: the sound on, FIZZ moved into the worklet); u.quiet; u.access (requestMIDIAccess's shape)
+// PLAY (play.js) plays its panel: u.panel(p) (panel.js's Controls snapshot, once it sounds), u.view = { frame(pixels),
+// leds(levels, playGreen) } (its screen and LEDs as they come), u.screenNow() (the last of each; quiet: the engine's own)
 import { SimFizz } from "./simfizz.js";
 import { Player } from "../js/audio.js";
 import { ver } from "../js/build.js";
@@ -26,9 +28,12 @@ export class BrowserUnit extends SimFizz {
     this.log = log; this.onFlash = onFlash;
     this.host = null; this.region = null; this.waitFlash = null; this.booted = null; this.saveT = null;
     this.quiet = false; this.holding = null; this.waking = null; this.fseq = -1;
+    this.view = null; this.lastFrame = null; this.lastLeds = null; this.version = "";
     this.player = new Player({
+      frame: (px) => { this.lastFrame = px; if (this.view) this.view.frame(px); },
+      leds: (levels, playGreen) => { this.lastLeds = { levels, playGreen }; if (this.view) this.view.leds(levels, playGreen); },
       midiOut: (b) => this.out(b),
-      info: () => { if (this.booted) { const f = this.booted; this.booted = null; f(true); } },
+      info: (m) => { if (m && m.version) this.version = m.version; if (this.booted) { const f = this.booted; this.booted = null; f(true); } },
       flash: (m) => this.flashMsg(m),
       error: (m) => this.log(`browser FIZZ: ${m}`),
     }, { root: "../" });
@@ -58,6 +63,7 @@ export class BrowserUnit extends SimFizz {
     this.quiet = true;
     await super.boot(host);
     this.fseq = this.engine.flash().seq;
+    try { this.version = this.engine.info().version || this.version; } catch (_) { /* (no info) */ }
     this.host = host; this.region = null;
     return this;
   }
@@ -94,6 +100,16 @@ export class BrowserUnit extends SimFizz {
     const held = this.holding;
     this.holding = null;
     for (const d of held) { this.rx(d); await sleep(20); }
+  }
+  // PLAY: the panel (keys, buttons, detents, MASTER) into the worklet's FIZZ; -> false while it is quiet or waking
+  panel(p) {
+    if (this.quiet || this.waking || !this.player.node) return false;
+    this.player.panel(p);
+    return true;
+  }
+  screenNow() {
+    if (this.quiet && this.engine && this.engine.screen) return { pixels: this.engine.screen().pixels, leds: this.engine.leds() };
+    return { pixels: this.lastFrame, leds: this.lastLeds };
   }
   // the flash: asked of the worklet when the bulk commands need it; each change of FIZZ's own stored for next time
   flashMsg(m) {

@@ -1933,6 +1933,124 @@ try {
   await evaluate("__mgr.bfizz.ask = window.__ba; window.__bstub = false");
   }
   // ---- (end of EDIT pan and sends)
+  // ---- nf-play: PLAY (the virtual FM-1: its own target, THIS BROWSER or the FM-1's remote; the views; the phone)
+  {
+  const SHOTS = path.join(OUT, "play");
+  fs.mkdirSync(SHOTS, { recursive: true });
+  const pshot = (f) => shot(path.join("play", f));
+  const pdown = async (sel) => { const c = await centre(sel); if (c) await mouse("mousePressed", c.x, c.y); return c; };
+  const pup = async (c) => mouse("mouseReleased", c.x, c.y);
+  await size(1280, 800);
+  await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#library" });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.rows.length > 0 && __mgr.S.mode === 'fm1'", 40000);
+  const t7 = await evaluate(`(() => { const t = [...document.querySelectorAll('.tabs .tab')]; const p = document.getElementById('t-play');
+    return { n: t.length, last: t[t.length - 1] === p, c: p.style.getPropertyValue('--c'), col: getComputedStyle(p.querySelector('i')).backgroundColor }; })()`);
+  check(t7.n === 7 && t7.last && /--blue/.test(t7.c) && t7.col === "rgb(63, 125, 255)" && (await noScroll()), `PLAY: the seventh tab, blue (${t7.col}), the bar still fits at 1280`);
+  await realClick("#t-play");
+  await waitFor("__mgr.play.state.shown && !document.getElementById('tab-play').hidden");
+  const tg = await evaluate("[...document.querySelectorAll('#pl-tgt .tg')].map((t) => t.dataset.tg).join()");
+  await realClick("#pl-tgt [data-tg='fm1']");
+  const onFm = await waitFor("__mgr.play.state.cur === 'fm1' && document.getElementById('pl-board').classList.contains('fm')", 3000);
+  check(tg === "browser,fm1" && onFm, `PLAY: the target: THIS BROWSER and the FM-1 offered with an FM-1 connected (${tg}); FM-1 picked`);
+  await realClick("#pl-views [data-v='full']");
+  await waitFor("__mgr.play.state.lay === 'full'");
+  await sleep(300);
+  await evaluate("window.__pout = []; window.__sim.hooks.midi = (d) => window.__pout.push(Array.from(d).join(' '))");
+  // a button (HOME, QD_B_* 6): CC 26 127 on channel 16 when pressed, 0 when let go
+  const hb = await pdown("#pl-board .pb[data-b='6']");
+  await sleep(150);
+  const bDown = await evaluate("window.__pout.join('|')");
+  await pup(hb);
+  await sleep(150);
+  const bUp = await evaluate("window.__pout.join('|')");
+  check(bDown === "191 26 127" && bUp === "191 26 127|191 26 0", `PLAY → FM-1: HOME pressed sends CC 26 127, let go CC 26 0 on channel 16 (${bUp})`);
+  // an encoder (KN1, QD_K_1 = 3) dragged up: CC 43 relative, 64 + n
+  await evaluate("window.__pout = []");
+  await drag("#pl-board .knob[data-role='3']", 0, -60);
+  await sleep(150);
+  const enc = await evaluate("window.__pout.slice()");
+  const encN = enc.reduce((a, m) => a + (+m.split(" ")[2] - 64), 0);
+  check(enc.length > 0 && enc.every((m) => /^191 43 (6[5-9]|[7-9]\d)$/.test(m)) && encN === 4, `PLAY → FM-1: KN1 dragged up 60 px: CC 43 at 64 + n, ${encN} detents (${enc.join("|")})`);
+  // a key (white key 7, C4 at OCT 0): a note on the selected track's channel, velocity by depth, then its note off
+  await evaluate("window.__pout = []");
+  const ch = await evaluate("__mgr.play.state.track.chan"), oct = await evaluate("__mgr.editor.octave()");
+  const kc = await pdown("#pl-board .k[data-key='7']");
+  await sleep(150);
+  await pup(kc);
+  await sleep(150);
+  const notes = await evaluate("window.__pout.slice()");
+  const nOn = notes[0] && notes[0].split(" ").map(Number), nOff = notes[1] && notes[1].split(" ").map(Number);
+  check(notes.length === 2 && nOn[0] === (0x90 | ch) && nOn[1] === 60 + 12 * oct && nOn[2] > 24 && nOn[2] < 127 && nOff[0] === (0x80 | ch) && nOff[1] === nOn[1],
+    `PLAY → FM-1: a key is a note on the track's channel ${ch + 1} (${notes.join("|")}), not channel 16`);
+  await pshot("play-1280-fm1-full.png");
+  // leaving the tab lets everything go: CC 123 on channel 16
+  await evaluate("window.__pout = []");
+  await realClick("#t-library");
+  await sleep(200);
+  const left = await evaluate("window.__pout.join('|')");
+  check(/191 123 0/.test(left) && !(await evaluate("__mgr.play.state.shown")), `PLAY → FM-1: leaving the tab sends CC 123 (${left})`);
+  // the views: KEYS (the chips), a swipe on the screen, SCREEN; remembered
+  await realClick("#t-play");
+  await waitFor("__mgr.play.state.shown");
+  await realClick("#pl-views [data-v='keys']");
+  const vk = await waitFor("__mgr.play.state.lay === 'keys' && !!document.querySelector('#pl-board .bed') && !document.querySelector('#pl-board .pb')", 2000);
+  await drag("#pl-board .bezel", -120, 0);
+  const vs = await waitFor("__mgr.play.state.view === 'screen' && !document.querySelector('#pl-board .bed')", 2000);
+  await realClick("#pl-views [data-v='panel']");
+  const vp = await waitFor("__mgr.play.state.lay === 'panel' && document.querySelectorAll('#pl-board .pb').length === 14", 2000);
+  const kept = await evaluate("localStorage.getItem('fizz-play-view') + ' ' + localStorage.getItem('fizz-play-target')");
+  check(vk && vs && vp && kept === '"panel" "fm1"', `PLAY: the views: KEYS, a swipe on the screen to SCREEN, PANEL; the view and the target remembered (${kept})`);
+  await pshot("play-1280-fm1-panel.png");
+  await evaluate("window.__sim.hooks.midi = null");
+  await realClick("#pl-tgt [data-tg='browser']");
+  await realClick("#pl-views [data-v='full']");
+  await realClick("#t-library");
+
+  // THIS BROWSER (no Web MIDI: the browser's FIZZ, quiet until touched): no FM-1 offered; a key reaches the browser FIZZ
+  // (on a fresh store, RESET's mark: the earlier sections leave MIDI sounds on its tracks, which make none)
+  await evaluate(`new Promise((res) => { const r = indexedDB.open("fizz-manager", 1); r.onsuccess = () => { const t = r.result.transaction("kv", "readwrite");
+    t.objectStore("kv").put(new Uint8Array(0), "browserFlash"); t.oncomplete = () => res(true); t.onerror = () => res(false); }; r.onerror = () => res(false); })`);
+  await send("Page.navigate", { url: URL0.replace("?sim&", "?sim=nomidi&").replace(/v=\d+/, `v=${Date.now()}`) + "#play" });
+  await waitFor("window.__mgr && __mgr.S.mode === 'browser' && !!__mgr.S.link && __mgr.bu() && __mgr.play.state.shown", 40000);
+  await sleep(600);
+  const nb = await evaluate("({ tiles: [...document.querySelectorAll('#pl-tgt .tg')].map((t) => t.dataset.tg).join(), cur: __mgr.play.state.cur, lcd: !!document.querySelector('#pl-board canvas.lcd') })");
+  await realClick("#pl-board .bezel");
+  const woke = await waitFor("!__mgr.bu().quiet && __mgr.bu().running", 20000);
+  await sleep(1500);
+  const hm = await pdown("#pl-board .pb[data-b='6']");   // (HOME: FIZZ out of its idle screen; the press that wakes it does nothing else)
+  await sleep(120);
+  await pup(hm);
+  await sleep(800);
+  await evaluate(`(() => { const p = __mgr.bu().player; window.__pan = p.ctx.createAnalyser(); window.__pan.fftSize = 2048; p.out.connect(window.__pan); window.__pb = new Float32Array(2048);
+    window.__ppk = () => { window.__pan.getFloatTimeDomainData(window.__pb); let m = 0; for (const x of window.__pb) m = Math.max(m, Math.abs(x)); return m; };
+    window.__psent = 0; const o = p.panel.bind(p); p.panel = (m) => { if (m.keys & (1 << 7)) window.__psent++; o(m); }; })()`);
+  const kb = await pdown("#pl-board .k[data-key='7']");
+  let pk = 0;
+  for (let i = 0; i < 15; i++) { await sleep(40); pk = Math.max(pk, await evaluate("window.__ppk()")); }
+  const lit = await evaluate("({ held: document.querySelector('#pl-board .k[data-key=\"7\"]').classList.contains('held'), px: !!__mgr.play.state.px, sent: window.__psent })");
+  await pup(kb);
+  check(nb.tiles === "browser" && nb.cur === "browser" && nb.lcd && woke && lit.sent > 0 && lit.px && pk > 0.001,
+    `PLAY → THIS BROWSER: no FM-1 offered (${nb.tiles}); the first touch wakes it (${woke}); a key reaches its FIZZ (the panel's key bit sent ${lit.sent}, sound out ${pk.toFixed(4)}); its screen shown (${lit.px})`);
+  await pshot("play-1280-browser-full.png");
+  // the phone: upright (the tiles, the views, the board stacked), on its side (the bar gives way to the strip)
+  await size(390, 844, true);
+  await sleep(700);
+  const pp = await evaluate("({ lay: __mgr.play.state.lay, sw: document.documentElement.scrollWidth, w: innerWidth, bw: Math.round(document.getElementById('pl-wrap').getBoundingClientRect().right) })");
+  await pshot("play-390x844.png");
+  await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true, screenOrientation: { type: "landscapePrimary", angle: 90 } });
+  await sleep(700);
+  const pl = await evaluate(`({ lay: __mgr.play.state.lay, sw: document.documentElement.scrollWidth, w: innerWidth, top: getComputedStyle(document.querySelector('.top')).display,
+    strip: getComputedStyle(document.querySelector('#tab-play .pstrip')).display, b: Math.round(document.getElementById('pl-wrap').getBoundingClientRect().bottom) })`);
+  await pshot("play-844x390.png");
+  check(pp.lay === "tall-full" && pp.sw <= pp.w + 1 && pp.bw <= pp.w && pl.lay === "wide" && pl.sw <= pl.w + 1 && pl.top === "none" && pl.strip === "flex" && pl.b <= 391,
+    `PLAY on a phone: upright ${pp.lay} (no horizontal scroll), on its side ${pl.lay} under the strip, the bar gone, the board within the screen (${pl.b} px)`);
+  await realClick("#pl-back");
+  const back = await waitFor("!__mgr.play.state.shown && getComputedStyle(document.querySelector('.top')).display !== 'none'", 2000);
+  check(back, "PLAY on its side: the strip's way back to the Manager");
+  await size(1280, 800);
+  await sleep(300);
+  }
+  // ---- (end of nf-play)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

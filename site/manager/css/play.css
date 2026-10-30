@@ -1,0 +1,146 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ Manager, PLAY (play.js; the parity mock-ups 01-04, 14): the target tiles (THIS BROWSER orange, the FM-1
+   green), the views, the themes, and the board: the FM-1 as the iOS app's PLAY draws it (its palettes as --body ..
+   --ledDim on the board, play.js), laid out in board units and scaled to fit. A phone on its side: the Manager's bar
+   gives way to a strip; upright: the tiles, the views, the board stacked. Everything scoped under #tab-play. */
+:root { --play: var(--blue); }
+#tab-play { flex-direction: column; gap: 14px; padding: 16px 28px 18px; align-items: stretch; }
+
+/* ---- the toolbar: PLAYS, the target, the views, the themes */
+#tab-play .ptool { display: flex; align-items: center; gap: 14px; flex: none; }
+#tab-play .sp { flex: 1; }
+#tab-play .tgt { display: flex; gap: 8px; }
+#tab-play .tg { --c: var(--orange); height: 52px; border-radius: 16px; padding: 0 16px 0 12px; display: inline-flex; align-items: center; gap: 11px; color: var(--body); text-align: left; }
+#tab-play .tg.fm { --c: var(--green); }
+#tab-play .tg .g { width: 30px; height: 22px; color: var(--c); flex: none; }
+#tab-play .tg .t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#tab-play .tg .t b { font-weight: 900; font-size: 14px; letter-spacing: .06em; color: var(--text); white-space: nowrap; }
+#tab-play .tg .t .hud { font-size: 11px; color: var(--c); white-space: nowrap; }
+#tab-play .tg:not(.on) { --c: var(--muted); }
+#tab-play .tg:not(.on) .g { color: var(--muted); }
+#tab-play .tick { width: 22px; height: 22px; border-radius: 50%; background: var(--c); display: grid; place-items: center; box-shadow: 0 0 12px -2px var(--c); flex: none; }
+#tab-play .tick svg { width: 13px; height: 13px; fill: none; stroke: #000; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+#tab-play .views { --c: var(--play); display: inline-flex; gap: 4px; padding: 4px; border-radius: 16px; border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); }
+#tab-play .vw { width: 74px; height: 44px; border: 0; border-radius: 12px; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: var(--muted); font-weight: 800; font-size: 11px; letter-spacing: .12em; padding: 0; transition: background .16s, color .16s; }
+#tab-play .vw svg { width: 26px; height: 15px; fill: currentColor; }
+#tab-play .vw:not(.on):hover { color: var(--text); }
+#tab-play .vw.on { background: var(--c); color: #000; box-shadow: 0 0 16px -3px var(--c); }
+#tab-play .views.ico .vw { width: 52px; height: 40px; }
+#tab-play .themes { display: flex; gap: 8px; align-items: center; }
+#tab-play .th { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #000; box-shadow: 0 0 0 1.5px var(--dim); position: relative; padding: 0; transition: box-shadow .16s; }
+#tab-play .th i { position: absolute; inset: 7px; border-radius: 50%; }
+#tab-play .th:hover { box-shadow: 0 0 0 1.5px var(--muted); }
+#tab-play .th.on { box-shadow: 0 0 0 2px var(--play), 0 0 14px -2px var(--play); }
+#tab-play .rot { display: none; width: 44px; height: 40px; border-radius: 12px; padding: 0; color: var(--body); }
+#tab-play .rot svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#tab-play .pstrip { display: none; }
+#tab-play .pstage { flex: 1; min-height: 0; display: grid; place-items: center; }
+
+/* ---- the board (board units: 1080 x 600, 1240 x 540, 358 wide; scaled) */
+#tab-play .bwrap { position: relative; flex: none; }
+#tab-play .board { --tc: var(--orange); position: absolute; left: 0; top: 0; transform-origin: 0 0; border-radius: 38px; touch-action: none; user-select: none; -webkit-user-select: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--body) 88%, #fff 3%), var(--body) 30%, color-mix(in srgb, var(--body) 86%, #000));
+  border: 1.5px solid color-mix(in srgb, var(--tc) 70%, transparent);
+  box-shadow: 0 0 0 5px #000, 0 0 0 6.5px color-mix(in srgb, var(--tc) 32%, transparent), 0 0 60px -12px var(--tc), inset 0 1px 0 rgba(255, 255, 255, .06);
+  transition: border-color .3s, box-shadow .3s; }
+#tab-play .board.fm { --tc: var(--green); }
+#tab-play .board.l-tall { border-radius: 0; background: none; border: 0; box-shadow: none; }
+#tab-play .board > * { position: absolute; }
+#tab-play .petch { font-family: "Chakra Petch", sans-serif; font-weight: 700; }
+#tab-play .bpill { --c: var(--tc); height: 30px; padding: 0 12px 0 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-weight: 900; font-size: 12px; letter-spacing: .1em; color: var(--text);
+  border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 14%, #000); box-shadow: 0 0 16px -3px var(--c); white-space: nowrap; }
+#tab-play .bpill .g { width: 18px; height: 18px; color: var(--c); }
+#tab-play .bpill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+#tab-play .bpill .hud { color: var(--c); font-size: 11px; font-weight: 400; }
+#tab-play .klbl { letter-spacing: .08em; font-size: 13px; color: var(--label); text-align: center; white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
+#tab-play .knob { border-radius: 50%; transform: translate(-50%, -50%); cursor: ns-resize; touch-action: none;
+  background: radial-gradient(circle, var(--knob) 0 60%, transparent 61%), repeating-conic-gradient(color-mix(in srgb, var(--knob) 72%, #fff 28%) 0 5deg, var(--knob) 5deg 10deg);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--knob) 80%, #fff 10%), 0 6px 14px rgba(0, 0, 0, .45); transition: box-shadow .16s; }
+#tab-play .knob .kmark { position: absolute; inset: 0; border-radius: 50%; }
+#tab-play .knob .kmark::after { content: ""; position: absolute; left: 50%; top: 11%; height: 24%; width: 7%; min-width: 3px; transform: translateX(-50%); border-radius: 3px; background: var(--m); box-shadow: 0 0 8px var(--m); }
+#tab-play .knob.hot { box-shadow: 0 0 0 1.5px var(--m), 0 0 22px -4px var(--m), 0 6px 14px rgba(0, 0, 0, .45); }
+#tab-play .well { border-radius: 20px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); }
+#tab-play .pb { border-radius: 12px; cursor: pointer; touch-action: none; background: linear-gradient(180deg, var(--hi), var(--key) 22%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), inset 0 0 0 1.5px var(--hi), 0 3px 0 var(--lo);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; letter-spacing: .02em; color: var(--keyText); line-height: 1.05; text-align: center;
+  transition: transform .06s, box-shadow .12s, color .12s; overflow: hidden; }
+#tab-play .board.l-tall .pb { font-size: 11px; letter-spacing: 0; }
+#tab-play .board.l-tall .klbl { font-size: 11px; letter-spacing: .04em; }
+#tab-play .pb.lit { color: var(--ledDim); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ledDim) 70%, transparent), 0 0 14px -5px var(--ledDim), 0 3px 0 var(--lo); }
+#tab-play .pb.on { --g: var(--green); color: var(--g); box-shadow: inset 0 0 0 1.5px var(--g), 0 0 18px -4px var(--g), inset 0 0 14px -6px var(--g), 0 3px 0 var(--lo); background: color-mix(in srgb, var(--g) 10%, var(--key)); }
+#tab-play .pb.down { transform: translateY(2px); box-shadow: inset 0 0 0 1.5px var(--tc), 0 0 22px -4px var(--tc), 0 1px 0 var(--lo); color: var(--text); }
+#tab-play .pb .tri { width: 0; height: 0; border-left: 7px solid var(--green); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+#tab-play .pb .rec { width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 8px var(--red); }
+#tab-play .led0 { width: 12px; height: 12px; border-radius: 3px; background: #FF3B2F; box-shadow: 0 0 12px #FF3B2F, 0 0 4px #FF3B2F; }
+#tab-play .bezel { border-radius: 22px; background: var(--bezel); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bezel) 80%, #fff 12%), 0 10px 30px rgba(0, 0, 0, .45); cursor: grab; }
+#tab-play .bezel .lcd { position: absolute; left: var(--pad); top: var(--pad); width: calc(100% - 2 * var(--pad)); height: calc(100% - 2 * var(--pad)); border-radius: 6px; image-rendering: pixelated; display: block; background: #000; }
+#tab-play .bed { border-radius: 24px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); touch-action: none; cursor: pointer; }
+#tab-play .kstage { position: absolute; left: var(--pad); top: var(--pad); right: var(--pad); bottom: var(--pad); overflow: hidden; pointer-events: none; }
+#tab-play .k { position: absolute; border-radius: 14px; background: linear-gradient(180deg, var(--hi), var(--key) 18%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), inset 0 0 0 1.5px color-mix(in srgb, var(--hi) 80%, transparent), 0 4px 0 var(--lo); transition: transform .05s; }
+#tab-play .k::after { content: ""; position: absolute; left: 50%; top: 24%; bottom: 24%; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--ledOff); }
+#tab-play .k.lit::after { background: var(--ledDim); box-shadow: 0 0 8px -1px var(--ledDim); opacity: calc(.55 + .45 * var(--a, 1)); }
+#tab-play .k.hot::after { background: var(--led); box-shadow: 0 0 12px var(--led); }
+#tab-play .k.held { transform: translateY(3px); background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 26%, var(--hi)), var(--key));
+  box-shadow: inset 0 0 0 1.5px var(--tc), 0 0 26px -4px var(--tc), 0 1px 0 var(--lo); }
+#tab-play .k.held::after { background: #fff; box-shadow: 0 0 14px var(--tc); }
+#tab-play .ovw { border-radius: 6px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); display: flex; gap: 2px; padding: 3px; touch-action: none; cursor: ew-resize; }
+#tab-play .ovw i { flex: 1; border-radius: 2px; background: var(--key); }
+#tab-play .ovw i.in { background: var(--hi); }
+#tab-play .ovw i.t { background: color-mix(in srgb, var(--ledDim) 75%, transparent); }
+#tab-play .ovw .win { position: absolute; top: -3px; bottom: -3px; border: 2px solid var(--keyText); border-radius: 6px; box-shadow: 0 0 10px -2px #fff; pointer-events: none; }
+#tab-play .bseg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--bed); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bed) 80%, #fff 10%); }
+#tab-play .bseg button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 12px; letter-spacing: .1em; color: color-mix(in srgb, var(--keyText) 55%, transparent); }
+#tab-play .bseg button.on { background: var(--hi); color: var(--keyText); }
+/* the light bodies: the board's own words dark (PlayTheme lightBody) */
+#tab-play .board:is([data-theme="tangerine"], [data-theme="mint"], [data-theme="lilac"], [data-theme="cream"]) .bseg { background: color-mix(in srgb, var(--label) 14%, transparent); box-shadow: none; }
+#tab-play .board:is([data-theme="tangerine"], [data-theme="mint"], [data-theme="lilac"], [data-theme="cream"]) .bseg button:not(.on) { color: var(--label); }
+
+/* ---- a phone (upright and on its side) */
+@media (max-width: 900px) {
+  #tab-play { padding: 12px 16px 20px; gap: 10px; }
+  #tab-play .tg { height: 48px; padding: 0 10px; gap: 9px; border-radius: 14px; }
+  #tab-play .tg .g { width: 26px; height: 19px; }
+  #tab-play .tg .t b { font-size: 12px; }
+  #tab-play .themes, #tab-play .plays, #tab-play .sp2 { display: none; }
+}
+@media (max-width: 900px) and (orientation: portrait) {
+  #tab-play .ptool { flex-wrap: wrap; gap: 10px 8px; }
+  #tab-play .tgt { flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #tab-play .tgt .tg:only-child { grid-column: 1 / -1; }
+  #tab-play .tg .t { overflow: hidden; }
+  #tab-play .ptool > .sp:not(.sp2) { display: none; }
+  #tab-play .views { margin-right: auto; }
+  #tab-play .views .vw { width: 52px; height: 40px; }
+  #tab-play .views .vw span { display: none; }
+  #tab-play .rot { display: grid; place-items: center; }
+  #tab-play .pstage { display: flex; justify-content: center; }
+}
+/* on its side: the Manager's bar and tab column give way; the strip on top, the board under it */
+@media (max-width: 900px) and (orientation: landscape) {
+  html.play-on body { padding-left: 0; }
+  html.play-on .top { display: none; }
+  html.play-on .say:empty { display: none; }
+  #tab-play { padding: 0 8px 6px; gap: 0; min-height: 100vh; min-height: 100dvh; }
+  #tab-play .ptool { display: none; }
+  #tab-play .pstrip { height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 6px; flex: none; position: relative; }
+  #tab-play .pstrip .back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); border: 0; background: none; padding: 0 4px; height: 40px; }
+  #tab-play .pstrip .back .chv { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+  #tab-play .pstrip .bub { width: 28px; height: 28px; }
+  #tab-play .tgpill { --c: var(--green); height: 34px; padding: 0 12px 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-weight: 900; font-size: 12px; letter-spacing: .08em; color: var(--text);
+    border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 11%, transparent); box-shadow: 0 0 16px -3px var(--c); white-space: nowrap; }
+  #tab-play .tgpill:disabled { opacity: 1; cursor: default; }
+  #tab-play .tgpill.br { --c: var(--orange); }
+  #tab-play .tgpill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  #tab-play .tgpill .hud { color: var(--c); font-size: 11px; font-weight: 400; }
+  #tab-play .tgpill .ic { width: 12px; height: 12px; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 2; }
+  #tab-play .tgpill .g { width: 18px; height: 18px; color: var(--c); }
+  #tab-play .pstrip .views { padding: 3px; border-radius: 12px; }
+  #tab-play .pstrip .views .vw { width: 42px; height: 30px; border-radius: 9px; }
+  #tab-play .pstrip .views .vw svg { width: 22px; height: 13px; }
+  #tab-play .pstrip .more { width: 34px; height: 34px; border-radius: 50%; padding: 0; font-weight: 900; font-size: 12px; letter-spacing: .08em; color: var(--body); }
+  #tab-play .thpop { position: absolute; right: 6px; top: 44px; z-index: 5; padding: 10px 12px; border-radius: 16px; background: var(--panel); border: 1.5px solid var(--line); box-shadow: 0 18px 40px rgba(0, 0, 0, .7); }
+  #tab-play .thpop .themes { display: flex; }
+  #tab-play .pstage { place-items: start center; }
+}

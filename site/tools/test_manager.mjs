@@ -60,6 +60,7 @@ import { exportFiles, carryOf, noteRow, MIDI_ONLY } from "../manager/exporter.js
 import { readImport, markDuplicates } from "../manager/importer.js";
 import { fizzToDn2pst } from "../js/fizz2dn.js";
 import { parseFizzsnd } from "../js/library.js";
+import * as PC from "../manager/playcore.js";   // (nf-play)
 
 const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const module = await WebAssembly.compile(fs.readFileSync(path.join(SITE, "fizz.wasm")));
@@ -897,6 +898,46 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   check(lo.status === 0 && t2b.pan === -64 && nf.status === 9, `PARAM PAN past its range: clamped (${t2b.pan}); id 120: ${nf.statusName}`);
   lk.close(); u.dispose();
 }
+
+// ---- nf-play: PLAY's pure parts (playcore.js): the keybed, velocity, detents, MASTER, the remote's bytes, the layouts
+{
+  const L = PC.keyLayout({ w: 1004, h: 194, visible: 16, gap: 8 });
+  const w0 = L.white(0), b0 = L.black(0);
+  const hw = L.keyAt(w0.x + w0.w / 2, w0.y + w0.h - 1), hb = L.keyAt(b0.x + b0.w / 2, b0.y + 1), under = L.keyAt(w0.x + 2, 5);
+  check(hw.key === 0 && hw.depth > 0.95 && hb.key === 1 && hb.depth < 0.05 && under.key === 0 && L.keyAt(L.white(15).x + 5, w0.y + 5).key === 26 && !L.keyAt(-5, 10),
+    "PLAY: the keybed: F3 at the left, its black key above, a white key's column under the black row, G5 the last");
+  const S = PC.keyLayout({ w: 342, h: 114, visible: 6, offset: 20, gap: 6 });
+  check(S.offset === 10 && S.keyAt(2, S.whiteTop + 5).key === PC.WHITES[10], `PLAY: a scrolled keybed: clamped to 16 - 6 (${S.offset}), its first key shown`);
+  check(PC.velocity(0) === 24 && PC.velocity(1) === 127 && PC.velocity(0.5) === 76 && PC.velocity(-3) === 24, "PLAY: velocity by depth (24 far end .. 127 near end)");
+  const d = new PC.Detents();
+  const det = [d.move(10, 0), d.move(5, 0), d.move(0, -20), d.move(-60, 0)];
+  check(det.join() === "0,1,1,-3", `PLAY: detents every 14 px, up and right clockwise, the rest carried (${det.join()})`);
+  check(PC.masterFrom(500, 0, -220) === 1023 && PC.masterFrom(500, 110, 0) === 1012 && PC.masterFrom(10, -50, 0) === 0, "PLAY: MASTER absolute from a drag (1023 per 220 px)");
+  check(PC.swiped("full", 1) === "keys" && PC.swiped("panel", 1) === "screen" && PC.swiped("screen", -1) === "keys" && PC.swiped("keys", -1) === "full" && PC.swiped("full", -1) === "full",
+    "PLAY: a swipe: FULL, PANEL / KEYS, SCREEN");
+  const out = [], R = new PC.RemoteOut((b) => out.push(b.join(" ")));
+  R.sync(768); R.master(768);
+  R.buttons(1 << 6); R.buttons(1 << 6); R.buttons(0);
+  R.turn(3, 2); R.turn(0, -1); R.turn(4, 70);
+  R.master(1023);
+  R.keyDown(5, PC.remoteNote(5, 1), 2, 90); R.keyDown(5, 99, 2, 90);
+  R.buttons(1 << 12);
+  R.letGo();
+  check(out.join("|") === "191 26 127|191 26 0|191 43 66|191 40 63|191 44 127|191 44 71|191 7 127|146 70 90|191 32 127|130 70 0|191 32 0|191 123 0",
+    `PLAY: the remote: a button 127 then 0 once, encoders 64±n, MASTER only when moved, the key on its channel, letting go ends with CC 123 (${out.join("|")})`);
+  let bad = [];
+  for (const n of PC.LAYOUTS) for (const k of ["main", "kn"]) {
+    const l = PC.layoutOf(n, { knobs: k });
+    for (const p of l.parts) {
+      const x0 = p.cx !== undefined ? p.cx - p.r : p.x ?? 0, y0 = p.cy !== undefined ? p.cy - p.r : p.y, x1 = p.cx !== undefined ? p.cx + p.r : x0 + (p.w || p.s || 0), y1 = p.cy !== undefined ? p.cy + p.r : y0 + (p.h || p.s || 0);
+      if (x0 < 0 || y0 < 0 || x1 > l.W + 0.5 || y1 > l.H + 0.5) bad.push(`${n}:${p.t}`);
+    }
+    const btns = l.parts.filter((p) => p.t === "btn").length, knobs = l.parts.filter((p) => p.t === "knob").length;
+    if (/full|wide/.test(n) && (btns !== 14 || knobs !== 8)) bad.push(`${n}: ${btns} buttons ${knobs} knobs`);
+  }
+  check(!bad.length, `PLAY: every layout's parts on its board, FULL with all 14 buttons and 8 knobs${bad.length ? `: ${bad.join(", ")}` : ""}`);
+}
+// ---- (end of nf-play)
 
 // ---- the owner's saved images (outside the repo), read offline
 {

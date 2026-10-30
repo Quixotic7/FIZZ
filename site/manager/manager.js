@@ -33,6 +33,7 @@ import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySou
 import { browserRows, recordOf, keepIn, dropFrom, blankImage, asHost } from "./browserlib.js";
 import { usedBy } from "./usedby.js";
 import { mountKeys } from "./keystrip.js";
+import { mountPlay } from "./play.js";
 import { parseFizzsnd } from "../js/library.js";
 import { readFiles } from "../js/digitone.js";
 
@@ -1865,8 +1866,11 @@ edTab.addEventListener("drop", async (ev) => {
 });
 
 // ---------------------------------------------------------------- tabs
-const TABS = ["backup", "library", "edit", "pool", "projects", "import"];
+const TABS = ["backup", "library", "edit", "pool", "projects", "import", "play"];
+let lastTab = "library";                                // (PLAY's way back on a phone on its side: the tab shown before it)
 function tab(name) {
+  const was = curTab();
+  if (was && was !== name && was !== "play") lastTab = was;
   for (const t of TABS) {
     $(`t-${t}`).setAttribute("aria-selected", String(t === name));
     $(`tab-${t}`).hidden = t !== name;
@@ -1876,6 +1880,7 @@ function tab(name) {
   if (name === "import") importer.render();
   if (name === "edit") { editor.show(); live.show(); if (bfizz.ready && editor.sound() && !live.on()) browserTarget.audition(editor.sound()); } else live.hide();
   if (name === "projects") projtab.show();
+  if (name === "play") play.show(); else play.hide();
   keys.show(KEY_TABS.includes(name));
   if (name !== "library") srcMenu(false);
   if (location.hash !== `#${name}`) history.replaceState(null, "", `${location.search}#${name}`);
@@ -1945,7 +1950,7 @@ async function useBrowser() {
   booting = true;
   unitUi.render();
   try {
-    if (!BU) { BU = new BrowserUnit({ log, onFlash: (b) => { DB.put("browserFlash", b); S.brow.img = b; S.brow.rows = browserRows(b); } }); BU.setVolume(muted ? 0 : 1); }
+    if (!BU) newBU();
     if (gestured()) await BU.start().catch(() => false);
     if (!BU.engine) {
       const kept = await DB.get("browserFlash");      // (an empty one: RESET, a fresh store)
@@ -1961,6 +1966,33 @@ async function useBrowser() {
   }
   unitUi.render();
   if (FM.access && !FM.found) watchFm1();
+}
+function newBU() {
+  BU = new BrowserUnit({ log, onFlash: (b) => { DB.put("browserFlash", b); S.brow.img = b; S.brow.rows = browserRows(b); } });
+  BU.setVolume(muted ? 0 : 1);
+  return BU;
+}
+// PLAY's THIS BROWSER (its own target, whatever the header's unit is): the browser's FIZZ, made and booted here when it
+// is not the unit (its store as kept in this browser), never plugged in as the unit by this
+let playBoot = null;
+async function playUnit() {
+  while (booting) await sleep(100);
+  if (BU && BU.engine) return BU;
+  if (playBoot) return playBoot;
+  playBoot = (async () => {
+    try {
+      const u = BU || newBU();
+      const kept = await DB.get("browserFlash");
+      await u.boot(kept ? (kept.length ? kept : null) : await newestImage());
+      if (S.mode !== "browser") u.gone = true;          // (not the unit: its MIDI side unplugged, as useBrowser finds it)
+      return u.engine ? u : null;
+    } catch (e) { log(`PLAY: the browser's FIZZ did not start (${e.message || e})`); return null; }
+  })().finally(() => { playBoot = null; });
+  return playBoot;
+}
+// PLAY left (or on the FM-1): the browser's FIZZ, when it is not the unit, stops its audio
+function playIdle(u) {
+  if (u && u === BU && S.mode !== "browser" && u.player.ctx && u.player.ctx.state === "running") u.player.ctx.suspend().catch(() => {});
 }
 function leaveBrowser() {
   if (S.busy) return;
@@ -2055,6 +2087,28 @@ const unitUi = mountUnit({
   },
 });
 
+// (the bar's fit pass again whenever the tabs' room changes: TRACK appearing, a resize, the fonts; seven tabs since PLAY)
+if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => unitUi.render()).observe(document.querySelector(".top .tabs"));
+
+// ---------------------------------------------------------------- PLAY: the virtual FM-1 (play.js)
+const play = mountPlay({
+  $, log,
+  bu: () => playUnit(),
+  buNow: () => BU,
+  idle: (u) => playIdle(u),
+  // the FM-1 PLAY may play: the one connected as the unit
+  fm1: () => (S.mode === "fm1" && S.link && S.unit && S.unit.version ? { link: S.link, viaBle: !!S.link.viaBle } : null),
+  fm1Track: async () => {
+    if (S.mode !== "fm1" || !S.link || S.busy || S.editing) return null;
+    const f = await S.link.dumpTrack(0).catch(() => null), s = f && soundFromFrame(f);
+    return s ? { t: s.track, chan: s.extras && s.extras.chan >= 0 && s.extras.chan < 16 ? s.extras.chan : 14 } : null;
+  },
+  octave: () => editor.octave(),
+  bver: () => short(S.mode === "browser" && S.unit && S.link ? S.unit.version : FM.bver || (BU && BU.version)).replace(/-.*$/, ""),
+  back: () => tab(lastTab),
+  blocked: () => !$("upick").hidden || !$("cf").hidden || !$("rs").hidden || !$("prog").hidden,
+});
+
 // ---------------------------------------------------------------- the simulated FM-1 (?sim)
 async function simAccess() {
   const [{ SimFizz }, { createEngine }, { storeSound }] = await Promise.all([import("./simfizz.js"), import("../engine/engine.js"), import("../js/fizz_sysex.js")]);
@@ -2100,4 +2154,4 @@ renderUnit(); renderLibrary(); pool.render(); importer.render(); unitUi.render()
   await useBrowser();
 })();
 window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live, projtab, useBrowser, leaveBrowser, bu: () => BU,
-  FM, pick, unit: unitUi, loadBrowserLib, keys: () => keys };
+  FM, pick, unit: unitUi, loadBrowserLib, keys: () => keys, play };
