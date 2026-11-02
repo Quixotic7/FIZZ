@@ -64,7 +64,8 @@ node site/tools/test_install.mjs                        # then the git commands 
 ```
 
 Pushing master deploys the page with the new version; pushing the tag `v0.11.0-beta.1` makes the GitHub
-pre-release (`.github/workflows/release.yml`).
+pre-release, its files built and signed by The Firmware Hub's fm1-build (`.github/workflows/release.yml`,
+`BUILDING.md`).
 
 ## Credits and licences
 

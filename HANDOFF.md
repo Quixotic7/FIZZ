@@ -265,6 +265,8 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
   4. Commit and tag as it prints.
   5. Push with `-c http.version=HTTP/1.1 -c http.postBuffer=524288000`.
   6. Watch the runs with `gh run watch`.
+     The tag's release workflow builds and signs both packages in The Firmware Hub's fm1-build, checks them
+     against the committed sums, then publishes the release (BUILDING.md "Releasing").
 
   The owner approves each release.
 - **Flashing** (the main session only, never agents; standing permission on the owner's unit):
