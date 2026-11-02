@@ -24,7 +24,8 @@ VERSION is X.Y.Z-beta.N for a tester beta (0.11.0-beta.1), or X.Y.Z; a dry run m
      app.c fz_init(APP_NAME " " APP_VERSION); fm1-base defines APP_VERSION from its build's VERSION, which this sets
      on fm1-base's build module before the app is compiled: firmware/build.py and firmware/app are not changed);
      each checked: the identity, the update loader, the version string in the image, the data blobs' stamps
-     ("FZXDSTMP"; the Bluetooth package's second blob "FZX2STMP": length and CRC-32 after them);
+     ("FZXDSTMP"; the Bluetooth package's second blob "FZX2STMP": length and CRC-32 after them), and the blobs the
+     package carries (flash.bin to 0xFC000: each blob and its trailer at its flash address, the separate .bin's);
   3. site/firmware/VERSION/: fizz.fwsc, fizz-xdata.bin (FIZZ's data: the page writes it after the install),
      fizz-ble.fwsc, fizz-ble-xdata.bin, fizz-ble-xdata2.bin (the Bluetooth package's two blobs), SHA256SUMS;
   4. site/firmware/releases.json: the release first (the page offers it by default), its notes from CHANGELOG.md;
@@ -69,6 +70,10 @@ PACKAGES = [("fizz", [], "8 voices across both cores, USB MIDI and USB audio", "
              "ble")]
 # the Bluetooth package's blobs' flash addresses (firmware/build.py BLE_XDATA_LO, BLE_X2_LO; fizz_xdata.py BLE_BLOBS)
 BLE_XDATA_AT, BLE_XDATA2_AT = 0xE7000, 0x97000
+USB_XDATA_AT = 0xE5000                        # (firmware/build.py XDATA_LO)
+FLASH_TOP = 0xFC000                           # flash.bin's end: the package carries its blobs (firmware/build.py)
+sys.path.insert(0, str(HERE / "fm1-base" / "tools"))
+import fm1pkg_make  # noqa: E402  (the UFW cipher and CRC16)
 STAMP1 = struct.pack("<II", 0x44585A46, 0x504D5453)   # "FZXDSTMP" (fz_port.c fz_stamp)
 STAMP2 = struct.pack("<II", 0x32585A46, 0x504D5453)   # "FZX2STMP" (fz_stamp2: the Bluetooth package's second blob)
 UNRELEASED = "## Unreleased"
@@ -135,6 +140,16 @@ def release_body(version, notes):
     files = (f"`firmware/tools/fizz_xdata.py push --blob fizz-xdata-{version}.bin` (USB), or `firmware/tools/fizz_xdata.py "
              f"push --ble --blob fizz-ble-xdata-{version}.bin --blob2 fizz-ble-xdata2-{version}.bin` (Bluetooth)") if ble else \
         f"`firmware/tools/fizz_xdata.py push --blob {PACKAGES[0][0]}-xdata-{version}.bin`"
+    usb = REPO / SITE_FW / version / "fizz.fwsc"
+    if ble and usb.exists() and len(flash_bin(usb.read_bytes())[0]) == FLASH_TOP:   # (from 0.12.0-beta.13: the packages
+        return (f"{notes}\n\n---\n\n**Install it from the browser** (Chrome or Edge, USB): {INSTALL_URL}?v={version}"
+                f"\n\nEach `.fwsc` carries FIZZ's data, so it installs completely from FIZZ's page, from The Firmware "
+                f"Hub or from a terminal (`fm1_install.py`). Two packages: **Bluetooth** (`fizz-{version}.fwsc`: "
+                f"Bluetooth MIDI too; 4 projects, 128 presets) and **USB** (`fizz-usb-{version}.fwsc`). The Bluetooth "
+                f"package uses the flash at 0x97000..0xAEFFF, where other firmwares keep their data: back up first. "
+                f"Switching packages erases the FM-1's projects and presets: back up in the Manager first, restore "
+                f"after. The `.bin` files are FIZZ's data on its own (`firmware/tools/fizz_xdata.py push`); an install "
+                f"no longer needs them.\n\n**Feedback:** FIZZ's Discord, {DISCORD}\n")   # carry their blobs)
     return (f"{notes}\n\n---\n\n**Install it from the browser** (Chrome or Edge, USB): {INSTALL_URL}?v={version}\n\n"
             f"The page installs FIZZ and then writes FIZZ's data. {two}With the files below instead (a terminal), install "
             f"the `.fwsc`, then write its data: {files}.\n\n"
@@ -167,6 +182,35 @@ def check_stamp(img, tag, blob, what):
     return crc
 
 
+def flash_bin(raw):
+    """flash.bin out of a .fwsc (fm1pkg_make.ufw: the identity's marker bytes out, then the UFW entry list) and its
+    entry's CRC16"""
+    lg = b"".join(raw[i * 0x30:i * 0x30 + 0x2F] for i in range(20)) + raw[20 * 0x30:]
+    hdr = bytearray(lg[:0x40])
+    fm1pkg_make.enc(hdr, 0, 0x40)
+    for i in range(struct.unpack_from("<H", hdr, 8)[0]):
+        e = bytearray(lg[0x40 + i * 0x50:0x90 + i * 0x50])
+        fm1pkg_make.enc(e, 0, 0x50)
+        typ, _, crc, _, off, size = struct.unpack_from("<HHHHII", e)
+        if typ == 0:
+            return lg[off:off + size], crc
+    die("no flash.bin in the package")
+
+
+def check_bundled(fwsc, blobs, ats):
+    """the package carries its blobs (firmware/build.py flash_image): flash.bin to 0xFC000, its CRC16 right, each blob
+    and its trailer at its flash address the separate .bin's bytes, 0xFF elsewhere past the app area"""
+    flash, crc = flash_bin(fwsc.read_bytes())
+    if len(flash) != FLASH_TOP or fm1pkg_make.crc16(flash) != crc:
+        die(f"{fwsc.name}: flash.bin is {len(flash)} B (not {FLASH_TOP}) or not its CRC16")
+    want = bytearray(b"\xff" * (FLASH_TOP - 0x93000))
+    for (blob, c), at in zip(blobs, ats):
+        w = blob + b"\xff" * (-len(blob) % 4) + struct.pack("<III", 0x54585A46, len(blob), c)   # (fz_port.c's trailer)
+        want[at - 0x93000:at - 0x93000 + len(w)] = w
+    if flash[0x93000:] != want:
+        die(f"{fwsc.name}: flash.bin's data region (0x93000..0xFC000) is not the separate blobs with their trailers")
+
+
 def build(version, xyz, name, args):
     """the package built and checked -> (fwsc, [(blob, crc)], identity): the USB package one blob, the Bluetooth two"""
     env = dict(os.environ)
@@ -197,6 +241,7 @@ def build(version, xyz, name, args):
         blobs.append((blob, check_stamp(img, tag, blob, f"{image.name} ({path.name})")))
     if not ble and STAMP2 in img:
         die(f"{image.name}: a second blob's stamp in the USB package")
+    check_bundled(fwsc, blobs, (BLE_XDATA_AT, BLE_XDATA2_AT) if ble else (USB_XDATA_AT,))
     return raw, blobs, want
 
 

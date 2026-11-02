@@ -33,7 +33,10 @@ What it adds to fm1-base's build (each a small patch of its module, applied here
     flash's address), with a map (build/fizz.map);
   - after the link: the data blob (.qd_xdata) cut out into fizz-xdata.bin, checked against the update loader's record
     rule (plat.h: never "AT" at 0xF06 of a sector), its length and CRC-32 stamped into the image (fz_port.c);
-  - the size report (fizz-size.txt): the regions, the blob, the biggest symbols.
+  - the size report (fizz-size.txt): the regions, the blob, the biggest symbols;
+  - the package carries its blobs (2026-11-02, docs/HUB-INSTALL-PLAN.md): flash.bin extended to 0xFC000, each blob
+    and its trailer at its flash offset, and the update loader is FIZZ's (firmware/loader/: Felucca's, which also
+    writes those data extents; their table build/NAME-ldr_extents.h), built after the app;
   - every directory listing sorted (Path.glob): fm1-base lists the Bluetooth shim's sources unsorted and links them in
     that order, which is the file system's (APFS and ext4 differ, ext4 per disk): sorted, the Mac and Linux (The
     Firmware Hub's fm1-build, firmware/hub_build.sh) make the same bytes.
