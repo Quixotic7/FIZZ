@@ -10,14 +10,14 @@ Steps 1 and 2 are done on the branch `hub-signing`, with no device. Step 3 (on a
 - The owner chose both packages bundled, and the new asset names (`fizz-V.fwsc` = Bluetooth, `fizz-usb-V.fwsc` = USB).
 - `firmware/loader/` holds FIZZ's `ldr_core.c` and `loader.c`. The diff against fm1-base's is the extents' table,
   its limits (`_Static_assert` and a run-time check, -14), `FL_RANGE_OK` grown by the extents, and step 3's loop
-  going on through them (`ldr_next`). `sc[]` covers every sector up to 0xFC000.
-- ota.bin: 8,464 B (USB) and 8,484 B (Bluetooth), up from 8,340 B. The limit is 19,968 B.
-- Packages: 1,041,700 B (USB) and 1,041,720 B (Bluetooth), up from 611,496 B.
+  going on through them (`ldr_next`: the sectors holding an update record first, then the rest). `sc[]` covers every sector up to 0xFC000.
+- ota.bin: 8,621 B (USB) and 8,668 B (Bluetooth), up from 8,340 B. The limit is 19,968 B.
+- Packages: 1,041,857 B (USB) and 1,041,904 B (Bluetooth), up from 611,496 B.
 - Extents: USB 0xE5000..0xFC000; Bluetooth 0x97000..0xAF000 and 0xE7000..0xFC000.
 - `bash firmware/app/tests/ldr_test.sh` runs the host test against both built packages: everything passes.
-- The Mac and Linux (fm1-build's steps) build the same five files for `0.12.0-beta.13-hubtest2`:
-  - `5bdf2c8a…`: `fizz-usb-V.fwsc`
-  - `cf990ca6…`: `fizz-V.fwsc` (Bluetooth)
+- The Mac and Linux (fm1-build's steps) build the same five files for `0.12.0-beta.13-hubtest3`:
+  - `70d141d9…`: `fizz-usb-V.fwsc`
+  - `fb26e96d…`: `fizz-V.fwsc` (Bluetooth)
   - `870bd3f6…`: `fizz-xdata-V.bin`
   - `e632a56e…`: `fizz-ble-xdata-V.bin`
   - `37269ac6…`: `fizz-ble-xdata2-V.bin`
