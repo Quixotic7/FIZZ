@@ -68,6 +68,9 @@ public final class ImportModel {
 
     public var ticked: [Row] { rows.filter { $0.on && $0.item.ok } }
 
+    /// The count's "n sounds" (importer.js render: a .syx's skipped-messages row is not a sound).
+    public var soundCount: Int { rows.filter { !$0.item.info }.count }
+
     /// MY PRESETS' free places for the ticked (importer.js render: "only n places free").
     public var free: Int {
         guard let u = unit else { return 0 }
@@ -119,7 +122,7 @@ public final class ImportModel {
             await markDuplicates()
             let ids = Set(fresh.map(\.id))
             for k in rows.indices where ids.contains(rows[k].id) { rows[k].on = rows[k].item.ok && rows[k].dup.isEmpty }
-            unit?.say("import: \(got.count) read (\(got.filter { !$0.ok }.count) refused, \(fresh.filter { !$0.dup.isEmpty }.count) already there)")
+            unit?.say("import: \(got.filter { !$0.info }.count) read (\(got.filter { !$0.ok && !$0.info }.count) refused, \(fresh.filter { !$0.dup.isEmpty }.count) already there)")
         } catch {
             unit?.say("import: \(error)")
         }
