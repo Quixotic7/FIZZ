@@ -34,6 +34,9 @@ What it adds to fm1-base's build (each a small patch of its module, applied here
   - after the link: the data blob (.qd_xdata) cut out into fizz-xdata.bin, checked against the update loader's record
     rule (plat.h: never "AT" at 0xF06 of a sector), its length and CRC-32 stamped into the image (fz_port.c);
   - the size report (fizz-size.txt): the regions, the blob, the biggest symbols.
+  - every directory listing sorted (Path.glob): fm1-base lists the Bluetooth shim's sources unsorted and links them in
+    that order, which is the file system's (APFS and ext4 differ, ext4 per disk): sorted, the Mac and Linux (The
+    Firmware Hub's fm1-build, firmware/hub_build.sh) make the same bytes.
 Defaults for this Mac: JIELI_TOOLCHAIN ~/.jieli/toolchain, AC79_SDK ~/fw-AC79_AIoT_SDK (only uboot.boot, cfg_tool.bin,
 cfg/eq_cfg_hw.bin are read), DYLD_LIBRARY_PATH /opt/homebrew/lib (Pillow's raqm for fm1-base's font generator)."""
 import importlib.util
@@ -61,6 +64,10 @@ for k, v in (("JIELI_TOOLCHAIN", Path.home() / ".jieli" / "toolchain"), ("AC79_S
              ("DYLD_LIBRARY_PATH", Path("/opt/homebrew/lib"))):
     if k not in os.environ and v.exists():
         os.environ[k] = str(v)
+
+# ---- the same link order on every file system (fm1-base tools/build.py: (SRC / "ble" / "shim").glob("*.c"), unsorted)
+_glob = Path.glob
+Path.glob = lambda self, pattern, *a, **k: iter(sorted(_glob(self, pattern, *a, **k)))
 
 spec = importlib.util.spec_from_file_location("fm1b_build", BASE / "tools" / "build.py")
 fb = importlib.util.module_from_spec(spec)
