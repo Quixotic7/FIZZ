@@ -3,7 +3,7 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // Phase I4's calls into the Manager's JS (entry.js "I4"): IMPORT's files read and converted (importer.js readImport:
-// .fizzlib .fizzsnd .fizzbak, Digitone .dnsnd, Digitone II .dn2pst / .dn2snd), the duplicates against MY PRESETS
+// .fizzlib .fizzsnd .fizzbak, Digitone .dnsnd and .syx, Digitone II .dn2pst / .dn2snd), the duplicates against MY PRESETS
 // (markDuplicates), EXPORT's carry bars and files (exporter.js), and the restore's plan and fit for another package's
 // backup (manager.js openRestore, projects.js fitModel).
 
@@ -47,6 +47,36 @@ public struct FizzImportItem: Sendable, Equatable {
         webTags = v["web"]?.array?.compactMap(\.string) ?? []
         midi = v["midi"]?.bool ?? false
     }
+
+    /// A file refused before the JS read it (a .syx: SyxImport).
+    init(refused file: String, error: String, kind: FizzImportKind = .dn1) {
+        self.file = file
+        ok = false
+        self.error = error
+        self.kind = kind
+        sound = nil
+        notes = []
+        mark = ""
+        digitoneTags = []
+        webTags = []
+        midi = false
+    }
+}
+
+/// Digitone .syx sound dumps (a pack: up to 128 sounds, one SysEx message each). The bundle's importer reads them
+/// once the web's reader is in (importer.js IMPORT_FILES takes .syx; fm1dnsnd.js parses them); until then, and for a
+/// .syx that is not Elektron SysEx at all (a firmware update, another synth's dump, garbage), the file is one
+/// refused row. Only the first message's head is looked at here: the sounds are the bundle's to read.
+public enum SyxImport {
+    /// Refused: not Elektron SysEx (ImportSheet's chip: NOT A DIGITONE DUMP).
+    public static let notDigitone = "not a Digitone sound dump"
+    /// Refused: Elektron SysEx, but this bundle has no .syx reader yet (the chip: NOT READ YET).
+    public static let notReadYet = "Digitone .syx sound dumps are not read yet"
+
+    public static func isSyx(_ name: String) -> Bool { (name as NSString).pathExtension.lowercased() == "syx" }
+
+    /// F0 00 20 3C: a SysEx message from Elektron (Digitone sound dumps: F0 00 20 3C 0D 00 53 ..).
+    public static func isElektron(_ bytes: [UInt8]) -> Bool { bytes.starts(with: [0xF0, 0x00, 0x20, 0x3C]) }
 }
 
 /// EXPORT's formats (exporter.js KINDS; the Digitone II one as its two files).
@@ -166,10 +196,44 @@ public struct FizzRestoreFit: Sendable, Equatable {
 }
 
 extension FizzDataEngine {
-    /// importer.js readImport: each file's sounds (a .fizzlib's every member, a .fizzbak's presets), or why not.
+    /// importer.js readImport: each file's sounds (a .fizzlib's every member, a .fizzbak's presets), or why not. A .syx
+    /// goes to it as a .dnsnd does when it is Elektron SysEx and the bundle reads .syx (readsSyx); otherwise it is
+    /// refused here (SyxImport). The files' order is kept.
     public func importRead(_ files: [(name: String, bytes: [UInt8])]) async throws -> [FizzImportItem] {
-        let v = try await call("importRead", [.array(files.map { ["name": .string($0.name), "bytes": .bytes($0.bytes)] })])
-        return (v.array ?? []).map(FizzImportItem.init(js:))
+        // (runs of files for the bundle, or a .syx refused here)
+        var parts: [Either] = []
+        for f in files {
+            if SyxImport.isSyx(f.name), let why = try await syxRefusal(f.bytes) {
+                parts.append(.refused(FizzImportItem(refused: f.name, error: why)))
+            } else if case .run(let r) = parts.last {
+                parts[parts.count - 1] = .run(r + [f])
+            } else {
+                parts.append(.run([f]))
+            }
+        }
+        var out: [FizzImportItem] = []
+        for p in parts {
+            switch p {
+            case .refused(let it): out.append(it)
+            case .run(let run):
+                let v = try await call("importRead", [.array(run.map { ["name": .string($0.name), "bytes": .bytes($0.bytes)] })])
+                out += (v.array ?? []).map(FizzImportItem.init(js:))
+            }
+        }
+        return out
+    }
+    private enum Either { case run([(name: String, bytes: [UInt8])]), refused(FizzImportItem) }
+
+    /// Why a .syx is not read (nil: the bundle reads it).
+    func syxRefusal(_ bytes: [UInt8]) async throws -> String? {
+        guard SyxImport.isElektron(bytes) else { return SyxImport.notDigitone }
+        return try await readsSyx() ? nil : SyxImport.notReadYet
+    }
+
+    /// Whether this bundle reads Digitone .syx dumps (entry.js importAccepts: importer.js IMPORT_FILES takes .syx).
+    /// The one place the .syx path asks the bundle: when the web's reader lands under another name, change it here.
+    public func readsSyx() async throws -> Bool {
+        try await call("importAccepts", [.string("dump.syx")]).bool ?? false
     }
 
     /// importer.js markDuplicates: "mine" (already in MY PRESETS: mine are their DUMP replies), "list" (earlier in

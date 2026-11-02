@@ -149,6 +149,23 @@
 				</array>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.elektron.digitone.syx</string>
+			<key>UTTypeDescription</key>
+			<string>Digitone SysEx dump</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>syx</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
@@ -202,6 +219,18 @@
 				<string>com.elektron.digitone.dnsnd</string>
 				<string>com.elektron.digitone2.dn2pst</string>
 				<string>com.elektron.digitone2.dn2snd</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Digitone SysEx dump</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.elektron.digitone.syx</string>
 			</array>
 		</dict>
 	</array>

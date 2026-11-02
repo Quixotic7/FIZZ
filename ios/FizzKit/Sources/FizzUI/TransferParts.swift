@@ -22,13 +22,22 @@ extension UTType {
     public static let digitoneSound = UTType(importedAs: "com.elektron.digitone.dnsnd", conformingTo: .data)
     public static let digitone2Preset = UTType(importedAs: "com.elektron.digitone2.dn2pst", conformingTo: .data)
     public static let digitone2Sound = UTType(importedAs: "com.elektron.digitone2.dn2snd", conformingTo: .data)
+    /// A Digitone .syx sound dump (read only; Info.plist: Alternate, FIZZ is never every .syx's default app). Any
+    /// .syx has this extension: one that is not a Digitone dump is refused in IMPORT (FizzData SyxImport).
+    public static let digitoneSyx = UTType(importedAs: "com.elektron.digitone.syx", conformingTo: .data)
 
-    /// What IMPORT opens (importer.js IMPORT_FILES).
-    static let importable: [UTType] = [.fizzLibrary, .fizzSound, .fizzBackup, .digitoneSound, .digitone2Preset, .digitone2Sound]
+    /// What IMPORT opens (importer.js IMPORT_FILES, and .syx). A .syx another app declares under its own identifier
+    /// is that type on this phone, not ours: the picker takes whatever type .syx resolves to as well.
+    static let importable: [UTType] = {
+        let base: [UTType] = [.fizzLibrary, .fizzSound, .fizzBackup, .digitoneSound, .digitone2Preset, .digitone2Sound, .digitoneSyx]
+        guard let sys = UTType(filenameExtension: "syx"), !base.contains(sys) else { return base }
+        return base + [sys]
+    }()
 }
 
-/// importer.js IMPORT_FILES: .fizzlib .fizzsnd .fizzbak .dnsnd .dn2pst .dn2snd (never .syx).
-let importExtensions: Set<String> = ["fizzlib", "fizzsnd", "fizzbak", "dnsnd", "dn2pst", "dn2snd"]
+/// importer.js IMPORT_FILES: .fizzlib .fizzsnd .fizzbak .dnsnd .dn2pst .dn2snd, and Digitone .syx dumps (read by the
+/// bundle once its reader is in; refused before that, FizzData SyxImport).
+let importExtensions: Set<String> = ["fizzlib", "fizzsnd", "fizzbak", "dnsnd", "dn2pst", "dn2snd", "syx"]
 
 // MARK: - Icons (fizz-ios.html IC)
 
