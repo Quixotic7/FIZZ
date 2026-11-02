@@ -485,7 +485,9 @@ def tc(tool, *args):
             args[o:o] = ["--no-check-sections"]
             o += 1
         args[o:o] = ["--start-group", jieli("pi32v2/lib/r3/libm.a"), jieli("pi32v2/lib/r3/libc.a"),
-                     jieli("pi32v2/lib/r3/libcompiler_rt.a"), "--end-group", "-Map", fb.OUT / f"{OUTP}.map"]
+                     jieli("pi32v2/lib/r3/libcompiler_rt.a"), "--end-group", "-Map",
+                     fb.LDR / "loader.map" if any(isinstance(a, Path) and a.name == "loader.ld" for a in args)
+                     else fb.OUT / f"{OUTP}.map"]   # (the loader links after the app now: build_loader)
     return _tc(tool, *args)
 
 
@@ -505,6 +507,12 @@ def section_table(elf):
     return out
 
 
+def with_trailer(blob, crc):
+    """the blob as the flash holds it (fizz_xdata.py push, fz_port.c fz_xdata_state): its bytes, 0xFF to a word, then
+    its trailer "FZXT", length, CRC-32"""
+    return blob + b"\xff" * (-len(blob) % 4) + struct.pack("<III", 0x54585A46, len(blob), crc)
+
+
 def cut_blob(elf, secs, sec, lo, hi, path, what):
     """a blob's section cut out of the ELF into path, checked: at its flash address lo, it and its 12-byte trailer
     inside [lo, hi), no "AT" at 0xF06 of a sector (plat.h); (bytes, CRC-32)"""
@@ -521,7 +529,7 @@ def cut_blob(elf, secs, sec, lo, hi, path, what):
     if lo + ((size + 3) & ~3) + 12 > hi and os.environ.get("FZ_MEASURE") != "1":
         raise SystemExit(f"fizz: {what} and its trailer do not fit {lo:#x}..{hi:#x}")
     crc = zlib.crc32(blob) & 0xFFFFFFFF
-    whole = blob + b"\xff" * (-len(blob) % 4) + struct.pack("<III", 0x54585A46, len(blob), crc)   # + its trailer
+    whole = with_trailer(blob, crc)
     for at in range(0, len(whole), 0x1000):              # bsp/loader/ldr_core.c: a record has "AT" at 0xF06
         if whole[at + 0xF06:at + 0xF08] == b"AT":
             raise SystemExit(f"fizz: {what} has \"AT\" at {lo + at + 0xF06:#x} (plat.h): move it")
@@ -576,9 +584,92 @@ def build_app():
     elif struct.pack("<II", 0x32585A46, 0x504D5453) in img:
         raise SystemExit("fizz: a second blob's stamp in a package without one")
     pc_window_check(syms)
+    EXTENTS[:] = sorted((off, with_trailer(b, c)) for off, b, c in
+                        ((lo, blob, crc), *([(BLE_X2_LO, blob2, crc2)] if BLE_PKG else [])) if b)
+    OTA[:] = build_loader()
     (fb.OUT / (fb.NAME + ".bin")).write_bytes(img)
     report(img, syms, secs, blob, crc, blob2, crc2)
     return img, syms, dis, rt
+
+
+# ---- FIZZ's update loader (firmware/loader/; docs/HUB-INSTALL-PLAN.md): fm1-base's, whose step 3 goes on through
+# the package's data extents, so an install from any host (The Firmware Hub, FIZZ's page, fm1_install.py) also
+# writes FIZZ's blobs. Built after the app (the extents come from the blobs' sizes); fm1-base's main() takes the
+# loader before, so it gets OTA, filled here
+LOADER = HERE / "loader"
+FLASH_TOP = 0xFC000             # flash.bin up to here: the blobs at their flash offsets, 0xFF elsewhere
+OTA = bytearray()
+EXTENTS = []                    # [(flash offset, the blob with its trailer)], in order
+fb.build_loader = lambda: OTA
+
+
+def extents():
+    """the loader's data extents: each blob and its trailer, whole sectors"""
+    return [(off, off + (len(w) + 0xFFF & ~0xFFF)) for off, w in EXTENTS]
+
+
+def build_loader():
+    """fm1-base's build_loader with firmware/loader/loader.c (FIZZ's ldr_core.c) and the extents' table
+    (build/loader/ldr_extents.h); crt0_ldr.S, loader.ld and the rest from fm1-base's bsp/loader"""
+    ldr, src = fb.LDR, fb.BSP / "loader"
+    ldr.mkdir(parents=True, exist_ok=True)
+    ext = extents()
+    if any(a[1] > b[0] for a, b in zip(ext, ext[1:])) or any(lo < 0x97000 or hi > FLASH_TOP for lo, hi in ext):
+        raise SystemExit(f"fizz: the data extents {[(hex(a), hex(b)) for a, b in ext]} overlap or leave 0x97000..0xFC000")
+    h = (f"/* firmware/build.py: the {OUTP} package's data extents (firmware/loader/ldr_core.c LDR_XTAB) */\n"
+         f"#define FZ_LDR_BLE {int(BLE_PKG)}\n"
+         f"#define LDR_XTAB(X) {' '.join(f'X({lo:#x}u, {hi:#x}u)' for lo, hi in ext)}\n")
+    (ldr / "ldr_extents.h").write_text(h)
+    (fb.OUT / f"{OUTP}-ldr_extents.h").write_text(h)      # (the package's own copy: firmware/app/tests/ldr_test.sh)
+    flags = [*fb.CFLAGS, *fb.inc(fb.BSP / "chip", fb.BSP / "boards" / "fm1", src, ldr)]
+    fb.tc_all(("cc", "-c", src / "crt0_ldr.S", "-o", ldr / "crt0_ldr.o"),
+              ("cc", *flags, "-c", LOADER / "loader.c", "-o", ldr / "loader.o"))
+    elf = ldr / "loader.elf"
+    fb.tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", src / "loader.ld",
+          ldr / "crt0_ldr.o", ldr / "loader.o", "-o", elf)
+    _, dis, hdr, syms = fb.tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, ldr / "loader.bin"),
+                                  ("common/bin/objdump", "-d", f"-mcpu={fb.CPU}", elf),
+                                  ("common/bin/objdump", "-h", elf),
+                                  ("common/bin/objdump", "-t", elf))
+    (ldr / "loader.dis").write_text(dis)
+    for ln in hdr.splitlines():     # the loader rewrites the flash: nothing may run from XIP
+        p = ln.split()
+        if len(p) > 4 and p[1].startswith(".") and int(p[3], 16) >= 0x02000000 and int(p[2], 16):
+            raise SystemExit(f"loader: section {p[1]} at {p[3]} is outside RAM")
+    image = (ldr / "loader.bin").read_bytes()
+    if not image or len(image) > 0x14000:
+        raise SystemExit("loader: image empty or too big")
+    ota = fb.ldr_wrap(image)
+    if len(ota) - 0x20 > 0x5000 - 0x200:        # (felucca-bsp ota.c ota_stage: OTA_AREA_LEN - 0x200)
+        raise SystemExit(f"loader: ota.bin {len(ota)} B is too big to stage")
+    (ldr / "ota.bin").write_bytes(ota)
+    bss = [int(ln.split()[0], 16) for ln in syms.splitlines() if ln.rstrip().endswith("_bss_end")]
+    print(f"loader: FIZZ's (firmware/loader), extents " + ", ".join(f"{lo:#x}..{hi:#x}" for lo, hi in ext) +
+          f"; image {len(image)} B at {fb.LOADER_LOAD:#x}" + (f", bss end {bss[0]:#x}" if bss else ""))
+    print(f"loader: ota.bin {len(ota)} B")
+    return ota
+
+
+_flash_image = fb.fm1pkg_make.flash_image
+
+
+def flash_image(app, key):
+    """fm1pkg_make's flash.bin (to 0x93000), then 0xFF to FLASH_TOP with each blob and its trailer at its flash
+    offset: the UFW entry's CRC16 covers it all, so the loader refuses a damaged package before erasing anything"""
+    f = bytearray(_flash_image(app, key))
+    if len(f) != fb.fm1pkg_make.FLASH_SIZE or not EXTENTS:
+        raise SystemExit("fizz: flash.bin is not fm1pkg_make's, or the blobs are not cut yet")
+    f += b"\xff" * (FLASH_TOP - len(f))
+    for off, w in EXTENTS:
+        f[off:off + len(w)] = w
+    for lo, hi in extents():        # the sectors the loader writes: never "AT" at 0xF06 (its record scan, plat.h)
+        for at in range(lo, hi, 0x1000):
+            if f[at + 0xF06:at + 0xF08] == b"AT":
+                raise SystemExit(f"fizz: flash.bin has \"AT\" at {at + 0xF06:#x} (plat.h): move it")
+    return bytes(f)
+
+
+fb.fm1pkg_make.flash_image = flash_image
 
 
 def map_pieces(path):
