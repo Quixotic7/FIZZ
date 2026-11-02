@@ -10,8 +10,9 @@
 #                                    build:   fm1-build@v1 runs firmware/hub_build.sh (firmware/release.py VERSION
 #                                             --rebuild; every sha256 checked against site/firmware/releases.json and
 #                                             the committed files before anything is signed), attests fizz-* (the two
-#                                             packages and their three data blobs, the version in their names) and
-#                                             uploads them with its SHA256SUMS to the draft
+#                                             packages and their three data blobs, the version in their names:
+#                                             fizz-V.fwsc the Bluetooth package, which the hub installs, fizz-usb-V.fwsc
+#                                             the USB one) and uploads them with its SHA256SUMS to the draft
 #                                    publish: the draft's files checked (signed by fm1-build v1 at its reviewed
 #                                             tag object, for this tag and commit; SHA256SUMS; releases.json), then
 #                                             the release published (a pre-release for a beta)
@@ -106,7 +107,7 @@ jobs:
             python3 firmware/release.py --notes "$V"
             sed -e "s/@VERSION@/$V/g" -e "s|@REPO@|$GITHUB_REPOSITORY|g" <<'EOT'
 
-          `SHA256SUMS` lists both packages and their data. GitHub built and signed each file from this tag's source (The Firmware Hub's shared workflow); check one with `gh attestation verify fizz-@VERSION@.fwsc --repo @REPO@ --signer-workflow zvenson/fm1-build/.github/workflows/build.yml`. The packages hold three JieLi AC79 SDK files (Apache-2.0), the Bluetooth one JieLi's Bluetooth libraries too; `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
+          `SHA256SUMS` lists both packages, `fizz-@VERSION@.fwsc` (Bluetooth) and `fizz-usb-@VERSION@.fwsc` (USB), and their data. GitHub built and signed each file from this tag's source (The Firmware Hub's shared workflow); check one with `gh attestation verify fizz-@VERSION@.fwsc --repo @REPO@ --signer-workflow zvenson/fm1-build/.github/workflows/build.yml`. The packages hold three JieLi AC79 SDK files (Apache-2.0), the Bluetooth one JieLi's Bluetooth libraries too; `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
           EOT
           } > release-body.md
           cat release-body.md
@@ -174,7 +175,7 @@ jobs:
           mkdir signed
           gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir signed \
               --pattern 'fizz-*' --pattern SHA256SUMS
-          n=5                         # fizz, fizz-xdata, fizz-ble, fizz-ble-xdata, fizz-ble-xdata2
+          n=5                         # fizz (Bluetooth), fizz-usb, fizz-xdata, fizz-ble-xdata, fizz-ble-xdata2
           ls -l signed
           files=(signed/fizz-*)
           if [ "${#files[@]}" != $n ] || [ "$(grep -c . signed/SHA256SUMS)" != $n ]; then

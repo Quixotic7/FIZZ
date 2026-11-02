@@ -6,13 +6,15 @@
 #                                          tag (vX.Y.Z[-beta.N]), else (a run from the Actions tab) the run's input
 #   firmware/hub_build.sh --version [V]    print version=V and prerelease=true|false (release.yml's outputs)
 #   firmware/hub_build.sh --check DIR [V]  check the five files in DIR (release names, fizz-V.fwsc, ..., or the plain
-#                                          ones, fizz.fwsc, ...) against site/firmware/releases.json and the
+#                                          ones, fizz-ble.fwsc, ...) against site/firmware/releases.json and the
 #                                          committed site/firmware/V/, no build
 # The build is firmware/release.py V --rebuild: the very builds firmware/release.py V made for the install page (the
 # same APP_VERSION, identity and stamp checks), its five files and SHA256SUMS into firmware/app/build/hub-V/. Each
 # sha256 is then checked against releases.json and the committed files when the version is listed (on a tag it must
-# be), and on GitHub's runner the files are copied to the repository root under the release's names
-# (fizz-V.fwsc, fizz-xdata-V.bin, fizz-ble-V.fwsc, fizz-ble-xdata-V.bin, fizz-ble-xdata2-V.bin): the shared workflow
+# be), and on GitHub's runner the files are copied to the repository root under the release's names (ASSETS:
+# fizz-V.fwsc is the Bluetooth package, the one The Firmware Hub installs, as its pattern fizz-\d[\w.-]*\.fwsc takes
+# it; fizz-usb-V.fwsc the USB one; fizz-xdata-V.bin, fizz-ble-xdata-V.bin, fizz-ble-xdata2-V.bin; each package carries
+# its blobs since 0.12.0-beta.13, so the .bin files are for fizz_xdata.py and the Manager only): the shared workflow
 # attests those (its "packages": fizz-*), keeps them as the run's artifact and, on a tag, uploads them with its
 # SHA256SUMS to the draft release. A file whose sha256 is not the listed one stops here, before anything is signed.
 # Pillow is pinned to the release builds' (fm1-base's font generator draws the UI fonts with it) and must have Raqm.
@@ -20,7 +22,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PILLOW_VERSION=11.1.0           # the release builds' (another version may draw the fonts otherwise)
+# FIZZ's own names (site/firmware/V/, firmware/release.py) and the release's, @ the version
 NAMES=(fizz.fwsc fizz-xdata.bin fizz-ble.fwsc fizz-ble-xdata.bin fizz-ble-xdata2.bin)
+ASSETS=(fizz-usb-@.fwsc fizz-xdata-@.bin fizz-@.fwsc fizz-ble-xdata-@.bin fizz-ble-xdata2-@.bin)
 
 mode=build
 case "${1:-}" in
@@ -58,11 +62,13 @@ fi
 # the five files in $1 against site/firmware/releases.json and site/firmware/V/: a version not listed is an error on a
 # tag (firmware/release.py lists it before the tag), a notice otherwise
 check() {
-    python3 - "$v" "$1" "${NAMES[@]}" <<'PY'
+    python3 - "$v" "$1" "${#NAMES[@]}" "${NAMES[@]}" "${ASSETS[@]}" <<'PY'
 import hashlib, json, os, sys
 from pathlib import Path
-v, d, names = sys.argv[1], Path(sys.argv[2]), sys.argv[3:]
-asset = lambda n: f"{n.rsplit('.', 1)[0]}-{v}.{n.rsplit('.', 1)[1]}"     # fizz.fwsc -> fizz-V.fwsc
+v, d, n = sys.argv[1], Path(sys.argv[2]), int(sys.argv[3])
+names = sys.argv[4:4 + n]
+assets = dict(zip(names, (a.replace("@", v) for a in sys.argv[4 + n:])))
+asset = lambda n: assets[n]                     # fizz-ble.fwsc -> fizz-V.fwsc (ASSETS)
 def file(n):
     for p in (d / asset(n), d / n):
         if p.is_file():
@@ -153,7 +159,7 @@ check "$out"
 # GitHub's runner only (on the Mac $out/ has them)
 if [ "${GITHUB_ACTIONS:-}" = true ]; then
     rm -f fizz-*
-    for n in "${NAMES[@]}"; do cp "$out/$n" "./${n%.*}-$v.${n##*.}"; done
+    for i in "${!NAMES[@]}"; do cp "$out/${NAMES[$i]}" "./${ASSETS[$i]//@/$v}"; done
     shopt -s nullglob
     got=(fizz-*)
     if [ "${#got[@]}" != "${#NAMES[@]}" ]; then

@@ -18,8 +18,14 @@ python3 firmware/build.py           # the USB package: firmware/app/build/fizz.f
 python3 firmware/build.py --ble     # the Bluetooth package: fizz-ble.fwsc, fizz-ble-xdata.bin, fizz-ble-xdata2.bin
 ```
 
+Each `.fwsc` carries its data blobs and FIZZ's own update loader, which writes them (see "The data blobs" below).
+The `.bin` files are the same blobs on their own.
+
 `firmware/build.py`'s docstring lists the other builds (the host simulator, the browser emulator, the single-core
 package).
+
+To test the update loader on this computer, with no FM-1, build both packages, then run
+`bash firmware/app/tests/ldr_test.sh`.
 
 ## Releasing
 
@@ -41,8 +47,18 @@ the tag runs `.github/workflows/release.yml`:
 - **publish**: checks the draft's files (the attestations, `SHA256SUMS`, `releases.json`), then publishes the
   release. A beta is a pre-release.
 
-The release carries five files, with the version in their names: `fizz-V.fwsc`, `fizz-xdata-V.bin`,
-`fizz-ble-V.fwsc`, `fizz-ble-xdata-V.bin`, `fizz-ble-xdata2-V.bin`, and fm1-build's `SHA256SUMS`.
+The release carries five files, with the version in their names, and fm1-build's `SHA256SUMS`:
+
+| release file | in `site/firmware/V/` | what |
+|---|---|---|
+| `fizz-V.fwsc` | `fizz-ble.fwsc` | the Bluetooth package: The Firmware Hub installs this one |
+| `fizz-usb-V.fwsc` | `fizz.fwsc` | the USB package |
+| `fizz-xdata-V.bin` | `fizz-xdata.bin` | the USB package's data blob |
+| `fizz-ble-xdata-V.bin` | `fizz-ble-xdata.bin` | the Bluetooth package's first blob |
+| `fizz-ble-xdata2-V.bin` | `fizz-ble-xdata2.bin` | the Bluetooth package's second blob |
+
+The hub picks the release asset that matches `fizz-\d[\w.-]*\.fwsc`, so the Bluetooth package is named
+`fizz-V.fwsc`. FIZZ's own site keeps its names.
 
 A run from the Actions tab (Run workflow, with a version) only builds and signs. It makes no release; the files are
 the run's artifact `packages`.
@@ -50,7 +66,7 @@ the run's artifact `packages`.
 ### If JieLi's server is down
 
 When the build job can't fetch the toolchain, re-run the failed jobs later; the draft waits. If the server stays
-down, upload the five committed files from `site/firmware/VERSION/` to the draft by hand, renamed as above, with their
+down, upload the five committed files from `site/firmware/VERSION/` to the draft by hand, renamed as in the table, with their
 `SHA256SUMS`, and publish the draft. The files are the same bytes, but they have no attestation. The hub then lists
 that release without "Built from source on GitHub", and `gh attestation verify` finds nothing.
 
@@ -103,8 +119,20 @@ for the data blobs. Releases before the first signed one have no attestation; th
 
 ## The data blobs
 
-The hub installs only the `.fwsc`. FIZZ also needs its data written after every install: `fizz-xdata.bin` for the
-USB package, or `fizz-ble-xdata.bin` and `fizz-ble-xdata2.bin` for the Bluetooth package. The install page
-(<https://quixotic7.github.io/FIZZ/install/>) does that for you. From a terminal, use
-`firmware/tools/fizz_xdata.py push`; the release notes give the command. After installing from the hub, run that
-command, or install again from FIZZ's own page, which writes both.
+FIZZ reads its data blobs in place in the flash: the USB package's at 0xE5000, the Bluetooth package's at 0xE7000
+and 0x97000..0xAEFFF. Each is followed by a trailer (`FZXT`, its length, its CRC-32).
+
+From 0.12.0-beta.13, every `.fwsc` carries them. `firmware/build.py` extends the package's `flash.bin` to 0xFC000,
+with each blob and its trailer at its flash address and 0xFF elsewhere. The package's update loader is FIZZ's copy of
+Felucca's (`firmware/loader/`). After the app area, it writes the blobs' sectors the same way: it checks the whole
+package first, skips equal sectors, verifies each one, and resumes after a power cut. It never writes the store,
+the Bluetooth package's bonding store (OBJ_BLE, 0xE5000..0xE6FFF), 0xE0000..0xE4FFF or 0xFC000 and up. So an install
+from The Firmware Hub, from FIZZ's page or with `fm1_install.py` is complete. `docs/HUB-INSTALL-PLAN.md` has the
+design.
+
+The Bluetooth package writes 0x97000..0xAEFFF, where other firmwares keep their data, and the first sectors of the
+USB package's store. Back up first.
+
+The separate `.bin` files stay on the release and the site, for `firmware/tools/fizz_xdata.py push` and the
+Manager. FIZZ's install page still pushes them after the install; the unit answers that it has them already.
+Releases before 0.12.0-beta.13 need that push after an install from the hub.
