@@ -73,10 +73,7 @@ BLE_XDATA_AT, BLE_XDATA2_AT = 0xE7000, 0x97000
 USB_XDATA_AT = 0xE5000                        # (firmware/build.py XDATA_LO)
 FLASH_TOP = 0xFC000                           # flash.bin's end: the package carries its blobs (firmware/build.py)
 sys.path.insert(0, str(HERE / "fm1-base" / "tools"))
-try:
-    import fm1pkg_make  # noqa: E402  (the UFW cipher and CRC16)
-except ImportError:     # (release.yml's draft job: --notes only, no fm1-base submodule checked out)
-    fm1pkg_make = None
+import fm1pkg_make  # noqa: E402  (the UFW cipher and CRC16)
 STAMP1 = struct.pack("<II", 0x44585A46, 0x504D5453)   # "FZXDSTMP" (fz_port.c fz_stamp)
 STAMP2 = struct.pack("<II", 0x32585A46, 0x504D5453)   # "FZX2STMP" (fz_stamp2: the Bluetooth package's second blob)
 UNRELEASED = "## Unreleased"
