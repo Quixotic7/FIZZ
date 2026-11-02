@@ -35,6 +35,8 @@
 //   - nf-units (two FM-1s, PORTS, 2026-10-29): the firmware an id names (FIZZ and its version, REMOTEFM1, M-VAVE,
 //     M-VAVE OPEN, UPDATE MODE), a port asked once (the handshake only, a short wait), other gear never asked, the
 //     unit in use never asked; findFizz on the port picked (the second FIZZ, not the first);
+//   - nf-dnsyx (2026-11-01): Digitone .syx sound dumps and ChoralRoot's newer .dnsnd reading (fm1dnsnd.js), the IMPORT's
+//     .syx, the owner's Haunted Hearts pack read in place (skipped when absent);
 //   - nf-flat (2026-10-30): the stylesheets (not edit.css) declare no glow (a coloured blurred or offset box-shadow, a
 //     coloured text-shadow or drop-shadow), the lights kept (PLAY's LEDs, the unit pill's dot, the restore's FM-1 key);
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
@@ -1117,6 +1119,185 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   const kept = files.flatMap((f) => [...rules(fs.readFileSync(path.join(SITE, "manager/css", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""))].filter((r) => LIGHTS.has(r.sel) && /box-shadow/.test(r.body)).map((r) => r.sel));
   check(kept.length === LIGHTS.size, `nf-flat: the lights keep their glow (${kept.join(", ")})`);
 }
+
+// ---- nf-dnsyx (2026-11-01): Digitone .syx sound dumps and ChoralRoot's newer .dnsnd reading (fm1dnsnd.js, from
+// ChoralRoot d9464dd1 / de3a4798: its web/test_dnsnd.mjs cases that apply, on files built here, no preset's bytes), the
+// IMPORT's .syx (digitone.js readDnSyx, importer.js), and the owner's Haunted Hearts pack read in place (never copied)
+{
+  const DN = await import("../js/fm1dnsnd.js");
+  const { parseDnsnd, dnsndToQuad, parseDnSyx, isDnSyx, dnPack87, dnUnpack87, DNSND_FIELDS, DN_QP, DN_QUAD_RANGES } = DN;
+  const { IMPORT_FILES } = await import("../manager/importer.js");
+  const { readDnSyx, DN_SYX_NOT, IMPORTABLE } = await import("../js/digitone.js");
+  const rejects = async (f, re) => { try { await f(); return false; } catch (e) { return re.test(e.message) || (note(`(message: ${e.message})`), false); } };
+  const le = (n, v) => Array.from({ length: n }, (_, i) => v >>> 8 * i & 255);
+  const be32 = (v) => [v >>> 24, v >>> 16 & 255, v >>> 8 & 255, v & 255];
+  const zipStored = (entries) => {                     // [[name, bytes]] -> a stored ZIP
+    const parts = [], cd = []; let off = 0;
+    for (const [name, data] of entries) {
+      const nm = new TextEncoder().encode(name), c = crc32(data);
+      const head = [...le(4, 0x04034b50), ...le(2, 20), 0, 0, 0, 0, 0, 0, 0, 0, ...le(4, c), ...le(4, data.length), ...le(4, data.length), ...le(2, nm.length), 0, 0];
+      parts.push(Uint8Array.from(head), nm, data);
+      cd.push(Uint8Array.from([...le(4, 0x02014b50), 20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...le(4, c), ...le(4, data.length), ...le(4, data.length), ...le(2, nm.length), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...le(4, off)]), nm);
+      off += head.length + nm.length + data.length;
+    }
+    const cdLen = cd.reduce((n, p) => n + p.length, 0);
+    return cat(...parts, ...cd, Uint8Array.from([...le(4, 0x06054b50), 0, 0, 0, 0, ...le(2, entries.length), ...le(2, entries.length), ...le(4, cdLen), ...le(4, off), 0, 0]));
+  };
+  function cat(...a) { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let p = 0; for (const x of a) { o.set(x, p); p += x.length; } return o; }
+  const lz4Literal = (d) => { const l = d.length, o = [l >= 15 ? 0xF0 : l << 4]; if (l >= 15) { let r = l - 15; while (r >= 255) { o.push(255); r -= 255; } o.push(r); } return Uint8Array.from([...o, ...d]); };
+  // a made-up record from field values {name: raw byte or [coarse, fine]}
+  const record = (name, set = {}, { version = 1 } = {}) => {
+    const d = new Uint8Array(302);
+    d.set([0xbe, 0xef, 0xba, 0xce, ...be32(version)], 0);
+    for (let i = 0; i < name.length; i++) d[12 + i] = name.charCodeAt(i);
+    for (const [k, o] of DNSND_FIELDS) { const v = set[k]; if (v === undefined) continue; if (Array.isArray(v)) { d[o] = v[0]; d[o + 1] = v[1]; } else d[o] = v; }
+    return d;
+  };
+  // the payload as the Digitone writes it: the 0x1f-byte header (device u16be at 7, the body's length u32be at 0x19, the
+  // compressed flag at 0x1d), the body (an LZ4 chain or raw), the 12-byte trailer
+  const dnsnd = (rec, { size = rec.length, block, blocks, packed = 1, device = 9 } = {}) => {
+    const hdr = new Uint8Array(0x1f);
+    hdr.set([0xac, 0x11, 0xd3, 0x03], 0); hdr.set([2, 0, 5, device >> 8, device & 255, 0x30, 0x30, 0x39, 0x37, ...be32(3), ...be32(1), ...be32(0), ...be32(size), packed, 12], 4);
+    const chain = (bs) => bs.flatMap((x) => [...be32(x.length), ...x]).concat(be32(0));
+    const body = Uint8Array.from(packed ? chain(blocks || [block || lz4Literal(rec)]) : rec);
+    const pl = cat(hdr, body, Uint8Array.from([1, 2, 3, 4, 0, 0, 0, 0x2a, 0xaa, 0xa1, 0xda, 0xaa]));
+    const m = { FormatVersion: 1, ProductType: ["24", "30"], Payload: "MY TEST", FileType: "Sound", FirmwareVersion: "1.42A", MetaInfo: { Tags: ["test"] } };
+    return zipStored([["manifest.json", new TextEncoder().encode(JSON.stringify(m))], ["MY TEST", pl]]);
+  };
+  // a Digitone SysEx message: F0 00 20 3C 0D 00 type 01 01 nn <8:7 data> <sum 14 bits> <length 14 bits> F7
+  const dnMsg = (rec, { type = 0x53, nn = 0, sum, len } = {}) => {
+    const e = dnPack87(rec), s = sum ?? e.reduce((a, x) => a + x, 0) & 0x3FFF, l = len ?? e.length + 5;
+    return Uint8Array.from([0xF0, 0x00, 0x20, 0x3C, 0x0D, 0x00, type, 1, 1, nn, ...e, s >> 7, s & 127, l >> 7, l & 127, 0xF7]);
+  };
+  const blobOf = (p) => [...dnsndToQuad(p).blob].join();
+  const V5 = { version: 5 };
+
+  // version 4 (OS 1.42): version 5's layout, the same blob, a note
+  const set4 = { ofsC: [96, 0], "filter.delay": 40, "filter.type": 3, mix: 127 };
+  const v4 = await parseDnsnd(dnsnd(record("V4 SOUND", set4, { version: 4 }))), v5 = await parseDnsnd(dnsnd(record("V4 SOUND", set4, V5)));
+  check(v4.version === 5 && v4.fileVersion === 4 && v4.params.ofsC === 32 && v4.params["filter.delay"] === 40 && blobOf(v4) === blobOf(v5) &&
+    v4.warnings.includes("a version-4 sound: read as version 5 (the same layout)") && !v5.warnings.length,
+    "nf-dnsyx: a version-4 record reads with version 5's layout (OFS, filter DELAY), the same blob, a note");
+
+  // the container's real header: a raw body, a two-block LZ4 chain; the errors
+  const MARK = [0xba, 0xce, 0xf0, 0x0c], RB = (b1, b2) => [0, 2 * (b1 * 19 + b2)];
+  const set = { ofsC: [96, 0], "filter.delay": 40, mix: 127, "filter.freq": [70, 0], ratioC: 3, ratioA: 3, ratioB: RB(3, 3) };
+  const rr = record("CHAIN", set, V5); rr.set(rr.subarray(0, 20), 150);
+  const two = [lz4Literal(rr.subarray(0, 150)), Uint8Array.from([0x0F, 150, 0, 1, 0xF0, 132 - 15, ...rr.subarray(170)])];
+  const pr = await parseDnsnd(dnsnd(rr, { packed: 0 })), pc = await parseDnsnd(dnsnd(rr, { blocks: two }));
+  check(same([...pr.record], [...rr]) && same([...pc.record], [...rr]) && !pr.warnings.length && !pc.warnings.length,
+    "nf-dnsyx: the payload header's length (u32be 0x19) and flag (0x1d): a raw body and a two-block LZ4 chain read the record");
+  const rec0 = record("ZERO");
+  const errs = [
+    await rejects(() => parseDnsnd(dnsnd(rec0, { size: 400 })), /cut short/),
+    await rejects(() => parseDnsnd(dnsnd(rec0, { size: 0x9000 })), /the payload's header: a 36864-byte body/),
+    await rejects(() => parseDnsnd(dnsnd(rec0, { device: 15 })), /a Digitone II sound/),
+    await rejects(() => { const d2 = new Uint8Array(364); d2.set([0, 0, 0, 2, 0, 0xbe, 0xef, 0xba, 0xce, 0, 0, 0, 2]); return parseDnsnd(dnsnd(d2)); }, /a Digitone II sound/),
+    await rejects(() => parseDnsnd(dnsnd(rec0, { block: lz4Literal(rec0).subarray(0, 100) })), /cut short/),
+  ];
+  check(errs.every(Boolean), `nf-dnsyx: refused: a body shorter than its header says, one no sound could be, a Digitone II sound (device 15, its body), an LZ4 block cut short (${errs.join(" ")})`);
+
+  // a version not known reads as the newest layout (5), the tail from the end marker; cut short: what it holds
+  const same5 = async (oct) => blobOf(await parseDnsnd(dnsnd(record("NEWER", { ...set, octave: oct }, V5))));
+  const r7 = new Uint8Array(330);
+  r7.set(record("NEWER", set, V5).subarray(0, 183)); r7.set(be32(7), 4); r7.fill(0x55, 190, 300); r7[326 - 18] = 12; r7.set(MARK, 326);
+  const p7 = await parseDnsnd(dnsnd(r7)), q7 = dnsndToQuad(p7);
+  check(p7.fileVersion === 7 && p7.version === 5 && p7.params.ofsC === 32 && p7.params["filter.delay"] === 40 && p7.params.octave === 12 &&
+    q7.notes.some((n) => /OCTAVE \+1/.test(n)) && blobOf(p7) === await same5(12) && p7.warnings.length === 1 &&
+    p7.warnings[0] === "a version-7 sound (newer than the versions known, 1 4 5): read as version 5; fields the FM-1 does not know were skipped",
+    "nf-dnsyx: a newer version (7, 330 bytes): read as version 5, the OCTAVE from its end marker, one note");
+  const p7b = await parseDnsnd(dnsnd(record("NEWER", { ...set, octave: 244 }, { version: 7 })));
+  check(p7b.params.octave === -12 && p7b.warnings.length === 1 && blobOf(p7b) === await same5(244), "nf-dnsyx: a newer version, no end marker, 302 bytes: version 5's places");
+  const r3 = new Uint8Array(282);
+  r3.set(record("OLDER", set, V5).subarray(0, 183)); r3.set(be32(3), 4); r3[260] = 244; r3.set(MARK, 278);
+  const s3 = parseDnSyx(dnMsg(r3)).sounds[0];
+  check(s3.fileVersion === 3 && s3.params.octave === -12 && /^a version-3 sound \(not one of the versions known, 1 4 5\)/.test(s3.warnings[0]) && blobOf(s3) === await same5(244),
+    "nf-dnsyx: version 3 (.syx, 282 bytes): read as version 5, the OCTAVE 18 before the marker");
+  const cut = parseDnSyx(dnMsg(record("CUT", { mix: 100, "filter.freq": [90, 0], "amp.vol": [20, 0] }).subarray(0, 113))).sounds[0], qc5 = dnsndToQuad(cut);
+  check(cut.params.mix === 36 && cut.params["filter.freq"] === undefined && cut.params.octave === undefined && qc5.values[DN_QP.MIX] === 36 &&
+    qc5.values[DN_QP.FREQ] === DN_QUAD_RANGES[DN_QP.FREQ][2] && qc5.values[DN_QP.LEVEL] === DN_QUAD_RANGES[DN_QP.LEVEL][2] &&
+    /^the sound is cut short \(113 bytes, no end marker\): 22 of its settings not in it, FM TONE's defaults instead$/.test(cut.warnings.at(-1)),
+    `nf-dnsyx: a record cut short: what it holds, FM TONE's defaults for the rest (${cut.warnings.at(-1)})`);
+
+  // .syx dumps: one sound, the pool, a project (a kit message skipped), a bad checksum / length, a message no sound
+  const r = new Uint8Array(64).map((_, i) => i * 37 & 255);
+  check(same([...dnUnpack87(dnPack87(r))], [...r]) && dnPack87(r).every((x) => x < 128), "nf-dnsyx: 8:7 packing: round trip, 7-bit bytes");
+  const setA = { mix: 100, "filter.type": 2, "amp.vol": [90, 0] }, setB = { ratioC: 4, fdbk: 20 };
+  const a = record("SYX ONE", setA).subarray(0, 283), b5 = record("SYX TWO", { ...setB, ofsC: [96, 0] }, V5);
+  const kit = dnMsg(new Uint8Array(100), { type: 0x52 }), pool = cat(dnMsg(a), dnMsg(b5, { nn: 5 })), proj = cat(dnMsg(a), kit, dnMsg(b5, { nn: 5 }));
+  const g1 = parseDnSyx(dnMsg(a)), gp = parseDnSyx(pool), g = parseDnSyx(proj);
+  check(isDnSyx(proj) && g1.sounds.length === 1 && !g1.notes.length && gp.sounds.length === 2 && !gp.notes.length && g.sounds.length === 2 &&
+    g.sounds[0].name === "SYX ONE" && g.sounds[1].name === "SYX TWO" && g.sounds[1].slot === 5 && g.notes.length === 1 && /^1 kit message skipped/.test(g.notes[0]) && !g.sounds[0].warnings.length,
+    `nf-dnsyx: .syx: one sound, the pool (a version-1 283-byte record, a version-5 one), a project (${g.notes[0]})`);
+  const f1 = await parseDnsnd(dnsnd(record("SYX ONE", setA))), f2 = await parseDnsnd(dnsnd(b5));
+  check(blobOf(g.sounds[0]) === blobOf(f1) && blobOf(g.sounds[1]) === blobOf(f2), "nf-dnsyx: .syx: each sound imports as the same record in a .dnsnd does");
+  const bad = parseDnSyx(cat(dnMsg(a, { sum: 1 }), dnMsg(a, { len: 3 })));
+  check(/checksum does not match/.test(bad.sounds[0].warnings[0]) && /length field does not match/.test(bad.sounds[1].warnings[0]), "nf-dnsyx: .syx: a wrong checksum or length is read, with a note");
+  const v2 = parseDnSyx(cat(dnMsg(record("OTHER", {}, { version: 2 })), dnMsg(a), dnMsg(new Uint8Array(40))));
+  check(v2.sounds.length === 2 && /^a version-2 sound \(not one of the versions known, 1 4 5\): read as version 5/.test(v2.sounds[0].warnings[0]) &&
+    /message 3: not a Digitone sound file \(the sound's magic\)/.test(v2.notes[0]), "nf-dnsyx: .syx: a version not known read, with a note; a message that is no sound skipped");
+  const foreign = parseDnSyx(cat(dnMsg(a), Uint8Array.from([0xF0, 0x43, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0xF7])));
+  check(foreign.sounds.length === 1 && /^message 2: not a Digitone message, skipped$/.test(foreign.notes[0]), `nf-dnsyx: .syx: a foreign message skipped (${foreign.notes[0]})`);
+  check(await rejects(() => parseDnSyx(kit), /no Digitone sound in this SysEx dump/) && await rejects(() => parseDnSyx(Uint8Array.from([0xF0, 0x43, 0, 0, 0xF7])), /not a Digitone SysEx dump/),
+    "nf-dnsyx: .syx refused: a dump with no sound, not a Digitone dump");
+
+  // the IMPORT: a .syx is a sound file; its sounds, a row for what it skipped; any other .syx refused, nothing read
+  const fizzSyx = storeSound({ name: "FIZZ ONE", blob: blob(1), drive: 0, pool: false, slot: 0, batch: false, tags: 0 });
+  const dx7 = Uint8Array.from([0xF0, 0x43, 0x00, 0x09, 0x20, 0x00, ...new Array(64).fill(1), 0x10, 0xF7]);
+  const imp = await readImport([{ name: "PROJ.syx", bytes: proj }, { name: "ONE.SYX", bytes: dnMsg(a) }, { name: "fizz.syx", bytes: fizzSyx }, { name: "DX7 BANK.syx", bytes: dx7 },
+    { name: "noise.syx", bytes: Uint8Array.from({ length: 50 }, (_, i) => i * 13 & 255) }, { name: "kit.syx", bytes: kit }]);
+  const sounds = imp.filter((x) => x.ok), info = imp.filter((x) => x.info), refused = imp.filter((x) => !x.ok && !x.info);
+  check(IMPORT_FILES.test("x.syx") && IMPORTABLE.test("x.SYX") && sounds.length === 3 && sounds.map((x) => x.sound.name).join() === "SYX ONE,SYX TWO,SYX ONE" &&
+    sounds.every((x) => x.sound.blob.length >= 96 && x.sound.fizzTags) && info.length === 1 && info[0].file === "PROJ.syx" && /kit message skipped/.test(info[0].error) &&
+    refused.length === 4 && refused.slice(0, 3).every((x) => x.error === DN_SYX_NOT) && new RegExp(`^${DN_SYX_NOT}: no Digitone sound`).test(refused[3].error),
+    `nf-dnsyx: IMPORT reads a Digitone .syx (3 sounds, 1 skipped-row); an FM-1 / FIZZ dump, a DX7 bank, noise: "${DN_SYX_NOT}"; a dump with no sound refused (${refused[3].error.slice(0, 60)})`);
+  check((() => { try { readDnSyx(fizzSyx); return false; } catch (e) { return e.message === DN_SYX_NOT; } })(), "nf-dnsyx: readDnSyx refuses FIZZ's own SysEx");
+  // (the iOS app's contract: IMPORT_FILES takes .syx; one item per sound named "pack.syx: 001 NAME"; the refusal's text)
+  check(IMPORT_FILES.test("pack.syx") && sounds.map((x) => x.file).join("|") === "PROJ.syx: 001 SYX ONE|PROJ.syx: 002 SYX TWO|ONE.SYX: 001 SYX ONE" &&
+    sounds.every((x) => x.sound.file === x.file) && refused.every((x) => x.error.includes("not a Digitone sound dump")),
+    `nf-dnsyx: the iOS contract: .syx in IMPORT_FILES, items ${sounds.map((x) => `"${x.file}"`).join(", ")}, refusals say "not a Digitone sound dump"`);
+  const st = markDuplicates(imp.filter((x) => x.ok), []);
+  check(st[2].dup === "list" && !st[0].dup, "nf-dnsyx: the same .syx sound twice in the files is flagged");
+
+  // the owner's Haunted Hearts pack, read in place (a commercial soundpack: never copied into the repo)
+  const HH = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Presets/Digitone/haunted-hearts-acbift/Haunted-Hearts";
+  const HHS = path.join(HH, "SysEx", "Haunted Hearts Digitone Soundpack.syx");
+  if (!fs.existsSync(path.join(HH, "Sounds")) || !fs.existsSync(HHS)) note(`nf-dnsyx: no Haunted Hearts pack at ${HH}: not read`);
+  else {
+    const names = fs.readdirSync(path.join(HH, "Sounds")).filter((f) => /\.dnsnd$/i.test(f)).sort();
+    const dn = await readImport(names.map((n) => ({ name: n, bytes: new Uint8Array(fs.readFileSync(path.join(HH, "Sounds", n))) })));
+    const okd = dn.filter((x) => x.ok);
+    const frames = okd.filter((x) => { try { return storeFrame(x.sound).length > 100; } catch (_) { return false; } }).length;
+    check(names.length === 128 && okd.length === 128 && frames === 128, `nf-dnsyx: Haunted Hearts: ${okd.length} / ${names.length} .dnsnd read and converted, ${frames} STORE frames made${dn.filter((x) => !x.ok).slice(0, 3).map((x) => ` | ${x.file}: ${x.error}`).join("")}`);
+    const sx = await readImport([{ name: path.basename(HHS), bytes: new Uint8Array(fs.readFileSync(HHS)) }]);
+    const oks = sx.filter((x) => x.ok);
+    const sframes = oks.filter((x) => { try { return storeFrame(x.sound).length > 100; } catch (_) { return false; } }).length;
+    const dnNames = okd.map((x) => x.sound.name).sort().join("|"), sxNames = oks.map((x) => x.sound.name).sort().join("|");
+    const pad3 = (i) => String(i + 1).padStart(3, "0");
+    check(dnNames === sxNames && oks.every((x, i) => x.file === `${path.basename(HHS)}: ${pad3(i)} ${x.sound.name}`),
+      `nf-dnsyx: Haunted Hearts: the .syx's 128 names those of the 128 .dnsnd; items "${oks[0] && oks[0].file}" .. "${oks.at(-1) && oks.at(-1).file}"`);
+    check(oks.length === 128 && sx.length === 128 && sframes === 128, `nf-dnsyx: Haunted Hearts: the .syx gives ${oks.length} sounds (${sx.length - oks.length} other rows), ${sframes} STORE frames made`);
+    // twins by name (as ChoralRoot checked): the converted values the same (FM TONE's patch, its drive, pan and sends)
+    const byName = new Map(okd.map((x) => [x.sound.name, x.sound]));
+    let twins = 0, matched = 0; const off = [];
+    for (const { sound: s } of oks) {
+      const t = byName.get(s.name);
+      if (!t) continue;
+      twins++;
+      if (same([...s.blob], [...t.blob]) && s.drive === t.drive && s.pan === t.pan && JSON.stringify(s.sends) === JSON.stringify(t.sends) && s.six === t.six) matched++;
+      else off.push(s.name);
+    }
+    check(twins === 128 && matched === twins, `nf-dnsyx: Haunted Hearts: ${matched} of ${twins} .syx sounds the same as their .dnsnd twins${off.length ? `: ${off.slice(0, 5).join(", ")}` : ""}`);
+    // and the reader's own values on the fields both records have (version 1 in the .syx, version 4 in the .dnsnd:
+    // the filter's TYPE is numbered differently in version 1, the converted filter the same)
+    const raw = parseDnSyx(new Uint8Array(fs.readFileSync(HHS))).sounds;
+    const rawDn = new Map(await Promise.all(names.map(async (n) => { const p = await parseDnsnd(new Uint8Array(fs.readFileSync(path.join(HH, "Sounds", n)))); return [p.name, p]; })));
+    let rawSame = 0; const diffs = {};
+    for (const p of raw) { const t = rawDn.get(p.name); if (!t) continue; const dk = Object.keys(p.params).filter((k) => k in t.params && p.params[k] !== t.params[k]); if (!dk.length) rawSame++; for (const k of dk) diffs[k] = (diffs[k] || 0) + 1; }
+    check(Object.keys(diffs).every((k) => k === "filter.type"), `nf-dnsyx: Haunted Hearts: the parsed values of the fields both have: ${rawSame} twins all equal, the rest only the filter TYPE's numbering (${JSON.stringify(diffs)})`);
+  }
+}
+// ---- (end of nf-dnsyx)
 
 // ---- the owner's saved images (outside the repo), read offline
 {

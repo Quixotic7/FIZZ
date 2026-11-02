@@ -14,12 +14,18 @@
 //   await readDnsnd(bytes, fileName) -> { file, name, blob, pan, drive, sends: {chorus, delay, reverb}, notes, origin,
 //                                         mark, tags }
 //     notes: what did not carry over or was approximated (dnsndToQuad's, and any reader warning not known below);
-//     origin: the reader's notes about the file itself (an older payload header, the Digitone OS, the product), which
-//     lose nothing; mark: those in one line ("older Digitone file (OS 1.42)"), or "" 
+//     origin: the reader's notes about the file itself (the Digitone OS, the product, a record version of the same
+//     layout), which lose nothing; mark: those in one line ("Digitone file (OS 1.42, record 4)"), or "" 
 //   await readDn2(bytes, fileName) -> the same, for a Digitone II .dn2pst / .dn2snd (dn2: true)
-//   await readFiles([{ name, bytes }]) -> [{ file, ok: true, sound } | { file, ok: false, error }] (by the file's extension)
+//   readDnSyx(bytes, fileName) -> { sounds: [as readDnsnd's, + slot; file "pack.syx: 001 NAME"], skipped: [the dump's
+//     notes: messages not read] }
+//     a Digitone SysEx dump (.syx: one sound, the pool, a project; fm1dnsnd.js parseDnSyx, ChoralRoot d9464dd1);
+//     throws DN_SYX_NOT on any other .syx (an FM-1 or FIZZ dump, a CZ / DX7 bank), and on a dump with no sound
+//   await readFiles([{ name, bytes }]) -> [{ file, ok: true, sound } | { file, ok: false, error } |
+//     { file, ok: false, info: true, error }] (by the file's extension; a .syx gives one item per sound, and an info
+//     item saying what it skipped)
 //   createSender({ sendMidi, onMidiOut }) -> { identify(), send(sounds, { pool, track }, progress) }
-import { parseDnsnd, dnsndToQuad } from "./fm1dnsnd.js";
+import { parseDnsnd, dnsndToQuad, parseDnSyx, isDnSyx } from "./fm1dnsnd.js";
 import { parseDn2pst, dn2pstToQuad, quadPack6, QUAD_EXT_RANGES, QX } from "./dn2pst.js";
 import { parseFizzsnd, parseFizzlib } from "./library.js";
 import { identity, storeSound, parseReply, NAME_LEN, FIZZ_TAGS, fizzTagMask } from "./fizz_sysex.js";
@@ -66,7 +72,10 @@ export function originMark(origin) {
 }
 
 export async function readDnsnd(bytes, file = "") {
-  const parsed = await parseDnsnd(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+  return soundOfParsed(await parseDnsnd(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)), file);
+}
+// a parsed Digitone record (a .dnsnd's or a SysEx dump's) -> the sound
+function soundOfParsed(parsed, file) {
   const q = dnsndToQuad(parsed), p = parsed.params || {};
   const send = (k) => (typeof p[k] === "number" ? Math.max(0, Math.min(127, Math.round(p[k]))) : undefined);
   const origin = parsed.warnings.filter(isOrigin);
@@ -103,13 +112,31 @@ export async function readDn2(bytes, file = "") {
            fizzTags: fizzTagsOf(parsed.tags) };
 }
 export const isDn2Name = (name) => /\.dn2(pst|snd)$/i.test(name || "");
-export const IMPORTABLE = /\.(dnsnd|dn2pst|dn2snd|fizzsnd|fizzlib)$/i;
+export const IMPORTABLE = /\.(dnsnd|dn2pst|dn2snd|fizzsnd|fizzlib|syx)$/i;
+
+// a .syx: only a Digitone SysEx sound dump is read (F0 00 20 3C 0D ..); anything else is refused, nothing imported
+export const DN_SYX_NOT = "not a Digitone sound dump";
+export function readDnSyx(bytes, file = "") {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (!isDnSyx(b)) throw new Error(DN_SYX_NOT);
+  let got;
+  try { got = parseDnSyx(b); } catch (e) { throw new Error(`${DN_SYX_NOT}: ${e.message}`); }
+  // each named like a library's member: "pack.syx: 001 NAME" (its place in the dump, its name)
+  return { sounds: got.sounds.map((p, i) => ({ ...soundOfParsed(p, `${file}: ${String(i + 1).padStart(3, "0")} ${soundName(p.name)}`), slot: p.slot })),
+           skipped: got.notes };
+}
 
 export async function readFiles(files) {
   const out = [];
   for (const f of files) {
     try {
       if (/\.fizzlib$/i.test(f.name)) { out.push(...(await parseFizzlib(f.bytes, f.name)).items); continue; }   // (a library: its presets)
+      if (/\.syx$/i.test(f.name)) {                     // (a Digitone dump: its sounds, then what it skipped)
+        const d = readDnSyx(f.bytes, f.name);
+        out.push(...d.sounds.map((sound) => ({ file: sound.file, ok: true, sound })));
+        if (d.skipped.length) out.push({ file: f.name, ok: false, info: true, error: d.skipped.join("; ") });
+        continue;
+      }
       out.push({ file: f.name, ok: true, sound: await (/\.fizzsnd$/i.test(f.name) ? parseFizzsnd(f.bytes, f.name) : isDn2Name(f.name) ? readDn2(f.bytes, f.name) : readDnsnd(f.bytes, f.name)) });
     }
     catch (e) { out.push({ file: f.name, ok: false, error: e.message || String(e) }); }
