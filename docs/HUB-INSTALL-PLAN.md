@@ -4,6 +4,30 @@ The owner wants the hub's Install button to install FIZZ's **Bluetooth package**
 installer. Today the hub's card says "Install on its page ↗". The hub writes one .fwsc, and FIZZ also needs its
 data blob(s) written after every install. Without them the unit shows FIZZ NEEDS ITS DATA.
 
+## Status (2026-11-02)
+
+Steps 1 and 2 are done on the branch `hub-signing`, with no device. Step 3 (on a unit) is next.
+- The owner chose both packages bundled, and the new asset names (`fizz-V.fwsc` = Bluetooth, `fizz-usb-V.fwsc` = USB).
+- `firmware/loader/` holds FIZZ's `ldr_core.c` and `loader.c`. The diff against fm1-base's is the extents' table,
+  its limits (`_Static_assert` and a run-time check, -14), `FL_RANGE_OK` grown by the extents, and step 3's loop
+  going on through them (`ldr_next`). `sc[]` covers every sector up to 0xFC000.
+- ota.bin: 8,464 B (USB) and 8,484 B (Bluetooth), up from 8,340 B. The limit is 19,968 B.
+- Packages: 1,041,700 B (USB) and 1,041,720 B (Bluetooth), up from 611,496 B.
+- Extents: USB 0xE5000..0xFC000; Bluetooth 0x97000..0xAF000 and 0xE7000..0xFC000.
+- `bash firmware/app/tests/ldr_test.sh` runs the host test against both built packages: everything passes.
+- The Mac and Linux (fm1-build's steps) build the same five files for `0.12.0-beta.13-hubtest2`:
+  - `5bdf2c8a…`: `fizz-usb-V.fwsc`
+  - `cf990ca6…`: `fizz-V.fwsc` (Bluetooth)
+  - `870bd3f6…`: `fizz-xdata-V.bin`
+  - `e632a56e…`: `fizz-ble-xdata-V.bin`
+  - `37269ac6…`: `fizz-ble-xdata2-V.bin`
+
+A risk to check on a unit: the stock firmware's update record is at 0xE8F00, inside both packages' first-blob
+extent. An install started from V15 (or any firmware that stages its loader there) overwrites that record and
+possibly V15's staged loader during the blob pass. A power cut after that point can't resume from the record. The
+app area is already complete then, so the unit should boot FIZZ with "NEEDS ITS DATA", and an install from FIZZ
+finishes the job. Check it in step 3 ("from the official V15", with an unplug during the blob pass).
+
 ## The idea
 
 FIZZ's .fwsc carries its blobs, and FIZZ's own copy of the update loader writes them.
@@ -145,6 +169,7 @@ modified one may be refused. The mail asks about this before release.
    hub, then the card.
 
 ## Decisions for the owner
-- Bundle the USB package too (recommended), or only Bluetooth.
-- Rename the release assets (recommended: no mail needed for the choice), or ask the hub to pick `fizz-ble-*`.
+- ~~Bundle the USB package too (recommended), or only Bluetooth.~~ Both (2026-11-02).
+- ~~Rename the release assets (recommended: no mail needed for the choice), or ask the hub to pick `fizz-ble-*`.~~
+  Renamed (2026-11-02).
 - The README line about the Bluetooth package overwriting other firmwares' data at 0x97000..0xAEFFF.
