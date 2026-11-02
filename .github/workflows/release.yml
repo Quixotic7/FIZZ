@@ -1,54 +1,195 @@
 # SPDX-License-Identifier: MPL-2.0
-# A tester release on GitHub from a pushed tag vX.Y.Z-beta.N (firmware/release.py prints the commands): a pre-release
-# named after the tag, its text CHANGELOG.md's section for the version (firmware/release.py --notes), the committed
-# packages from site/firmware/X.Y.Z-beta.N/ attached with the version in their names (the USB package's fizz.fwsc and
-# fizz-xdata.bin; since 2026-10-27 the Bluetooth package's fizz-ble.fwsc, fizz-ble-xdata.bin and fizz-ble-xdata2.bin:
-# every .fwsc and .bin there). Nothing is built here: the files
-# are the ones the install page serves (the page cannot fetch from GitHub's release assets: no CORS).
-#
-# Needs only the workflow's own token (contents: write). Settings > Actions > General > Workflow permissions may stay
-# "Read repository contents": the job asks for write itself.
+# Build, sign and release FIZZ from a tag (BUILDING.md "Releasing"): both packages, USB (fizz) and Bluetooth (fizz-ble),
+# built by The Firmware Hub's shared workflow zvenson/fm1-build at its reviewed tag v1, which signs a GitHub build
+# attestation for every file: the hub then shows "Built from source on GitHub" on FIZZ's card, and anyone can check a
+# file with gh attestation verify (BUILDING.md "Checking a package").
+#   push of a tag vX.Y.Z[-beta.N] -> draft:   the tagged commit's site/firmware/VERSION/ checked (SHA256SUMS,
+#                                             site/tools/test_install.mjs), a draft release (the notes from
+#                                             firmware/release.py --notes, LICENSE, LICENSING.md, LICENSES.zip):
+#                                             nothing public yet
+#                                    build:   fm1-build@v1 runs firmware/hub_build.sh (firmware/release.py VERSION
+#                                             --rebuild; every sha256 checked against site/firmware/releases.json and
+#                                             the committed files before anything is signed), attests fizz-* (the two
+#                                             packages and their three data blobs, the version in their names) and
+#                                             uploads them with its SHA256SUMS to the draft
+#                                    publish: the draft's files checked (signed by fm1-build v1 at its reviewed
+#                                             tag object, for this tag and commit; SHA256SUMS; releases.json), then
+#                                             the release published (a pre-release for a beta)
+#   workflow_dispatch              -> build only: fm1-build signs the build of the branch, no release; the files are
+#                                     the run's artifact "packages"
+# The install page needs nothing from here: Pages serves master's committed site/firmware/, the same bytes as the
+# signed files (publish checks it). The signed files are never rebuilt, replaced or uploaded by hand afterwards.
 name: Release
 
 on:
   push:
-    tags: ["v*-beta.*"]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, e.g. 0.12.0-beta.13 (X.Y.Z[-beta.N][-suffix]). Builds and signs an artifact; no release."
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # the shared workflow the hub trusts, at refs/tags/v1, and v1's digest as the attestation records it (the
+  # certificate's Build Signer Digest): v1 is an annotated tag, so this is the tag object 5ba8c359.., not the commit
+  # it names (as ChoralRoot's release.yml). publish refuses a file signed by any other v1 (a moved or re-made tag)
+  FM1_BUILD: zvenson/fm1-build/.github/workflows/build.yml
+  FM1_BUILD_V1_SHA: 5ba8c359b1744cc53c4530b15eff52d0d5c1255b
 
 jobs:
-  release:
+  draft:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write                 # the draft release and its licence files
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
 
-      - name: Check the release's files (the tag's commit must hold them)
-        run: |
-          V="${GITHUB_REF_NAME#v}"
-          echo "V=$V" >> "$GITHUB_ENV"
-          test -d "site/firmware/$V" || { echo "::error::no site/firmware/$V in the tagged commit (firmware/release.py first)"; exit 1; }
-          V="$V" node -e 'const j=require("./site/firmware/releases.json"); if (!j.releases.some((r) => r.version === process.env.V)) { console.error(`releases.json does not list ${process.env.V}`); process.exit(1); }'
-          (cd "site/firmware/$V" && sha256sum -c SHA256SUMS)
-          node site/tools/test_install.mjs
+      - name: Version
+        id: version
+        run: firmware/hub_build.sh --version | tee -a "$GITHUB_OUTPUT"
 
-      - name: The notes and the files
-        run: |
-          python3 firmware/release.py --notes "$V" > notes.md
-          mkdir dist
-          for f in "site/firmware/$V"/*.fwsc "site/firmware/$V"/*.bin; do
-            b="$(basename "$f")"; cp "$f" "dist/${b%.*}-$V.${b##*.}"
-          done
-          (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
-
-      - name: The pre-release
+      - name: A published release is never rebuilt
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
-            --title "FIZZ $V" --notes-file notes.md dist/*
-          echo "FIZZ $V: pre-release created" >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          # a rerun may refill the draft; a public release keeps the signed files it has (delete it to redo)
+          if draft=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" != true ]; then
+              echo "::error::the release $GITHUB_REF_NAME is published: its signed files stay as they are"
+              exit 1
+            fi
+          fi
+
+      - name: The release's committed files (the tag's commit must hold them)
+        env:
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -d "site/firmware/$V" || { echo "::error::no site/firmware/$V in the tagged commit (firmware/release.py first)"; exit 1; }
+          # shellcheck disable=SC2016  # (JavaScript's ${...}, not the shell's)
+          node -e 'const j=require("./site/firmware/releases.json"); if (!j.releases.some((r) => r.version === process.env.V)) { console.error(`releases.json does not list ${process.env.V}`); process.exit(1); }'
+          (cd "site/firmware/$V" && sha256sum -c SHA256SUMS)
+          firmware/hub_build.sh --check "site/firmware/$V" "$V"
+          node site/tools/test_install.mjs
+
+      - name: Release notes (firmware/release.py --notes, then the signed-build text)
+        env:
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            python3 firmware/release.py --notes "$V"
+            sed -e "s/@VERSION@/$V/g" -e "s|@REPO@|$GITHUB_REPOSITORY|g" <<'EOT'
+
+          `SHA256SUMS` lists both packages and their data. GitHub built and signed each file from this tag's source (The Firmware Hub's shared workflow); check one with `gh attestation verify fizz-@VERSION@.fwsc --repo @REPO@ --signer-workflow zvenson/fm1-build/.github/workflows/build.yml`. The packages hold three JieLi AC79 SDK files (Apache-2.0), the Bluetooth one JieLi's Bluetooth libraries too; `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
+          EOT
+          } > release-body.md
+          cat release-body.md
+
+      - name: The licence files (from the tag's tree; the build adds the packages)
+        run: |
+          set -euo pipefail
+          mkdir assets
+          cp LICENSE LICENSING.md assets/
+          zip -q -r assets/LICENSES.zip LICENSES
+          ls -l assets
+
+      - name: Create or update the draft release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: FIZZ ${{ steps.version.outputs.version }}
+          # a draft until publish has checked the signed files; a beta (X.Y.Z-beta.N) a pre-release
+          draft: true
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true
+          files: assets/*
+          body_path: release-body.md
+
+  build:
+    needs: draft
+    # a tag: after the draft; a run from the Actions tab (no draft): on its own
+    if: ${{ !failure() && !cancelled() }}
+    # the hub trusts this workflow at refs/tags/v1 only: the tag, not a commit SHA (publish checks the tag object)
+    uses: zvenson/fm1-build/.github/workflows/build.yml@v1
+    permissions:
+      contents: write                 # the files into the draft release (a tag only)
+      id-token: write                 # the attestation's signing certificate
+      attestations: write
+    with:
+      build: bash firmware/hub_build.sh
+      packages: fizz-*
+      # the AC79 SDK at its tag (AC79NN_SDK_V1.2.1_2023-12-13, the one the release builds use): the Bluetooth package
+      # builds on JieLi's BT libraries and SDK sources, which are never in git
+      sdk: true
+
+  publish:
+    needs: [draft, build]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write                 # publish the draft
+      attestations: read              # gh attestation verify
+    env:
+      VERSION: ${{ needs.draft.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            site/firmware
+            firmware/hub_build.sh
+          sparse-checkout-cone-mode: false
+
+      - name: The draft's files, signed by fm1-build v1 from this tag, as releases.json pins them
+        run: |
+          set -euo pipefail
+          mkdir signed
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir signed \
+              --pattern 'fizz-*' --pattern SHA256SUMS
+          n=5                         # fizz, fizz-xdata, fizz-ble, fizz-ble-xdata, fizz-ble-xdata2
+          ls -l signed
+          files=(signed/fizz-*)
+          if [ "${#files[@]}" != $n ] || [ "$(grep -c . signed/SHA256SUMS)" != $n ]; then
+            echo "::error::the draft $GITHUB_REF_NAME does not have the $n files with their SHA256SUMS"
+            exit 1
+          fi
+          (cd signed && sha256sum -c SHA256SUMS)
+          for f in signed/fizz-*; do
+            gh attestation verify "$f" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$FM1_BUILD" --signer-digest "$FM1_BUILD_V1_SHA" \
+                --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
+          done
+          firmware/hub_build.sh --check signed "$VERSION"
+
+      - name: Publish the release
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+          echo "FIZZ $VERSION: released, signed by fm1-build v1" >> "$GITHUB_STEP_SUMMARY"

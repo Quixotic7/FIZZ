@@ -6,6 +6,10 @@ publish it (it runs none of them: nothing is pushed, tagged or released from her
   firmware/release.py VERSION [--date YYYY-MM-DD]       the release, into this tree (site/firmware/, CHANGELOG.md)
   firmware/release.py VERSION --dry-run [--out DIR]     the same checks and builds, its files into DIR (default
                                                         firmware/app/build/release-dry-run/): the tree is not touched
+  firmware/release.py VERSION --rebuild DIR             the same builds of a released (or any) VERSION, its five files
+                                                        and SHA256SUMS straight into DIR, nothing else written: the
+                                                        version may be listed or tagged, CHANGELOG.md is not read
+                                                        (firmware/hub_build.sh: the signed build on GitHub, BUILDING.md)
   firmware/release.py --notes VERSION                   CHANGELOG.md's section for VERSION, with the install page and
                                                         Discord (the GitHub release's text: .github/workflows/release.yml)
 
@@ -214,6 +218,8 @@ def main():
     ap.add_argument("version", nargs="?")
     ap.add_argument("--dry-run", action="store_true", help="build and stage into --out; the tree is not touched")
     ap.add_argument("--out", type=Path, help="the dry run's directory (default firmware/app/build/release-dry-run)")
+    ap.add_argument("--rebuild", type=Path, metavar="DIR",
+                    help="build VERSION's packages into DIR only (a listed version too); the tree is not touched")
     ap.add_argument("--date", help="the release's date (default today)")
     ap.add_argument("--notes", metavar="VERSION", help="print CHANGELOG.md's section for VERSION, for the GitHub release")
     a = ap.parse_args()
@@ -226,11 +232,12 @@ def main():
         return 0
     v = a.version or die("give a VERSION (0.11.0-beta.1)")
     m = VERSION_RE.fullmatch(v) or die(f"{v}: X.Y.Z-beta.N or X.Y.Z, each up to two digits")
-    if m[5] and not a.dry_run:
+    if m[5] and not (a.dry_run or a.rebuild):
         die(f"{v}: a suffix after the version is for --dry-run only")
     xyz = f"{int(m[1])}.{int(m[2])}.{int(m[3])}"
     date = a.date or datetime.date.today().isoformat()
     out = (a.out or BUILD / "release-dry-run").resolve() if a.dry_run else REPO
+    rebuild = a.rebuild.resolve() if a.rebuild else None
 
     # 1. the checks
     problems = []
@@ -241,14 +248,17 @@ def main():
         if (REPO / sub / ".git").exists() and git("status", "--porcelain", cwd=REPO / sub):
             problems.append(f"{sub} has changes")
     index = json.loads((REPO / INDEX).read_text(encoding="utf-8")) if (REPO / INDEX).exists() else {"releases": []}
-    if any(r.get("version") == v for r in index.get("releases", [])) or (REPO / SITE_FW / v).exists():
-        problems.append(f"{v} is released already (site/firmware/)")
-    if git("tag", "-l", f"v{v}"):
-        problems.append(f"the tag v{v} exists")
-    log = (REPO / CHANGELOG).read_text(encoding="utf-8") if (REPO / CHANGELOG).exists() else ""
-    notes = unreleased(log)
-    if not notes:
-        problems.append(f"CHANGELOG.md's '{UNRELEASED}' section is empty: write the notes for testers first")
+    if rebuild:                 # (a rebuild: the version may be released, its notes are not needed)
+        log = notes = None
+    else:
+        if any(r.get("version") == v for r in index.get("releases", [])) or (REPO / SITE_FW / v).exists():
+            problems.append(f"{v} is released already (site/firmware/)")
+        if git("tag", "-l", f"v{v}"):
+            problems.append(f"the tag v{v} exists")
+        log = (REPO / CHANGELOG).read_text(encoding="utf-8") if (REPO / CHANGELOG).exists() else ""
+        notes = unreleased(log)
+        if not notes:
+            problems.append(f"CHANGELOG.md's '{UNRELEASED}' section is empty: write the notes for testers first")
     sync = subprocess.run([sys.executable, str(HERE / "tools" / "sync_installer.py"), "--check"], cwd=REPO,
                           capture_output=True, text=True)
     if sync.returncode:
@@ -257,7 +267,7 @@ def main():
         die("not ready:\n  - " + "\n  - ".join(problems))
     source = git("rev-parse", "HEAD")
     base = git("rev-parse", "HEAD", cwd=REPO / "firmware" / "fm1-base")
-    print(f"release {v}: from {source[:10]} (fm1-base {base[:10]}), {'dry run into ' + str(out) if a.dry_run else 'into this tree'}", flush=True)
+    print(f"release {v}: from {source[:10]} (fm1-base {base[:10]}), {'rebuild into ' + str(rebuild) if rebuild else 'dry run into ' + str(out) if a.dry_run else 'into this tree'}", flush=True)
 
     # 2. the builds
     built = []
@@ -269,10 +279,12 @@ def main():
     if len({b[5] for b in built}) != 1:
         die("the packages' identities differ")
 
-    # 3. the files
-    if a.dry_run and out.exists():
+    # 3. the files (a rebuild: these alone, in its directory)
+    if rebuild and rebuild.exists():
+        shutil.rmtree(rebuild)
+    elif a.dry_run and out.exists():
         shutil.rmtree(out)
-    dest = out / SITE_FW / v
+    dest = rebuild or out / SITE_FW / v
     dest.mkdir(parents=True)
     packages, sums = [], []
     for name, label, kind, raw, blobs, identity in built:
@@ -283,6 +295,9 @@ def main():
             sums.append(f"{sha256(blob)}  {name}{suffix}")
         packages.append(package_entry(v, name, label, kind, raw, blobs))
     (dest / "SHA256SUMS").write_text("\n".join(sums) + "\n")
+    if rebuild:
+        print(f"\nrebuild: {', '.join(p.name for p in sorted(dest.iterdir()))} in {dest}; nothing else written")
+        return 0
 
     # 4. releases.json, the newest first
     rel = {"version": v, "date": date, "channel": "beta" if m[4] else "stable", "identity": built[0][5],
