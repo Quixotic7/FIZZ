@@ -80,7 +80,9 @@ of both.
 
 So the signed files are byte for byte the ones the install page serves. That holds because the build doesn't depend
 on the machine: the Mac (Python 3.11, the toolchain 20250324.1 in Docker) and fm1-build (Ubuntu 24.04, Python 3.12, a
-fresh toolchain download) make the same bytes. To move to a new Pillow, pin it in `hub_build.sh`, install the same
+fresh toolchain download) make the same bytes. `firmware/build.py` sorts every directory listing for that: fm1-base
+links the Bluetooth shim's sources in the file system's order, which differs between APFS and ext4. So the Bluetooth
+package of 0.12.0-beta.12 and older only rebuilds byte for byte on the Mac. To move to a new Pillow, pin it in `hub_build.sh`, install the same
 version on the Mac, and release from that.
 
 To check a build before tagging, run `bash firmware/hub_build.sh VERSION` on a clean tree.
