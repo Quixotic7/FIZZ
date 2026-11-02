@@ -8,8 +8,9 @@
 // approximations), its tags; a sound that is not FM TONE greyed; one already in MY PRESETS (the same name and patch),
 // or twice in the files, flagged and not ticked. SEND stores the ticked ones on the FM-1 with STORE /
 // STORE6 into MY PRESETS (POOL: also referenced in the project's pool; TRACK: the first also loaded onto that track).
-// TRACK only with the header's TRACK switch on (P2-B). The Digitone tags FIZZ has no tag for are kept as web tags (on this computer and in backups). .syx is not read (the
-// owner's decision: only the formats that already convert).
+// TRACK only with the header's TRACK switch on (P2-B). The Digitone tags FIZZ has no tag for are kept as web tags (on this computer and in backups). A .syx is
+// read only as a Digitone SysEx sound dump (one sound, the pool, a project: its sounds, and a row saying what it
+// skipped; ChoralRoot d9464dd1, 2026-11-01); any other .syx (an FM-1 or FIZZ dump, a CZ / DX7 bank) is refused.
 import { readFiles, storeFrame } from "../js/digitone.js";
 import { sameSound, soundFromStoreFrame } from "../js/library.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
@@ -17,7 +18,7 @@ import { soundKey, readBackup } from "./fizzbak.js";
 import { esc, refusal, midiChip } from "./ui.js";
 import { isMidiBlob } from "./sound.js";
 
-export const IMPORT_FILES = /\.(fizzlib|fizzsnd|fizzbak|dnsnd|dn2pst|dn2snd)$/i;
+export const IMPORT_FILES = /\.(fizzlib|fizzsnd|fizzbak|dnsnd|dn2pst|dn2snd|syx)$/i;
 
 // (no DOM: the tests) files [{name, bytes}] -> [{file, ok, sound, error, web}]: a .fizzbak's presets (its web tags
 // with them), a .fizzlib's, a .fizzsnd, the Digitone's converted
@@ -60,7 +61,7 @@ export function mountImport(ctx) {
   async function add(files) {
     const list = [];
     for (const f of files) {
-      if (!IMPORT_FILES.test(f.name)) { say(`${esc(f.name)}: not a sound file (.fizzlib, .fizzsnd, .fizzbak, .dnsnd, .dn2pst, .dn2snd)`, "--orange"); continue; }
+      if (!IMPORT_FILES.test(f.name)) { say(`${esc(f.name)}: not a sound file (.fizzlib, .fizzsnd, .fizzbak, .dnsnd, .dn2pst, .dn2snd, a Digitone .syx)`, "--orange"); continue; }
       list.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
     }
     const got = await readImport(list);
@@ -70,19 +71,20 @@ export function mountImport(ctx) {
     markDuplicates([...I.items.filter((x) => !x.result || !x.result.ok), ...fresh], have);
     for (const it of fresh) it.on = it.ok && !it.dup;
     I.items.push(...fresh);
-    log(`import: ${got.length} read (${got.filter((g) => !g.ok).length} refused, ${fresh.filter((x) => x.dup).length} already there)`);
+    log(`import: ${got.filter((g) => !g.info).length} read (${got.filter((g) => !g.ok && !g.info).length} refused, ${fresh.filter((x) => x.dup).length} already there)`);
     render();
   }
   function render() {
     const n = I.items.filter((x) => x.on).length;
-    $("i-count").innerHTML = `${I.items.length}<small>sound${I.items.length === 1 ? "" : "s"}</small>`;
+    const ns = I.items.filter((x) => !x.info).length;   // (a .syx's skipped-messages row is not a sound)
+    $("i-count").innerHTML = `${ns}<small>sound${ns === 1 ? "" : "s"}</small>`;
     const shown = I.shown || 0;                         // (a row pops in once, when it first shows)
     $("i-rows").innerHTML = I.items.map((it, k) => {
       if (!it.ok) {
         const why = (it.error || "").replace(/^Not importable: /, "");
         const fz = /\.fizz/i.test(it.file);
-        return `<div class="ir tube no${k >= shown ? " pop" : ""}" style="--i:${Math.min(k, 12)}"><span class="chk" aria-hidden="true"></span><span class="src hud ${fz ? "fz" : /dn2/i.test(it.file) ? "dn2" : "dn1"}">${fz ? "FIZZ" : /dn2/i.test(it.file) ? "DN II" : "DN1"}</span>` +
-          `<span class="nm">${esc(it.file.replace(/\.[^.]+$/, ""))}</span><span class="fid">${leds(0)}</span><span class="note">${esc(why.slice(0, 60))}</span><span class="tg"></span></div>`;
+        return `<div class="ir tube no${it.info ? " info" : ""}${k >= shown ? " pop" : ""}" style="--i:${Math.min(k, 12)}"><span class="chk" aria-hidden="true"></span><span class="src hud ${fz ? "fz" : /dn2/i.test(it.file) ? "dn2" : "dn1"}">${fz ? "FIZZ" : /dn2/i.test(it.file) ? "DN II" : "DN1"}</span>` +
+          `<span class="nm">${esc(it.file.replace(/\.[^.]+$/, ""))}</span><span class="fid">${leds(0)}</span><span class="note" title="${esc(why)}">${esc(it.info ? why : why.slice(0, 60))}</span><span class="tg"></span></div>`;
       }
       const s = it.sound, f = fid(s), web = (s.tags || []).map((t) => String(t).toUpperCase()).filter((t) => !s.fizzTags.includes(t));
       const res = it.result ? (it.result.ok ? `<span class="okmark">✓ ${it.result.pool ? "POOL" : "MY"} ${it.result.slot}</span>` : `<span class="note bad">${esc(it.result.error)}</span>`) : "";

@@ -17,7 +17,7 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   const sender = createSender({ sendMidi, onMidiOut });
   let items = [], pool = false, track = -1, busy = false, fizz = null, asked = false, keepDups = false;
 
-  const fileIn = h("input", { type: "file", accept: ".dnsnd,.dn2pst,.dn2snd,.fizzsnd,.fizzlib", multiple: true, hidden: true,
+  const fileIn = h("input", { type: "file", accept: ".dnsnd,.syx,.dn2pst,.dn2snd,.fizzsnd,.fizzlib", multiple: true, hidden: true,
     onchange: (ev) => { const f = [...ev.target.files]; ev.target.value = ""; if (f.length) add(f); } });
   const list = h("ul", { class: "dn-list" });
   const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Where the sounds go" });
@@ -48,14 +48,14 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   const foot = h("p", { class: "note dn-foot" });
   const panel = h("div", { class: "dn-panel", role: "dialog", "aria-label": "Import sounds", hidden: true },
     h("div", { class: "dn-head" }, h("b", {}, "Import sounds"), h("button", { class: "icon-btn", "aria-label": "Close", onclick: () => close(), html: X_ICON })),
-    h("p", { class: "dn-lead" }, "FIZZ presets (.fizzsnd, .fizzlib) and Elektron Digitone (.dnsnd) and Digitone II (.dn2pst) FM TONE sounds. They are read and converted here, in this browser: nothing is uploaded."),
+    h("p", { class: "dn-lead" }, "FIZZ presets (.fizzsnd, .fizzlib) and Elektron Digitone (.dnsnd, .syx dumps) and Digitone II (.dn2pst) FM TONE sounds. They are read and converted here, in this browser: nothing is uploaded."),
     h("div", { class: "dn-pick" }, h("button", { class: "pill", onclick: () => fileIn.click() }, "Choose files..."), h("span", { class: "muted small" }, "or drop them on the page"), fileIn),
     list,
     h("div", { class: "dn-row" }, h("span", { class: "row-label" }, "Into"), seg),
     h("div", { class: "dn-row" }, h("span", { class: "row-label" }, "Also load the first onto"), trackSel),
     dupRow, send, dnxRow, dnxSlot, who, foot);
   document.body.append(panel);
-  const drop = h("div", { class: "dn-drop", hidden: true }, h("div", {}, h("b", {}, "Drop sounds"), h("span", {}, ".fizzsnd, .fizzlib, .dnsnd and .dn2pst files, read in this browser")));
+  const drop = h("div", { class: "dn-drop", hidden: true }, h("div", {}, h("b", {}, "Drop sounds"), h("span", {}, ".fizzsnd, .fizzlib, .dnsnd, Digitone .syx and .dn2pst files, read in this browser")));
   document.body.append(drop);
 
   // who is listening: FIZZ's identity reply (asked once FIZZ runs and the panel opens)
@@ -168,7 +168,7 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
     if (!hasFiles(e)) return;
     e.preventDefault(); depth = 0; drop.hidden = true;
     const dn = [...e.dataTransfer.files].filter((x) => IMPORTABLE.test(x.name));
-    if (!dn.length) { toast("Only FIZZ (.fizzsnd, .fizzlib), Digitone (.dnsnd) and Digitone II (.dn2pst) files can be dropped here.", "bad"); return; }
+    if (!dn.length) { toast("Only FIZZ (.fizzsnd, .fizzlib), Digitone (.dnsnd, .syx) and Digitone II (.dn2pst) files can be dropped here.", "bad"); return; }
     add(dn);
   });
   render();

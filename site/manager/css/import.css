@@ -101,3 +101,4 @@
 @media (max-width: 900px) and (orientation: landscape) {
   .ir { grid-template-columns: 24px 50px minmax(0, 1fr) 120px; grid-template-areas: "chk src nm fid" ". note note note" ". tg tg tg"; }
 }
+.ir.no.info { opacity: .8; } .ir.no.info .note { color: var(--champagne); }

@@ -246,14 +246,15 @@ try {
     const r4 = await evaluate("FIZZDigitone.items[0].result");
     check(r4 && r4.ok && r4.slot === 4, `after a reload the library still holds them: the next sound goes to LIBRARY ${r4 && r4.slot}`);
     await sleep(700);
-    // an older Digitone file (the owner's, read in place): a grey mark, nothing counted as lost, and it imports
+    // an older Digitone file (the owner's, read in place): a grey mark, nothing counted as lost, and it imports (nf-dnsyx:
+    // since ChoralRoot de3a4798 its "0095" payload build is the OS that saved it, no note: the mark from the OS alone)
     const OLD = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Digitone2Presets/H003 BRITE2.dnsnd";
     if (fs.existsSync(OLD)) {
       await evaluate(addJs(JSON.stringify([{ name: path.basename(OLD), b64: fs.readFileSync(OLD).toString("base64") }])));
       await evaluate("FIZZDigitone.send()");
       const li = await evaluate(`(() => { const li = [...document.querySelectorAll(".dn-item")].pop(); const r = FIZZDigitone.items[FIZZDigitone.items.length - 1].result;
         return { mark: (li.querySelector(".dn-mark") || {}).textContent, lost: !!li.querySelector(".dn-notes"), whole: li.textContent.includes("converted whole"), ok: r && r.ok, slot: r && r.slot }; })()`);
-      check(li.mark === "older Digitone file (OS 1.42)" && !li.lost && li.whole && li.ok,
+      check(li.mark === "Digitone file (OS 1.42)" && !li.lost && li.whole && li.ok,
         `${path.basename(OLD)} in the panel: mark "${li.mark}", ${li.lost ? "a lost count shown" : "no lost count"}, ${li.ok ? `in LIBRARY ${li.slot}` : "not stored"}`);
     }
     // Digitone II: the owner's BASSSINE.dn2pst (read in place) with its DN2 chip, stored; a WAVETONE one refused

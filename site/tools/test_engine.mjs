@@ -209,11 +209,12 @@ e.dispose();
     const rp = ask(e2, storeFrame(sounds[3], { pool: true }));
     check(rp && rp.status === 0 && rp.pool && rp.slot >= 2, `STORE into the POOL: ${rp && `${rp.statusName} POOL ${rp.slot}`}`);
     // an older Digitone file (DN1, OS 1.42, the "0095" payload header; the owner's, read in place): its file notes
-    // are a mark, not losses, and it imports
+    // are a mark, not losses, and it imports (nf-dnsyx: since ChoralRoot de3a4798 the "0095" build is the OS that saved
+    // it, not a header of another kind: no note of its own, the mark from the OS alone)
     const OLD = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Digitone2Presets/H003 BRITE2.dnsnd";
     if (fs.existsSync(OLD)) {
       const s = await readDnsnd(fs.readFileSync(OLD), path.basename(OLD));
-      check(s.notes.length === 0 && s.origin.length === 2 && s.mark === "older Digitone file (OS 1.42)",
+      check(s.notes.length === 0 && s.origin.length === 1 && s.mark === "Digitone file (OS 1.42)",
         `${path.basename(OLD)}: mark "${s.mark}", ${s.notes.length} lost (${s.notes.join("; ")})`);
       const ro = ask(e2, storeFrame(s));
       check(ro && ro.status === 0, `${path.basename(OLD)} imports: ${ro && `${ro.statusName} LIBRARY ${ro.slot}`}`);

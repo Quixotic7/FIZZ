@@ -85,6 +85,8 @@
 //   - nf-flat (2026-10-30, "Flatten everything."): no glow outside EDIT on every tab at 1440 x 900, the progress
 //     screen, the picker, PORTS, a toast, + NEW, a confirm, LIBRARY at 390, THIS BROWSER's header (no coloured
 //     box-shadow / text-shadow / drop-shadow but the lights kept, nothing breathing); screenshots in .build/test/flat;
+//   - nf-dnsyx (2026-11-01): IMPORT takes a synthetic Digitone .syx sound dump by the picker and by a drop, on ?sim and
+//     ?browser (its sounds, the skipped row; sent on ?sim); a DX7 bank's .syx refused ("not a Digitone sound dump");
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -3172,6 +3174,89 @@ try {
     await size(1280, 800);
   }
   // ---- (end of nf-flat)
+  // ---- nf-dnsyx (2026-11-01): IMPORT takes a Digitone .syx sound dump (a small synthetic one built here: two sounds
+  // and a kit message, never the owner's pack) by the file picker (DOM.setFileInputFiles on #i-file) and by a drop on
+  // #i-drop, on ?sim and ?browser: its sounds listed, a row for what it skipped; a .syx that is not a Digitone dump (a
+  // DX7 bank's bytes) refused with "not a Digitone sound dump", nothing read; on ?sim the two sent into MY PRESETS
+  {
+    const { dn1Record, defaults: dnDefaults } = await import("../js/fizz2dn.js");
+    const { dnPack87 } = await import("../js/fm1dnsnd.js");
+    const SHOTS = process.env.NF_DNSYX_SHOTS || "";
+    const msg = (rec, type = 0x53, nn = 0) => { const e = dnPack87(rec), s = e.reduce((a, x) => a + x, 0) & 0x3FFF, l = e.length + 5;
+      return [0xF0, 0x00, 0x20, 0x3C, 0x0D, 0x00, type, 1, 1, nn, ...e, s >> 7, s & 127, l >> 7, l & 127, 0xF7]; };
+    const rec = (name, algo) => { const v = dnDefaults(); v[0] = algo; return dn1Record(v, { name, tagBits: 0 }, []); };
+    const dump = Uint8Array.from([...msg(rec("SYX ALPHA", 2)), ...msg(new Uint8Array(60), 0x52), ...msg(rec("SYX BETA", 5), 0x53, 1)]);
+    const dx7 = Uint8Array.from([0xF0, 0x43, 0x00, 0x09, 0x20, 0x00, ...new Array(64).fill(1), 0x10, 0xF7]);
+    const dir = path.join(OUT, "nf-dnsyx");
+    fs.mkdirSync(dir, { recursive: true });
+    const dumpPath = path.join(dir, "SYX DUMP.syx");
+    fs.writeFileSync(dumpPath, dump);
+    const fileJs = (bytes, name) => `new File([Uint8Array.from(atob(${JSON.stringify(Buffer.from(bytes).toString("base64"))}), (c) => c.charCodeAt(0))], ${JSON.stringify(name)})`;
+    const dropJs = (bytes, name) => `(() => { const dt = new DataTransfer(); dt.items.add(${fileJs(bytes, name)});
+      document.getElementById('i-drop').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); return true; })()`;
+    const rowsJs = "[...document.querySelectorAll('#i-rows .ir')].map((r) => ({ nm: r.querySelector('.nm').textContent, no: r.classList.contains('no'), info: r.classList.contains('info'), note: r.querySelector('.note').textContent }))";
+    const keep = async (name) => { await shot(`manager-${name}.png`); if (SHOTS) fs.copyFileSync(path.join(OUT, `manager-${name}.png`), path.join(SHOTS, `${name}.png`)); };
+    for (const mode of ["sim", "browser"]) {
+      const tag = `nf-dnsyx (${mode})`;
+      await size(1440, 900);
+      await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) });
+      await waitFor("window.__mgr && __mgr.S.mode === 'fm1' && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+      await idle();
+      if (mode === "browser") {
+        await realClick("#unit");
+        await waitFor("!document.getElementById('upick').hidden", 3000);
+        await realClick("#upick-pop .urow[data-u='browser']");
+        await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && !!__mgr.S.unit && __mgr.S.unit.rows.length > 0", 40000);
+        await idle();
+      }
+      await click("#t-import");
+      await waitFor("!document.getElementById('tab-import').hidden", 5000);
+      const accept = await evaluate("document.getElementById('i-file').accept");
+      // the picker
+      const doc = await send("DOM.getDocument", { depth: 0 });
+      const { nodeId } = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#i-file" });
+      await send("DOM.setFileInputFiles", { nodeId, files: [dumpPath] });
+      const picked = await waitFor("document.querySelectorAll('#i-rows .ir').length === 3", 10000);
+      const r1 = await evaluate(rowsJs);
+      const c1 = await evaluate("({ count: document.getElementById('i-count').textContent, send: document.getElementById('i-send').textContent })");
+      check(/\.syx/.test(accept) && picked && r1[0].nm === "SYX ALPHA" && r1[1].nm === "SYX BETA" && !r1[0].no && !r1[1].no && r1[2].info && /1 kit message skipped/.test(r1[2].note) &&
+        c1.count === "2sounds" && /SEND 2 /.test(c1.send),
+        `${tag}: the picker takes a Digitone .syx: ${r1.map((r) => r.nm + (r.info ? ` [${r.note.slice(0, 30)}]` : "")).join(", ")}; ${c1.count}, ${c1.send}`);
+      await sleep(300);
+      await keep(`dnsyx-${mode}-1440`);
+      // the drop
+      await click("#i-clear");
+      await evaluate(dropJs(dump, "DROPPED DUMP.syx"));
+      const dropped = await waitFor("document.querySelectorAll('#i-rows .ir').length === 3", 10000);
+      const r2 = await evaluate(rowsJs);
+      check(dropped && r2.filter((r) => !r.no).map((r) => r.nm).join() === "SYX ALPHA,SYX BETA" && r2[2].info, `${tag}: a dropped Digitone .syx: its two sounds and the skipped row`);
+      if (mode === "sim") {
+        const before = await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').length");
+        await click("#i-send");
+        await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${before + 2}`, 20000);
+        await idle();
+        check(await evaluate("['SYX ALPHA', 'SYX BETA'].every((n) => __mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === n))"), `${tag}: SEND: both in MY PRESETS`);
+      }
+      // a .syx that is not a Digitone dump: refused, nothing read
+      await click("#i-clear");
+      await evaluate(dropJs(dx7, "DX7 BANK.syx"));
+      const refused = await waitFor("document.querySelectorAll('#i-rows .ir').length === 1", 10000);
+      const r3 = await evaluate(rowsJs);
+      check(refused && r3[0].no && !r3[0].info && r3[0].note === "not a Digitone sound dump" && (await evaluate("document.getElementById('i-send').disabled && document.getElementById('i-count').textContent === '1sound'")),
+        `${tag}: a DX7 bank .syx refused: "${r3[0] && r3[0].note}", nothing to send`);
+      await evaluate(dropJs(dump, "SYX DUMP.syx"));
+      await waitFor("document.querySelectorAll('#i-rows .ir').length === 4", 10000);
+      await sleep(300);
+      await keep(`dnsyx-${mode}-1440-refused`);
+      await size(390, 844, true);
+      await sleep(400);
+      check(await noScroll(), `${tag}: IMPORT at 390 with the .syx rows: no horizontal scroll`);
+      await keep(`dnsyx-${mode}-390`);
+      await click("#i-clear");
+    }
+    await size(1280, 800);
+  }
+  // ---- (end of nf-dnsyx)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);
