@@ -81,26 +81,20 @@ private enum Pack {
 
     /// The pack's one .syx: refused NOT READ YET while the bundle has no .syx reader; then its 128 sounds, their names
     /// those of the .dnsnd.
-    /// Flip on when the bundle is rebuilt with fm1dnsnd.js's reader: delete the `withKnownIssue { }` wrapper (with the
-    /// reader in, the wrapper itself fails the test: "Known issue was not recorded").
     @Test(.enabled(if: Pack.here)) func packSyx() async throws {
         let bytes = [UInt8](try Data(contentsOf: Pack.syx))
         let im = ImportModel()
         await im.add(files: [(Pack.syx.lastPathComponent, bytes)])
-        #expect(im.refused.isEmpty && !im.rows.isEmpty)
-        if try await !FizzDataShared.engine().readsSyx() {
-            #expect(im.rows.count == 1 && im.rows[0].item.error == SyxImport.notReadYet)
-        }
+        #expect(try await FizzDataShared.engine().readsSyx())
+        #expect(im.refused.isEmpty)
         let names = try await {
             let d = ImportModel()
             await d.add(files: try Pack.dnsnd())
             return Set(d.rows.compactMap { $0.item.sound?.name })
         }()
-        withKnownIssue("the bundle has no Digitone .syx reader yet (fm1dnsnd.js)") {
-            #expect(im.rows.count == 128)
-            #expect(im.rows.allSatisfy { $0.item.ok })
-            #expect(im.ticked.count == 128)
-            #expect(Set(im.rows.compactMap { $0.item.sound?.name }) == names)
-        }
+        #expect(im.rows.count == 128)
+        #expect(im.rows.allSatisfy { $0.item.ok })
+        #expect(im.ticked.count == 128)
+        #expect(Set(im.rows.compactMap { $0.item.sound?.name }) == names)
     }
 }
