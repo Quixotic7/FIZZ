@@ -116,10 +116,10 @@ jobs:
       - name: The licence files (from the tag's tree; the build adds the packages)
         run: |
           set -euo pipefail
-          mkdir assets
-          cp LICENSE LICENSING.md assets/
-          zip -q -r assets/LICENSES.zip LICENSES
-          ls -l assets
+          mkdir release-files
+          cp LICENSE LICENSING.md release-files/
+          zip -q -r release-files/LICENSES.zip LICENSES
+          ls -l release-files
 
       - name: Create or update the draft release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -130,7 +130,7 @@ jobs:
           draft: true
           prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
           fail_on_unmatched_files: true
-          files: assets/*
+          files: release-files/*
           body_path: release-body.md
 
   build:
