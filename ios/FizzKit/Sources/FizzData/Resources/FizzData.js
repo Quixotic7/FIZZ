@@ -4120,6 +4120,8 @@ const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
 // restoreFull, projects.js fitModel): the pure halves of those UI modules' mount functions.
 //   importRead(files [{name, bytes}]) -> importer.js readImport's items, each with its kind ("fizz", "dn1", "dn2": the
 //       row's chip) and midi (sound.js isMidiBlob)
+//   importAccepts(name) -> importer.js IMPORT_FILES.test(name): whether readImport takes the file (the app asks it for
+//       a .syx: true once the web's Digitone .syx reader is in importer.js, so a bundle rebuilt then reads them)
 //   importDuplicates(sounds, mineFrames) -> importer.js markDuplicates' marks: "mine", "list" or ""
 //   exportCarry(sounds, k) -> exporter.js mountExport rowsFor: { lost, changed, bar, rows: [{what, how, c, w, note, n}],
 //       touched, none } (k: fizz, dnsnd, dn2pst, dn2snd)
@@ -4128,7 +4130,7 @@ const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
 //       backup, the fit: its choice (fitChoice), the projects there and MY PRESETS to choose from; both layouts' limits
 //   restoreFit(image, unitSize, choice, withImage) -> projects.js fitModel: { copies, left, image (withImage) };
 //       throws its error (code "range") when the choice does not fit
-const { readImport, markDuplicates } = __fizz_m12;
+const { readImport, markDuplicates, IMPORT_FILES: I4_IMPORT_FILES } = __fizz_m12;
 const { exportFiles, carryOf, MIDI_ONLY: EXPORT_MIDI_ONLY } = __fizz_m13;
 const { modelOf: i4ModelOf, imageOf: i4ImageOf, fitModel: i4FitModel, fitChoice: i4FitChoice, projects: i4Projects } = __fizz_m5;
 const { PACKAGE_NAME: I4_PACKAGE_NAME } = __fizz_m3;
@@ -4142,6 +4144,7 @@ async function importRead(files) {
   const got = await readImport(Array.from(files, (f) => ({ name: f.name, bytes: f.bytes })));
   return got.map((it) => ({ ...it, kind: i4Kind(it), midi: !!(it.sound && i4IsMidiBlob(it.sound.blob)) }));
 }
+const importAccepts = (name) => I4_IMPORT_FILES.test(String(name));
 function importDuplicates(sounds, mineFrames = []) {
   const items = sounds.map((s) => ({ ok: true, sound: s }));
   markDuplicates(items, Array.from(mineFrames, (f) => soundFromStoreFrame(f)));
@@ -4474,7 +4477,7 @@ function keptLib(entries, { name, fizz = "", date = new Date() } = {}) {
     ...list.map((e, i) => ({ name: files[i], bytes: enc.encode(keptText(e.sound, e.webTags, { fizz: fizz || (e.sound.source && e.sound.source.fizz) || "" })) }))], date);
 }
 const keptFileName = (name) => soundFileName(name);
-return { BACKUP_FORMAT, EXPORT_MIDI_ONLY, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoPatterns, demoStore, editPack, editTable, editTexts, exportCarry, exportFile, hex8, importDuplicates, importRead, keptFile, keptFileName, keptLib, keptRead, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, newSound, parseFizzlib, parseFizzsnd, pjClear, pjClose, pjCopy, pjCopyKept, pjDiscard, pjDrop, pjDropPlan, pjFizzpat, pjFree, pjImage, pjKeep, pjKeptInfo, pjLoadKept, pjOpen, pjPaste, pjReadFizzpat, pjRebase, pjRenameKept, pjUndo, pjView, presetsFromDumps, presetsFromSummary, readBackup, readRegion, restoreFit, restorePlan, sameSound, soundFromFrame, soundFromLib, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
+return { BACKUP_FORMAT, EXPORT_MIDI_ONLY, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoPatterns, demoStore, editPack, editTable, editTexts, exportCarry, exportFile, hex8, importAccepts, importDuplicates, importRead, keptFile, keptFileName, keptLib, keptRead, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, newSound, parseFizzlib, parseFizzsnd, pjClear, pjClose, pjCopy, pjCopyKept, pjDiscard, pjDrop, pjDropPlan, pjFizzpat, pjFree, pjImage, pjKeep, pjKeptInfo, pjLoadKept, pjOpen, pjPaste, pjReadFizzpat, pjRebase, pjRenameKept, pjUndo, pjView, presetsFromDumps, presetsFromSummary, readBackup, readRegion, restoreFit, restorePlan, sameSound, soundFromFrame, soundFromLib, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
 })();
 globalThis.FizzData = Object.freeze(__fizz_m14);
 

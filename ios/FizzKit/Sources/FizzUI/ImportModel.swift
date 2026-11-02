@@ -3,7 +3,7 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // IMPORT (importer.js mountImport): files read and converted by the Manager's JS (FizzData importRead: .fizzlib
-// .fizzsnd .fizzbak, Digitone .dnsnd, Digitone II .dn2pst / .dn2snd), each sound a row with its fidelity (10 less
+// .fizzsnd .fizzbak, Digitone .dnsnd and .syx dumps, Digitone II .dn2pst / .dn2snd), each sound a row with its fidelity (10 less
 // what did not carry over), its notes, its duplicate mark (already in MY PRESETS, or twice in these files: not
 // ticked); a row heard on the track (TRACK on); SEND stores the ticked ones into MY PRESETS (POOL: the pool too;
 // TRACK: the first onto that track) through UnitActions.send, stopping at FULL.
@@ -60,9 +60,9 @@ public final class ImportModel {
     /// The extensions read (the file tabs lit).
     public var formats: Set<String> {
         Set(rows.map { r -> String in
-            let f = r.item.file.lowercased()
-            let member = f.range(of: ".fizzlib:") != nil ? "fizzlib" : nil
-            return member ?? (f as NSString).pathExtension
+            // (a library's or a .syx dump's member, "pack.syx: 001 NAME": its file's)
+            let f = r.item.file.lowercased().components(separatedBy: ": ").first ?? ""
+            return (f as NSString).pathExtension
         })
     }
 

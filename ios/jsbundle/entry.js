@@ -136,6 +136,8 @@ export const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
 // restoreFull, projects.js fitModel): the pure halves of those UI modules' mount functions.
 //   importRead(files [{name, bytes}]) -> importer.js readImport's items, each with its kind ("fizz", "dn1", "dn2": the
 //       row's chip) and midi (sound.js isMidiBlob)
+//   importAccepts(name) -> importer.js IMPORT_FILES.test(name): whether readImport takes the file (the app asks it for
+//       a .syx: true once the web's Digitone .syx reader is in importer.js, so a bundle rebuilt then reads them)
 //   importDuplicates(sounds, mineFrames) -> importer.js markDuplicates' marks: "mine", "list" or ""
 //   exportCarry(sounds, k) -> exporter.js mountExport rowsFor: { lost, changed, bar, rows: [{what, how, c, w, note, n}],
 //       touched, none } (k: fizz, dnsnd, dn2pst, dn2snd)
@@ -144,7 +146,7 @@ export const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
 //       backup, the fit: its choice (fitChoice), the projects there and MY PRESETS to choose from; both layouts' limits
 //   restoreFit(image, unitSize, choice, withImage) -> projects.js fitModel: { copies, left, image (withImage) };
 //       throws its error (code "range") when the choice does not fit
-import { readImport, markDuplicates } from "../../site/manager/importer.js";
+import { readImport, markDuplicates, IMPORT_FILES as I4_IMPORT_FILES } from "../../site/manager/importer.js";
 import { exportFiles, carryOf, MIDI_ONLY as EXPORT_MIDI_ONLY } from "../../site/manager/exporter.js";
 import { modelOf as i4ModelOf, imageOf as i4ImageOf, fitModel as i4FitModel, fitChoice as i4FitChoice, projects as i4Projects } from "../../site/manager/projects.js";
 import { PACKAGE_NAME as I4_PACKAGE_NAME } from "../../site/manager/fizzstore.js";
@@ -158,6 +160,7 @@ export async function importRead(files) {
   const got = await readImport(Array.from(files, (f) => ({ name: f.name, bytes: f.bytes })));
   return got.map((it) => ({ ...it, kind: i4Kind(it), midi: !!(it.sound && i4IsMidiBlob(it.sound.blob)) }));
 }
+export const importAccepts = (name) => I4_IMPORT_FILES.test(String(name));
 export function importDuplicates(sounds, mineFrames = []) {
   const items = sounds.map((s) => ({ ok: true, sound: s }));
   markDuplicates(items, Array.from(mineFrames, (f) => soundFromStoreFrame(f)));

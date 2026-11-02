@@ -111,7 +111,7 @@ public struct FizzAppView: View {
         .onChange(of: tab) { old, new in model.editor.tabChanged(from: old, to: new) }
         .onChange(of: phase) { _, p in model.editor.scene(p, tab: tab) }
         // a .fizzbak / .bin opened from Files, AirDrop, Mail: kept with the backups, RESTORE offered; a sound file
-        // (.fizzlib .fizzsnd .dnsnd .dn2pst .dn2snd): IMPORT
+        // (.fizzlib .fizzsnd .dnsnd .syx .dn2pst .dn2snd): IMPORT
         .onOpenURL { url in
             Task {
                 // (a .fizzprj / .fizzpat: PROJECTS')

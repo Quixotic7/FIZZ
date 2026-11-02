@@ -368,6 +368,9 @@ struct ImportRowView: View {
         let l = e.lowercased()
         if l.contains("not fm tone") || l.contains("wavetone") || l.contains("fm drum") || l.contains("swarmer") { return "NOT FM TONE" }
         if l.contains("no presets") { return "EMPTY" }
+        // (a .syx: FizzData SyxImport, or the bundle's reader saying so)
+        if l.contains("not a digitone sound dump") { return "NOT A DIGITONE DUMP" }
+        if l.contains("not read yet") { return "NOT READ YET" }
         if l.contains("newer") { return "NEWER FILE" }
         return "UNREADABLE"
     }
