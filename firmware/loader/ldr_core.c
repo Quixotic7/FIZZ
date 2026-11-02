@@ -4,8 +4,8 @@
  * also writes FIZZ's data blobs: after the app area, step 3 goes on through the package's data extents (LDR_XTAB,
  * which firmware/build.py generates per package from the blobs' sizes: whole sectors, each blob and its trailer),
  * sector by sector exactly as for the app area (the CRC16s kept in 2b, equal sectors skipped, verify, two tries).
- * The extents' limits (LDR_X_OK) are checked when this compiles and again before anything is erased. Everything
- * else is Felucca's. */
+ * The extents' limits (LDR_X_OK) are checked when this compiles and again before anything is erased. An extent
+ * sector that holds another firmware's update record is written first (ldr_next). Everything else is Felucca's. */
 /* Felucca update loader, the portable part (step 2 of the M-UPGRADE update
  * protocol).
  *
@@ -83,15 +83,6 @@ static int ldr_in(uint32_t off)                 /* off in the app area or an ext
     return 0;
 }
 
-static uint32_t ldr_next(uint32_t s)            /* the sector step 3 writes after s; 0: none */
-{
-    uint32_t r;
-    for (r = 0; r < LDR_NX; r++)
-        if (s >= ldr_x[r][0] && s < ldr_x[r][1])
-            return s + 0x1000u < ldr_x[r][1] ? s + 0x1000u : r + 1u < LDR_NX ? ldr_x[r + 1u][0] : 0u;
-    return 0u;
-}
-
 static uint32_t ldr_wr(void)                    /* step 3's bytes: the app area and the extents */
 {
     uint32_t r, n = 0;
@@ -105,6 +96,39 @@ static int ldr_erase(uint32_t off);
 static int ldr_prog(uint32_t off, const void *p, uint32_t n);
 static void ldr_record_clear(void);
 static void ldr_progress(uint32_t done, uint32_t total);
+
+/* FIZZ: step 3's order. The app area; then the extent sectors that held a valid update record when the pass began
+ * (another firmware's staging, e.g. the stock firmware's record at 0xE8F00: once the app is whole, its record goes
+ * before anything it stages is touched, so a power cut either resumes or boots the new app); then the rest */
+static uint8_t ldr_rec[LDR_NSEC];               /* by sector, as sc[]: held a record before step 3 */
+
+static int ldr_is_rec(uint32_t s)               /* step 4's test: a record at the sector's last 256 bytes */
+{
+    uint8_t r[80];
+    if (ldr_fread(s + 0xF00u, r, 80))
+        return 0;
+    return ota_rd16(r + 6) == 0x5441u && ota_rd16(r) && ota_rd16(r) == ota_crc16(r + 2, 78, 0);
+}
+
+static uint32_t ldr_after(uint32_t s, uint8_t rec)   /* the first extent sector above s with ldr_rec == rec; 0: none */
+{
+    uint32_t r, t;
+    for (r = 1; r < LDR_NX; r++)
+        for (t = ldr_x[r][0]; t < ldr_x[r][1]; t += 0x1000u)
+            if (t > s && ldr_rec[(t - LDR_APP_LO) >> 12] == rec)
+                return t;
+    return 0u;
+}
+
+static uint32_t ldr_next(uint32_t s)            /* the sector step 3 writes after s; 0: none */
+{
+    uint32_t n;
+    if (s + 0x1000u < LDR_APP_HI)
+        return s + 0x1000u;                      /* the app area */
+    if (s < LDR_APP_HI || ldr_rec[(s - LDR_APP_LO) >> 12])
+        return (n = ldr_after(s, 1)) != 0u ? n : ldr_after(0u, 0);   /* the records' sectors, then the rest */
+    return ldr_after(s, 0);
+}
 
 /* SFC cipher: per 32-byte block, key ^ (block offset >> 2) */
 static void ldr_sfc(uint8_t *p, uint32_t n, uint32_t base_off, uint32_t key)
@@ -197,7 +221,10 @@ static int ldr_session(void)
     /* 2b. the whole package first: nothing is erased for a damaged one */
     if ((rc = ldr_check(fl_off, fl_size, want, sc, sec)) != 0)
         return rc;
-    /* 3. app area, then (FIZZ) the data extents, sector by sector */
+    /* 3. app area, then (FIZZ) the data extents, sector by sector: those holding an update record first (ldr_next) */
+    for (k = 1; k < LDR_NX; k++)
+        for (s = ldr_x[k][0]; s < ldr_x[k][1]; s += 0x1000u)
+            ldr_rec[(s - LDR_APP_LO) >> 12] = (uint8_t)ldr_is_rec(s);
     for (s = LDR_APP_LO; s; s = ldr_next(s)) {
         uint32_t again;
         for (again = 0;; again++) {                      /* as checked in 2b, else read it again */

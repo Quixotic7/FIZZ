@@ -162,12 +162,21 @@ static void pattern(uint32_t lo, uint32_t hi)
         nor[lo] = (uint8_t)(seed >> 16);
     }
 }
-static void put_record(void)                         /* a valid update record at 0xE4F00 (Felucca's staging) */
+static void put_record_at(uint32_t at)               /* a valid update record */
 {
     uint8_t r[112] = {0};
     r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
     ota_wr16(r, ota_crc16(r + 2, 78, 0));
-    memcpy(nor + 0xE4F00, r, sizeof r);
+    memcpy(nor + at, r, sizeof r);
+}
+static void put_record(void) { put_record_at(0xE4F00u); }   /* (Felucca's staging) */
+static int any_record(void)                          /* a valid record anywhere in 0x93000..0xFC000 (step 4's test) */
+{
+    uint32_t s;
+    for (s = 0x93000u; s < 0xFC000u; s += 0x1000u)
+        if (ldr_is_rec(s))
+            return 1;
+    return 0;
 }
 
 static int check(const char *what, int ok) { printf("  %-62s %s\n", what, ok ? "ok" : "FAIL"); return ok ? 0 : 1; }
@@ -202,8 +211,10 @@ static void device(int record)                       /* the package's head, anot
     memset(nor, 0xFF, sizeof nor);
     memcpy(nor, logical + fo, 0x4000);
     pattern(0x4000u, sizeof nor);
-    if (record)
+    if (record == 1)
         put_record();
+    if (record == 2)                                 /* the stock firmware's layout: its record at 0xE8F00, its */
+        put_record_at(0xE8F00u);                     /* "staged loader" the pattern over 0xE4000..0xE8EFF */
     memcpy(before, nor, sizeof nor);
 }
 
@@ -271,6 +282,41 @@ int main(int argc, char **argv)
         bad += check("  the rerun completes, the package installed", rc == 0 && installed());
         memset(before + 0xE4000, 0xFF, 0x1000);
         bad += check("  everything else as before", kept() && bad_range == 0 && nor[0xE4F06] == 0xFF);
+    }
+
+    /* 3b. installed from the stock firmware (its record at 0xE8F00, inside the first blob's extent): a power cut
+     * after every page of the data pass leaves either its record and staged loader untouched (it resumes) or no
+     * record at all and the app area whole (the new app boots) */
+    {
+        uint32_t pages = wr / 256u, okay = 0, gone = 0, kept_rec = 0;
+        device(2);
+        rc = ldr_session();
+        bad += check("from the stock firmware: install completes, no record left",
+                     rc == 0 && installed() && !any_record());
+        for (r = 0; r < pages; r++) {
+            int rec, staged, app;
+            device(2);
+            cut_after = (int)r;
+            if (!setjmp(cut)) {
+                ldr_session();
+                break;
+            }
+            cut_after = -1;
+            rec = ldr_is_rec(0xE8000u);
+            staged = !memcmp(nor + 0xE4000, before + 0xE4000, 0x4F00);
+            app = !memcmp(nor + 0x4000, logical + fo + 0x4000, 0x93000 - 0x4000);
+            if (rec && staged) {
+                okay++; kept_rec++;
+            } else if (!any_record() && app) {
+                okay++; gone++;
+            } else {
+                printf("    cut at page %u: record %d, staged loader kept %d, app whole %d\n", r, rec, staged, app);
+            }
+        }
+        cut_after = -1;
+        printf("    %u cuts: %u with the record and staged loader kept, %u with no record and the app whole\n",
+               pages, kept_rec, gone);
+        bad += check("  a power cut after every page of the data pass: resumable or the new app", okay == pages);
     }
 
     /* 4. a damaged package (a byte in a blob): refused before any erase */

@@ -22,11 +22,14 @@ Steps 1 and 2 are done on the branch `hub-signing`, with no device. Step 3 (on a
   - `e632a56e…`: `fizz-ble-xdata-V.bin`
   - `37269ac6…`: `fizz-ble-xdata2-V.bin`
 
-A risk to check on a unit: the stock firmware's update record is at 0xE8F00, inside both packages' first-blob
-extent. An install started from V15 (or any firmware that stages its loader there) overwrites that record and
-possibly V15's staged loader during the blob pass. A power cut after that point can't resume from the record. The
-app area is already complete then, so the unit should boot FIZZ with "NEEDS ITS DATA", and an install from FIZZ
-finishes the job. Check it in step 3 ("from the official V15", with an unplug during the blob pass).
+The stock firmware's update record (0xE8F00) lies inside both packages' first-blob extent. So, after the app area,
+step 3 first writes every extent sector that held a valid update record when the pass began (step 4's test). Then it
+writes the rest in order. A power cut before that point leaves V15's record and staged loader untouched, so the
+install resumes. A cut after it finds no record, and the app area is already whole, so the new FIZZ boots with "NEEDS
+ITS DATA" and an install from FIZZ finishes the job. Installs staged by Felucca keep their record at 0xE4F00, outside
+the extents. `ldr_test` checks a V15-like layout (record at 0xE8F00, a staged loader over 0xE4000..0xE8EFF) with a cut
+after every page of the data pass, for both packages. Still check on a unit: "from the official V15", with an unplug
+during the blob pass.
 
 ## The idea
 
