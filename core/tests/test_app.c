@@ -742,7 +742,7 @@ static void t_play(void)
     uint32_t starts;
     int green = 0, k;
     fresh_keys();
-    CHECK(A.seq.cur == 1 && A.bpm == 100 && !A.seq.playing, "power-on: A02 at 100 BPM, stopped");
+    CHECK(A.seq.cur == 0 && A.bpm == 100 && !A.seq.playing, "power-on: A01 (the beat alone) at 100 BPM, stopped");
     tap_button(QD_B_PLAY);
     starts = A.pool.starts;
     for (k = 0; k < 1200; k++) {
@@ -750,7 +750,7 @@ static void t_play(void)
         qd_app_leds(&A, &l);
         green += l.play_green != 0;
     }
-    CHECK(A.seq.playing && A.playing && A.pool.starts > starts + 8 && peak_l > 1000, "PLAY: A02 plays (%u starts)",
+    CHECK(A.seq.playing && A.playing && A.pool.starts >= starts + 6 && peak_l > 1000, "PLAY: A01 plays (%u starts)",
           A.pool.starts - starts);
     CHECK(green > 100 && green < 300, "PLAY's green LED on the beat (%d of 1200 ms)", green);
     CHECK(app_beats() > 1.8 && app_beats() < 2.2, "the transport moved 2 beats in 1.2 s at 100 BPM (%f)", app_beats());
@@ -761,7 +761,7 @@ static void t_play(void)
     CHECK(!A.seq.playing && seq_voices() == 1 && sounding(A.sel, 62), "PLAY again: the sequence's notes released, the "
           "key's held (%d held)", seq_voices());
     qd_app_key(&A, 9, 0, 0);
-    printf("  play: A02 at power-on, PLAY plays and stops, the beat LED, a held key outlives the stop\n");
+    printf("  play: A01 at power-on, PLAY plays and stops, the beat LED, a held key outlives the stop\n");
 }
 
 static void t_patterns(void)
@@ -770,6 +770,7 @@ static void t_patterns(void)
     uint64_t h0, h1;
     uint32_t t0;
     fresh();
+    qd_seq_select(&A.seq, 1, 0);                        /* A02 (power-on is A01) */
     tap_button(QD_B_PLAY);
     run(500, 0);
     qd_app_button(&A, QD_B_MIX, 1);
@@ -1120,6 +1121,7 @@ static uint32_t split_run(int mode, uint64_t *hs, uint32_t max, uint32_t *maxv, 
     int j, t;
     qd_app_init(a);
     qd_app_tick(a, 0);
+    qd_seq_select(&a->seq, 1, 0);                       /* A02, the band (power-on is A01, the beat) */
     qd_app_play(a);
     for (ms = 1; ms <= 9000u; ms++) {
         if (ms % 3000u == 300u || ms % 3000u == 1700u)  /* chords on tracks 1 and 4, struck and released */

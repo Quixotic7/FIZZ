@@ -93,7 +93,7 @@ enum { QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_MUTE, QD_B_SOUND, QD_B_FUNC, Q
        QD_B_MIX, QD_B_PLAY, QD_B_REC, QD_B_OCTDN, QD_B_OCTUP, QD_NBTN };
 /* the knobs (detents), in the panel's role order */
 enum { QD_K_SELECT, QD_K_ALGO, QD_K_PRESETS, QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_NKNOB };
-#define QD_PAT_START 1                 /* the pattern at power-on: A02 */
+#define QD_PAT_START 0                 /* the pattern at power-on: A01, the beat alone */
 #define QD_TRIG_LED_MS 80              /* the tracks screen: a track's white key lit this long from its trig */
 
 /* the LEDs as the app sees them: a level 0..255 per key, per button, and PLAY's green LED */
