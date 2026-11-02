@@ -33,6 +33,9 @@ public struct FizzImportItem: Sendable, Equatable {
     public var webTags: [String]
     /// A MIDI track's sound (sound.js isMidiBlob)
     public var midi: Bool
+    /// Not a sound and not a refusal: a .syx dump's note of the messages it skipped (a kit's, a pattern's: digitone.js
+    /// readFiles' {ok: false, info: true}); error holds its text.
+    public var info: Bool
 
     init(js v: FizzJSValue) {
         file = v["file"]?.string ?? ""
@@ -46,6 +49,7 @@ public struct FizzImportItem: Sendable, Equatable {
         digitoneTags = s?["tags"]?.array?.compactMap(\.string) ?? []
         webTags = v["web"]?.array?.compactMap(\.string) ?? []
         midi = v["midi"]?.bool ?? false
+        info = v["info"]?.bool ?? false
     }
 
     /// A file refused before the JS read it (a .syx: SyxImport).
@@ -60,6 +64,7 @@ public struct FizzImportItem: Sendable, Equatable {
         digitoneTags = []
         webTags = []
         midi = false
+        info = false
     }
 }
 

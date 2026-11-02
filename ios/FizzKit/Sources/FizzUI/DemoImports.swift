@@ -45,4 +45,29 @@ public enum DemoImports {
         out.insert((lib.name.replacingOccurrences(of: "FIZZ presets", with: "ORBIT"), lib.bytes), at: min(5, out.count))
         return out
     }
+
+    /// A made-up Digitone .syx dump: one sound (a version-1 record: its magic, name and end marker, the rest zeros)
+    /// and one kit message, which the reader skips with a note (IMPORT's info row).
+    public static func syxWithKit(name: String = "SYNTH TEST") -> [UInt8] {
+        var record = [UInt8](repeating: 0, count: 283)
+        record.replaceSubrange(0..<8, with: [0xBE, 0xEF, 0xBA, 0xCE, 0, 0, 0, 1])
+        let n = Array(name.utf8.prefix(15))
+        record.replaceSubrange(12..<(12 + n.count), with: n)
+        record.replaceSubrange(279..<283, with: [0xBA, 0xCE, 0xF0, 0x0C])
+        return syxMessage(0x53, record) + syxMessage(0x52, [UInt8](repeating: 0, count: 40))
+    }
+
+    /// A Digitone SysEx message (fm1dnsnd.js parseDnSyx): F0 00 20 3C 0D 00 type 01 01 00, the data 8:7 packed, its
+    /// checksum and length (7 + 7 bits each), F7.
+    static func syxMessage(_ type: UInt8, _ data: [UInt8]) -> [UInt8] {
+        var packed: [UInt8] = []
+        for i in stride(from: 0, to: data.count, by: 7) {
+            let g = data[i..<min(i + 7, data.count)]
+            packed.append(g.enumerated().reduce(0) { $0 | ($1.element >> 7) << (6 - $1.offset) })
+            packed += g.map { $0 & 0x7F }
+        }
+        let sum = packed.reduce(0) { $0 + Int($1) } & 0x3FFF, len = packed.count + 5
+        return [0xF0, 0x00, 0x20, 0x3C, 0x0D, 0x00, type, 0x01, 0x01, 0x00] + packed
+            + [UInt8(sum >> 7), UInt8(sum & 0x7F), UInt8(len >> 7 & 0x7F), UInt8(len & 0x7F), 0xF7]
+    }
 }

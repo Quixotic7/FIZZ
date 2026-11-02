@@ -80,8 +80,8 @@ public struct ImportSheet: View {
     private var count: some View {
         let im = model.importer
         return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("\(im.rows.count)").fz(46, 800).foregroundStyle(FZ.text.color).contentTransition(.numericText())
-            Text(im.rows.count == 1 ? "sound" : "sounds").fz(22, 800).foregroundStyle(FZ.muted.color)
+            Text("\(im.soundCount)").fz(46, 800).foregroundStyle(FZ.text.color).contentTransition(.numericText())
+            Text(im.soundCount == 1 ? "sound" : "sounds").fz(22, 800).foregroundStyle(FZ.muted.color)
             Spacer(minLength: 0)
             if !im.refused.isEmpty { NameChip(text: "\(im.refused.count) NOT SOUNDS", fill: FZ.orange) }
         }
@@ -243,7 +243,32 @@ struct ImportRowView: View {
     }
     private var tag: FizzTag? { row.item.sound?.tags.first.flatMap { n in FizzTag.allCases.first { $0.name == n } } }
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if row.item.info { infoBody } else { soundBody }
+    }
+
+    /// A .syx dump's note of what it skipped (importer.js .ir.info): quiet, its whole text, never ticked or counted.
+    private var infoBody: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(kindLabel).fz(12, 800)
+                .foregroundStyle(kindColor.color)
+                .frame(width: 42, height: 22)
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(kindColor.color, lineWidth: 1.5))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(name).fz(14, 800, em: 0.03).foregroundStyle(FZ.muted.color).lineLimit(1)
+                Text(row.item.error).fz(13, 600).foregroundStyle(FZ.muted.color)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .opacity(0.8)
+        .padding(.horizontal, 10).padding(.vertical, 10)
+        .frame(minHeight: 58)
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(FZ.line.color, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private var soundBody: some View {
         let ok = row.item.ok, lit = ok && (row.on || row.result != nil)
         HStack(spacing: 10) {
             Text(kindLabel).fz(12, 800)

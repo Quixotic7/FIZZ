@@ -59,6 +59,25 @@ private enum Pack {
         #expect(im.formats == ["dnsnd", "dn2pst", "dn2snd", "fizzlib", "syx"])
     }
 
+    /// A dump with one sound and one kit message (built here, DemoImports.syxWithKit: no preset file): the sound
+    /// read and ticked; the kit a quiet info row with the reader's whole text, not a sound in the count, not a
+    /// refusal, never ticked.
+    @Test func skippedMessagesNote() async throws {
+        let im = ImportModel()
+        await im.add(files: [("one sound and a kit.syx", DemoImports.syxWithKit())])
+        #expect(im.refused.isEmpty)
+        try #require(im.rows.count == 2)
+        let (sound, note) = (im.rows[0], im.rows[1])
+        #expect(sound.item.ok && sound.on && sound.item.sound?.name == "SYNTH TEST" && !sound.item.info)
+        #expect(sound.item.file == "one sound and a kit.syx: 001 SYNTH TEST")
+        #expect(!note.item.ok && note.item.info && !note.on && note.item.sound == nil)
+        #expect(note.item.file == "one sound and a kit.syx" && note.item.error.hasPrefix("1 kit message skipped"))
+        #expect(im.soundCount == 1 && im.ticked.count == 1)
+        im.toggle(note.id)
+        #expect(!im.rows[1].on && im.ticked.count == 1)
+        #expect(im.formats == ["syx"])
+    }
+
     /// The pack's 128 .dnsnd: every one read, all ticked (ALL), each with a name. The ones not read are listed, with
     /// what the reader said.
     @Test(.enabled(if: Pack.here)) func packDnsnd() async throws {

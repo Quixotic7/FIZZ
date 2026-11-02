@@ -538,6 +538,10 @@ struct Shots {
         if let r = m.importer.rows.first(where: { $0.item.sound?.name == "WARM SUB" }) { await m.importer.play(r.id) }
         save(SnapshotSheet(top: 62) { backupTab } content: { ImportSheet(model: m) }, phone, out, "import")
         save(RootView(model: m, tab: .constant(.importer), wide: true), pad, out, "ipad-import")
+        // (a .syx dump with a kit in it: its sound, the quiet note of what was skipped; a .syx that is no dump)
+        m.importer.clear()
+        await m.importer.add(files: [("NIGHT KIT.syx", DemoImports.syxWithKit(name: "NIGHT PAD")), ("firmware.syx", [1, 2, 3])])
+        save(SnapshotSheet(top: 62) { backupTab } content: { ImportSheet(model: m) }, phone, out, "import-syx")
         _ = await m.actions.cancelAudition()
         await m.actions.setTrackOn(false)
 
