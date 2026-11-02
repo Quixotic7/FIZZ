@@ -107,12 +107,12 @@ PY="${PYTHON:-python3}"
 if [ "$(uname -s)" = Darwin ] && [ -z "${DYLD_FALLBACK_LIBRARY_PATH:-}" ] && [ -f /opt/homebrew/lib/libraqm.dylib ]; then
     export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
 fi
-# GitHub's runner: Raqm's libraries (Pillow's wheels load them at run time), make (firmware/app/tools/gen_units.py
-# reads tools/Makefile's lists; the runner image has it) and the pinned Pillow (the shared workflow installs the
+# GitHub's runner: Raqm's libraries (Pillow's wheels load them at run time), make and patch (gen_units.py,
+# firmware/build.py --ble: the runner image has both) and the pinned Pillow (the shared workflow installs the
 # newest), then fm1-base and felucca-bsp (the shared workflow's checkout fetches no submodules)
 if [ "${GITHUB_ACTIONS:-}" = true ]; then
     sudo apt-get update -q
-    sudo apt-get install -y -q --no-install-recommends libfribidi0 libraqm0 make
+    sudo apt-get install -y -q --no-install-recommends libfribidi0 libraqm0 make patch
     "$PY" -m pip install --disable-pip-version-check -q "Pillow==$PILLOW_VERSION"
     git submodule update --init --recursive
 elif [ ! -f firmware/fm1-base/tools/build.py ] || [ ! -d firmware/fm1-base/bsp/chip ]; then
