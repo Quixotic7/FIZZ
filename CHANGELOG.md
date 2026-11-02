@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.13 (2026-11-02)
+
 A new look for the Manager, live mix from the Manager, Digitone .syx imports, and one-step installs from The Firmware Hub.
 
 - **Install from The Firmware Hub.** Each package now carries FIZZ's data, so one install is all it takes, from FIZZ's own page, the hub or any FM-1 installer: no separate "writing FIZZ's data" step. The packages are built and signed on GitHub by the hub's shared workflow ("Built from source on GitHub"). The Bluetooth package is the hub's; the USB package is on FIZZ's install page as before. An install cut off by the cable carries on when you plug in and press Install again.

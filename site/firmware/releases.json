@@ -1,7 +1,59 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.12",
+  "latest": "0.12.0-beta.13",
   "releases": [
+    {
+      "version": "0.12.0-beta.13",
+      "date": "2026-11-02",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "642b930653cf2ef7b236d449f6eea8d114130c02",
+      "fm1base": "934e40d846d84e76e9c428d37b74bccb6192c823",
+      "notes": "A new look for the Manager, live mix from the Manager, Digitone .syx imports, and one-step installs from The Firmware Hub.\n\n- **Install from The Firmware Hub.** Each package now carries FIZZ's data, so one install is all it takes, from FIZZ's own page, the hub or any FM-1 installer: no separate \"writing FIZZ's data\" step. The packages are built and signed on GitHub by the hub's shared workflow (\"Built from source on GitHub\"). The Bluetooth package is the hub's; the USB package is on FIZZ's install page as before. An install cut off by the cable carries on when you plug in and press Install again.\n- **A new project starts on A01**, the drum beat on its own. The band is on A02, the polymeter on A03, as before.\n- **The Manager's new look (FIZZ NEON).** Every page is redrawn, flat and clean. EDIT shows every parameter on one panel while it fits, with a keyboard you can show or hide; **drag a modulation** from an LFO or the envelope onto a knob. POOL's cards show icons for their tags. LIBRARY has search and **SELECT**: Shift / Ctrl-click many presets, then tag, add to or remove from the pool, or delete them together.\n- **PROJECTS:** drag a pattern onto another pattern or project to copy it, hold ALT to move it. DELETE and CUT work on the keyboard. A drop into a project whose pool is full is refused.\n- **THIS BROWSER:** the Manager runs a FIZZ in your browser with its own store, so you can make presets and projects without the FM-1. A preset from the browser asks before it is loaded onto the FM-1.\n- **PLAY:** a virtual FM-1 panel in the Manager. Shift-click a key to hold it.\n- **Live mix.** PAN, the delay, reverb and chorus sends and LEVEL change on the FM-1 as you move them in the Manager.\n- **Digitone .syx sound dumps** import in the Manager (and the iOS app), with the newer `.dnsnd` files too.\n- **Fixed:** a MOD slot aimed at LFO 1's speed, depth or shape now takes effect. A renamed project, or a sound added to the pool, now shows in the Manager at once.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI and USB audio",
+          "fwsc": {
+            "path": "0.12.0-beta.13/fizz.fwsc",
+            "bytes": 1041857,
+            "sha256": "79a5ec36591a3622472c39d5297403e6bdd4fb37cdeb7fa911ca02bdd85b0ad0"
+          },
+          "data": {
+            "path": "0.12.0-beta.13/fizz-xdata.bin",
+            "bytes": 90616,
+            "sha256": "9305fa892fe3d1e40a2277879a6466de351dc76da2167c820a2d1a1d953089a2",
+            "crc32": 137624684
+          }
+        },
+        {
+          "name": "fizz-ble",
+          "kind": "ble",
+          "label": "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+          "projects": 4,
+          "presets": 128,
+          "fwsc": {
+            "path": "0.12.0-beta.13/fizz-ble.fwsc",
+            "bytes": 1041904,
+            "sha256": "eabff7aa3a9dad92d4fd3ed7bd6959a2d4f118d2a3b2ca103b777b3a8882c3ef"
+          },
+          "data": {
+            "path": "0.12.0-beta.13/fizz-ble-xdata.bin",
+            "bytes": 84544,
+            "sha256": "878959fe6b766b19268dd5a3c2f3b54e8b4bbf4164b9404995ab45ce85019605",
+            "crc32": 731202779,
+            "at": 946176
+          },
+          "data2": {
+            "path": "0.12.0-beta.13/fizz-ble-xdata2.bin",
+            "bytes": 96672,
+            "sha256": "5f8ec68d1797b4ece47e81d14882afdc883ff1b823121ce2222504bf3a66b2bb",
+            "crc32": 3345576056,
+            "at": 618496
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.12",
       "date": "2026-10-27",
