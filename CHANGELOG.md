@@ -9,7 +9,17 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
-- A new project starts on A01, the drum beat on its own.
+A new look for the Manager, live mix from the Manager, Digitone .syx imports, and one-step installs from The Firmware Hub.
+
+- **Install from The Firmware Hub.** Each package now carries FIZZ's data, so one install is all it takes, from FIZZ's own page, the hub or any FM-1 installer: no separate "writing FIZZ's data" step. The packages are built and signed on GitHub by the hub's shared workflow ("Built from source on GitHub"). The Bluetooth package is the hub's; the USB package is on FIZZ's install page as before. An install cut off by the cable carries on when you plug in and press Install again.
+- **A new project starts on A01**, the drum beat on its own. The band is on A02, the polymeter on A03, as before.
+- **The Manager's new look (FIZZ NEON).** Every page is redrawn, flat and clean. EDIT shows every parameter on one panel while it fits, with a keyboard you can show or hide; **drag a modulation** from an LFO or the envelope onto a knob. POOL's cards show icons for their tags. LIBRARY has search and **SELECT**: Shift / Ctrl-click many presets, then tag, add to or remove from the pool, or delete them together.
+- **PROJECTS:** drag a pattern onto another pattern or project to copy it, hold ALT to move it. DELETE and CUT work on the keyboard. A drop into a project whose pool is full is refused.
+- **THIS BROWSER:** the Manager runs a FIZZ in your browser with its own store, so you can make presets and projects without the FM-1. A preset from the browser asks before it is loaded onto the FM-1.
+- **PLAY:** a virtual FM-1 panel in the Manager. Shift-click a key to hold it.
+- **Live mix.** PAN, the delay, reverb and chorus sends and LEVEL change on the FM-1 as you move them in the Manager.
+- **Digitone .syx sound dumps** import in the Manager (and the iOS app), with the newer `.dnsnd` files too.
+- **Fixed:** a MOD slot aimed at LFO 1's speed, depth or shape now takes effect. A renamed project, or a sound added to the pool, now shows in the Manager at once.
 
 ## 0.12.0-beta.12 (2026-10-27)
 
