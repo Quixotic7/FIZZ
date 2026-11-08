@@ -9,6 +9,10 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+FIZZ for the newer FM-1s.
+
+- **FM-1s with the M-VAVE logo on the front** (sold since autumn 2026) have a different flash chip. FIZZ now saves to it and installs updates on it; before, such a unit kept your work only until it was switched off. The flash driver also waits for the slower chip to finish each write (the fix from felucca-bsp and fm1-base). Nothing changes on older units.
+
 ## 0.12.0-beta.13 (2026-11-02)
 
 A new look for the Manager, live mix from the Manager, Digitone .syx imports, and one-step installs from The Firmware Hub.
