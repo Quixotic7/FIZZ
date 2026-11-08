@@ -276,6 +276,40 @@ def place_hot(obj, names, to=b".fzrt"):
     obj.write_bytes(bytes(b))
 
 
+# (2026-11-08) felucca-bsp 2d37ec8 (#12, Julius Vitkauskas, MPL-2.0): an erase or a program never goes back to XIP
+# while the part is still busy. The old wait gave up at 500 ms (10 ms a page) and switched XIP back on under a part
+# still erasing: a crash on the slower UC25HQ80 of the newer FM-1s. Now it waits until BUSY clears (-4 after the normal
+# bound, as before), and a part still busy at 2 s (50 ms) is reset (0x66, 0x99), then the chip, all from RAM.
+# chip/fm1_flash_wait.h's fl_wait_issued is written inline. For the app (OVERLAY) and FIZZ's update loader (LDR_OVERLAY)
+FLASH_BUSY = [
+    ("        if (dt > max_us) { *took_us = dt; return -4; }\n    }\n}\n",
+     "        if (dt > max_us) { *took_us = dt; return -4; }\n    }\n}\n"
+     "/* (FIZZ: felucca-bsp 2d37ec8, #12, Copyright (c) 2026 Julius Vitkauskas: busy-safe completion) A part still busy\n"
+     " * at the extended bound: Enable Reset 0x66, Reset 0x99 in the part, 20 ms for its recovery, then the chip's reset;\n"
+     " * all from RAM, never back to XIP */\n"
+     "RAMINL void fl_reset_busy(void)\n{\n    uint32_t t0;\n"
+     "    volatile uint8_t cmd = 0x66;                  /* (a loop, not unrolled: fl_wait_issued is inlined twice) */\n"
+     "    for (;;) {\n        fl_cs(0); fl_tx(cmd); fl_cs(1);\n        if (cmd == 0x99) break;\n        cmd = 0x99;\n    }\n"
+     "    t0 = T4_CNT;\n    while (T4_CNT - t0 < 24u * 20000u) ;\n    REG32(0x10000u) |= 1u << 4;\n    for (;;) ;\n}\n"
+     "/* issued: T4_CNT before the command. Returns only once SR1.BUSY reads clear: 0 within `normal` us, -4 later;\n"
+     " * still busy at `extended` us: fl_reset_busy() */\n"
+     "RAMINL int fl_wait_issued(uint32_t issued, uint32_t normal, uint32_t extended, uint32_t *took_us)\n{\n"
+     "    for (;;) {\n        uint32_t status = fl_rdsr(0x05), dt = (T4_CNT - issued) / 24u;\n"
+     "        if (!(status & 1u)) { *took_us = dt; return dt <= normal ? 0 : -4; }\n"
+     "        if (dt >= extended) fl_reset_busy();\n    }\n}\n"),
+    ("        fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);\n        fl_inval(off, 4096u);\n"
+     "        rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */\n",
+     "        uint32_t issued = T4_CNT;\n"
+     "        fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);\n        fl_inval(off, 4096u);\n"
+     "        rc = fl_wait_issued(issued, 500000u, 2000000u, took_us);   /* generic NOR max 400 ms (FIZZ: 2d37ec8) */\n"),
+    ("        fl_cs(0); fl_tx(0x02); fl_addr(off);\n",
+     "        uint32_t issued = T4_CNT;\n        fl_cs(0); fl_tx(0x02); fl_addr(off);\n"),
+    ("        rc = fl_wait_ready(10000u, took_us);      /* generic NOR max 3 ms */\n",
+     "        rc = fl_wait_issued(issued, 10000u, 50000u, took_us);      /* generic NOR max 3 ms (FIZZ: 2d37ec8) */\n"),
+]
+LDR_OVERLAY = {"bsp/chip/fm1_flash.h": FLASH_BUSY, "bsp/chip/fm1_clock.h": []}
+
+
 # ---- fm1-base's files with FIZZ's changes (P2.7), made at build time from the submodule's own (which stays as it is):
 # each a copy with the listed replacements, in build/overlay/, found before the original by the unity build. The
 # changes are MPL-2.0 like the files (fm1-base, felucca-bsp); a replacement that no longer matches fails the build
@@ -342,6 +376,20 @@ OVERLAY = {
         ("    RING_PUBLISH();                                     /* done with the frame before the ISR may refill it */\n    sx_ready = 0;\n",
          "    RING_PUBLISH();                                     /* done with the frame before the ISR may refill it */\n    sx_fr++;\n"),
     ],
+    # (2026-11-08) the FM-1s with the logo on the front carry a UC25HQ80 (JEDEC 0xB36014), not the Puya P25Q80
+    # (0x856014): fm1-base 934e40d took the unit for unknown (saves in RAM only, no update session). fm1-base 317cb86's
+    # device/fm1_flash_ok.h (#35, Laurens) takes both; here the same test, until FIZZ moves to that fm1-base
+    "device/main_fm1.c": [
+        ("        flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;   /* the expected 1 MiB part, else RAM only */\n",
+         "        {   /* (FIZZ: fm1-base 317cb86's FM1B_FLASH_JEDEC_OK: the Puya P25Q80 or the UC25HQ80, both 1 MiB) */\n"
+         "            uint32_t id = FL_FAR(fl_jedec_ram)();\n"
+         "            flash_ok = id == 0x856014u || id == 0xB36014u;\n        }\n"),
+    ],
+    # (main_fm1.c is unity.c's neighbour, found there before any -I: the copy of unity.c, as the Bluetooth package's)
+    "device/unity.c": [],
+    "bsp/chip/fm1_flash.h": FLASH_BUSY,
+    # (fm1_clock.h includes fm1_flash.h as its neighbour: its copy here finds the copy above, not the original too)
+    "bsp/chip/fm1_clock.h": [],
 }
 
 
@@ -415,10 +463,13 @@ def overlay():
 
 
 def _overlay():
-    out = fb.OUT / "overlay"
+    return write_overlay(fb.OUT / "overlay", {**OVERLAY, **(BLE_OVERLAY if BLE_PKG else {})},
+                         ble_patched() if BLE_PKG else {})
+
+
+def write_overlay(out, files, patched):
+    """files' copies in out with their replacements (a replacement that no longer matches stops the build)"""
     out.mkdir(parents=True, exist_ok=True)
-    files = {**OVERLAY, **(BLE_OVERLAY if BLE_PKG else {})}
-    patched = ble_patched() if BLE_PKG else {}
     for f in out.glob("*"):                      # (another package's overlay left from its build: not this one's)
         if f.is_file() and f.name not in {Path(r).name for r in files}:
             f.unlink()
@@ -440,8 +491,8 @@ def tc(tool, *args):
         if any(isinstance(a, Path) and a.name == "unity.c" for a in args):
             ov = overlay()
             args = [f"-I{ov.resolve().relative_to(REPO)}", *args]
-            if BLE_PKG:                          # (BLE_OVERLAY: the copy of unity.c)
-                args = [ov / "unity.c" if isinstance(a, Path) and a.name == "unity.c" else a for a in args]
+            # (the copy of unity.c: its neighbours main_fm1.c and, for the Bluetooth package, gfx.c are the overlay's)
+            args = [ov / "unity.c" if isinstance(a, Path) and a.name == "unity.c" else a for a in args]
         if BLE_PKG and any(isinstance(a, Path) and a.name == "le_midi.c" for a in args):
             ov = overlay()                       # (BLE_OVERLAY: the patched copy of the radio's MIDI unit)
             args = [ov / "le_midi.c" if isinstance(a, Path) and a.name == "le_midi.c" else a for a in args]
@@ -624,7 +675,8 @@ def build_loader():
          f"#define LDR_XTAB(X) {' '.join(f'X({lo:#x}u, {hi:#x}u)' for lo, hi in ext)}\n")
     (ldr / "ldr_extents.h").write_text(h)
     (fb.OUT / f"{OUTP}-ldr_extents.h").write_text(h)      # (the package's own copy: firmware/app/tests/ldr_test.sh)
-    flags = [*fb.CFLAGS, *fb.inc(fb.BSP / "chip", fb.BSP / "boards" / "fm1", src, ldr)]
+    ov = write_overlay(ldr / "overlay", LDR_OVERLAY, {})     # (the flash driver's busy-safe wait: FLASH_BUSY)
+    flags = [*fb.CFLAGS, *fb.inc(ov, fb.BSP / "chip", fb.BSP / "boards" / "fm1", src, ldr)]
     fb.tc_all(("cc", "-c", src / "crt0_ldr.S", "-o", ldr / "crt0_ldr.o"),
               ("cc", *flags, "-c", LOADER / "loader.c", "-o", ldr / "loader.o"))
     elf = ldr / "loader.elf"

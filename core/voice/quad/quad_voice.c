@@ -139,11 +139,18 @@ void qd_quad_owner_publish(qd_quad_owner_t *o)
  * what 0 the owner's block and qd_quad_voice_render (the voice's wrapper: its end test, glide, pitch, ramps) and
  * quad_render; what 1 quad_render alone (the engine's block, as ChoralRoot's track_render_x calls it a voice, the
  * pitch and amplitudes made once at the start) */
+#ifdef QD_TARGET_FM1                    /* (2026-11-08) the bench's patch, modulation and output in the pool, out of the
+                                         * RAM code region (this unit's data is there): its room went to fm1-base's flash
+                                         * driver, the busy-safe wait for the newer FM-1s' flash (firmware/build.py) */
+#define QB_POOL __attribute__((section(".pool")))
+#else
+#define QB_POOL
+#endif
 static qd_quad_owner_t qb_o;
 static qd_quad_voice_t qb_v;
-static int16_t qb_p[QD_QUAD_NP];
-static vmod_t qb_m;
-static int32_t qb_out[QD_QUAD_CTL];
+static int16_t qb_p[QD_QUAD_NP] QB_POOL;
+static vmod_t qb_m QB_POOL;
+static int32_t qb_out[QD_QUAD_CTL] QB_POOL;
 void qd_quad_bench_start(int k, int note)
 {
     qd_quad_preset_patch(k, qb_p);
