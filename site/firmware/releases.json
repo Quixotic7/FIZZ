@@ -1,7 +1,59 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.13",
+  "latest": "0.12.0-beta.14",
   "releases": [
+    {
+      "version": "0.12.0-beta.14",
+      "date": "2026-11-08",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "a4b258e4a8f47333b58040b2a4f563ef862c2551",
+      "fm1base": "934e40d846d84e76e9c428d37b74bccb6192c823",
+      "notes": "FIZZ for the newer FM-1s.\n\n- **FM-1s with the M-VAVE logo on the front** (sold since autumn 2026) have a different flash chip. FIZZ now saves to it and installs updates on it; before, such a unit kept your work only until it was switched off. The flash driver also waits for the slower chip to finish each write (the fix from felucca-bsp and fm1-base). Nothing changes on older units.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI and USB audio",
+          "fwsc": {
+            "path": "0.12.0-beta.14/fizz.fwsc",
+            "bytes": 1042099,
+            "sha256": "02289a62cee5d4d7a102579e0be5871beffc41e54b35cbd1000d5b6efc727032"
+          },
+          "data": {
+            "path": "0.12.0-beta.14/fizz-xdata.bin",
+            "bytes": 90616,
+            "sha256": "ea7094036d4fd5d4fdacd5eafcfa7e9e5f7c9a28af451e98a10795787b8e5af6",
+            "crc32": 2775811257
+          }
+        },
+        {
+          "name": "fizz-ble",
+          "kind": "ble",
+          "label": "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+          "projects": 4,
+          "presets": 128,
+          "fwsc": {
+            "path": "0.12.0-beta.14/fizz-ble.fwsc",
+            "bytes": 1042154,
+            "sha256": "a98d97af506252caa421a7d6cc5018dbd1b07f8c9350c2f319343318e4572605"
+          },
+          "data": {
+            "path": "0.12.0-beta.14/fizz-ble-xdata.bin",
+            "bytes": 84544,
+            "sha256": "878959fe6b766b19268dd5a3c2f3b54e8b4bbf4164b9404995ab45ce85019605",
+            "crc32": 731202779,
+            "at": 946176
+          },
+          "data2": {
+            "path": "0.12.0-beta.14/fizz-ble-xdata2.bin",
+            "bytes": 96672,
+            "sha256": "d18e236c7de6bef2778160a07803d92f301313da10952a442d7159864a45b903",
+            "crc32": 3876405624,
+            "at": 618496
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.13",
       "date": "2026-11-02",
