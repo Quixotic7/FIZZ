@@ -285,6 +285,7 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
                  fm1core_qd_app.ui.view == QD_VIEW_EDIT    ? "EDIT"
                  : fm1core_qd_app.ui.view == QD_VIEW_STEPS ? "STEPS"
                  : QD_VIEW_GEEK(fm1core_qd_app.ui.view)    ? "GEEK OUT"
+                 : fm1core_qd_app.ui.view == QD_VIEW_OVERVIEW ? "OVERVIEW"
                                                            : "ROLL",
                  qd_view_edit_follows(&fm1core_qd_app) + 1,     /* P1.5s: the step EDIT shows playing (0: none) */
                  qd_type_open(&fm1core_qd_app) ? fm1core_qd_app.ui.ty.name : "");   /* P1.5z: the name typed */

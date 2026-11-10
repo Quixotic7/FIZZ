@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **OVERVIEW, a new view** (SHIFT + HOME after GEEK OUT): all six tracks' steps on the page at once, each with its own playhead; B1..B6 select, mute (hold) and solo (double tap) tracks as in the mixer, the white keys edit the selected track's steps.
+
 ## 0.12.0-beta.14 (2026-11-08)
 
 FIZZ for the newer FM-1s.

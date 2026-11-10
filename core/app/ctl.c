@@ -949,6 +949,14 @@ static void k_bank(qd_app_t *a, int key, int b, int down, int vel)
 }
 
 static void k_none(qd_app_t *a, int key, int idx, int down, int vel) { (void)a, (void)key, (void)idx, (void)down, (void)vel; }
+/* 2026-11-10: OVERVIEW with nothing held: B1..B6 tapped the track, held its mute, double-tapped its solo, B11 every
+ * mute and solo off (the mix's, ctl_mix.c); the hold modes stay STEPS' and EDIT's */
+static int w_ov(const qd_app_t *a) { return QD_OV_ON(a); }
+static void k_ov_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    qd_mix_black(a, b, down);
+}
 
 typedef struct {
     qd_when_fn when;
@@ -1000,6 +1008,7 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_f2, k_none},                    /* F2: (only the step pick-up / drop, on W) */
     {w_f3, k_f3_black},                /* F3: the rate */
     {w_latch_default, k_latch_default},   /* P1.6d: the latch in VALUES, nothing selected: the track's defaults */
+    {w_ov, k_ov_black},                /* 2026-11-10: OVERVIEW, nothing held: the tracks, as the mix's */
     {w_step_view, k_mode},             /* nothing held: the hold mode */
 };
 static int w_main_layer(const qd_app_t *a) { return qd_ctl_main_layer(a) != QD_LAYER_NONE; }
@@ -1130,6 +1139,13 @@ static void b_shift(qd_app_t *a, int down)
 /* P1.3y: HOME always comes back to the view in use (PIANO ROLL, STEPS or EDIT) and never cycles: from any screen, a
  * latch closed (and the view in the same press), a pop-up gone; SHIFT + HOME cycles ROLL, STEPS, EDIT, GEEK OUT (the owner,
  * 2026-10-25: HOME keeps the view, a GEEK OUT page too, and GEEK OUT comes back on the page last shown) */
+/* 2026-11-10: .. then OVERVIEW, then the PIANO ROLL */
+int qd_ctl_next_view(const qd_app_t *a)
+{
+    const int v = a->ui.view;
+    return QD_VIEW_GEEK(v) ? QD_VIEW_OVERVIEW : v == QD_VIEW_OVERVIEW ? QD_VIEW_ROLL
+                                              : v == QD_VIEW_EDIT ? QD_VIEW_METERS + a->ui.geek : v + 1;
+}
 static void b_home(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -1152,8 +1168,9 @@ static void b_home(qd_app_t *a, int down)
     if (qd_ctl_shift(a) && !u->home_woke) {
         if (QD_VIEW_GEEK(u->view))
             u->geek = (uint8_t)(u->view - QD_VIEW_METERS);   /* (the page kept, a restored one too) */
-        u->view = QD_VIEW_GEEK(u->view) ? QD_VIEW_ROLL : u->view == QD_VIEW_EDIT ? QD_VIEW_METERS + u->geek : u->view + 1;
+        u->view = qd_ctl_next_view(a);
         u->shift_used = 1;
+        u->sel_down &= 0xFFu;                           /* (2026-11-10: OVERVIEW's black keys: none down) */
     }
     u->home_woke = 0;
     set_mode(a, QD_MODE_STEP);
@@ -1598,7 +1615,7 @@ static void track_sound(qd_app_t *a, int d) { qd_br_turn(a, d); }
 static void page_knob(qd_app_t *a, int d)
 {
     qd_ctl_set_page(a, a->ui.page[a->sel] + d);
-    if (!QD_VIEW_ROWS(a->ui.view))
+    if (!QD_VIEW_NOPICK(a->ui.view))
         qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
 }
 

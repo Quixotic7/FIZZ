@@ -204,8 +204,12 @@ if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does n
 # ui_layer.o (the screens' drawing, 99 KB) but two of its functions, which stay in the app slot (BLE_SLOT: their
 # sections renamed .fzsl.*, as HOT's .fzrt.*), and one face of the first blob's (the 18-px light one, 6 KB: the first
 # blob two sectors shorter). Balance (2026-10-27): the slot ~4.4 KB free, the first blob ~1.5 KB, the second ~2.3 KB
-BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)"]
+BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)",
+          "*(.fzx2.*)"]
 BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
+# (2026-11-10) .. and single functions of other units the other way, into the second blob (sections renamed .fzx2.*;
+# main-loop drawing only, noinline in the source): OVERVIEW's model (view.c), ~0.4 KB the slot did not have
+BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov"]}
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
@@ -505,12 +509,14 @@ def tc(tool, *args):
                 args = [a if a != "-Os" else "-O2" for a in args]
             if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
                 args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
-            if out.name in HOT or (BLE_PKG and out.name in BLE_SLOT):
+            if out.name in HOT or (BLE_PKG and (out.name in BLE_SLOT or out.name in BLE_X2_FN)):
                 r = _tc(tool, *args)
                 if out.name in HOT:
                     place_hot(out, HOT[out.name])
                 if BLE_PKG and out.name in BLE_SLOT:
                     place_hot(out, BLE_SLOT[out.name], b".fzsl")
+                if BLE_PKG and out.name in BLE_X2_FN:
+                    place_hot(out, BLE_X2_FN[out.name], b".fzx2")
                 return r
     if tool == "pi32v2/bin/ld":
         for i, a in enumerate(args):

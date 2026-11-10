@@ -139,7 +139,7 @@ int qd_fx_send_shown(const qd_app_t *a, int fx, int *locked)
 /* the mix's black keys: sel_down / sel_done's bits 8..13 (SEL + W keeps 0..7), sel_t0 the press, dt_w -1 - b the
  * last tap (dt_ms its release) */
 #define MIXB(b) ((uint16_t)(0x100u << (b)))
-static void mix_black(qd_app_t *a, int b, int down)
+void qd_mix_black(qd_app_t *a, int b, int down)    /* (2026-11-10: OVERVIEW's black keys too) */
 {
     qd_ui_t *u = &a->ui;
     const uint16_t bit = MIXB(b);
@@ -172,7 +172,7 @@ void qd_mix_ms(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     int b;
-    if (u->latch != QD_LATCH_MIX)
+    if (u->latch != QD_LATCH_MIX && !(QD_OV_ON(a) && !u->latch))   /* (2026-11-10: OVERVIEW's keys are the mix's) */
         return;
     for (b = 0; b < QD_NTRACK; b++)
         if ((u->sel_down & MIXB(b)) && !(u->sel_done & MIXB(b)) && a->ms - u->sel_t0[b] >= QD_SEL_HOLD_MS) {
@@ -186,7 +186,7 @@ void qd_panel_black(qd_app_t *a, int b, int down)
 {
     qd_ui_t *u = &a->ui;
     if (u->latch == QD_LATCH_MIX) {
-        mix_black(a, b, down);
+        qd_mix_black(a, b, down);
         return;
     }
     if (u->latch == QD_LATCH_FX) {
@@ -423,7 +423,8 @@ void qd_panel_leds(const qd_app_t *a, uint8_t *black)
                 black[i] = u->fx_bheld == i + 1 ? QD_LED_LIT : QD_LED_MID;
         return;
     }
-    if (u->latch == QD_LATCH_MIX) {                     /* playing, the selected brightest, muted dim, soloed blinking */
+    if (u->latch == QD_LATCH_MIX || (QD_OV_ON(a) && !u->latch)) {   /* playing, the selected brightest, muted dim, soloed blinking
+                                                         * (2026-11-10: OVERVIEW's keys too) */
         for (i = 0; i < QD_NTRACK; i++)
             black[i] = (a->seq.solo >> i) & 1 ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
                      : (a->seq.mute >> i) & 1 ? QD_LED_DIM : i == a->sel ? QD_LED_LIT : QD_LED_MID;

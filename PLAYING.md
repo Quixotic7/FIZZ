@@ -53,7 +53,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SEL tapped),
   the record settings (SHIFT + REC), the global settings (SHIFT + SEL), the project pages (SHIFT + SAVE), the browser
   (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
-- **SHIFT + HOME** cycles **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT** and **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE); **HOME** comes back. HOME keeps the view: whatever page you come back from, the step view is the one you chose, and GEEK OUT returns on its last page. STEPS shows all eight
+- **SHIFT + HOME** cycles **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT**, **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE, TRACKS) and **OVERVIEW** (below); **HOME** comes back. HOME keeps the view: whatever page you come back from, the step view is the one you chose, and GEEK OUT returns on its last page. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
@@ -63,6 +63,16 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   a red marker hops along the steps (on a folded row, a red tick under the step) and each step's fill flashes white
   as it plays; only selected or held steps get a white outline. SELECT changes the page (the rows fold and
   unfold). The step cursor (ALGORITHM, below) moves through the rows.
+- **OVERVIEW** (SHIFT + HOME from GEEK OUT) shows all six tracks at once: a row a track with its kind's icon, the page
+  you edit as 16 cells in groups of four, each step's fill as tall as its velocity in the track's colour (a ghost: an
+  outline), the pattern's name and the page dots on top. Playing, a red marker sits over the playing column and each
+  track's playing step lights white; every track follows its own speed and loop, and a row shows its playhead only
+  while that track is on this page. The selected track's icon is boxed white, a soloed one yellow; a muted track (or
+  one silenced by another's solo) goes grey with a line through it. The black keys work as in the mixer: **B1..B6**
+  tapped selects the track, held mutes / unmutes it, double-tapped solos it, **B11** clears every mute and solo. The
+  white keys are the selected track's steps, as in STEPS (tap makes / removes, hold edits it, with the held step's
+  screen); SELECT turns the page and the knobs work as in STEPS with nothing held. The hold modes (B1..B11 in the
+  other views) are not on the black keys here: LFO held + a black key still picks one.
 - **EDIT** (SHIFT + HOME from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold
   mode's drawing above it at full size, its value large in the top line: the step you hold, select or point at with
   the cursor, or the track's default when nothing is held (a mode key held: its default, "B11 RESET" small top

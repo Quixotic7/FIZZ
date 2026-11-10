@@ -1190,7 +1190,7 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
         return 0;
     if (knob == QD_K_SELECT) {                          /* (2026-10-26: SELECT is the page in every mode, held or not) */
         qd_ctl_set_page(a, u->page[a->sel] + d);
-        if (!QD_VIEW_ROWS(u->view))                     /* (P1.3g: STEPS / EDIT show the pages: no picker) */
+        if (!QD_VIEW_NOPICK(u->view))                    /* (P1.3g: STEPS / EDIT show the pages: no picker) */
             qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
         return 1;
     }

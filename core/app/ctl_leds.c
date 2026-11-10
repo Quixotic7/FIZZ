@@ -262,6 +262,13 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         out->key[QD_BLACK_KEY[10]] = qd_step_default_initial(a, m) ? QD_LED_OFF : QD_LED_LIT;
         return;
     }
+    if (QD_OV_ON(a) && !u->latch && !qd_ctl_latch_modes(a)) {   /* 2026-11-10: OVERVIEW: the tracks, as the mix's */
+        uint8_t bk[11];
+        qd_panel_leds(a, bk);
+        for (i = 0; i < 11; i++)
+            out->key[QD_BLACK_KEY[i]] = bk[i];
+        return;
+    }
     {   /* the hold modes */
         const unsigned set = qd_step_modes_set(a, a->sel, page);
         for (i = 0; i < UI_NFIELD; i++)                 /* (P1.3w: B9 FUNC; 2026-10-26: B10 SLIDE, B11 SOUND) */

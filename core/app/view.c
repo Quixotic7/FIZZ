@@ -572,13 +572,14 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
     } else if (u->mode == QD_MODE_STEP && u->nheld) {
         ROW(UI_SC_ALGO, u->hmode == UI_F_RATCH ? UI_IC_RAMP : UI_IC_STRUM, 0);
     } else {
-        static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT", "METERS", "NUMBERS", "VOICES", "SCOPE"};
+        static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT", "METERS", "NUMBERS", "VOICES", "SCOPE",
+                                                    "TRACKS", "OVERVIEW"};
         ROW(UI_SC_SELECT, UI_IC_TRACK, trk);            /* P1.5z: the track */
         ROW(UI_SC_ALGO, UI_IC_SCALE, scale);
         ROW(UI_SC_PRESETS, UI_IC_KEY, root);
         ROW(UI_SC_F3_ALGO, UI_IC_SWING, swing);
         ROW(UI_SC_SEQ_W, UI_IC_NOW, 0);
-        ROW(UI_SC_HOME, UI_IC_VIEWS, VIEW[(u->view + 1) % QD_NVIEW]);   /* P1.3y: the next view */
+        ROW(UI_SC_HOME, UI_IC_VIEWS, VIEW[qd_ctl_next_view(a)]);   /* P1.3y: the next view */
         ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* .. the record settings */
         ROW(UI_SC_SEL, UI_IC_GEAR, 0);                  /* .. the global settings */
         ROW(UI_SC_ARP, UI_IC_NONE, "FILL");             /* P1.6d: SHIFT + ARP held: FILL */
@@ -1444,7 +1445,9 @@ int qd_view_screen(const qd_app_t *a)
             return QD_SCR_LAYER;
         if (qd_ctl_shift(a) && !u->shift_used)
             return QD_SCR_SHIFT;
-        return QD_VIEW_GEEK(u->view) ? QD_SCR_GEEK : QD_SCR_LANE;   /* (P2.11: a Geek Out page in the lane's place) */
+        return QD_VIEW_GEEK(u->view) ? QD_SCR_GEEK      /* (P2.11: a Geek Out page in the lane's place) */
+               : u->view == QD_VIEW_OVERVIEW ? QD_SCR_OV   /* (2026-11-10) */
+                                             : QD_SCR_LANE;
     default:
         return QD_SCR_IDLE;
     }
@@ -2406,6 +2409,11 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 #define pjv (*pjvp)
 #define fv (*fvp)
 #define mfv (*mfvp)
+    static union {                                      /* (2026-11-10: a Geek Out page's model and OVERVIEW's share
+                                                         * the room: one shows, each filled whole every frame) */
+        ui_geek_t g;
+        ui_ov_t o;
+    } gx;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     a->geek.scope_on = 0;                               /* (P2.11: the scope's samples only while it shows) */
@@ -2497,11 +2505,14 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         ui_edit_draw(&hv, &lv);
         break;
     case QD_SCR_GEEK: {                                 /* P2.11: a Geek Out page */
-        static ui_geek_t gv;
-        qd_view_geek(a, &gv);
-        ui_geek_draw(&gv);
+        qd_view_geek(a, &gx.g);
+        ui_geek_draw(&gx.g);
         break;
     }
+    case QD_SCR_OV:                                     /* 2026-11-10: OVERVIEW */
+        qd_view_ov(a, &gx.o);
+        ui_ov_draw(&gx.o);
+        break;
     default:
         draw_idle(a);
         break;
@@ -2638,6 +2649,43 @@ void qd_view_geek_reset(qd_app_t *a)
     g->pk_ms[0] = g->pk_ms[1] = g->pk_ms[2] = g->pk_ms[3] = 0;
     a->stats.reset++;                                   /* (the platform zeroes its own) */
 }
+/* 2026-11-10: OVERVIEW's model: the selected track's edited page across the six tracks of the pattern edited, each
+ * track's playhead where it is on that page (its own rate and loop), its heard / soloed state as the mix's */
+__attribute__((noinline)) void qd_view_ov(qd_app_t *a, ui_ov_t *v)   /* (noinline: the Bluetooth package's second blob,
+                                                         * build.py BLE_X2_FN) */
+{
+    const qd_ui_t *u = &a->ui;
+    const qd_pattern_t *P = qd_ctl_cpat(a);
+    const int page = u->page[a->sel];
+    int t, i;
+    memset(v, 0, sizeof *v);
+    qd_pat_name(a->seq.cur, v->pattern);
+    v->page = page;
+    v->sel = a->sel;
+    for (i = 0; i < u->nheld; i++)
+        if (u->held[i] / QD_PAGE == page)
+            v->held |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+    for (t = 0; t < QD_NTRACK && t < UI_NTRACK; t++) {
+        const int s = a->seq.playing ? qd_seq_track_step(&a->seq, t) : -1;
+        v->play[t] = (int8_t)(s >= 0 && s / QD_PAGE == page ? s % QD_PAGE : -1);
+        v->mute[t] = !qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t) ? 1 : (a->seq.solo >> t) & 1 ? 2 : 0;
+        for (i = 0; i < QD_PAGE; i++) {
+            qd_rstep_t r;
+            const int st = page * QD_PAGE + i;
+            if (!qd_page_in_range(&P->trk[t], st)) {
+                v->out[t] |= (uint16_t)(1u << i);
+                continue;
+            }
+            qd_step_resolve(P, t, st, &r);
+            if (!r.on)
+                continue;
+            v->vel[t][i] = (uint8_t)(r.vel < 1 ? 1 : r.vel > 127 ? 127 : r.vel);
+            if (r.type == QD_TRIG_LOCK)
+                v->lock[t] |= (uint16_t)(1u << i);
+        }
+    }
+}
+
 void qd_view_geek(qd_app_t *a, ui_geek_t *v)
 {
     qd_geek_t *g = &a->geek;

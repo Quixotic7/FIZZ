@@ -874,3 +874,4 @@ void ui_menu_draw(const ui_menu_t *v)
 #include "ui_mfx.c"                                     /* P1.6c: the MIDI FX screen */
 #include "ui_geek.c"                                    /* P2.11: the Geek Out pages */
 #include "ui_tools.c"                                   /* T1: the track tools */
+#include "ui_ov.c"                                      /* 2026-11-10: OVERVIEW */
