@@ -457,6 +457,7 @@ int qd_auto_put(qd_app_t *a, int id, int value)
     if ((a->buttons_held >> QD_B_REC) & 1u)
         u->rec_auto_used = 1;
     qd_player_voice_lock(&a->player, t, id, value);   /* (heard now) */
+    qd_app_fm_auto(a, t, id, value);                    /* (2026-11-10: FM+MIDI's CC now) */
     return 1;
 }
 

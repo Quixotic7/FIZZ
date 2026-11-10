@@ -1360,6 +1360,7 @@ static int proj_switch_prep(qd_app_t *a)
     if (a->seq.playing)
         qd_app_stop(a);
     qd_persist_flush(a);
+    qd_side_clear(a);                                   /* (2026-11-10: ENGINE's sides: the project's no more) */
     return 1;
 }
 

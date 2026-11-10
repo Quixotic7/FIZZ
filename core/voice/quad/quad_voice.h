@@ -90,6 +90,15 @@ extern const uint8_t QD_MSND_ID[QD_MSND_N];
 static inline int qd_msnd_is(const int16_t *p) { return p && p[QD_QP_VPRIO] == QD_MSND_MARK; }
 int qd_msnd_slot(int id);               /* the slot whose value id is (-1: none) */
 void qd_msnd_init(int16_t *p);          /* a new MIDI sound: every slot untouched (0), slot k CC 16 + k */
+void qd_msnd_over(int16_t *p);          /* .. over sound p: its other values kept (the side's: below) */
+/* 2026-11-10, ENGINE's side (ctl_snd.c qd_msnd_engine): the 57 values a MIDI sound and an FM TONE sound do not share
+ * (QD_MSND_ID's 28, 74..101, VPRIO) in QD_SIDE_N bytes. A MIDI sound's other 58 values are the sound it replaced
+ * (qd_msnd_over), so an FM TONE sound waiting on the side needs only these. FM TONE: the 28 values (0..127; VPRIO's two
+ * bits in the first two bytes' top bits), then 74..101 as the blob packs them (value - min). MIDI: msnd_pack's bytes
+ * 2..57 (the slots' values | touched, their CC numbers) */
+#define QD_SIDE_N 56
+void qd_quad_side_pack(const int16_t *p, uint8_t *b);
+void qd_quad_side_unpack(const uint8_t *b, int midi, int16_t *p);   /* (only those 57 values of p written) */
 enum { QD_QM_SRC, QD_QM_DST, QD_QM_DEPTH };
 /* E4: the modulation slots' sources (SOURCE 0 OFF) */
 enum { QD_MS_OFF, QD_MS_VEL, QD_MS_KEY, QD_MS_MW, QD_MS_AT, QD_MS_PB, QD_MS_BR, QD_MS_RAND, QD_MS_FENV, QD_MS_N };

@@ -719,6 +719,11 @@ extern const char *const QD_SND_GROUP_NAME[QD_NSG];
 int qd_snd_open(const struct qd_app *a);
 int qd_msnd_open(const struct qd_app *a);       /* FIZZ MIDI (e): EDIT open on a MIDI track (its 7 pages of 4 CCs) */
 void qd_msnd_engine(struct qd_app *a, int t, int midi);   /* .. track t's ENGINE: MIDI (1) or FM TONE (0) */
+int qd_trk_engine(const struct qd_app *a, int t);         /* 2026-11-10: 0 FM TONE, 1 FM+MIDI, 2 MIDI .. */
+void qd_trk_engine_set(struct qd_app *a, int t, int e);   /* .. set (KNOB 3) */
+void qd_msnd_put(struct qd_app *a, int t, qd_tsound_t *s);   /* a load's sound s over track t's (the side) */
+int qd_msnd_take(struct qd_app *a, int t);                /* .. the model's into the pattern's (the 1 ms sync) */
+void qd_side_clear(struct qd_app *a);                     /* ENGINE's sides forgotten */
 int qd_snd_keys(const struct qd_app *a);        /* P1.5b: the editor open with the keyboard on (2026-10-26: or the
                                                  * effects' SENDS page: REC turns it on there too) */
 int qd_snd_scale_note(const struct qd_app *a, int w);   /* .. SCALE: W w's note (the scale's degree w from the root) */

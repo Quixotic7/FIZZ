@@ -38,6 +38,14 @@ static void run(uint32_t n)
     while (n--)
         qd_app_tick(&A, ++now);
 }
+static int msame(const int16_t *x, const int16_t *y)    /* (2026-11-10: a MIDI sound's own values: the others are the
+                                                         * sound it replaced) */
+{
+    uint8_t bx[QD_SIDE_N], by[QD_SIDE_N];
+    qd_quad_side_pack(x, bx);
+    qd_quad_side_pack(y, by);
+    return qd_msnd_is(x) && qd_msnd_is(y) && !memcmp(bx, by, sizeof bx);
+}
 static void fresh(void)
 {
     qd_app_init(&A);
@@ -793,7 +801,7 @@ static void msnd_tests(void)
         ((qd_pattern_t *)qd_seq_track_pat(&A.seq, 3))->trk[3].mout = 4;
     }
     send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "SYNTH CCS", mp, 3, 64, 0, 0, 0, 0x0F, 0, 0));
-    CHECK(status() == QD_SX_OK && !memcmp(A.model.t[3].patch, mp, sizeof mp), "AUDITION onto track 4: a MIDI track");
+    CHECK(status() == QD_SX_OK && msame(A.model.t[3].patch, mp), "AUDITION onto track 4: a MIDI track");
     {   /* its touched slots out on channel 4 (the Manager's edit reaching the synth); then one slot changed: that one */
         uint32_t pk;
         int n = 0, good = 0;
@@ -824,7 +832,7 @@ static void msnd_tests(void)
               "its DUMP: a STORE6 whose blob is the MIDI sound (\"MIDI\" in its last four bytes)");
     }
     param(3, QD_QP_FREQ, 100, QD_SXP_ACK);
-    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND && !memcmp(A.model.t[3].patch, mp, sizeof mp),
+    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND && msame(A.model.t[3].patch, mp),
           "PARAM of FREQ onto the MIDI track: NOT FOUND, the sound kept");
     param(3, QD_MSND_ID[1], 99, QD_SXP_ACK);
     CHECK(ack(QD_SX_PARAM) == QD_SX_OK && A.model.t[3].patch[QD_MSND_ID[1]] == 99, "PARAM of slot 2's value: 99");

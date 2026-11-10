@@ -85,6 +85,8 @@ extern "C" {
 #define QD_MO_Q 32                     /* USB-MIDI packets waiting for the port (a power of two, at most 256) */
 #define QD_MO_NOTES 32                 /* notes sent (or queued) whose OFF is owed, every track's together ((c2): 32,
                                         * six tracks of 4-note chords; the 32-packet queue keeps room for 31) */
+#define QD_MO_FL 8                     /* 2026-11-10, FM+MIDI: the locks a trig sends (and brings back), at most */
+#define QD_MO_FROOM 4                  /* .. leaving the queue room for this many notes after them */
 
 /* the buttons, by QUADRILLE's roles (PLAN.md §8), in the panel's order (printed FX, SEL, ENV, LFO, EDIT, GLO, HOME,
  * SAVE, ARP, SEQ, PLAY, REC, OCT-, OCT+). P1.3b (§8b): QD_B_FUNC is SHIFT, QD_B_KEYS (ARP) the MIDI FX (2026-10-25: FILL is SHIFT + FX),
@@ -163,6 +165,29 @@ typedef struct {                       /* P2.11: the Geek Out pages' own state (
 typedef char qd_geek_tk_ok[sizeof(((qd_geek_t *)0)->u.tk) <= QD_SCOPE_N * sizeof(int16_t) ? 1 : -1];
 #endif
 
+/* 2026-11-10: a track's ENGINE side (ctl_snd.c qd_msnd_engine): the other engine's sound, until power-off or a project
+ * load (never saved): its QD_SIDE_N values (quad_voice.h qd_quad_side_pack: side_v) and the rest here; and FM+MIDI's
+ * locks sent (app.c mo_flk). The Bluetooth unit keeps them outside qd_app_t (its pool is full: side_v in NOINIT, these
+ * in the RAM code region's data; ctl_snd.c) */
+typedef struct {
+    uint8_t key;                       /* 0 none; 0x40 | the pattern it belongs to, | 0x80 a MIDI sound (side_key) */
+    uint8_t sound, edited;             /* (qd_tsound_t's) */
+    char name[QD_SOUND_NAME];
+    uint16_t preset;
+    uint8_t fn, fid[QD_MO_FL], fv[QD_MO_FL];   /* FM+MIDI: the values whose CC last went out as a lock's (id, its
+                                        * CC value) */
+} qd_side_t;
+#if defined(QD_TARGET_FM1) && QD_PKG_BLE
+#define QD_SIDE_OUT 1
+extern uint8_t qd_side_v[QD_TRACKS][QD_SIDE_N];
+extern qd_side_t qd_side_m[QD_TRACKS];
+#define QD_SIDE_V(a) ((void)(a), qd_side_v)
+#define QD_SIDE_M(a) ((void)(a), qd_side_m)
+#else
+#define QD_SIDE_V(a) ((a)->side_v)
+#define QD_SIDE_M(a) ((a)->side_m)
+#endif
+
 typedef struct qd_app {
     /* the clock */
     uint32_t ms;                       /* the last tick's ms */
@@ -201,6 +226,10 @@ typedef struct qd_app {
     uint32_t mo_lk[QD_TRACKS];         /* FIZZ MIDI (e): each MIDI track's slots its last trig sent locked (bit k: slot k;
                                         * the next trig, a stop, a mute send them back to the track's values) .. */
     uint32_t mo_lkey[QD_TRACKS];       /* .. that trig (its record, step, pattern: a chord's next note sends nothing) */
+#ifndef QD_SIDE_OUT
+    uint8_t side_v[QD_TRACKS][QD_SIDE_N];   /* 2026-11-10: ENGINE's side (qd_side_t) */
+    qd_side_t side_m[QD_TRACKS];
+#endif
     int master_pot;                    /* MASTER, 0..1023 */
     uint32_t seed_fix;                 /* P2.4: qd_app_seed's (0: the clock's) */
     uint32_t free_ms;                  /* P2.6c: qd_app_tick_free's ms so far */
@@ -269,6 +298,9 @@ void qd_app_midi_out_panic(qd_app_t *a);   /* every note owed: its OFF (the pani
  * untouched slot of the track's sound: nothing, unless lock); lock: a step's value (the track's goes back at the next
  * trig) */
 void qd_app_msnd_send(qd_app_t *a, int t, int k, int v, int lock);
+/* 2026-11-10, FM+MIDI: REC + AUTOMATION's turn put value id at v on track t's step: its CC on MIDI OUT now, as a lock's
+ * (a knob's turn only) */
+void qd_app_fm_auto(qd_app_t *a, int t, int id, int v);
 void qd_app_midi_out_drop(qd_app_t *a);    /* (c2) a new USB connection: the queue emptied (the ONs dropped: owed no
                                             * more) */
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */

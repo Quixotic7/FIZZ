@@ -248,10 +248,10 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
             qd_track_set_kind(tk, tk->kind < 7 ? cl(tk->kind + d, 0, 6) : d > 0 ? 0 : 6);
         else if (knob == QD_K_2)                        /* a turn: the name keyboard */
             qd_name_open(a, 3, a->sel);
-        else if (knob == QD_K_3)                        /* FIZZ MIDI (e): ENGINE, FM TONE (left) or MIDI (right) */
-            qd_msnd_engine(a, a->sel, d > 0);
+        else if (knob == QD_K_3)                        /* FIZZ MIDI (e): ENGINE, FM TONE, FM+MIDI (2026-11-10), MIDI */
+            qd_trk_engine_set(a, a->sel, cl(qd_trk_engine(a, a->sel) + d, 0, 2));
         else if (knob == QD_K_4)                        /* OFF, 1..16 (its notes owed end: app.c mo_check) */
-            ts->mout = (uint8_t)cl(ts->mout + d, 0, 16);
+            ts->mout = (uint8_t)((ts->mout & QD_MOUT_FM) | cl((ts->mout & QD_MOUT_CH) + d, 0, 16));
         return 1;
     }
     if (!u->trk_page) {

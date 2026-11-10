@@ -807,7 +807,8 @@ static void menu_trk(const ui_menu_t *v)
         for (k = 0; k < 4; k++) {
             const float y = 42.f + (float)k * 51.f, vy = y + 31.5f;
             const char *val = k == 0 ? (v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE") : k == 1 ? (v->tname ? v->tname : "")
-                            : k == 2 ? (v->engine ? "MIDI" : "FM TONE") : v->mout ? ui_itoa(n, v->mout) : "OFF";
+                            : k == 2 ? (v->engine == 2 ? "MIDI" : v->engine ? "FM+MIDI" : "FM TONE")
+                            : v->mout ? ui_itoa(n, v->mout) : "OFF";
             const qd_rgb col = k == 3 && !v->mout ? UI_G2 : KCOL[k];
             const float w = ui_TW(val, 26.f, 300, 0.f), sz = w > 150.f ? 26.f * 150.f / w : 26.f;
             const float lx = 232.f - (w > 150.f ? 150.f : w);
@@ -816,12 +817,20 @@ static void menu_trk(const ui_menu_t *v)
             if (k == 0 && v->tkind >= 0) {              /* its kind's icon, boxed in its colour */
                 ui_RR(lx - 33.f, vy - 21.f, 24.f, 24.f, 5.f, UI_PK_COL[v->tkind], 1.4f, QD_NONE);
                 ui_kind_icon(v->tkind, lx - 21.f, vy - 9.f, 1.f, UI_PK_COL[v->tkind]);
-            } else if (k == 2 && v->engine) {           /* FIZZ MIDI (e): MIDI, a DIN socket */
+            } else if (k == 2 && v->engine == 2) {      /* FIZZ MIDI (e): MIDI, a DIN socket */
                 din5(lx - 18.f, vy - 9.f, 9.f, col);
-            } else if (k == 2) {                        /* four operators */
+            } else if (k == 2) {                        /* four operators; FM+MIDI (2026-11-10): a small socket out
+                                                         * before them */
                 int i;
                 for (i = 0; i < 4; i++)
                     ui_O(lx - 30.f + (float)(i % 2) * 12.f, vy - 15.f + (float)(i >> 1) * 12.f, 4.2f, col, 1.5f, QD_NONE);
+                if (v->engine) {
+                    const float x = lx - 56.f, yy = vy - 9.f;
+                    const float ar[6] = {x + 12.f, yy - 3.f, x + 15.f, yy, x + 12.f, yy + 3.f};
+                    din5(x, yy, 6.5f, col);
+                    line2(x + 9.f, yy, x + 15.f, yy, col, 1.6f);
+                    ui_P(ar, 3, col, 1.6f, 0, QD_NONE);
+                }
             } else if (k == 3 && v->mout) {             /* a MIDI socket (DIN 5), out */
                 const float x = lx - 38.f, yy = vy - 9.f, r = 9.f;
                 din5(x, yy, r, col);

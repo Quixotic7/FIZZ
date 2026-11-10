@@ -9,6 +9,9 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **ENGINE keeps the other sound.** Switching a track from FM TONE to MIDI and back gives it its own FM TONE sound again (not INIT), and MIDI → FM TONE → MIDI its MIDI sound, until the FM-1 is switched off or a project is loaded.
+- **A third ENGINE: FM+MIDI.** The track plays its FM TONE sound and sends its sound editor's moves as CCs on its MIDI OUT channel: knob turns at once, p-locks as their steps play (back to the track's value after), REC + AUTOMATION turns too.
+
 ## 0.12.0-beta.14 (2026-11-08)
 
 FIZZ for the newer FM-1s.

@@ -204,7 +204,13 @@ if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does n
 # ui_layer.o (the screens' drawing, 99 KB) but two of its functions, which stay in the app slot (BLE_SLOT: their
 # sections renamed .fzsl.*, as HOT's .fzrt.*), and one face of the first blob's (the 18-px light one, 6 KB: the first
 # blob two sectors shorter). Balance (2026-10-27): the slot ~4.4 KB free, the first blob ~1.5 KB, the second ~2.3 KB
-BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)"]
+# 2026-11-10: and ENGINE's side and FM+MIDI's main-loop functions (their own sections: -ffunction-sections), 1.3 KB:
+# the switch, a load's side, the 1 ms sync's (qd_app_sounds, in the locked ms: the main loop), REC + AUTOMATION's send
+BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)",
+          "*/o2/build_units_c_ctl_latch.o(.text.qd_msnd_engine .text.side_keep .text.qd_trk_engine "
+          ".text.qd_trk_engine_set .text.qd_msnd_put .text.qd_msnd_take .text.qd_side_clear)",
+          "*/o2/build_units_c_quad_voice.o(.text.qd_quad_side_pack .text.qd_quad_side_unpack .text.qd_msnd_over)",
+          "*/o2/build_units_c_app.o(.text.qd_app_fm_auto)"]
 BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
@@ -228,6 +234,10 @@ def ble_ld(ld):
         if ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
             raise SystemExit("fizz: fizz.ld's .pool line changed: see build.py ble_ld")
         ld = ld.replace("*/o2/fz_port.o(.bss* .sbss* COMMON)", "*/o2/fz_port.o(.bss* .sbss* COMMON)" + piece)
+    rt = "_fz_rt_start = .;"                    # (2026-11-10: ENGINE's side, its rest (app.h qd_side_m): the RAM code
+    if ld.count(rt) != 1:                       # region's data, the pool being full)
+        raise SystemExit("fizz: fizz.ld's .fz_rt line changed: see build.py ble_ld")
+    ld = ld.replace(rt, rt + " *(.fz_rtside*)")
     for u in BLE_TO_NI:
         ni = "*/o2/build_units_c_ui_keys.o(.bss* .sbss* COMMON)"
         if ld.count(ni) != 1:

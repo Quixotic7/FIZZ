@@ -311,6 +311,7 @@ void qd_br_load(qd_app_t *a)
     now.sound = (uint8_t)(code >= QD_BR_POOL_CODE ? code - QD_BR_POOL_CODE : 0);
     memcpy(now.name, s.name, QD_SOUND_NAME);
     now.preset = s.preset;
+    qd_msnd_put(a, b->t, &now);                         /* (2026-11-10: the other engine's: ENGINE's side) */
     b->own = now;                                       /* (the latch closes on it: br_closed keeps it) */
     br_mix(&a->model.t[b->t], &s);                      /* (P1.5x: and its mix, the preset's: kept) */
     b->own_mix = a->model.t[b->t].mix;
