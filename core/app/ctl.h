@@ -168,9 +168,16 @@ enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT,     /* P1.3e: the sequencer's 
                                                     * EDIT, the page's row under the mode's picture) .. */
        QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE,   /* .. P2.11: then the Geek Out pages */
        QD_VIEW_TRACKS,                                 /* .. 2026-10-27: a scope a track, the whole screen */
+       QD_VIEW_OVERVIEW,                               /* .. 2026-11-10: the six tracks' rows of the page (after GEEK
+                                                        * OUT in SHIFT + HOME's cycle; saved as 8: an older FIZZ reads
+                                                        * it as 8 % 8, the PIANO ROLL) */
        QD_NVIEW };
-#define QD_VIEW_GEEK(v) ((v) >= QD_VIEW_METERS)
+#define QD_VIEW_GEEK(v) ((v) >= QD_VIEW_METERS && (v) <= QD_VIEW_TRACKS)
 #define QD_VIEW_ROWS(v) ((v) == QD_VIEW_STEPS || (v) == QD_VIEW_EDIT)   /* P1.3r: the views drawing the pages' rows */
+#define QD_VIEW_NOPICK(v) (QD_VIEW_ROWS(v) || (v) == QD_VIEW_OVERVIEW)   /* .. and OVERVIEW: SELECT's page, no picker */
+/* 2026-11-10: OVERVIEW on screen's keys: B1..B6 the tracks as the mix's (tap, hold, double tap), B11 mutes and solos
+ * off; the W keys the selected track's steps as STEPS' */
+#define QD_OV_ON(a) ((a)->ui.mode == QD_MODE_STEP && (a)->ui.view == QD_VIEW_OVERVIEW)
 /* the hold modes (B1..B10): UI_F_* (ui.h) */
 enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 /* the takeovers: UI_TK_* (ui.h), and the sound picker */
@@ -816,6 +823,8 @@ void qd_mix_button(struct qd_app *a);   /* ENV (MIX): open / the sends / the fad
 void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
 void qd_panel_black(struct qd_app *a, int b, int down);
 void qd_mix_ms(struct qd_app *a);       /* the mix's black keys held: the mute */
+void qd_mix_black(struct qd_app *a, int b, int down);   /* the mix's B1..B6, B11 (2026-11-10: OVERVIEW's too) */
+int qd_ctl_next_view(const struct qd_app *a);   /* SHIFT + HOME's next view (QD_VIEW_*) */
 int qd_fx_open(const struct qd_app *a);           /* 2026-10-26: the effects open (REC: its keyboard, ekeys) .. */
 int qd_fx_sends_open(const struct qd_app *a);     /* .. on SENDS (the page with the steps' row) */
 int qd_fx_sends_follows(const struct qd_app *a);  /* 2026-10-26: the sends shown follow the step just heard (-1: not) */
@@ -992,7 +1001,8 @@ enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR
        QD_SCR_SAVE,                    /* P1.5t: SAVE PRESET */
        QD_SCR_MFX,                     /* P1.6c: the MIDI FX screen */
        QD_SCR_GEEK,                    /* P2.11: a Geek Out page (the view's) */
-       QD_SCR_TOOLS };                 /* T1: the track tools */                  /* P2.11: a Geek Out page (the view's) */
+       QD_SCR_TOOLS,                   /* T1: the track tools */
+       QD_SCR_OV };                    /* 2026-11-10: OVERVIEW */
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
 struct ui_snd;

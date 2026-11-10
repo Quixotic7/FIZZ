@@ -999,8 +999,30 @@ typedef struct {
 } ui_geek_t;
 void ui_geek_draw(const ui_geek_t *v);
 
+/* ---- 2026-11-10: OVERVIEW (ui_ov.c; mockups/fizz-overview.html take A, LANES): the fifth view. The pattern's name in
+ * the head colour, the page dots (the page shown lit); a row a track: its kind's icon (the selected one boxed white,
+ * a soloed one yellow), the page's 16 steps as cells in fours, a step's fill as tall as its velocity in the kind's
+ * colour (a ghost, LOCK: an outline), empty a dark cell; the beat dots over steps 1, 5, 9, 13. Playing: a red
+ * marker over the playing column (the selected track's, else the first track on this page), each row's playing
+ * cell white with a glow while that track is on this page. A track not heard (muted, another soloed): grey, a line
+ * through its row */
+#define UI_OV_HEAD UI_MIDI_HEAD         /* (the mock-up's head colour) */
+typedef struct {
+    char pattern[4];                    /* "A02" */
+    int page;                           /* the page shown, 0..7 (the selected track's edited page) */
+    int sel;                            /* the selected track, 0.. */
+    int8_t play[UI_NTRACK];             /* each track's playing step on this page, 0..15 (-1: stopped, or elsewhere) */
+    uint8_t mute[UI_NTRACK];            /* 1 not heard (muted, or another soloed), 2 soloed (the mix's) */
+    uint8_t vel[UI_NTRACK][16];         /* a step's velocity, 1..127 (0: no step) */
+    uint16_t lock[UI_NTRACK];           /* bit s: a ghost (LOCK) */
+    uint16_t out[UI_NTRACK];            /* bit s: outside the page's start..end */
+    uint16_t held;                      /* bit s: the selected track's held / selected steps (outlined white) */
+} ui_ov_t;
+void ui_ov_draw(const ui_ov_t *v);
+
 /* P1.5z: the models the frame fills (view.c), for the tests */
 struct qd_app;
+void qd_view_ov(struct qd_app *a, ui_ov_t *v);                  /* 2026-11-10: OVERVIEW's */
 void qd_view_geek(struct qd_app *a, ui_geek_t *v);              /* P2.11: a Geek Out page's (its state moved on) */
 void qd_view_geek_reset(struct qd_app *a);                      /* P2.11: SHIFT + B11 there: the counters from zero */
 void qd_view_browse(const struct qd_app *a, ui_browse_t *v);   /* the library browser's */

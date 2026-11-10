@@ -183,10 +183,11 @@ static void shome(void)                                 /* P1.3y: SHIFT + HOME: 
     bup(SHIFT);
     run(10);
 }
-static void shome_wrap(void)                            /* P2.11: from EDIT past the GEEK OUT view: the PIANO ROLL */
+static void shome_wrap(void)                            /* P2.11: from EDIT past the GEEK OUT view (2026-11-10: and
+                                                         * OVERVIEW): the PIANO ROLL */
 {
     int i;
-    for (i = 0; i < 2; i++)
+    for (i = 0; i < 3; i++)
         shome();
 }
 static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once); the map
@@ -2971,7 +2972,10 @@ static void g_home(void)
     run(10);
     CHECK(A.ui.view == QD_VIEW_NUMBERS, "HOME again: still there");
     shome();
-    CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME again (P2.11: past the Geek Out pages): the PIANO ROLL");
+    CHECK(A.ui.view == QD_VIEW_OVERVIEW && qd_view_screen(&A) == QD_SCR_OV,
+          "SHIFT + HOME again (2026-11-10: past the Geek Out pages): OVERVIEW");
+    shome();
+    CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME again (past OVERVIEW): the PIANO ROLL");
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "the PIANO ROLL, SELECT: page 2 with its picker");
     turn(QD_K_SELECT, -1);
@@ -8686,10 +8690,10 @@ static void g_page_leds(void)
  * the patterns map (W3 queues, SEQ tapped or HOME closes; a tap with no map: TOOLS) */
 static void g_home_keeps_seq_latch(void)
 {
-    static const int V[5] = {QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT, QD_VIEW_VOICES, QD_VIEW_SCOPE};
+    static const int V[6] = {QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_OVERVIEW};
     int i, ok = 1;
     start();
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < 6; i++) {
         A.ui.view = V[i];
         btap(QD_B_SOUND);
         btap(QD_B_HOME);
@@ -8698,11 +8702,12 @@ static void g_home_keeps_seq_latch(void)
         btap(QD_B_HOME);
         ok &= A.ui.view == V[i] && !A.ui.latch;
     }
-    CHECK(ok, "EDIT -> HOME, ENV -> HOME: the view kept (ROLL, STEPS, EDIT, VOICES, SCOPE)");
+    CHECK(ok, "EDIT -> HOME, ENV -> HOME: the view kept (ROLL, STEPS, EDIT, VOICES, SCOPE, OVERVIEW)");
     A.ui.view = QD_VIEW_EDIT;
     shome();
     turn(QD_K_SELECT, 1);
     turn(QD_K_SELECT, 1);
+    shome();
     shome();
     shome();
     shome();
@@ -8733,6 +8738,72 @@ static void g_home_keeps_seq_latch(void)
     btap(QD_B_PLAY);
 }
 
+/* 2026-11-10: OVERVIEW (the fifth view): after GEEK OUT in SHIFT + HOME's cycle; B1..B6 the mix's (tap the track,
+ * hold the mute, double tap the solo, B11 all off), the W keys STEPS' (a tap makes / removes, held: the held screen,
+ * whose black keys stay the values), SELECT the page with no picker; the model: the page across the tracks, each
+ * one's own playhead, mutes and solos as the mix's */
+static void g_overview(void)
+{
+    ui_ov_t ov;
+    qd_leds_t l;
+    int hm, on0;
+    start();
+    A.ui.view = QD_VIEW_EDIT;
+    shome();
+    shome();
+    CHECK(A.ui.view == QD_VIEW_OVERVIEW && qd_view_screen(&A) == QD_SCR_OV, "SHIFT + HOME: EDIT, GEEK OUT, OVERVIEW");
+    hm = A.ui.hmode;
+    black(B3);
+    run(300);
+    CHECK(A.sel == 2 && A.ui.hmode == hm && !A.seq.mute && !A.seq.solo, "B3 tapped: track 3 (no hold mode)");
+    kdown(BK(B5));
+    run(300);
+    CHECK(!A.seq.mute, "B5 down 300 ms: not muted yet");
+    run(150);
+    kup(BK(B5));
+    run(300);
+    CHECK(A.seq.mute == 0x10u && A.sel == 2, "B5 held: track 5 muted, the selection kept");
+    l = leds();
+    CHECK(l.key[BK(B5)] == QD_LED_DIM && l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B11)] == QD_LED_LIT,
+          "the LEDs: the mix's (muted dim, selected lit, B11 lit)");
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mute[4] == 1 && ov.mute[0] == 0 && ov.sel == 2 && ov.page == 0 && ov.play[0] == -1,
+          "the model: track 5 not heard, stopped: no playhead");
+    black(B2);
+    black(B2);
+    run(300);
+    CHECK(A.seq.solo == 0x02u && A.sel == 1, "B2 double-tapped: track 2 soloed (%x)", A.seq.solo);
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mute[1] == 2 && ov.mute[0] == 1, "the model: track 2 soloed, track 1 not heard");
+    black(B11);
+    run(300);
+    CHECK(!A.seq.mute && !A.seq.solo, "B11: every mute and solo off");
+    on0 = qd_step_is_on(qd_step(qd_ctl_cpat(&A), 1, 0));
+    wtap(0);
+    CHECK(qd_step_is_on(qd_step(qd_ctl_cpat(&A), 1, 0)) != on0, "W1 tapped: track 2's step 1 made / removed");
+    qd_view_ov(&A, &ov);
+    CHECK((ov.vel[1][0] != 0) != on0, "the model: its cell (vel %d)", ov.vel[1][0]);
+    whold(4);
+    CHECK(qd_view_screen(&A) == QD_SCR_HELD, "W5 held: the held step's screen, as STEPS");
+    black(B5);
+    CHECK(!A.seq.mute, "a step held: B5 is its value, no mute");
+    wrel(4);
+    run(300);
+    CHECK(qd_view_screen(&A) == QD_SCR_OV, "let go: OVERVIEW again");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.page[1] == 1 && A.ui.tk == QD_TK_NONE, "SELECT: page 2, no picker");
+    btap(QD_B_HOME);
+    CHECK(A.ui.view == QD_VIEW_OVERVIEW, "HOME: OVERVIEW kept");
+    turn(QD_K_SELECT, -1);
+    btap(QD_B_PLAY);
+    run(700);
+    qd_view_ov(&A, &ov);
+    CHECK(A.seq.playing && ov.play[1] >= 0 && ov.play[1] < 16, "playing: track 2's playhead on the page (%d)", ov.play[1]);
+    btap(QD_B_PLAY);
+    shome();
+    CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME: the PIANO ROLL");
+}
+
 static void g_p211_geek(void)
 {
     static const int V[6] = {QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_TRACKS, QD_VIEW_METERS};
@@ -8748,7 +8819,9 @@ static void g_p211_geek(void)
         turn(QD_K_SELECT, 1);
     }
     shome();
-    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, TRACKS, round) -> PIANO ROLL");
+    ok &= A.ui.view == QD_VIEW_OVERVIEW;
+    shome();
+    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, TRACKS, round) -> OVERVIEW -> PIANO ROLL");
     A.ui.view = QD_VIEW_METERS;
     bpm0 = A.bpm, sel0 = A.sel;
     turn(QD_K_ALGO, 3);
@@ -9113,6 +9186,7 @@ int main(void)
         {"P1.5z: SHIFT + B6: the TAP takeover", g_p15z_tap},
         {"P1.5z: SHIFT + B8: page follow; SHIFT's map", g_p15z_follow},
         {"P2.11: the Geek Out pages", g_p211_geek},
+        {"2026-11-10: OVERVIEW: the mix's B keys, STEPS' W keys", g_overview},
         {"2026-10-25: HOME keeps the view, SEQ held latches", g_home_keeps_seq_latch},
         {"the page LEDs", g_page_leds},
         {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},

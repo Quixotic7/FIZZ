@@ -1012,6 +1012,7 @@ int fz_screen_index(void)               /* (fz_screens' slot: mode x FZ_NVIEW + 
 {
     return (fz_app.ui.mode & 3) * FZ_NVIEW + (fz_app.ui.view < FZ_NVIEW ? fz_app.ui.view : FZ_NVIEW - 1);
 }
-typedef char fz_nview_ok[QD_NVIEW <= FZ_NVIEW ? 1 : -1];
+typedef char fz_nview_ok[QD_NVIEW <= FZ_NVIEW + 1 ? 1 : -1];   /* (2026-11-10: OVERVIEW, the ninth, shares the
+                                         * last slot with TRACKS: 4 x 16 B of RAM more were not there) */
 /* (P2.13) the store's region, for its backup and restore over USB (app.c): its flash offset and size */
 void fz_store_region(uint32_t *off, uint32_t *size) { *off = FZ_STORE_LO, *size = FZ_STORE_SECTORS * 4096u; }

@@ -9,6 +9,7 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **OVERVIEW, a new view** (SHIFT + HOME after GEEK OUT): all six tracks' steps on the page at once, each with its own playhead; B1..B6 select, mute (hold) and solo (double tap) tracks as in the mixer, the white keys edit the selected track's steps.
 - **REC's keys look like keys.** When REC turns the white keys into notes, the row (SENDS, the sound editor) shows boxy orange keys with a keyboard sign, the scale's roots filled and the keys you play lit, so it never looks like the steps.
 - **Paste after changing pages.** A step cut or copied stays in F2's hand when you let go: change page, hold F2 and tap an empty step to paste it. F1's first step still always copies.
 

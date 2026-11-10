@@ -622,63 +622,64 @@ static int quad_unpack(const uint8_t *b, int16_t *p)
 #define LFO(k, sp, mu, de, w, dp) QP_LFO(k, QL_SPEED), S8(sp), QP_LFO(k, QL_MULT), mu, QP_LFO(k, QL_DEST), QD_##de, \
                                   QP_LFO(k, QL_WAVE), QW_##w, QP_LFO(k, QL_DEPTH), S8(dp)
 /* EP: X = C 1:1 under A (the body), Y = B1 direct 1.00 under B2 14.00 (the tine, short) */
-static const uint8_t QUADP_EP[] = {SYN(2, QRC(4), QRA(4), 4, 56, 0, 12, 0, -30), ENVA(0, 29, 20, 66),
+static const uint8_t QUADP_EP[] QD_XDATA(quadp_ep) = {SYN(2, QRC(4), QRA(4), 4, 56, 0, 12, 0, -30), ENVA(0, 29, 20, 66),
     ENVB(0, 12, 0, 62), QP_VEL, 100, KEY(40, 30, 30), AMP(0, 39, 40, 14, 102), 0xFF};
 /* BELL: X = C under A 3.50, Y = B1 2.00 under B2 6.00 (two inharmonic pairs) */
-static const uint8_t QUADP_BELL[] = {SYN(2, QRC(4), QRA(14), 8, 24, 0, 20, 0, -10), ENVA(0, 43, 30, 80),
+static const uint8_t QUADP_BELL[] QD_XDATA(quadp_bell) = {SYN(2, QRC(4), QRA(14), 8, 24, 0, 20, 0, -10), ENVA(0, 43, 30, 80),
     ENVB(0, 48, 20, 70), QP_VEL, 90, KEY(30, 0, 30), AMP(0, 52, 0, 43, 113), 0xFF};
 /* BASS: C under a 1:1 A with feedback (a saw-ish modulator), X only */
-static const uint8_t QUADP_BASS[] = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 24, -64), ENVA(0, 18, 34, 88),
+static const uint8_t QUADP_BASS[] QD_XDATA(quadp_bass) = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 24, -64), ENVA(0, 18, 34, 88),
     ENVB(0, 11, 0, 0), FLT(LP12, 92, 10, 20), FENV(0, 12, 0, 0), AMP(0, 24, 100, 5, 127), 0xFF};
 /* PLUCK: B1 and B2 into A 2.00 into C, X only, everything decaying */
-static const uint8_t QUADP_PLUCK[] = {SYN(5, QRC(4), QRA(8), 12, 12, 0, 6, 0, -64), ENVA(0, 14, 0, 84),
+static const uint8_t QUADP_PLUCK[] QD_XDATA(quadp_pluck) = {SYN(5, QRC(4), QRA(8), 12, 12, 0, 6, 0, -64), ENVA(0, 14, 0, 84),
     ENVB(0, 7, 0, 64), KEY(40, 40, 40), AMP(0, 21, 0, 13, 102), 0xFF};
 /* BRASS: C under a slow-attack 1:1 A with feedback, a little B1 */
-static const uint8_t QUADP_BRASS[] = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 28, -64), ENVA(11, 31, 60, 74),
+static const uint8_t QUADP_BRASS[] QD_XDATA(quadp_brass) = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 28, -64), ENVA(11, 31, 60, 74),
     ENVB(9, 31, 50, 10), FLT(LP12, 80, 12, 30), FENV(9, 48, 60, 12), AMP(22, 24, 110, 13, 107), 0xFF};
 /* GLASS PAD: X = C under A 2.00 + A, Y = B1 under B2 + B2 (algorithm 7's enveloped carriers), A / B1 a little saw */
-static const uint8_t QUADP_GLASS[] = {SYN(7, QRC(4), QRA(8), 16, 16, 8, 40, 0, 0), ENVA(17, 41, 100, 36),
+static const uint8_t QUADP_GLASS[] QD_XDATA(quadp_glass) = {SYN(7, QRC(4), QRA(8), 16, 16, 8, 40, 0, 0), ENVA(17, 41, 100, 36),
     ENVB(24, 48, 60, 50), QP_PHRT, QR_OFF, AMP(53, 32, 120, 43, 124), LFO(0, 8, 3, HARM, SINE, 30), 0xFF};
 /* HOLLOW: C a soft square (HARM -16) under A 2.00, Y = B1 under a little B2 */
-static const uint8_t QUADP_HOLLOW[] = {SYN(2, QRC(4), QRA(8), 4, 4, -16, 0, 0, -20), ENVA(5, 41, 80, 40),
+static const uint8_t QUADP_HOLLOW[] QD_XDATA(quadp_hollow) = {SYN(2, QRC(4), QRA(8), 4, 4, -16, 0, 0, -20), ENVA(5, 41, 80, 40),
     ENVB(0, 31, 40, 50), AMP(16, 24, 110, 18, 107), 0xFF};
 /* SQUARE LEAD: C a square (HARM -19) under a little A 2.00, X only */
-static const uint8_t QUADP_SQLEAD[] = {SYN(1, QRC(4), QRA(8), 4, 4, -19, 0, 10, -64), ENVA(0, 31, 60, 36),
+static const uint8_t QUADP_SQLEAD[] QD_XDATA(quadp_sqlead) = {SYN(1, QRC(4), QRA(8), 4, 4, -19, 0, 10, -64), ENVA(0, 31, 60, 36),
     ENVB(0, 22, 20, 0), AMP(0, 18, 110, 9, 127), 0xFF};
 /* METAL: B1 7.00 (feedback) and B2 10.50 into A 1.50 into C, A detuned against B2; mostly X */
-static const uint8_t QUADP_METAL[] = {SYN(5, QRC(4), QRA(6), 28, 40, 0, 90, 20, -40), QP_OFSB2, 50,
+static const uint8_t QUADP_METAL[] QD_XDATA(quadp_metal) = {SYN(5, QRC(4), QRA(6), 28, 40, 0, 90, 20, -40), QP_OFSB2, 50,
     ENVA(0, 48, 40, 90), ENVB(0, 41, 30, 70), AMP(0, 43, 30, 32, 99), 0xFF};
 /* WOBBLE: BASS's voice through LP24, an LFO on A LEV and one on FREQ */
-static const uint8_t QUADP_WOBBLE[] = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 10, -64), ENVA(0, 19, 127, 60),
+static const uint8_t QUADP_WOBBLE[] QD_XDATA(quadp_wobble) = {SYN(1, QRC(4), QRA(4), 4, 4, 0, 0, 10, -64), ENVA(0, 19, 127, 60),
     ENVB(0, 16, 40, 0), FLT(LP24, 70, 60, 0), AMP(0, 24, 110, 7, 127), LFO(0, 32, 4, ALEV, TRI, 50),
     LFO(1, 32, 4, FREQ, TRI, 40), QP_LFO(0, QL_TRIG), QT_TRIG, QP_LFO(1, QL_TRIG), QT_TRIG, 0xFF};
 /* CLAV: X = C (HARM -15: 1 + 3) under A 3.00, Y = B1 1.00 under B2 4.00, through HP12 */
-static const uint8_t QUADP_CLAV[] = {SYN(2, QRC(4), QRA(12), 4, 16, -15, 0, 0, 0), ENVA(0, 11, 10, 90),
+static const uint8_t QUADP_CLAV[] QD_XDATA(quadp_clav) = {SYN(2, QRC(4), QRA(12), 4, 16, -15, 0, 0, 0), ENVA(0, 11, 10, 90),
     ENVB(0, 10, 0, 80), FLT(HP12, 30, 20, 0), AMP(0, 18, 0, 8, 127), 0xFF};
 /* STRINGS: X = C a saw (HARM -7) + B2 detuned, Y = B1 with feedback 35 (a second saw), both enveloped at B LEV 127;
  * DTUN by an LFO */
-static const uint8_t QUADP_STRINGS[] = {SYN(8, QRC(4), QRA(4), 4, 4, -7, 100, 35, 0), ENVA(0, 16, 0, 0),
+static const uint8_t QUADP_STRINGS[] QD_XDATA(quadp_strings) = {SYN(8, QRC(4), QRA(4), 4, 4, -7, 100, 35, 0), ENVA(0, 16, 0, 0),
     ENVB(0, 16, 127, 127), QP_PHRT, QR_OFF, FLT(LP12, 96, 8, 0), AMP(53, 32, 115, 39, 113),
     LFO(0, 6, 3, DTUN, SINE, 20), 0xFF};
 /* MARIMBA: C under A 4.00 and B1 10.00 (short), X only */
-static const uint8_t QUADP_MARIMBA[] = {SYN(1, QRC(4), QRA(16), 40, 40, 0, 0, 0, -64), ENVA(0, 11, 0, 64),
+static const uint8_t QUADP_MARIMBA[] QD_XDATA(quadp_marimba) = {SYN(1, QRC(4), QRA(16), 40, 40, 0, 0, 0, -64), ENVA(0, 11, 0, 64),
     ENVB(0, 2, 0, 20), KEY(50, 50, 0), AMP(0, 24, 0, 18, 110), 0xFF};
 /* DRONE: C 0.50 and B1 under A (feedback) and B2 1.50, three slow LFOs (HARM, MIX, FDBK) */
-static const uint8_t QUADP_DRONE[] = {SYN(6, QRC(2), QRA(4), 4, 4, 0, 50, 15, 0), QP_OFSB2, 50, ENVA(43, 55, 90, 44),
+static const uint8_t QUADP_DRONE[] QD_XDATA(quadp_drone) = {SYN(6, QRC(2), QRA(4), 4, 4, 0, 50, 15, 0), QP_OFSB2, 50, ENVA(43, 55, 90, 44),
     ENVB(59, 55, 80, 52), QP_PHRT, QR_OFF, AMP(44, 43, 127, 58, 105), LFO(0, 4, 3, HARM, SINE, 40),
     LFO(1, 5, 3, MIX, TRI, 50), LFO(2, 3, 3, FDBK, SINE, 30), 0xFF};
 /* FEEDBACK: Y = B1 with heavy feedback (enveloped: B LEV 43 = B1 full, B2 off), X = C under A */
-static const uint8_t QUADP_FEEDBACK[] = {SYN(8, QRC(4), QRA(4), 4, 4, 0, 0, 42, 30), ENVA(0, 31, 40, 60),
+static const uint8_t QUADP_FEEDBACK[] QD_XDATA(quadp_feedback) = {SYN(8, QRC(4), QRA(4), 4, 4, 0, 0, 42, 30), ENVA(0, 31, 40, 60),
     ENVB(0, 31, 100, 43), AMP(0, 32, 100, 18, 102), 0xFF};
 /* NOISE-ISH: algorithm 7's A at full feedback, X = C under it + itself, through a resonant HP12 */
-static const uint8_t QUADP_NOISE[] = {SYN(7, QRC(4), QRA(4), 4, 4, 0, 0, 120, -64), ENVA(0, 16, 127, 100),
+static const uint8_t QUADP_NOISE[] QD_XDATA(quadp_noise) = {SYN(7, QRC(4), QRA(4), 4, 4, 0, 0, 120, -64), ENVA(0, 16, 127, 100),
     ENVB(0, 16, 0, 0), FLT(HP12, 70, 40, 0), AMP(0, 32, 60, 24, 88), 0xFF};
 
 /* {ALGO, RATIO C, RATIO A, RATIO B (B2's step), HARM, DTUNE, FDBK, MIX}: the macros as the patch has them
  * (cr_quad_test checks); env: the amp envelope (QUAD's own: the platform ADSR is not used). FX(drive, chorus, delay,
  * reverb): the DRIVE is loaded with the preset (the AMP page's cell; WOBBLE's 10 is the only one above 0); the three
  * sends are not: they are the part's (cr_bank.c param_kept) */
-static const preset_t QUAD_PRESETS[] = {
+static const preset_t QUAD_PRESETS[] QD_XDATA(quad_presets) = {   /* (2026-11-10: the data blob, read when a
+                                                         * preset loads; with QUADP_*: ~1.3 KB out of the app slot) */
     {"EP", {2, QRC(4), QRA(4), QRC(56), 0, 12, 0, -30}, {0, 39, 40, 14}, 0, 0, FX(0, 30, 20, 40), PAT(6)},
     {"BELL", {2, QRC(4), QRA(14), QRC(24), 0, 20, 0, -10}, {0, 52, 0, 43}, 0, 0, FX(0, 20, 35, 60), PAT(7)},
     {"BASS", {1, QRC(4), QRA(4), QRC(4), 0, 0, 24, -64}, {0, 24, 100, 5}, 0, 1, FX(0, 0, 10, 10), PAT(2)},

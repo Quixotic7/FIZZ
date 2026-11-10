@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-10: OVERVIEW (the fifth view, mockups/fizz-overview.html take A) on the unit's build: SHIFT + HOME from EDIT
+# past GEEK OUT; the demo's A02 playing, B2 tapped selects the bass, B4 held mutes track 4, W1 makes / removes a step
+# of the selected track, SELECT turns the page; HOME keeps the view, SHIFT + HOME goes on to the PIANO ROLL.
+#   firmware/build.py --host, then
+#   firmware/app/build/host/fizz_host firmware/app/tests/overview.txt firmware/app/build/overview
+expect fz_up 1
+tap HOME
+wait 300
+expect fz_mode 1
+expect fz_view 2
+# A02: SEQ held + W2
+press SEQ
+tapkey w1
+release SEQ
+wait 300
+expect fz_pattern 1
+expect fz_tools 0
+# SHIFT + HOME: EDIT -> GEEK OUT (METERS) -> OVERVIEW
+press GLO
+tap HOME
+release GLO
+wait 100
+expect fz_view 3
+press GLO
+tap HOME
+release GLO
+wait 300
+expect fz_view 8
+shot overview-stopped.png
+# B2 tapped: the bass (track 2)
+tapkey b1
+wait 600
+expect fz_sel 1
+# W1 tapped: its step 1 removed, again: back
+expect fz_ons_2_1 23773
+tapkey w0
+wait 100
+expect fz_ons_2_1 23772
+tapkey w0
+wait 100
+expect fz_ons_2_1 23773
+# SELECT: page 2 (no picker), back
+turn SELECT 1
+wait 100
+expect fz_page 1
+turn SELECT -1
+wait 100
+expect fz_page 0
+# B4 held: track 4 muted
+key b3 down
+wait 600
+key b3 up
+wait 100
+leds
+tap PLAY
+wait 1500
+expect fz_playing 1
+expect fz_view 8
+shot overview-playing-a02.png
+wait 333
+shot overview-playing-a02-b.png
+# HOME keeps the view
+tap HOME
+wait 100
+expect fz_view 8
+press GLO
+tap HOME
+release GLO
+wait 100
+expect fz_view 0
+expect fz_lcd_stale 0
