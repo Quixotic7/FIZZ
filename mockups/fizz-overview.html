@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ Overview</title>
+<!-- FIZZ: two answers to a reviewer's feedback (2026-11-10). (1) An overview of all six tracks: four takes for the owner
+     to pick from (LANES, TILES, PAGES, BUBBLES). (2) MIDI FX routing made visible: ALGORITHM on the ARP screen shows
+     every track wired to its group, and the mixer shows each track's group. Kind icons and the mixer are the firmware's
+     own (mockups/ref/ov-real-*.png, from the host simulator on A02). ?shot=N one canvas at 1x, ?sheet=1 all at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 36px 0 0; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 16px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: track overview and MIDI FX routing (mock-ups, 2026-11-10)</h1>
+<p>From a reviewer's feedback: "a home screen with an overview of all the tracks" and "what gets sent where" in MIDI FX.
+Shown on A02 (the band) playing, step 7 of page 1, BASS selected, PLUCK muted.</p>
+<h2>1. The overview: four takes</h2>
+<p>Any take would be the fifth view in <strong>SHIFT + HOME</strong>'s cycle (PIANO ROLL, STEPS, EDIT, GEEK OUT, <strong>OVERVIEW</strong>),
+kept like the others. On it, as in the mixer: <strong>B1 … B6</strong> tapped selects a track, held mutes it, double-tapped solos it;
+the white keys are the selected track's steps; SELECT turns the page.</p>
+<div class="grid" id="cells-ov"></div>
+<h2>2. MIDI FX routing</h2>
+<p><strong>ALGORITHM</strong> on the ARP screen already shows the five groups; turning it now draws every track wired to its group
+(today it shows only the selected track's square). The mixer stays as it is.</p>
+<div class="grid" id="cells-mfx"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', kalg:'#ff8fc8', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d',
+            head:'#ee3cff', mfx:'#3ce0b4', play:'#ff3b4e', bg:'#000' };
+const F = 'IT';
+// the demo's six tracks (A02): kind colour (ui_presets.c UI_PK_COL), steps' velocities on page 1, loop length in pages,
+// where each track is in its own loop (polymeter), MIDI FX group (0 OFF)
+const TR = [
+  { name:'DRUMS', col:C.k4,      vel:[120,0,70,0, 110,0,70,40, 120,0,70,0, 110,0,70,90], pages:1, pos:6, grp:0 },
+  { name:'BASS',  col:C.k1,      vel:[100,0,0,80, 0,0,100,0, 90,0,0,70, 0,100,0,0],      pages:2, pos:6, grp:1 },
+  { name:'KEYS',  col:C.k3,      vel:[0,0,90,0, 0,0,0,0, 0,0,90,0, 0,0,0,60],            pages:4, pos:22, grp:2 },
+  { name:'LEAD',  col:C.k2,      vel:[0,0,0,0, 110,0,90,0, 0,0,0,0, 100,80,0,0],         pages:3, pos:38, grp:2 },
+  { name:'PLUCK', col:'#36d6e7', vel:[80,0,60,0, 80,0,60,0, 80,0,60,0, 80,0,60,0],       pages:1, pos:6, grp:3 },
+  { name:'PAD',   col:'#9664ff', vel:[127,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],             pages:8, pos:6, grp:0 },
+];
+const SEL = 1, MUTE = 4, STEP = 6;
+// the groups' slots: 1 an ARP alone; 2 CHORD then ARP (KEYS and LEAD share it); 3 REPEAT then CHANCE
+const GRP = [[1,0,0,0,0,0,0,0], [1,1,0,0,0,0,0,0], [1,1,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0]];
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 500} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; c.fillStyle = o.col || C.k3;
+  c.textAlign = o.al || 'center'; c.textBaseline = 'alphabetic'; if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y);
+  const w = c.measureText(s).width; c.restore(); return w;
+}
+function L(c, pts, col, lw, a = 1, dash) {
+  c.save(); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round'; if (dash) c.setLineDash(dash);
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function O(c, x, y, r, fill, stroke, lw = 1, a = 1) { c.save(); c.globalAlpha = a; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore(); }
+function RR(c, x, y, w, h, r, fill, a = 1, stroke, lw = 1, dash) {
+  c.save(); c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; if (dash) c.setLineDash(dash); c.stroke(); } c.restore();
+}
+function glow(c, col, b, fn) { c.save(); c.shadowColor = col; c.shadowBlur = b; fn(); c.restore(); }
+function hex(c, x, y, r, col, o = {}) {
+  c.save(); c.beginPath();
+  for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; c[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r); }
+  c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.strokeStyle = col; c.lineWidth = o.lw || 1.6; if (o.dash) c.setLineDash(o.dash); c.stroke(); c.restore();
+  if (o.n != null) T(c, String(o.n), x, y + 4.3, { s: 12, w: 700, col: o.ncol || col });
+}
+// a track's kind icon, cut from the firmware's mixer (its column's icon), tinted when dim
+function icon(c, t, x, y, s = 1, dim = false) {
+  const ix = 20 + t * 40 - 10, w = 20 * s, h = 18 * s;
+  c.save(); if (dim) { c.filter = 'grayscale(1) brightness(0.55)'; }
+  c.globalCompositeOperation = 'lighten';                  // (the crop's black ground leaves what is under it)
+  c.drawImage(IMG.mix, ix, 20, 20, 18, x - w / 2, y - h / 2, w, h); c.restore();
+}
+function head(c, title, right) {
+  T(c, title, 10, 19, { s: 12, w: 600, ls: 0.8, col: C.head, al: 'left' });
+  for (let p = 0; p < 8; p++) O(c, 150 + p * 10, 14, 2.8, p === 0 ? C.head : null, p === 0 ? null : C.g2, 1);
+  if (right) right(c);
+}
+const colOf = (t, mute) => mute ? C.g2 : TR[t].col;
+// ---- take A: LANES. Six rows of the page's 16 steps, a step's fill as tall as its velocity; the play column
+function lanes(c) {
+  head(c, 'A02');
+  const x0 = 34, cw = 12.4, gx = i => x0 + i * cw + Math.floor(i / 4) * 2;
+  for (let i = 0; i < 16; i++) if (i % 4 === 0) O(c, gx(i) + 5, 29, 1.3, i ? C.g2 : C.g1);
+  glow(c, C.play, 6, () => { c.fillStyle = C.play; c.beginPath(); const x = gx(STEP) + 5; c.moveTo(x - 4, 24); c.lineTo(x + 4, 24); c.lineTo(x, 30); c.fill(); });
+  TR.forEach((tr, t) => {
+    const y = 36 + t * 33, h = 27, mute = t === MUTE, col = colOf(t, mute);
+    if (t === SEL) RR(c, 3, y - 1, 26, h + 2, 6, null, 1, C.k3, 1.6);
+    icon(c, t, 16, y + h / 2, 1, mute);
+    for (let i = 0; i < 16; i++) {
+      const v = tr.vel[i], x = gx(i);
+      RR(c, x, y, 10.5, h, 3, C.g3, mute ? 0.5 : 1);
+      if (!v) continue;
+      const vh = Math.max(4, v / 127 * h), hot = i === STEP && !mute;
+      if (hot) glow(c, '#fff', 12, () => RR(c, x, y + h - vh, 10.5, vh, 3, '#fff'));
+      else RR(c, x, y + h - vh, 10.5, vh, 3, col, mute ? 0.6 : 0.9);
+    }
+    if (mute) L(c, [34, y + h / 2, 236, y + h / 2], C.g2, 1.5, 0.9);
+  });
+}
+// ---- take B: TILES. A tile a track: its icon, its level, its 16 steps as a ring with the playhead going round
+function tiles(c) {
+  head(c, 'A02');
+  TR.forEach((tr, t) => {
+    const x = 4 + (t % 2) * 117, y = 28 + Math.floor(t / 2) * 70, mute = t === MUTE, col = colOf(t, mute);
+    RR(c, x, y, 115, 66, 10, '#111116', 1, t === SEL ? C.k3 : C.g3, t === SEL ? 2 : 1);
+    icon(c, t, x + 22, y + 22, 1.3, mute);
+    const lv = mute ? 0 : [0.8, 0.65, 0.35, 0.5, 0, 0.7][t];
+    RR(c, x + 10, y + 46, 26, 6, 3, C.g3); if (lv) RR(c, x + 10, y + 46, 26 * lv, 6, 3, col);
+    const cx = x + 82, cy = y + 33, r = 23;
+    O(c, cx, cy, r, null, C.g3, 1);
+    for (let i = 0; i < 16; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 8, px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r, v = tr.vel[i];
+      if (!v) { O(c, px, py, 1.4, C.g2); continue; }
+      const s = 2 + v / 127 * 2.6;
+      if (i === STEP && !mute) glow(c, '#fff', 10, () => O(c, px, py, s + 1.5, '#fff'));
+      else O(c, px, py, s, col, null, 1, mute ? 0.6 : 1);
+    }
+    if (!mute) { const a = -Math.PI / 2 + STEP * Math.PI / 8; L(c, [cx, cy, cx + Math.cos(a) * (r - 7), cy + Math.sin(a) * (r - 7)], C.play, 2); O(c, cx, cy, 2.4, C.play); }
+  });
+}
+// ---- take C: PAGES. Six rows of all eight pages: each track's loop bright, the pages past it dark, its own playhead
+function pages(c) {
+  head(c, 'A02');
+  const x0 = 34, pw = 25.4;
+  TR.forEach((tr, t) => {
+    const y = 36 + t * 33, h = 27, mute = t === MUTE, col = colOf(t, mute);
+    if (t === SEL) RR(c, 3, y - 1, 26, h + 2, 6, null, 1, C.k3, 1.6);
+    icon(c, t, 16, y + h / 2, 1, mute);
+    for (let p = 0; p < 8; p++) {
+      const px = x0 + p * pw, inLoop = p < tr.pages;
+      RR(c, px, y, pw - 2.5, h, 3, inLoop ? '#15151b' : '#0a0a0c', 1, p === 0 ? C.g1 : null, 1);
+      if (!inLoop) continue;
+      for (let i = 0; i < 16; i++) {
+        const v = tr.vel[(i + p * 5) % 16];           // (another page: the same steps, shifted, for the picture)
+        if (!v) continue;
+        const sx = px + 2 + i * 1.32, vh = Math.max(3, v / 127 * (h - 4));
+        L(c, [sx, y + h - 2, sx, y + h - 2 - vh], col, 1.1, mute ? 0.5 : 0.85);
+      }
+    }
+    if (!mute) { const step = tr.pos % (tr.pages * 16), px = x0 + Math.floor(step / 16) * pw + 2 + (step % 16) * 1.32;
+      glow(c, C.play, 6, () => L(c, [px, y - 2, px, y + h + 2], C.play, 2)); }
+  });
+}
+// ---- take D: BUBBLES. A column a track: each note sends up a bubble in its colour, as big as its velocity; they rise
+// and fade (FIZZ's champagne). A muted track goes flat
+function bubbles(c) {
+  head(c, 'A02');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  TR.forEach((tr, t) => {
+    const x = 20 + t * 40, mute = t === MUTE, col = colOf(t, mute);
+    L(c, [x, 40, x, 186], C.g3, 1);
+    if (!mute) for (let k = 0; k < 16; k++) {
+      const age = (STEP - k + 16) % 16, v = tr.vel[k];   // the steps before the playhead, the newest lowest
+      if (!v || age > 9) continue;
+      const by = 186 - age * 15 - 6, r = (3 + v / 127 * 7) * (1 - age / 14), a = 1 - age / 10;
+      const bx = x + (rnd() - 0.5) * 12;
+      if (age === 0) glow(c, col, 16, () => O(c, bx, by, r + 2, null, '#fff', 2.2));
+      else { O(c, bx, by, r, null, col, 1.6, a); O(c, bx - r * 0.35, by - r * 0.35, r * 0.22, '#fff', null, 1, a * 0.8); }
+    }
+    if (t === SEL) RR(c, x - 15, 197, 30, 30, 7, null, 1, C.k3, 1.6);
+    icon(c, t, x, 212, 1.05, mute);
+    if (mute) L(c, [x - 9, 186, x + 9, 186], C.g2, 2.4);
+  });
+}
+// ---- MIDI FX: ALGORITHM turned on the ARP screen: every track wired to its group, the group's eight slots beside it
+function mfxMap(c, o) {
+  c.drawImage(IMG.algo, 0, 0, 240, 30, 0, 0, 240, 30);            // (the firmware's head: MIDI FX, the group, the track)
+  c.fillStyle = '#000'; c.fillRect(0, 30, 240, 210);
+  const gy = g => 50 + g * 38, ty = t => 50 + t * 32.5, hx = 150;
+  for (let g = 0; g < 5; g++) {
+    const on = TR.some((tr, t) => (o.moved && t === o.moved.t ? o.moved.to : tr.grp) === g + 1);
+    hex(c, hx, gy(g), 11, on ? C.mfx : C.g2, { n: g + 1, fill: '#000' });
+    for (let s = 0; s < 8; s++) RR(c, 170 + s * 8, gy(g) - 3.5, 6, 7, 2, GRP[g][s] ? C.mfx : null, GRP[g][s] ? 0.9 : 1, GRP[g][s] ? null : C.g3, 1);
+  }
+  T(c, 'OFF', hx, 228, { s: 12, w: 600, ls: 0.6, col: C.g1 });
+  TR.forEach((tr, t) => {
+    const y = ty(t), sel = t === o.sel, grp = o.moved && t === o.moved.t ? o.moved.to : tr.grp;
+    if (sel) RR(c, 4, y - 14, 28, 28, 7, null, 1, C.k3, 1.6);
+    icon(c, t, 18, y, 1, !grp);
+    const wire = (g, a, lw, dash) => {
+      const ey = g ? gy(g - 1) : 224, ex = g ? hx - 12 : hx - 14;
+      c.save(); c.globalAlpha = a; c.strokeStyle = tr.col; c.lineWidth = lw; c.lineCap = 'round'; if (dash) c.setLineDash(dash);
+      if (sel && !dash) { c.shadowColor = tr.col; c.shadowBlur = 8; }
+      c.beginPath(); c.moveTo(36, y); c.bezierCurveTo(90, y, 90, ey, ex, ey); c.stroke(); c.restore();
+    };
+    if (o.moved && t === o.moved.t) wire(tr.grp, 0.5, 1.4, [3, 4]);
+    if (grp) wire(grp, sel ? 1 : 0.55, sel ? 2.6 : 1.5);
+    else L(c, [36, y, 46, y], C.g2, 1.5);                     // OFF: a stub, no wire
+  });
+}
+// ---- the mixer: each track's group as a small hexagon under its fader (OFF: nothing)
+function mixHex(c) {
+  c.drawImage(IMG.mix, 0, 0, 240, 240);
+  TR.forEach((tr, t) => {
+    const x = 20 + t * 40;
+    c.fillStyle = '#000'; c.fillRect(x - 11, 160, 22, 26);
+    if (tr.grp) hex(c, x, 173, 9.5, C.mfx, { n: tr.grp, fill: '#000' });
+    else L(c, [x - 4, 173, x + 4, 173], C.g2, 1.6);
+  });
+}
+const OV = [
+  { title: 'A · LANES', f: lanes, text: 'Six rows, the page\'s 16 steps each, a fill as tall as its velocity (as STEPS draws a row); the playing column flashes white. The selected track\'s icon is boxed; a muted track is grey and struck through.' },
+  { title: 'B · TILES', f: tiles, text: 'A tile a track: its icon, its level, and its 16 steps as a ring with the playhead going round (a polymeter track\'s ring runs at its own pace).' },
+  { title: 'C · PAGES', f: pages, text: 'Each track\'s whole loop at once: all eight pages, the ones in its loop lit, its own red playhead. Shows polymeter: KEYS loops 4 pages, LEAD 3, PAD 8.' },
+  { title: 'D · BUBBLES', f: bubbles, text: 'Champagne: every note sends a bubble up its track\'s column, as big as its velocity, rising and fading. The busiest track fizzes most; a muted one goes flat.' },
+];
+const MF = [
+  { title: 'ALGORITHM turned: the routing map', f: c => mfxMap(c, { sel: 2 }), text: 'Every track wired to its group (OFF: no wire, its icon grey). KEYS (selected, bright) and LEAD share group 2; each group\'s eight slots sit beside it, lit where an effect is.' },
+  { title: 'A detent later: KEYS moves to group 3', f: c => mfxMap(c, { sel: 2, moved: { t: 2, to: 3 } }), text: 'Turning moves the selected track\'s wire (the old one dashed for a moment); the other tracks\' wires stay.' },
+];   // (the mixer's group hexagons: dropped, the owner 2026-11-10: the mixer stays as it is)
+const ALL = [...OV, ...MF];
+const IMG = {};
+const load = (k, src) => new Promise(r => { IMG[k] = new Image(); IMG[k].onload = r; IMG[k].src = src; });
+const ready = Promise.all([load('mix', 'ref/ov-real-mix.png'), load('algo', 'ref/ov-real-arp-algo.png'),
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]);
+function draw(i, cv, scale) {
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.fillStyle = '#000'; c.fillRect(0, 0, 240, 240); ALL[i].f(c);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => ALL.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  ready.then(() => ALL.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById(i < OV.length ? 'cells-ov' : 'cells-mfx').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>

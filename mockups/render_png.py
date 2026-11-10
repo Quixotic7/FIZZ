@@ -66,6 +66,11 @@ for i, n in enumerate(PJ, 1):                  # fizz-projects.html: the PROJECT
     SHOTS[f'pj-{i}'] = (f'shot={i}', 1280, 800, f'fizz-projects-{i:02d}-{n}.png', 'fizz-projects.html')
 SHOTS['sheet-pj'] = ('sheet=1', 1360, 1020, 'fizz-projects-sheet.png', 'fizz-projects.html')
 
+OV = ['lanes', 'tiles', 'pages', 'bubbles', 'mfx-map', 'mfx-move']
+for i, n in enumerate(OV, 1):                  # fizz-overview.html: the track overview's takes and the MIDI FX routing (2026-11-10)
+    SHOTS[f'ov-{i}'] = (f'shot={i}', 240, 240, f'fizz-overview-{i:02d}-{n}.png', 'fizz-overview.html')
+SHOTS['sheet-ov'] = ('sheet=1', 2030, 1100, 'fizz-overview-sheet.png', 'fizz-overview.html')
+
 def render(key, scratch):
     query, w, h, name = SHOTS[key][:4]
     page = SHOTS[key][4] if len(SHOTS[key]) > 4 else 'index.html'
