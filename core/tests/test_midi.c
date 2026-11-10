@@ -629,25 +629,30 @@ static int ccs_in(int lo, int hi)                       /* CCs lo..hi (any chann
         n += (LG[i][0] & 0xF0) == 0xB0 && LG[i][1] >= lo && LG[i][1] <= hi;
     return n;
 }
-static void engine_set(int midi)                        /* track settings page 3, KNOB 3 */
+static void engine_set(int e)                           /* track settings page 3, KNOB 3: 0 FM TONE .. 2 MIDI */
 {
     btap(QD_B_PATTERN);
     turn(QD_K_SELECT, 2);
-    turn(QD_K_3, midi ? 1 : -1);
+    turn(QD_K_3, -2);
+    if (e)
+        turn(QD_K_3, e);
     btap(QD_B_HOME);
 }
 static void t_mtrack(void)
 {
     ui_menu_t mv;
     ui_snd_t sv;
+    qd_tsound_t orig, mid;
     const int i1 = QD_MSND_ID[1], i2 = QD_MSND_ID[2];
     int i, v0, v1, a, b, n, voices = 0, ons;
     start();
+    orig = PAT()->snd[0];
     btap(QD_B_PATTERN);
     turn(QD_K_SELECT, 2);
-    turn(QD_K_3, 1);
+    turn(QD_K_3, 2);
     qd_view_menu(&A, &mv);
-    CHECK(qd_msnd_is(A.model.t[0].patch) && qd_msnd_is(PAT()->snd[0].patch) && mv.engine == 1 && PAT()->trk[0].mout == 1,
+    CHECK(qd_msnd_is(A.model.t[0].patch) && qd_msnd_is(PAT()->snd[0].patch) && mv.engine == 2 &&
+              PAT()->trk[0].mout == 1,
           "page 3 KNOB 3: ENGINE MIDI, MIDI OUT was OFF: 1 (the track's number)");
     btap(QD_B_HOME);
     for (i = 0; i < 4; i++) {                           /* steps 1, 5, 9, 13 */
@@ -793,14 +798,13 @@ static void t_mtrack(void)
         cc(1, 73, 100);
         CHECK(!memcmp(keep, A.model.t[0].patch, sizeof keep), "CCs in on its channel: the MIDI sound untouched");
     }
-    /* ENGINE back to FM TONE: INIT, voices again */
+    /* ENGINE back to FM TONE: the track's own sound back from the side (2026-11-10), voices again */
+    mid = PAT()->snd[0];
     engine_set(0);
-    {
-        int16_t init[QD_QUAD_NP];
-        qd_quad_preset_patch(0, init);
-        CHECK(!qd_msnd_is(A.model.t[0].patch) && !memcmp(A.model.t[0].patch, init, sizeof init) &&
-                  !strcmp(A.model.t[0].sound_name, "INIT"), "ENGINE FM TONE: the track's sound INIT");
-    }
+    CHECK(!qd_msnd_is(A.model.t[0].patch) && !memcmp(&PAT()->snd[0], &orig, sizeof orig) &&
+              !memcmp(A.model.t[0].patch, orig.patch, sizeof orig.patch) &&
+              !strcmp(A.model.t[0].sound_name, orig.name), "ENGINE FM TONE: the track's own sound back, exactly (%s)",
+          A.model.t[0].sound_name);
     voices = 0;
     btap(QD_B_PLAY);
     for (i = 0; i < 10; i++) {
@@ -809,9 +813,9 @@ static void t_mtrack(void)
     }
     btap(QD_B_PLAY);
     CHECK(voices > 0, "and its notes take voices again");
-    engine_set(1);
-    CHECK(qd_msnd_is(A.model.t[0].patch) && (A.model.t[0].patch[QD_MSND_CC(0)] & 0xFF) == 16 && PAT()->trk[0].mout == 1,
-          "MIDI again: a new MIDI sound (untouched, CC 16), MIDI OUT kept (1)");
+    engine_set(2);
+    CHECK(qd_msnd_is(A.model.t[0].patch) && !memcmp(&PAT()->snd[0], &mid, sizeof mid) && PAT()->trk[0].mout == 1,
+          "MIDI again: its MIDI sound back from the side (CCs, values), MIDI OUT kept (1)");
     run(QD_UNDO_QUIET_MS);
 }
 
@@ -858,6 +862,153 @@ static void t_out_clock(void)
     qd_app_midi(&A, 0xFC, 0, 0);
     run(50);
     CHECK(!A.seq.playing && !nlog, "its STOP: nothing out");
+    run(QD_UNDO_QUIET_MS);
+}
+
+/* 2026-11-10, ENGINE's side: FM TONE -> MIDI -> FM TONE gives the track's own sound back exactly (the MIDI sound over
+ * it keeps its other values); MIDI -> FM TONE -> MIDI its MIDI sound; across a pattern change the side stays its
+ * pattern's (another pattern's switch: a new sound); a switch undone; a MIDI sound loaded over an FM TONE one (a pool
+ * sound: the 1 ms sync) puts the FM TONE one on the side */
+static void t_engine_side(void)
+{
+    qd_tsound_t orig, mid, o1, x;
+    int p0;
+    start();
+    A.model.t[0].patch[QD_QP_VPRIO] = 2;                /* (values the side carries: VPRIO, 74..101, a slot's) */
+    A.model.t[0].patch[QD_QP_AMOD] = 1;
+    A.model.t[0].patch[QD_QP_BITS] = 77;
+    A.model.t[0].patch[QD_QP_FDBK] = 99;
+    run(10);
+    orig = PAT()->snd[0];
+    engine_set(2);
+    x = PAT()->snd[0];
+    CHECK(qd_msnd_is(x.patch) && x.patch[QD_QP_ALGO] == orig.patch[QD_QP_ALGO] &&
+              x.patch[QD_QP_LFO(1, QD_QL_SPEED)] == orig.patch[QD_QP_LFO(1, QD_QL_SPEED)] &&
+              (x.patch[QD_MSND_CC(0)] & 0xFF) == 16 && !x.patch[QD_MSND_ID[0]] && !strcmp(x.name, "MIDI"),
+          "MIDI: a new MIDI sound (untouched, CC 16) over the FM TONE one's other values");
+    A.model.t[0].patch[QD_MSND_ID[3]] = 99;
+    A.model.t[0].patch[QD_MSND_CC(3)] = 70 | QD_MSND_TOUCHED;
+    run(10);
+    mid = PAT()->snd[0];
+    engine_set(0);
+    CHECK(!memcmp(&PAT()->snd[0], &orig, sizeof orig) && !memcmp(A.model.t[0].patch, orig.patch, sizeof orig.patch) &&
+              A.model.t[0].patch[QD_QP_VPRIO] == 2 && A.model.t[0].patch[QD_QP_BITS] == 77,
+          "FM TONE -> MIDI -> FM TONE: the FM TONE sound back exactly (%s)", PAT()->snd[0].name);
+    engine_set(2);
+    CHECK(!memcmp(&PAT()->snd[0], &mid, sizeof mid), "MIDI -> FM TONE -> MIDI: the MIDI sound back (its CC, value)");
+    p0 = A.seq.cur;                                     /* a pattern change: the side stays its pattern's */
+    qd_seq_select(&A.seq, p0 + 1, 1);
+    run(10);
+    CHECK(!qd_msnd_is(A.model.t[0].patch), "another pattern: its own FM TONE sound");
+    qd_seq_select(&A.seq, p0, 1);
+    run(10);
+    engine_set(0);
+    CHECK(!memcmp(&PAT()->snd[0], &orig, sizeof orig), "back on its pattern: the FM TONE sound back exactly");
+    qd_seq_select(&A.seq, p0 + 1, 1);
+    run(10);
+    o1 = PAT()->snd[0];
+    engine_set(2);
+    CHECK((A.model.t[0].patch[QD_MSND_CC(3)] & 0xFF) == 19 && !A.model.t[0].patch[QD_MSND_ID[3]],
+          "another pattern's switch: a new MIDI sound, not the side's (another pattern's)");
+    engine_set(0);
+    CHECK(!memcmp(&PAT()->snd[0], &o1, sizeof o1), ".. and back: that pattern's own");
+    qd_seq_select(&A.seq, p0, 1);
+    run(QD_UNDO_QUIET_MS);
+    engine_set(2);                                      /* undo of a switch */
+    run(QD_UNDO_QUIET_MS);
+    CHECK(qd_msnd_is(PAT()->snd[0].patch), "switched");
+    qd_shift_undo(&A, -1);
+    run(10);
+    CHECK(!memcmp(&PAT()->snd[0], &orig, sizeof orig) && !memcmp(A.model.t[0].patch, orig.patch, sizeof orig.patch),
+          "SHIFT + F1: the switch undone, the FM TONE sound back");
+    run(QD_UNDO_QUIET_MS);
+    o1 = PAT()->snd[1];                                 /* a MIDI sound loaded over track 2's FM TONE one */
+    memset(&x, 0, sizeof x);
+    qd_msnd_init(x.patch);
+    x.patch[QD_MSND_ID[0]] = 55;
+    x.patch[QD_MSND_CC(0)] |= QD_MSND_TOUCHED;
+    PAT()->trk[1].mout = QD_MOUT_FM | 2;
+    qd_track_load_sound(&A.model.t[1], 0, "MPRE", x.patch);
+    run(10);
+    CHECK(qd_msnd_is(PAT()->snd[1].patch) && PAT()->snd[1].patch[QD_MSND_ID[0]] == 55 &&
+              PAT()->snd[1].patch[QD_QP_ALGO] == o1.patch[QD_QP_ALGO] &&
+              PAT()->snd[1].patch[QD_QP_LFO(2, QD_QL_SPEED)] == o1.patch[QD_QP_LFO(2, QD_QL_SPEED)] &&
+              !memcmp(A.model.t[1].patch, PAT()->snd[1].patch, sizeof o1.patch) && PAT()->trk[1].mout == 2,
+          "a MIDI sound loaded over an FM TONE one: the FM TONE one's other values kept, FM+MIDI's mark gone");
+    qd_msnd_engine(&A, 1, 0);
+    CHECK(!memcmp(&PAT()->snd[1], &o1, sizeof o1), ".. ENGINE FM TONE: the FM TONE sound back exactly");
+    run(QD_UNDO_QUIET_MS);
+}
+
+/* 2026-11-10, FM+MIDI: the FM TONE sound plays and its editor's values go out on MIDI OUT's channel: a turn at once
+ * (not on MIDI CH's too, CC OUT on), a step's lock before its note and the track's value back after, a stop bringing
+ * it back, REC + AUTOMATION's turn at once */
+static void t_fm_midi(void)
+{
+    ui_menu_t mv;
+    int i, v, lk, own, a, b, n;
+    start();
+    engine_set(1);
+    btap(QD_B_PATTERN);
+    turn(QD_K_SELECT, 2);
+    qd_view_menu(&A, &mv);
+    btap(QD_B_HOME);
+    CHECK(!qd_msnd_is(A.model.t[0].patch) && PAT()->trk[0].mout == (QD_MOUT_FM | 1) && mv.engine == 1 && mv.mout == 1,
+          "page 3 KNOB 3: FM+MIDI (an FM TONE sound), MIDI OUT was OFF: 1");
+    PAT()->trk[0].mout = QD_MOUT_FM | 5;
+    for (i = 0; i < 4; i++) {                           /* steps 1, 5, 9, 13 */
+        qd_app_key(&A, QD_WHITE_KEY[4 * i], 1, 100);
+        run(30);
+        qd_app_key(&A, QD_WHITE_KEY[4 * i], 0, 0);
+        run(10);
+    }
+    run(200);
+    btap(QD_B_SOUND);
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    run(10);
+    nlog = 0;
+    for (i = 0; i < 8; i++)
+        turn(QD_K_1, -40);
+    own = qd_midi_value_cc(QD_QP_FREQ, A.model.t[0].patch[QD_QP_FREQ]);
+    CHECK(A.ui.cc_out && nlog >= 1 && nsent(0xB4, 74, -1) == nlog && LG[nlog - 1][2] == own && !nsent(0xB0, 74, -1),
+          "turns: CC 74 on MIDI OUT's channel 5 at once, not on MIDI CH 1 too (CC OUT on; %d out)", nlog);
+    btap(QD_B_HOME);
+    qd_lock_set(PAT(), 0, 0, QD_QP_FREQ, 2000);
+    lk = qd_midi_value_cc(QD_QP_FREQ, 2000);
+    nlog = 0;
+    btap(QD_B_PLAY);
+    run(700);
+    btap(QD_B_PLAY);
+    run(50);
+    a = first_at(0xB4, 74, lk, 0);
+    n = a >= 0 ? first_at(0x94, -1, -1, a) : -1;
+    b = a >= 0 ? first_at(0xB4, 74, own, a) : -1;
+    CHECK(lk != own && a >= 0 && n > a && b > n && first_at(0x94, -1, -1, n + 1) > b && nsent(0xB4, 74, lk) == 1 &&
+              !nsent(0xB0, 74, -1),
+          "step 1's lock out before its note (%d, %d), the track's value back before step 5's (%d)", a, n, b);
+    nlog = 0;
+    btap(QD_B_PLAY);
+    run(60);
+    btap(QD_B_PLAY);
+    run(20);
+    a = first_at(0xB4, 74, lk, 0);
+    CHECK(nsent(0xB4, 74, lk) == 1 && a >= 0 && first_at(0xB4, 74, own, a) > a && first_at(0x94, -1, -1, a) > a &&
+              first_at(0x94, -1, -1, first_at(0x94, -1, -1, a) + 1) < 0,
+          "stopped after step 1: the track's value back");
+    btap(QD_B_SOUND);                                   /* REC + AUTOMATION: sent as turned, the track's value kept */
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    run(10);
+    v = A.model.t[0].patch[QD_QP_FREQ];
+    btap(QD_B_PLAY);
+    run(300);
+    bdown(QD_B_REC);
+    nlog = 0;
+    turn(QD_K_1, 30);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(nsent(0xB4, 74, -1) >= 1 && !nsent(0xB0, 74, -1) && A.model.t[0].patch[QD_QP_FREQ] == v,
+          "REC held + KNOB 1: sent at once (%d), the track's value kept", nsent(0xB4, 74, -1));
+    btap(QD_B_PLAY);
     run(QD_UNDO_QUIET_MS);
 }
 
@@ -927,6 +1078,8 @@ int main(void)
         {"MIDI OUT: START, 24 clocks a beat, STOP; CLOCK OUT; outside", t_out_clock},
         {"MIDI OUT: the knobs' CCs, none echoed; CC OUT", t_out_cc},
         {"the MIDI track: ENGINE, no voice, CCs, SHIFT, locks, B11, REC", t_mtrack},
+        {"ENGINE's side: both ways exactly, patterns, undo, a load", t_engine_side},
+        {"FM+MIDI: a turn, a lock and back, a stop, REC on MIDI OUT", t_fm_midi},
     };
     size_t i;
     for (i = 0; i < sizeof G / sizeof G[0]; i++) {

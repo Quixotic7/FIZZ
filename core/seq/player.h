@@ -36,7 +36,8 @@
  * FIZZ MIDI (e), the MIDI track: a trig (a note's, a LOCK trig's, an arp's note, the preview) whose sound is a MIDI
  * sound (quad_voice.h qd_msnd_is) takes no voice (the pool refuses it) and is told to mlk before its note goes out (the
  * app sends the step's locked slots as CCs and the slots locked by the trig before back to the track's values); a TIE
- * of a MIDI sound moves no voice: the track's notes before it end after its ON.
+ * of a MIDI sound moves no voice: the track's notes before it end after its ON. 2026-11-10: every trig (a legato's too)
+ * is told to mlk; the app answers for a MIDI sound's and an FM+MIDI track's (its locks as the CC map's), 0 for others.
  *
  * Everything that happens can be logged (qd_player_t.log): the timelines of the tests. */
 #pragma once

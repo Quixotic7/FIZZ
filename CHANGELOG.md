@@ -12,6 +12,8 @@ its text becomes the release's notes on the install page and on GitHub.
 - **OVERVIEW, a new view** (SHIFT + HOME after GEEK OUT): all six tracks' steps on the page at once, each with its own playhead; B1..B6 select, mute (hold) and solo (double tap) tracks as in the mixer, the white keys edit the selected track's steps.
 - **REC's keys look like keys.** When REC turns the white keys into notes, the row (SENDS, the sound editor) shows boxy orange keys with a keyboard sign, the scale's roots filled and the keys you play lit, so it never looks like the steps.
 - **Paste after changing pages.** A step cut or copied stays in F2's hand when you let go: change page, hold F2 and tap an empty step to paste it. F1's first step still always copies.
+- **ENGINE keeps the other sound.** Switching a track from FM TONE to MIDI and back gives it its own FM TONE sound again (not INIT), and MIDI → FM TONE → MIDI its MIDI sound, until the FM-1 is switched off or a project is loaded.
+- **A third ENGINE: FM+MIDI.** The track plays its FM TONE sound and sends its sound editor's moves as CCs on its MIDI OUT channel: knob turns at once, p-locks as their steps play (back to the track's value after), REC + AUTOMATION turns too.
 
 ## 0.12.0-beta.14 (2026-11-08)
 

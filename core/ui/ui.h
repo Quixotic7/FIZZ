@@ -680,7 +680,7 @@ typedef struct {
     int mfx;                            /* P1.6c: the track's MIDI FX group (0 OFF) */
     int tkind, named;                   /* P1.6d, page 3: its kind (-1 none), its name typed */
     int mout;                           /* .. FIZZ MIDI (c): MIDI OUT (0 OFF, 1..16) */
-    int engine;                         /* .. (e): ENGINE, 0 FM TONE, 1 MIDI */
+    int engine;                         /* .. (e): ENGINE, 0 FM TONE, 1 FM+MIDI (2026-11-10), 2 MIDI */
     int clk_out, cc_out;                /* SETTINGS: FIZZ MIDI (c): CLOCK OUT, CC OUT */
 #if QD_PKG_BLE
     int set_page, ble_on, ble_st;       /* SETTINGS (the Bluetooth package): the page (1: BLUETOOTH ON / OFF, its state:

@@ -719,6 +719,14 @@ static void ble_test(void)
  * reference ('P' 6), MY PRESETS ('S' 5), its slots' locks (0..127); the FM TONE sounds around it stay FM TONE; a blob
  * of an older FIZZ (version 5, version 6 without the mark) reads FM TONE; a bad MIDI blob reads as no blob (INIT);
  * ENGINE back to FM TONE: INIT */
+static int msame(const int16_t *x, const int16_t *y)    /* (2026-11-10: the MIDI sound's own values, as stored: the
+                                                         * others are the sound it replaced, never stored) */
+{
+    uint8_t bx[QD_SIDE_N], by[QD_SIDE_N];
+    qd_quad_side_pack(x, bx);
+    qd_quad_side_pack(y, by);
+    return qd_msnd_is(x) && qd_msnd_is(y) && !memcmp(bx, by, sizeof bx);
+}
 static void msnd_test(void)
 {
     int16_t mp[QD_QUAD_NP], q[QD_QUAD_NP], init[QD_QUAD_NP];
@@ -757,11 +765,14 @@ static void msnd_test(void)
     P->used = 1;
     run(&A, 20);
     CHECK(qd_persist_flush(&A), "flushed");
+    CHECK(QD_SIDE_M(&A)[2].key == (0x40 | pat), "ENGINE's side: track 3's FM TONE sound, its pattern's");
+    qd_proj_load(&A, A.per.proj);
+    CHECK(!QD_SIDE_M(&A)[2].key, "a project load: the side forgotten (never stored)");
     boot(&B);
     run(&B, 20);
     P = qd_proj_pat(&B.proj, pat);
-    CHECK(!memcmp(P->snd[2].patch, mp, sizeof mp) && !memcmp(P->snd[3].patch, mp, sizeof mp) &&
-              P->snd[3].preset == id && !memcmp(LIB(&B, 9)->patch, mp, sizeof mp) && qd_msnd_is(B.model.t[2].patch),
+    CHECK(msame(P->snd[2].patch, mp) && msame(P->snd[3].patch, mp) && P->snd[3].preset == id &&
+              msame(LIB(&B, 9)->patch, mp) && qd_msnd_is(B.model.t[2].patch),
           "a restart: the MIDI sound back exactly, a copy, by reference, MY PRESETS");
     {
         int16_t v;

@@ -32,6 +32,7 @@ void qd_app_init(qd_app_t *a)
 {
     int t;
     memset(a, 0, sizeof *a);
+    qd_side_clear(a);                                   /* (the Bluetooth unit's: outside qd_app_t) */
     a->master_pot = QD_MASTER_POT_DEFAULT;
     qd_model_init(&a->model);
     qd_pool_init(&a->pool, QD_VOICES);
@@ -364,7 +365,11 @@ static int mo_put(qd_app_t *a, int status, int d1, int d2, int keep)   /* queued
                                    (uint32_t)d1 << 16 | (uint32_t)d2 << 24;
     return 1;
 }
-static int mo_chan(const qd_app_t *a, int t) { return qd_seq_track_pat(&a->seq, t)->trk[t].mout; }   /* 0 OFF, 1..16 */
+static int mo_chan(const qd_app_t *a, int t)           /* 0 OFF, 1..16 */
+{
+    return qd_seq_track_pat(&a->seq, t)->trk[t].mout & QD_MOUT_CH;
+}
+static int mo_fm(const qd_app_t *a, int t) { return qd_seq_track_pat(&a->seq, t)->trk[t].mout & QD_MOUT_FM; }
 static void mo_drop(qd_app_t *a, int i)                 /* note i owed: its OFF (there is always room), forgotten */
 {
     const unsigned e = a->mo_on[i];
@@ -390,19 +395,81 @@ void qd_app_msnd_send(qd_app_t *a, int t, int k, int v, int lock)
         return;
     mo_slot(a, t, p, k, v);
 }
+/* 2026-11-10, FM+MIDI (pattern.h QD_MOUT_FM): an FM TONE track whose sound editor's values go out as the CC map's
+ * (midi_map.c) on its MIDI OUT channel: a hand's turn at once (mo_cc, in CC OUT's place), REC + AUTOMATION's turn at
+ * once (qd_app_fm_auto), a step's locks as it plays (mo_flk, as a MIDI track's). The side's fid / fv (app.h qd_side_t):
+ * the values whose CC went out as a lock's, so a lock again at the same value sends nothing and the next trig, a stop
+ * or a mute sends the track's own back. Value id of sound p as its CC's value, -1 none (RATIO B: the pair, on RB1) */
+static int mo_fcc(int id) { return id == QD_QP_RB2 || id >= QD_QUAD_NP ? -1 : qd_midi_id_cc(id); }
+static int mo_fcv(int id, const int16_t *p)
+{
+    if (mo_fcc(id) < 0)
+        return -1;
+    return qd_midi_value_cc(id, id == QD_QP_RB1 ? p[QD_QP_RB1] * 19 + p[QD_QP_RB2] : p[id]);
+}
+static void mo_fput(qd_app_t *a, int t, int id, int v)   /* (room kept for the trig's notes after it) */
+{
+    const int ch = mo_chan(a, t);
+    if (ch)
+        mo_put(a, 0xB0 | (ch - 1), qd_midi_id_cc(id), v, a->mo_n + QD_MO_FROOM);
+}
+/* the values sound p locks (lkm; 0: none, a stop) out where the synth has another, those no longer locked back at p's
+ * (the track's own) */
+static __attribute__((noinline)) void mo_flk(qd_app_t *a, int t, const int16_t *p, const uint32_t *lkm)
+{
+    qd_side_t *m = &QD_SIDE_M(a)[t];
+    uint8_t id2[QD_MO_FL], v2[QD_MO_FL];
+    int id, n = 0, i, v;
+    for (id = 0; id < QD_QUAD_NP; id++) {
+        const int lk = lkm && (((lkm[id >> 5] >> (id & 31)) & 1u) ||
+                               (id == QD_QP_RB1 && ((lkm[QD_QP_RB2 >> 5] >> (QD_QP_RB2 & 31)) & 1u)));
+        for (i = 0; i < m->fn && m->fid[i] != id; i++)
+            ;
+        if ((!lk && i == m->fn) || (v = mo_fcv(id, p)) < 0)
+            continue;
+        if (i == m->fn || m->fv[i] != v)
+            mo_fput(a, t, id, v);
+        if (lk && n < QD_MO_FL)
+            id2[n] = (uint8_t)id, v2[n++] = (uint8_t)v;
+    }
+    memcpy(m->fid, id2, (size_t)n);
+    memcpy(m->fv, v2, (size_t)n);
+    m->fn = (uint8_t)n;
+}
+void qd_app_fm_auto(qd_app_t *a, int t, int id, int v)   /* (ctl_rec.c qd_auto_put: a take's value, heard now; RATIO B
+                                                         * at its steps only) */
+{
+    qd_side_t *m = &QD_SIDE_M(a)[t];
+    int i;
+    if (a->mo_knob != t + 1 || !mo_fm(a, t) || id == QD_QP_RB1 || mo_fcc(id) < 0)
+        return;
+    v = qd_midi_value_cc(id, v);
+    for (i = 0; i < m->fn && m->fid[i] != id; i++)
+        ;
+    if (i == m->fn && i < QD_MO_FL)
+        m->fn++, m->fid[i] = (uint8_t)id, m->fv[i] = 0xFF;
+    if (i == QD_MO_FL || m->fv[i] != v)
+        mo_fput(a, t, id, v);
+    if (i < QD_MO_FL)
+        m->fv[i] = (uint8_t)v;
+}
 /* a MIDI sound's trig (the player's mlk): the slots it locks out as CCs, then the slots the trig before locked and this
  * one does not back at the sound's own values (the untouched: nothing). A chord's next note (the same trig): nothing,
  * unless force (the preview). The trig is ON's time: the values go out before its notes; the track's own value comes
- * back at the next trig (or a stop, a mute: mo_lk_back) */
+ * back at the next trig (or a stop, a mute: mo_lk_back). An FM+MIDI track's: mo_flk; any other: nothing (0) */
 static int mo_mlk(void *ctx, int t, const qd_trec_t *r, int force)
 {
     qd_app_t *a = (qd_app_t *)ctx;
     const uint32_t key = (uint32_t)(uintptr_t)r ^ (uint32_t)r->step << 20 ^ (uint32_t)r->pat << 26 ^ 1u;
     uint32_t lk = 0, back;
     int k;
-    if (t < 0 || t >= QD_NTRACK || (!force && key == a->mo_lkey[t]))
+    if (t < 0 || t >= QD_NTRACK || (!force && key == a->mo_lkey[t]) || !(qd_msnd_is(r->patch) || mo_fm(a, t)))
         return 0;
     a->mo_lkey[t] = key;
+    if (!qd_msnd_is(r->patch)) {                        /* (FM+MIDI) */
+        mo_flk(a, t, r->patch, r->lkm);
+        return 1;
+    }
     for (k = 0; k < QD_MSND_N; k++) {
         const int id = QD_MSND_ID[k];
         if ((r->lkm[id >> 5] >> (id & 31)) & 1u) {
@@ -421,10 +488,13 @@ static void mo_lk_back(qd_app_t *a, int t)              /* (a stop, a mute, a fl
 {
     const int16_t *p = a->model.t[t].patch;
     int k;
-    if (qd_msnd_is(p))
+    if (qd_msnd_is(p)) {
         for (k = 0; a->mo_lk[t] && k < QD_MSND_N; k++)
             if (((a->mo_lk[t] >> k) & 1u) && (p[QD_MSND_CC(k)] & QD_MSND_TOUCHED))
                 mo_slot(a, t, p, k, p[QD_MSND_ID[k]]);
+    } else {                                            /* (FM+MIDI's: the locks sent, back) */
+        mo_flk(a, t, p, 0);
+    }
     a->mo_lk[t] = a->mo_lkey[t] = 0;
 }
 static void mo_note(void *ctx, int t, int note, int vel, int live)   /* (the player's out: player.h) */
@@ -466,11 +536,20 @@ void qd_app_midi_out_panic(qd_app_t *a)
 static void mo_cc(qd_app_t *a, int t, int id, int old, int value)   /* value id's CC on track t's MIDI CH, if it moved */
 {
     const int ch = qd_seq_track_pat(&a->seq, t)->trk[t].chan, cc = qd_midi_id_cc(id), v = qd_midi_value_cc(id, value);
-    if (qd_msnd_is(a->model.t[t].patch))                /* (FIZZ MIDI (e): a MIDI track sends its slots' CCs, never the
-                                                         * map's) */
+    if (qd_msnd_is(a->model.t[t].patch) || cc < 0 || v == qd_midi_value_cc(id, old))   /* (FIZZ MIDI (e): a MIDI track
+                                                         * sends its slots' CCs, never the map's) */
         return;
-    if (a->ui.cc_out && ch < QD_MIDI_REMOTE && cc >= 0 && v != qd_midi_value_cc(id, old))
+    if (mo_fm(a, t) && id < QD_QUAD_NP) {               /* FM+MIDI: on MIDI OUT's channel, not CC OUT's too; the
+                                                         * synth now has the track's own */
+        qd_side_t *m = &QD_SIDE_M(a)[t];
+        int i;
+        for (i = 0; i < m->fn; i++)
+            if (m->fid[i] == id)
+                m->fv[i] = (uint8_t)v;
+        mo_fput(a, t, id, v);
+    } else if (a->ui.cc_out && ch < QD_MIDI_REMOTE) {
         mo_put(a, 0xB0 | ch, cc, v, a->mo_n);
+    }
 }
 static void mo_edit(void *ctx, int t, int id, int old, int value)   /* (the player's edit: player.h) */
 {
@@ -567,12 +646,10 @@ static void qd_app_sounds(qd_app_t *a)
         return;
     }
     for (t = 0; t < QD_NTRACK; t++) {
-        qd_tsound_t s;
         if (a->ui.latch == QD_LATCH_BROWSE && t == a->ui.br.t)
             continue;                                   /* (P1.5t: the browser's preview is not the pattern's) */
-        qd_track_to_tsound(&a->model.t[t], &s);
-        if (memcmp(&s, &P->snd[t], sizeof s))
-            P->snd[t] = s, a->edit_gen++;
+        if (qd_msnd_take(a, t))                         /* (2026-11-10: a load of the other engine's: ENGINE's side) */
+            a->edit_gen++;
     }
 }
 

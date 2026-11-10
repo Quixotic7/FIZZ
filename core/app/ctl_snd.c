@@ -185,28 +185,108 @@ static void msnd_leds(const qd_app_t *a, uint8_t *black)
         }
     black[10] = n ? QD_LED_LIT : QD_LED_OFF;
 }
-/* ENGINE (track settings page 3, KNOB 3): the track's sound becomes a new MIDI sound (every slot untouched, CC 16 + 4
- * (page - 1) + k), or FM TONE's INIT (the MIDI values go: the patch held them); the edited pattern's track sound (the
- * engine is the sound's: a preset, a pattern carry it). MIDI with MIDI OUT OFF: MIDI OUT the track's number */
+/* ENGINE (track settings page 3, KNOB 3), 2026-11-10: the track's sound and the other engine's waiting on its side
+ * (app.h qd_side_t) trade places: the side keeps the sound going out until power-off or a project load (never saved),
+ * for its pattern. No side (another pattern's, none yet): a new MIDI sound (every slot untouched, CC 16 + 4 (page - 1)
+ * + k) over the FM TONE sound, or FM TONE's INIT. A MIDI sound's other values are the FM TONE sound's it replaced
+ * (qd_msnd_over), so the side holds only the 57 values the two do not share (quad_voice.h qd_quad_side_pack). The
+ * edited pattern's track sound (the engine is the sound's: a preset, a pattern carry it); its undo level the pattern's
+ * (the side stays). MIDI with MIDI OUT OFF: MIDI OUT the track's number */
+#ifdef QD_SIDE_OUT
+uint8_t qd_side_v[QD_TRACKS][QD_SIDE_N] __attribute__((section(".fz_nidata")));   /* (NOINIT) */
+qd_side_t qd_side_m[QD_TRACKS] __attribute__((section(".fz_rtside")));   /* (the RAM code region's data:
+                                                         * firmware/build.py ble_ld) */
+#endif
+void qd_side_clear(qd_app_t *a)                         /* (power-on, a project loaded or new) */
+{
+    memset(QD_SIDE_V(a), 0, (size_t)QD_TRACKS * QD_SIDE_N);
+    memset(QD_SIDE_M(a), 0, sizeof(qd_side_t) * QD_TRACKS);
+}
+static int side_key(const qd_app_t *a, int midi) { return 0x40 | (a->seq.cur & 0x3F) | (midi ? 0x80 : 0); }
+static void side_keep(qd_app_t *a, int t, const qd_tsound_t *o)   /* sound o (track t's, going) onto the side */
+{
+    qd_side_t *m = &QD_SIDE_M(a)[t];
+    qd_quad_side_pack(o->patch, QD_SIDE_V(a)[t]);
+    m->key = (uint8_t)side_key(a, qd_msnd_is(o->patch));
+    m->sound = o->sound, m->edited = o->edited, m->preset = o->preset;
+    memcpy(m->name, o->name, QD_SOUND_NAME);
+}
 void qd_msnd_engine(qd_app_t *a, int t, int midi)
 {
-    qd_tsound_t s;
-    qd_tset_t *ts = &qd_ctl_pat(a)->trk[t];
+    qd_pattern_t *P = qd_ctl_pat(a);
+    qd_tsound_t *s;
+    qd_side_t m;
+    uint8_t v[QD_SIDE_N];
     if (t < 0 || t >= QD_NTRACK || !midi == !qd_msnd_is(a->model.t[t].patch))
         return;
     qd_undo_hint(a, QD_UK_SOUNDS);
-    memset(&s, 0, sizeof s);
-    if (midi)
-        qd_msnd_init(s.patch);
-    else
-        qd_quad_preset_patch(0, s.patch), s.preset = 1;
-    strcpy(s.name, midi ? "MIDI" : "INIT");
     qd_player_flush_track(&a->player, t);
-    qd_ctl_pat(a)->snd[t] = s;
-    qd_track_from_tsound(&a->model.t[t], &s);
+    s = &P->snd[t];
+    qd_track_to_tsound(&a->model.t[t], s);              /* (the model's: the newest) */
+    m = QD_SIDE_M(a)[t];
+    memcpy(v, QD_SIDE_V(a)[t], QD_SIDE_N);
+    side_keep(a, t, s);
+    if (m.key == side_key(a, midi)) {                   /* the side's own sound back */
+        qd_quad_side_unpack(v, midi, s->patch);
+        s->sound = m.sound, s->edited = m.edited, s->preset = m.preset;
+        memcpy(s->name, m.name, QD_SOUND_NAME);
+    } else {
+        if (midi)
+            qd_msnd_over(s->patch);
+        else
+            qd_quad_preset_patch(0, s->patch);
+        s->sound = s->edited = 0, s->preset = (uint16_t)!midi;
+        strncpy(s->name, midi ? "MIDI" : "INIT", QD_SOUND_NAME);
+    }
+    qd_track_from_tsound(&a->model.t[t], s);
     qd_seq_preview(&a->seq, t, 0);
-    if (midi && !ts->mout)
-        ts->mout = (uint8_t)(t + 1);
+    if (midi)                                           /* (FM+MIDI's mark gone) */
+        P->trk[t].mout = (uint8_t)(P->trk[t].mout & QD_MOUT_CH ? P->trk[t].mout & QD_MOUT_CH : t + 1);
+}
+/* KNOB 3's three: FM TONE (0), FM+MIDI (1: QD_MOUT_FM; MIDI OUT OFF: the track's number), MIDI (2) */
+int qd_trk_engine(const qd_app_t *a, int t)
+{
+    return qd_msnd_is(a->model.t[t].patch) ? 2 : qd_ctl_cpat(a)->trk[t].mout & QD_MOUT_FM ? 1 : 0;
+}
+void qd_trk_engine_set(qd_app_t *a, int t, int e)
+{
+    qd_tset_t *ts = &qd_ctl_pat(a)->trk[t];
+    qd_msnd_engine(a, t, e == 2);
+    if (e == 1)
+        ts->mout = (uint8_t)(QD_MOUT_FM | (ts->mout & QD_MOUT_CH ? ts->mout & QD_MOUT_CH : t + 1));
+    else
+        ts->mout &= QD_MOUT_CH;
+}
+/* a load (a preset, a pool sound, SysEx) puts sound s over track t's in the edited pattern: a MIDI sound keeps the
+ * other values of the one it replaces (as qd_msnd_over; FM+MIDI's mark gone); another engine's: the one going onto
+ * the side */
+void qd_msnd_put(qd_app_t *a, int t, qd_tsound_t *s)
+{
+    qd_pattern_t *P = qd_ctl_pat(a);
+    const qd_tsound_t *o = &P->snd[t];
+    const int m = qd_msnd_is(s->patch);
+    if (m) {
+        uint8_t b[QD_SIDE_N];
+        qd_quad_side_pack(s->patch, b);
+        memcpy(s->patch, o->patch, sizeof s->patch);
+        qd_quad_side_unpack(b, 1, s->patch);
+        P->trk[t].mout &= QD_MOUT_CH;
+    }
+    if (m != qd_msnd_is(o->patch))
+        side_keep(a, t, o);
+}
+/* the 1 ms sync (app.c qd_app_sounds): track t's sound (the model's) into the edited pattern's through qd_msnd_put (a
+ * MIDI sound's other values then the model's too); 1: it changed */
+int qd_msnd_take(qd_app_t *a, int t)
+{
+    qd_tsound_t s, *o = &qd_ctl_pat(a)->snd[t];
+    qd_track_to_tsound(&a->model.t[t], &s);
+    if (!memcmp(&s, o, sizeof s))
+        return 0;
+    qd_msnd_put(a, t, &s);
+    memcpy(a->model.t[t].patch, s.patch, sizeof s.patch);
+    *o = s;
+    return 1;
 }
 
 /* E2: the filter machines: FTYPE 0..2 LEGACY (its TYPE on KNOB 3), 3 LOWPASS 4, 4 MULTI, 5 COMB+, 6 COMB-, 7 EQ; the

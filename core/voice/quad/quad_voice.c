@@ -416,13 +416,39 @@ int qd_msnd_slot(int id)
             return k;
     return -1;
 }
-void qd_msnd_init(int16_t *p)
+void qd_msnd_over(int16_t *p)
 {
     int k;
-    qd_quad_preset_patch(0, p);
     for (k = 0; k < QD_MSND_N; k++)
         p[QD_MSND_ID[k]] = 0, p[QD_MSND_CC(k)] = (int16_t)(16 + k);
     p[QD_QP_VPRIO] = QD_MSND_MARK;
+}
+void qd_msnd_init(int16_t *p)
+{
+    qd_quad_preset_patch(0, p);
+    qd_msnd_over(p);
+}
+void qd_quad_side_pack(const int16_t *p, uint8_t *b)
+{
+    const int m = qd_msnd_is(p);
+    int k;
+    for (k = 0; k < QD_MSND_N; k++) {
+        const int i = QD_MSND_CC(k);
+        const qe_val_t r = qe_val(i);
+        const int top = m ? p[i] & QD_MSND_TOUCHED : k < 2 ? (p[QD_QP_VPRIO] >> k & 1) << 7 : 0;
+        b[k] = (uint8_t)(clamp(p[QD_MSND_ID[k]], 0, 127) | top);
+        b[QD_MSND_N + k] = (uint8_t)(m ? p[i] & 127 : clamp(p[i], r.min, r.max) - r.min);
+    }
+}
+void qd_quad_side_unpack(const uint8_t *b, int midi, int16_t *p)
+{
+    int k;
+    for (k = 0; k < QD_MSND_N; k++) {
+        const int i = QD_MSND_CC(k);
+        p[QD_MSND_ID[k]] = (int16_t)(b[k] & 127);
+        p[i] = (int16_t)(midi ? b[QD_MSND_N + k] | (b[k] & QD_MSND_TOUCHED) : b[QD_MSND_N + k] + qe_val(i).min);
+    }
+    p[QD_QP_VPRIO] = (int16_t)(midi ? QD_MSND_MARK : b[0] >> 7 | (b[1] >> 7) << 1);
 }
 static const uint8_t MS_TAG[4] = {'M', 'I', 'D', 'I'};
 static void msnd_pack(const int16_t *p, uint8_t *b)

@@ -410,7 +410,13 @@ Undo and redo of everything (P1.5c):
   icon; choosing one **renames the track to the kind** unless you typed a name of your own. **KNOB 2 NAME**: a turn
   opens the name keyboard (TRACK NAME; PRESETS or KNOB 2 rolls names from the kind and namesizer: DUSTY BASS, PAD 3 ..); SAVE
   keeps it (a typed name stays when the kind changes; typing the kind's own name lets it follow again), HOME cancels;
-  both come back to page 3.
+  both come back to page 3. **KNOB 3 ENGINE**: **FM TONE**, **FM+MIDI** or **MIDI** (MIDI: the track plays no voice,
+  its notes and its sound's CCs go out on MIDI OUT; FM+MIDI: the FM TONE sound plays and its editor's values go out
+  as CCs on MIDI OUT too, below). Either MIDI engine with MIDI OUT OFF sets MIDI OUT to the track's number. **The other
+  engine's sound is kept** until you switch the FM-1 off or load a project: FM TONE → MIDI → FM TONE gives the track
+  its own sound back, exactly, and MIDI → FM TONE → MIDI its MIDI sound (one kept a track, for the pattern it was
+  switched in; switched in another pattern, a new MIDI sound or INIT). Loading a preset of the other engine keeps the
+  sound it replaces the same way. **KNOB 4 MIDI OUT**: OFF, 1..16, the channel the track's notes go out on.
 - **The kind's icon** shows wherever the track's name does: the track picker (SEL held), the mixer (over the faders),
   the headers (the keyboard, the lanes, the track settings), the track takeover (FX + ALGORITHM).
 - Names and kinds are **saved with the project** (its header). A project from before 0.9.1 keeps the names it had
@@ -627,6 +633,12 @@ Where OCT− / OCT+ change an octave (NOTE with a step held or tapped with nothi
   notes and controllers (MOD WHEEL, BREATH, AFTERTOUCH, PITCH BEND into its modulation slots). On the selected track
   the notes also record, or set the notes of a held step (up to five). (Before 0.9.5 a channel always played the
   track with its number, whatever MIDI CH said; nothing in a project changes.)
+- **FM+MIDI** (track settings page 3, KNOB 3): the track plays its FM TONE sound and drives a synth on its **MIDI
+  OUT** channel with the same moves: a turn in the sound editor sends that value's CC at once (the CC map's numbers:
+  FREQ 74, RESO 71 ..; on MIDI OUT's channel, not again on MIDI CH's with SETTINGS' CC OUT on); a step's p-locks go out
+  as the step plays, before its note, and the values the step before locked go back to the track's at the next step,
+  a stop or a mute; REC + AUTOMATION turns go out as you turn and play back with the steps. Only a value whose CC
+  changed is sent. A step sends at most eight locks. CCs coming in never go back out.
 
 ## How do I change sounds? (P1.5t: presets, the pool, the track's sound)
 

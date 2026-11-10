@@ -213,8 +213,9 @@ static void sx_store_apply(qd_app_t *a, const qd_sx_pend_t *q)
             t->mix.delay = q->mix[2];
         if (mask & QD_SXM_REVERB)
             t->mix.reverb = q->mix[3];
-        qd_track_to_tsound(t, &qd_ctl_pat(a)->snd[track]);   /* (the pattern's copy now: a pattern change not yet
-                                                         * brought into the tracks would put the old one back) */
+        qd_msnd_take(a, track);                         /* (the pattern's copy now: a pattern change not yet brought
+                                                         * into the tracks would put the old one back; 2026-11-10: the
+                                                         * other engine's: ENGINE's side) */
         sx_store_reply(a, QD_SX_OK, 0, 0);
         return;
     }
