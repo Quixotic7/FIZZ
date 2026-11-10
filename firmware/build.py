@@ -213,8 +213,15 @@ BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits
           "*/o2/build_units_c_app.o(.text.qd_app_fm_auto)", "*(.fzx2.*)"]
 BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-10) .. and single functions of other units the other way, into the second blob (sections renamed .fzx2.*;
-# main-loop drawing only, noinline in the source): OVERVIEW's model (view.c), ~0.4 KB the slot did not have
-BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov"]}
+# main-loop drawing only, noinline in the source): OVERVIEW's model (view.c), ~0.4 KB the slot did not have; the
+# effects screen's model (fill_fx, 1.4 KB: also the Manager's LABELS, view_labels.c), to balance the slot and the blob
+BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"]}
+# (2026-11-10) units compiled at -Oz, not -Os, on the Bluetooth package: the screens' unit (ui_layer.o: the sound
+# editor, MIDI FX, the browser, the typewriter, the tools, Geek Out, OVERVIEW, the layer and SHIFT screens), main-loop
+# drawing logic only (never the audio interrupt, core 1 or under the audio lock; the raster, qd_gfx_fast.o, stays
+# -Os), 7,060 B smaller (ui_mfx_draw 1.8 KB, ui_snd_draw 1.6 KB: -Os's unrolled and inlined copies). FZ_BLE_OZ=a.o,b.o
+# adds units for a measure (FZ_MEASURE=1)
+BLE_OZ = {"build_units_c_ui_layer.o", *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
@@ -237,10 +244,6 @@ def ble_ld(ld):
         if ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
             raise SystemExit("fizz: fizz.ld's .pool line changed: see build.py ble_ld")
         ld = ld.replace("*/o2/fz_port.o(.bss* .sbss* COMMON)", "*/o2/fz_port.o(.bss* .sbss* COMMON)" + piece)
-    rt = "_fz_rt_start = .;"                    # (2026-11-10: ENGINE's side, its rest (app.h qd_side_m): the RAM code
-    if ld.count(rt) != 1:                       # region's data, the pool being full)
-        raise SystemExit("fizz: fizz.ld's .fz_rt line changed: see build.py ble_ld")
-    ld = ld.replace(rt, rt + " *(.fz_rtside*)")
     for u in BLE_TO_NI:
         ni = "*/o2/build_units_c_ui_keys.o(.bss* .sbss* COMMON)"
         if ld.count(ni) != 1:
@@ -518,6 +521,8 @@ def tc(tool, *args):
                 args = [a if a != "-Os" else "-O2" for a in args]
             if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
                 args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
+            if BLE_PKG and out.name in BLE_OZ:
+                args = [a if a != "-Os" else "-Oz" for a in args]
             if out.name in HOT or (BLE_PKG and (out.name in BLE_SLOT or out.name in BLE_X2_FN)):
                 r = _tc(tool, *args)
                 if out.name in HOT:
@@ -653,6 +658,8 @@ def build_app():
     elif struct.pack("<II", 0x32585A46, 0x504D5453) in img:
         raise SystemExit("fizz: a second blob's stamp in a package without one")
     pc_window_check(syms)
+    if os.environ.get("FZ_MEASURE") == "1":       # (a measure: the report before the loader, whose extents' check
+        report(img, syms, secs, blob, crc, blob2, crc2)   # fails on an overflowing blob)
     EXTENTS[:] = sorted((off, with_trailer(b, c)) for off, b, c in
                         ((lo, blob, crc), *([(BLE_X2_LO, blob2, crc2)] if BLE_PKG else [])) if b)
     OTA[:] = build_loader()

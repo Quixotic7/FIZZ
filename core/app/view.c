@@ -2130,7 +2130,8 @@ static void fill_prj(const qd_app_t *a, ui_prj_t *v)
 }
 
 /* P1.4b: the effects' model: the page's cells (their values as ChoralRoot reads them), what the drawing needs */
-static void fill_fx(const qd_app_t *a, ui_fx_t *v)
+static __attribute__((noinline)) void fill_fx(const qd_app_t *a, ui_fx_t *v)   /* (noinline: the Bluetooth package's
+                                                         * second blob, build.py BLE_X2_FN) */
 {
     static const char *const LAB[QD_NFXP] = {"TIME", "TIME", "SPREAD", "SPREAD", "FDBK", "SYNC", "MODE", "TONE", "WOW",
                                              "SIZE", "DAMP", "DECAY", "PRE", "MOD", "LOW CUT", "WIDTH", "WIDTH",
@@ -2320,22 +2321,37 @@ uint32_t qd_view_frame_hash(qd_app_t *a)
     return qd_hash_end();
 }
 
+/* (2026-11-10) the models of the screens that show one at a time, each filled whole every frame (its fill clears it
+ * first) and read only by its own case of view_draw's switch, share one room: a Geek Out page, OVERVIEW (since they
+ * came), the menus, the browser, the typewriter, the project page, the mix, MIDI FX (2.3 KB of NOINIT on the
+ * Bluetooth package). The frame's drawing list copies what it draws (qd_gfx_rec.c), so nothing points into it */
+static union {
+    ui_geek_t g;
+    ui_ov_t o;
+    ui_menu_t m;
+    ui_browse_t br;
+    ui_type_t ty;
+    ui_prj_t pj;
+    ui_mix_t x;
+    ui_mfx_t mf;
+} gx;
+
 static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx, uint32_t mask)
 {
+#define mv (gx.m)
+#define brv (gx.br)
+#define tyv (gx.ty)
+#define pjv (gx.pj)
+#define xv (gx.x)
+#define mfv (gx.mf)
     static ui_lane_t lv;
     static ui_held_t hv;
     static ui_turn_t tv;
     static ui_layer_t yv;
     static ui_shift_t sv;
     static ui_band_t bv;
-    static ui_menu_t mv;
     static ui_snd_t sv5;
-    static ui_mix_t xv;
-    static ui_browse_t brv;
-    static ui_type_t tyv;
-    static ui_prj_t pjv;
     static ui_fx_t fv;
-    static ui_mfx_t mfv;
     const qd_ui_t *u = &a->ui;
     int kt, y0;
     for (kt = 0; kt < QD_NTRACK; kt++)                  /* P1.6d: the tracks' kinds (their icons) */
@@ -2396,6 +2412,12 @@ static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_stri
         qd_view_strip_px += n;
     }
 #endif
+#undef mv
+#undef brv
+#undef tyv
+#undef pjv
+#undef xv
+#undef mfv
 }
 
 /* the frame's drawing, as many times as it has strips: the same each time (the state's, not the clock's) */
@@ -2417,11 +2439,6 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 #define pjv (*pjvp)
 #define fv (*fvp)
 #define mfv (*mfvp)
-    static union {                                      /* (2026-11-10: a Geek Out page's model and OVERVIEW's share
-                                                         * the room: one shows, each filled whole every frame) */
-        ui_geek_t g;
-        ui_ov_t o;
-    } gx;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     a->geek.scope_on = 0;                               /* (P2.11: the scope's samples only while it shows) */

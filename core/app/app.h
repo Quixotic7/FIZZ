@@ -167,8 +167,8 @@ typedef char qd_geek_tk_ok[sizeof(((qd_geek_t *)0)->u.tk) <= QD_SCOPE_N * sizeof
 
 /* 2026-11-10: a track's ENGINE side (ctl_snd.c qd_msnd_engine): the other engine's sound, until power-off or a project
  * load (never saved): its QD_SIDE_N values (quad_voice.h qd_quad_side_pack: side_v) and the rest here; and FM+MIDI's
- * locks sent (app.c mo_flk). The Bluetooth unit keeps them outside qd_app_t (its pool is full: side_v in NOINIT, these
- * in the RAM code region's data; ctl_snd.c) */
+ * locks sent (app.c mo_flk). The Bluetooth unit keeps them outside qd_app_t (its pool is full: both in NOINIT;
+ * ctl_snd.c) */
 typedef struct {
     uint8_t key;                       /* 0 none; 0x40 | the pattern it belongs to, | 0x80 a MIDI sound (side_key) */
     uint8_t sound, edited;             /* (qd_tsound_t's) */

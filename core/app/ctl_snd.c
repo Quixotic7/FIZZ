@@ -194,8 +194,8 @@ static void msnd_leds(const qd_app_t *a, uint8_t *black)
  * (the side stays). MIDI with MIDI OUT OFF: MIDI OUT the track's number */
 #ifdef QD_SIDE_OUT
 uint8_t qd_side_v[QD_TRACKS][QD_SIDE_N] __attribute__((section(".fz_nidata")));   /* (NOINIT) */
-qd_side_t qd_side_m[QD_TRACKS] __attribute__((section(".fz_rtside")));   /* (the RAM code region's data:
-                                                         * firmware/build.py ble_ld) */
+qd_side_t qd_side_m[QD_TRACKS] __attribute__((section(".fz_nidata")));   /* (NOINIT too, since the screens'
+                                                         * models share one room: view.c gx) */
 #endif
 void qd_side_clear(qd_app_t *a)                         /* (power-on, a project loaded or new) */
 {
