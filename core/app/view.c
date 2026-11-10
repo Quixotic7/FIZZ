@@ -1830,13 +1830,12 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
         int gi;
         v->gsel = 1;
         v->gsel_pos = (float)qd_mfx_glide(a, u->mfx_gsel_from, u->mfx_gsel_to, u->mfx_gsel_t0) / 100.f;
-        for (gi = 0; gi < QD_MFX_NGROUP; gi++) {
+        v->gsel_from = (float)u->mfx_gsel_from / 100.f;
+        for (gi = 0; gi < QD_MFX_NGROUP; gi++)
             for (k = 0; k < QD_MFX_NSLOT; k++)
-                v->gtype[gi][k] = a->proj.mfx[gi].slot[k].type;
-            for (t = 0; t < QD_PAT_NTRACK; t++)
-                if (t != a->sel && (P->trk[t].mfx & 0x7f) == gi + 1 && v->gtrn[gi] < UI_NTRACK)
-                    v->gtr[gi][v->gtrn[gi]++] = (uint8_t)(t + 1);
-        }
+                v->gtype[gi][k] = (uint8_t)(a->proj.mfx[gi].slot[k].type | (a->proj.mfx[gi].slot[k].bypass ? 0x80 : 0));
+        for (t = 0; t < UI_NTRACK; t++)
+            v->tgrp[t] = (uint8_t)(P->trk[t].mfx & 0x7f);
     }
     if (!g) {
         mfx_fstep(a, v, 1);                             /* (P1.6h: no group, no slots: F1 / F2 the steps') */

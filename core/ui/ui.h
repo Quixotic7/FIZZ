@@ -907,11 +907,10 @@ typedef struct ui_mfx {
     int route_off;                      /* 2026-10-25: the track's routing bypassed (QD_TMFX_OFF): OFF in the head */
     int roll;                           /* PRESETS turned: the rolodex up .. */
     float roll_pos, roll_from;          /* .. at type pos (0 NONE .. 10), coming from */
-    int gsel;                           /* ALGORITHM turned: the five groups' choice up .. */
-    float gsel_pos;                     /* .. the track's square at (0 OFF .. 5) */
-    uint8_t gtype[5][8];                /* .. each group's slots' effects */
-    uint8_t gtr[5][UI_NTRACK];                  /* .. the tracks on it (but the selected), how many */
-    int gtrn[5];
+    int gsel;                           /* ALGORITHM turned: the routing map up (2026-11-10) .. */
+    float gsel_pos, gsel_from;          /* .. the selected track's wire at (0 OFF .. 5), the glide's start */
+    uint8_t gtype[5][8];                /* .. each group's slots' effects (| 0x80: bypassed) */
+    uint8_t tgrp[UI_NTRACK];            /* .. each track's group (0 OFF; the selected: where it goes) */
     float t;                            /* seconds (motion) */
 } ui_mfx_t;
 void ui_mfx_draw(const ui_mfx_t *v);
