@@ -1410,8 +1410,11 @@ static void b_oct(qd_app_t *a, int d, int down)
             u->f1_src = -1;
             u->pg_copied = -1;
             u->b9_down = 0;
-        } else {                                        /* F2 let go: the hand empties (Form's) */
-            u->f2_loaded = u->f2_holding = 0;
+        } else {                                        /* F2 let go: the hand stays loaded but not holding (the owner,
+                                                         * 2026-11-10; Form's empties it): the next F2 hold, on any page,
+                                                         * pastes it on an empty step and cuts a filled one as ever. F1
+                                                         * never pastes from an earlier hold */
+            u->f2_holding = 0;
             u->f2_last_w = -1;
             u->f2_knob = 0;
         }

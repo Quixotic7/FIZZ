@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **Paste after changing pages.** A step cut or copied stays in F2's hand when you let go: change page, hold F2 and tap an empty step to paste it. F1's first step still always copies.
+
 ## 0.12.0-beta.14 (2026-11-08)
 
 FIZZ for the newer FM-1s.

@@ -334,7 +334,9 @@ Steps:
   - the first step you press is **cut** into your hand, even an empty one (so it also erases);
   - then an **empty step** always gets what's in your hand **pasted**;
   - a **full step** alternates: paste over it, then the next full step is cut into your hand, and so on;
-  - letting go of F2 empties your hand. The screen shows the page and what's in your hand.
+  - letting go of F2 **keeps what's in your hand** (2026-11-10): change page (or view) and hold F2 again, and an
+    **empty step** gets it pasted; a full step is cut as always. F1 never pastes from an earlier hold: its first W
+    always copies. The screen shows the page and what's in your hand.
 - **Everywhere the white keys are steps (0.9.6)**: the mixer and its sends, the effects (every page, SENDS too since
   2026-10-26), the sound editor (its keyboard off) and the MIDI FX screen on STEPS. F1 + W and F2 + W
   work there exactly as here, and **F1 / F2 held show the same pictures** (the pages and the copy, ringed where it came

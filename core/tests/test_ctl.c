@@ -901,7 +901,7 @@ static void g_f2(void)
           "after the hold: W1 erased by the empty step, W3's 89 moved to W5 and copied to W6");
     bup(F2);
     run(10);
-    CHECK(!A.ui.f2_loaded && !A.ui.f2_holding, "F2 let go: the hand empties");
+    CHECK(A.ui.f2_loaded && !A.ui.f2_holding, "F2 let go: the hand stays loaded, not holding (2026-11-10)");
     bdown(F2);
     run(70);
     wtap(4);
@@ -922,6 +922,20 @@ static void g_f2(void)
     black(B9), black(B10), black(B1);
     bup(F2);
     CHECK(!A.ui.clip.pg.valid && A.sel == 0, "F2 + B1 / B9 / B10: nothing (no tracks, no page copy on F2 now)");
+    /* (2026-11-10, the owner) cut, let go, another page, F2 again: an empty step gets the hand, a filled one is cut */
+    bdown(F2);
+    run(70);
+    wtap(10);                                           /* W11's 89 into the hand */
+    bup(F2);
+    run(10);
+    turn(QD_K_SELECT, 1);
+    run(10);
+    bdown(F2);
+    run(70);
+    wtap(0);
+    bup(F2);
+    CHECK(A.ui.page[0] == 1 && !R(0, 10).on && R(0, 16).on && R(0, 16).vel == 89,
+          "a cut, F2 let go, page 2: F2 + an empty step pastes it there");
     (void)okall;
 }
 
