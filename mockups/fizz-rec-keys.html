@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ REC keys</title>
+<!-- FIZZ: REC switches a page's white keys between the steps and the keys in the track's scale (the owner, 2026-11-10:
+     "it looks too close to the steps, so it's not clear if I'm editing steps or playing keys"). The keys get a colour of
+     their own and a key's shape (square top, round foot), the roots filled, a sounding key bright. Over the firmware's
+     own screens (mockups/ref/rec-*.png, the host simulator on A02). ?shot=N one canvas at 1x, ?sheet=1 all at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 16px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the white keys as keys (REC), in a colour of their own (mock-up, 2026-11-10)</h1>
+<p>Today the keys look like empty steps. Here they take <strong>orange</strong> (or <strong>blue</strong>) and a key's shape: square
+top, round foot, the scale's roots filled, a key you play lit bright with a glow. A small keyboard sign stands where the
+track's number was. Steps stay as they are (cream fills in grey cells).</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const F = 'IT';
+const COL = { orange: '#ff6a2c', blue: '#3f7dff' };
+function RR(c, x, y, w, h, r, fill, a = 1, stroke, lw = 1) {
+  c.save(); c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function glow(c, col, b, fn) { c.save(); c.shadowColor = col; c.shadowBlur = b; fn(); c.restore(); }
+// the keyboard sign: three white keys and two black ones, in the colour
+function kbSign(c, x, y, col) {
+  for (let i = 0; i < 3; i++) RR(c, x + i * 5, y, 4.4, 13, [0, 0, 1.5, 1.5], null, 1, col, 1.3);
+  for (const bx of [3.4, 8.4]) RR(c, x + bx, y, 3.2, 7.5, [0, 0, 1, 1], col);
+}
+// the scale's keys on W1..W16 (C major from C: the roots C, the eighth key); `on` the keys sounding
+const ROOT = new Set([0, 7, 14]);
+function keyRow(c, col, on, x0, y0, w, h, step, r) {
+  for (let i = 0; i < 16; i++) {
+    const x = x0 + i * step, sounding = on.includes(i), root = ROOT.has(i);
+    if (sounding) glow(c, col, 12, () => RR(c, x, y0, w, h, [0, 0, r, r], col));
+    else if (root) RR(c, x, y0, w, h, [0, 0, r, r], col, 0.4, col, 1.4);
+    else RR(c, x, y0, w, h, [0, 0, r, r], null, 1, col, 1.3);
+  }
+}
+// SENDS: the foot row (the firmware draws it at y 184..225), redrawn as keys
+function sendsKeys(c, col, on) {
+  c.drawImage(IMG.fx, 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(0, 181, 240, 49);
+  kbSign(c, 3, 198, col);
+  keyRow(c, col, on, 20, 184, 11.2, 42, 13.3, 4);
+}
+// the sound editor: the strip under the head (y 27, 6 px tall), as keys: a little taller, in the colour
+function editKeys(c, col, on) {
+  c.drawImage(IMG.ed, 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(6, 24, 228, 13);
+  keyRow(c, col, on, 8, 25, 12, 10, 14, 2.5);
+}
+const SCREENS = [
+  { title: 'SENDS · steps (today)', f: c => c.drawImage(IMG.fxs, 0, 0, 240, 240), text: 'The white keys are the steps: cream fills in grey cells, the playhead red.' },
+  { title: 'SENDS · keys (today)', f: c => c.drawImage(IMG.fx, 0, 0, 240, 240), text: 'REC: the white keys play notes, but the row is the same grey cells, empty. Easy to take for an empty page.' },
+  { title: 'SENDS · keys, orange', f: c => sendsKeys(c, COL.orange, [4]), text: 'Orange keys: square top, round foot; the roots (C) filled, W5 being played lit with a glow; the keyboard sign at the left.' },
+  { title: 'SENDS · keys, blue', f: c => sendsKeys(c, COL.blue, [4]), text: 'The same in blue (KNOB 1\'s blue, also NOTE\'s colour).' },
+  { title: 'Sound editor · keys (today)', f: c => c.drawImage(IMG.ed, 0, 0, 240, 240), text: 'REC in EDIT: a strip under the head, grey cells, the roots white, a sounding key magenta.' },
+  { title: 'Sound editor · keys, orange', f: c => editKeys(c, COL.orange, [0]), text: 'The strip as orange keys, a little taller; W1 sounding.' },
+  { title: 'Sound editor · keys, blue', f: c => editKeys(c, COL.blue, [0]), text: 'The same in blue.' },
+];
+const IMG = {};
+const load = (k, src) => new Promise(r => { IMG[k] = new Image(); IMG[k].onload = r; IMG[k].src = src; });
+const ready = Promise.all([load('fx', 'ref/rec-fx-keys.png'), load('fxs', 'ref/rec-fx-steps.png'), load('ed', 'ref/rec-edit-keys-down.png'),
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]);
+function draw(i, cv, scale) {
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.fillStyle = '#000'; c.fillRect(0, 0, 240, 240); SCREENS[i].f(c);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>

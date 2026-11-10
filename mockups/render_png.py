@@ -71,6 +71,11 @@ for i, n in enumerate(OV, 1):                  # fizz-overview.html: the track o
     SHOTS[f'ov-{i}'] = (f'shot={i}', 240, 240, f'fizz-overview-{i:02d}-{n}.png', 'fizz-overview.html')
 SHOTS['sheet-ov'] = ('sheet=1', 2030, 1100, 'fizz-overview-sheet.png', 'fizz-overview.html')
 
+RK = ['sends-steps', 'sends-keys', 'sends-orange', 'sends-blue', 'edit-keys', 'edit-orange', 'edit-blue']
+for i, n in enumerate(RK, 1):                  # fizz-rec-keys.html: the white keys as keys (REC) in their own colour (2026-11-10)
+    SHOTS[f'rk-{i}'] = (f'shot={i}', 240, 240, f'fizz-rec-keys-{i:02d}-{n}.png', 'fizz-rec-keys.html')
+SHOTS['sheet-rk'] = ('sheet=1', 2030, 1100, 'fizz-rec-keys-sheet.png', 'fizz-rec-keys.html')
+
 def render(key, scratch):
     query, w, h, name = SHOTS[key][:4]
     page = SHOTS[key][4] if len(SHOTS[key]) > 4 else 'index.html'
