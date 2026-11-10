@@ -1025,33 +1025,61 @@ static void mf_trlane(const ui_mfx_t *v)
     }
 }
 
-/* ALGORITHM: the track's group, the five groups as mini rails, the track's square moving */
+/* ALGORITHM: the routing map (2026-11-10, mockups/fizz-overview.html mfxMap): the six tracks' icons on the left, the
+ * five groups' hexagons with their eight slots on the right, OFF below; a curve from each track to its group in its
+ * kind's colour (the selected one thick, gliding to where ALGORITHM puts it, the place it left dashed while it
+ * glides); a track on OFF a stub, its icon grey; a group no track is on grey */
+static float mg_y(float p) { return p < 1.f ? mf_lerp(224.f, 50.f, p) : 12.f + p * 38.f; }   /* (0 OFF, 1..5) */
+static void mg_wire(float y0, float p, qd_rgb c, float lw, float a, int dash)
+{
+    const float ey = mg_y(p), ex = p < 1.f ? 136.f : 138.f;
+    float q[26];
+    int i;
+    for (i = 0; i <= 12; i++) {                         /* (a cubic: level out of the icon, level into the hexagon) */
+        const float u = (float)i / 12.f, w = 1.f - u;
+        q[2 * i] = w * w * w * 36.f + 3.f * w * u * 90.f + u * u * u * ex;
+        q[2 * i + 1] = mf_lerp(y0, ey, mf_ease(u));
+    }
+    if (dash)
+        mf_Pd(q, 13, c, lw, a, 3.f, 4.f);
+    else
+        mf_P(q, 13, c, lw, a);
+}
 static void mf_gsel(const ui_mfx_t *v)
 {
-    const float hx = 24.f + v->gsel_pos * 38.4f;
-    int gi, i;
-    mf_RR(hx - 18.f, 82.f, 36.f, 155.f, 7.f, MF_MINT, 1.6f, QD_NONE, 1.f, 0);
-    ui_T("OFF", 24.f, 103.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
-    mf_Pd((const float[]){24.f, 112.f, 24.f, 196.f}, 2, UI_G2, 1.2f, 1.f, 2.f, 3.f);
-    for (gi = 1; gi <= 5; gi++) {
-        const float x = 24.f + (float)gi * 38.4f;
-        const int on = (int)(v->gsel_pos + 0.5f) == gi;
-        mf_alpha(on ? 1.f : 0.8f);
-        ui_mfx_hex(x, 97.f, 11.f, gi, on ? MF_MINT : UI_G1, 1.5f, 0);
-        qd_restore();
-        mf_L(x, 112.f, x, 198.f, UI_G3, 1.f, 1.f);
-        for (i = 0; i < 8; i++) {
-            const float y = 112.f + (float)i * 11.f;
-            const int ty = v->gtype[gi - 1][i];
-            if (ty)
-                mf_RR(x - 8.f, y, 16.f, 9.f, 2.f, QD_NONE, 1.f, UI_MFX_COL[ty], on ? 1.f : 0.7f, 0);
-            else
-                mf_RR(x - 8.f, y, 16.f, 9.f, 2.f, UI_G3, 1.f, UI_BG, 1.f, 0);
+    const int sel = (v->track - 1) % UI_NTRACK, to = v->tgrp[sel], from = (int)(v->gsel_from + 0.5f);
+    int g, k, i;
+    for (g = 1; g <= 5; g++) {
+        const float y = mg_y((float)g);
+        int on = 0;
+        for (i = 0; i < UI_NTRACK; i++)
+            on |= v->tgrp[i] == g;
+        ui_mfx_hex(150.f, y, 11.f, g, on ? MF_MINT : UI_G2, 1.5f, 0);
+        for (k = 0; k < 8; k++) {
+            const int ty = v->gtype[g - 1][k] & 0x7f;
+            mf_RR(170.f + (float)k * 8.f, y - 3.5f, 6.f, 7.f, 2.f, ty ? QD_NONE : UI_G3, 1.f, ty ? UI_MFX_COL[ty] : QD_NONE,
+                  ty && v->gtype[g - 1][k] & 0x80 ? 0.3f : 1.f, 0);
         }
-        for (i = 0; i < v->gtrn[gi - 1]; i++)
-            mf_sq(x - (float)v->gtrn[gi - 1] * 6.f + 1.f + (float)i * 12.f, 204.f, v->gtr[gi - 1][i], 10.f, 0);
     }
-    mf_sq(hx - 5.5f, 220.f, v->track, 11.f, 1);
+    ui_T("OFF", 150.f, 228.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
+    for (i = 1; i <= UI_NTRACK; i++) {                  /* (the selected last: on top) */
+        const int t = (sel + i) % UI_NTRACK, kd = ui_track_kind(t + 1), s = t == sel;
+        const float y = 50.f + (float)t * 32.5f, p = s ? v->gsel_pos : (float)v->tgrp[t];
+        const qd_rgb c = kd >= 0 ? UI_PK_COL[kd] : MF_TP[t & 7];
+        if (s) {
+            mf_RR(4.f, y - 14.f, 28.f, 28.f, 7.f, UI_K3, 1.6f, QD_NONE, 1.f, 0);
+            if (from && from != to)                     /* the place it left, dashed, fading as it glides */
+                mg_wire(y, (float)from, c, 1.4f, 0.6f * fabsf((float)to - p) / fabsf((float)to - v->gsel_from), 1);
+        }
+        if (kd >= 0)
+            ui_kind_icon(kd, 18.f, y, 1.3f, p > 0.02f ? c : UI_G2);
+        else
+            mf_sq(13.f, y - 5.f, t + 1, 10.f, 0);
+        if (p > 0.02f)
+            mg_wire(y, p, c, s ? 2.6f : 1.4f, s ? 1.f : 0.55f, 0);
+        else
+            mf_L(36.f, y, 46.f, y, UI_G2, 1.5f, 1.f);
+    }
 }
 
 /* a track routed OFF: the notes straight to the voices; the five groups dim at the foot */

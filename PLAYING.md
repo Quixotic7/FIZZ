@@ -867,8 +867,12 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
   - **KNOB 1 .. 4** the page's values; **KNOB 4 is CHANCE** on every effect's first page (the effect acts on that share
     of the notes; the others pass untouched).
   - **ALGORITHM** puts the track on a group (OFF, 1 .. 5); the screen follows, **keeping the slot number** (0.9.1).
-    While you turn, the five groups' rails stay up and the track's square glides on from where it is (no restart a
-    detent). **SHIFT + SELECT** goes to the next track (its group).
+    While you turn (2026-11-10), **the routing map** is up: the six tracks' icons on the left (the selected one boxed),
+    the five groups as numbered hexagons on the right with their eight slots beside them (lit where a slot holds an
+    effect, dim when bypassed), OFF below. Every track on a group has a wire to it in its colour (two tracks may share
+    one); a track on OFF has none and its icon is grey; a group no track is on is grey. The selected track's wire is the
+    thick one: it glides to the group you turn to (no restart a detent), the place it left dashed for a moment. The map
+    closes a second after the last detent. **SHIFT + SELECT** goes to the next track (its group).
   - **B10** bypasses the slot (and back; saved). **B11** removes its effect: press it twice (the first arms a red X).
     **SHIFT + F1** undoes.
   - **F1 / F2 as in the sequencer** (0.9.1): **F1 + B**: the first slot pressed is copied, every other slot pressed

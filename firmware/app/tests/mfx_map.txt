@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-10: the MIDI FX routing map (mockups/fizz-overview.html screens 5, 6): ALGORITHM on the MIDI FX screen (ARP
+# tapped) shows every track wired to its group. On A02: track 1 on group 1, tracks 2 and 3 on group 2 (sharing it,
+# group 2's slots an ARP and a bypassed CHANCE), track 5 on group 3; then track 3 moves to group 3 (its old wire
+# dashed while it glides).
+#   firmware/build.py --host, then
+#   firmware/app/build/host/fizz_host firmware/app/tests/mfx_map.txt firmware/app/build/mfx_map
+expect fz_up 1
+tap HOME
+wait 300
+# A02: SEQ held + W2
+press SEQ
+tapkey w1
+release SEQ
+wait 300
+expect fz_pattern 1
+# track 1 (SEL held + B1), the MIDI FX screen, group 1
+press SEL
+tapkey b0
+release SEL
+wait 100
+expect fz_sel 0
+tap ARP
+wait 300
+turn ALGO 1
+wait 1300
+# track 2: group 2, its slots: B1 an ARP, B2 a CHANCE bypassed (B10)
+press SEL
+tapkey b1
+release SEL
+wait 100
+expect fz_sel 1
+turn ALGO 2
+wait 1300
+tapkey b0
+turn PRESET 1
+wait 1300
+tapkey b1
+turn PRESET 2
+wait 1300
+tapkey b9
+wait 300
+# track 5: group 3
+press SEL
+tapkey b4
+release SEL
+wait 100
+expect fz_sel 4
+turn ALGO 3
+wait 1300
+# track 3: group 2, with track 2
+press SEL
+tapkey b2
+release SEL
+wait 100
+expect fz_sel 2
+turn ALGO 2
+wait 500
+shot mfx-map-shared.png
+wait 1000
+# a detent later: track 3 to group 3, mid-glide (the old wire dashed), then settled
+turn ALGO 1
+wait 90
+shot mfx-map-moving.png
+wait 400
+shot mfx-map-moved.png
+wait 1000
+shot mfx-map-closed.png
+expect fz_lcd_stale 0

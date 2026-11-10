@@ -5613,7 +5613,17 @@ static void g_p16d_mfx(void)
     run(QD_MFX_GLIDE_MS + 20);
     qd_view_mfx(&A, &v);
     CHECK(v.gsel && v.gsel_pos > 2.99f, "settled on group 3 (%.2f)", v.gsel_pos);
-    turn(QD_K_ALGO, -2);                                /* back to group 1: ARP, CHANCE, SCALE */
+    PAT()->trk[3].mfx = 3 | QD_TMFX_OFF;                /* 2026-11-10: the routing map: every track's group (a bypass
+                                                         * still wired), slots' types with the bypass bit */
+    G->slot[0].bypass = 1;
+    qd_view_mfx(&A, &v);
+    CHECK(v.tgrp[0] == 3 && v.tgrp[3] == 3 && v.tgrp[1] == 0 && v.gsel_from > 1.f && v.gsel_from < 2.f &&
+              v.gtype[0][0] == (QD_MFX_ARP | 0x80) && v.gtype[0][1] == QD_MFX_CHANCE,
+          "the map's model: tracks 1 and 4 on group 3, the glide's start, slot 1 bypassed (%d %d %.2f %d)", v.tgrp[0],
+          v.tgrp[3], v.gsel_from, v.gtype[0][0]);
+    PAT()->trk[3].mfx = 0;
+    G->slot[0].bypass = 0;
+    turn(QD_K_ALGO, -2);                               /* back to group 1: ARP, CHANCE, SCALE */
     run(QD_TK_MS + 300);
     kdown(BK(B1));
     run(20);

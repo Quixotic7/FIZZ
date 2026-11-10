@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **MIDI FX routing map.** Turning ALGORITHM on the MIDI FX screen now shows every track wired to its group, each group's eight slots beside it; the selected track's wire moves as you turn.
+
 ## 0.12.0-beta.14 (2026-11-08)
 
 FIZZ for the newer FM-1s.
