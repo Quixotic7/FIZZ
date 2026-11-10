@@ -494,3 +494,32 @@ float ui_keyboard_x(float x0, float w, int lo, int n, int *black)
         *black = ISB[s];
     return ISB[s] ? x0 + (float)wi * kw + kw : x0 + (float)wi * kw + kw / 2.f;
 }
+
+/* (2026-11-10, the owner: mockups/fizz-rec-keys.html) a white key while REC makes the W keys play notes: boxy and
+ * orange, so it never looks like a step. st: 0 out of the scale (dark), 1 in it (an outline), 2 a root (filled dim),
+ * +4 sounding (filled bright). The W keys as steps keep the steps' drawing */
+void ui_rec_key(float x, float y, float w, float h, int st)
+{
+    const float r = h > 12.f ? 1.5f : 1.f;
+    if (st & 4) {
+        ui_RR(x, y, w, h, r, UI_REC_KEY, 1.4f, UI_REC_KEY);
+        return;
+    }
+    if ((st & 3) == 2) {
+        qd_save();
+        qd_alpha(qd_get_alpha() * 0.4f);
+        ui_RR(x, y, w, h, r, QD_NONE, 1.4f, UI_REC_KEY);
+        qd_restore();
+    }
+    ui_RR(x, y, w, h, r, st & 3 ? UI_REC_KEY : UI_G3, 1.3f, QD_NONE);
+}
+
+/* the keyboard sign beside a row of REC's keys: three white keys and two black ones, top-left at x, y (13 px tall) */
+void ui_rec_kb_sign(float x, float y)
+{
+    int i;
+    for (i = 0; i < 3; i++)
+        ui_RR(x + (float)i * 5.f, y, 4.4f, 13.f, 1.f, UI_REC_KEY, 1.2f, QD_NONE);
+    ui_RR(x + 3.4f, y, 3.2f, 7.5f, 0.8f, UI_REC_KEY, 1.f, UI_REC_KEY);
+    ui_RR(x + 8.4f, y, 3.2f, 7.5f, 0.8f, UI_REC_KEY, 1.f, UI_REC_KEY);
+}

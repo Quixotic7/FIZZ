@@ -840,26 +840,20 @@ static void sd_keys_strip(const ui_snd_t *v, qd_rgb tc)
 {
     static const uint8_t BLK[27] = {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0};
     int i, w = 0;
+    (void)tc;                                           /* (2026-11-10: the keys are REC's orange, not the track's) */
     if (v->keys == 1) {
-        for (i = 0; i < 16; i++) {
-            const int st = v->kst[i];
-            const float x = 8.f + (float)i * 14.f;
-            const qd_rgb c = st & 4 ? tc : (st & 3) == 2 ? UI_K3 : UI_G1;
-            ui_RR(x, 27.f, 12.f, 6.f, 2.f, st & 4 ? QD_NONE : c, 1.f, st & 4 || (st & 3) == 2 ? c : QD_NONE);
-        }
+        for (i = 0; i < 16; i++)                        /* (2026-11-10: orange, boxy keys, a little taller) */
+            ui_rec_key(8.f + (float)i * 14.f, 25.f, 12.f, 10.f, v->kst[i]);
         return;
     }
     for (i = 0; i < 27; i++) {                          /* FULL: the whites a row, the blacks over their gaps */
         const int st = v->kst[i];
-        const qd_rgb c = st & 4 ? tc : (st & 3) == 2 ? UI_K3 : (st & 3) == 1 ? UI_G1 : UI_G3;
-        if (!BLK[i]) {
-            const float x = 8.f + (float)w * 14.f;
-            ui_RR(x, 27.f, 12.f, 6.f, 2.f, st & 4 || (st & 3) == 2 ? QD_NONE : c, 1.f,
-                  st & 4 || (st & 3) == 2 ? c : QD_NONE);
+        if (!BLK[i]) {                                  /* (2026-11-10: orange, boxy) */
+            ui_rec_key(8.f + (float)w * 14.f, 27.f, 12.f, 8.f, st);
             w++;
         } else {
             const float x = 8.f + (float)w * 14.f - 4.5f;
-            ui_RR(x, 25.f, 7.f, 3.f, 1.5f, QD_NONE, 1.f, st & 4 ? tc : (st & 3) ? c : UI_G3);
+            ui_RR(x, 24.f, 7.f, 3.f, 0.8f, QD_NONE, 1.f, st & 4 ? UI_REC_KEY : (st & 3) ? UI_REC_KEY : UI_G3);
         }
     }
 }

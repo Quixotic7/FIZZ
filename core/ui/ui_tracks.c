@@ -532,10 +532,10 @@ static void fx_sends(const ui_fx_t *v)
     }
     if (v->keys) {
         for (i = 0; i < 16; i++) {
-            const float x = 18.f + (float)i * 13.5f;
-            const int dn = (v->keys_down >> i) & 1;
-            ui_RR(x, 184.f, 11.f, 42.f, 3.f, dn ? UI_K3 : UI_G2, 1.f, dn ? UI_K3 : QD_NONE);
+            const float x = 20.f + (float)i * 13.3f;   /* (2026-11-10: orange, boxy keys; the sign at the left) */
+            ui_rec_key(x, 184.f, 11.2f, 42.f, v->kst[i] | ((v->keys_down >> i) & 1 ? 4 : 0));
         }
+        ui_rec_kb_sign(3.f, 198.f);
     } else if (v->lane) {
         ui_steps_row((const ui_lane_t *)v->lane, 180.f, 58.f);
     }

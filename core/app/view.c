@@ -2190,6 +2190,15 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         for (k = 0; k < 16; k++)
             if ((a->keys_held >> QD_WHITE_KEY[k]) & 1u)
                 v->keys_down |= (uint16_t)(1u << k);
+        if (v->keys) {                                  /* (2026-11-10) the keys' states, as the sound editor's */
+            uint8_t lv[QD_NKEY];
+            memset(lv, 0, sizeof lv);
+            qd_keys_leds(a, lv);
+            for (k = 0; k < 16; k++) {
+                const uint8_t l = lv[QD_WHITE_KEY[k]];
+                v->kst[k] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_ROOT ? 2 : l == QD_LED_SCALE ? 1 : 0);
+            }
+        }
     }
     {   /* the routing: the mode, the order, a block's key held (its lift over 120 ms), the chain amounts dim in PARALLEL */
         static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_CHORUS, QD_RT_DELAY, QD_RT_REVERB, QD_RT_FILTER, -1};

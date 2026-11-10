@@ -72,6 +72,9 @@ int ui_track_kind(int n);               /* track n's (1..UI_NTRACK) kind, -1 non
 /* a line-drawn keybed of two octaves (14 white keys) from note lo (a C) at x0, y0, w x h; fill[note] (128 entries, or
  * 0) is the colour a key is filled with, QD_NONE: outlined only */
 void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill);
+#define UI_REC_KEY UI_K4                /* (2026-11-10) the W keys playing notes (REC): orange, boxy (ui_rec_key) */
+void ui_rec_key(float x, float y, float w, float h, int st);   /* st: 0 out, 1 in the scale, 2 a root; +4 sounding */
+void ui_rec_kb_sign(float x, float y);  /* the keyboard sign beside the keys' row */
 /* the same with nw white keys from any white note lo (the FM-1's keybed: 16 from F) */
 void ui_keybed(float x0, float y0, float w, float h, int lo, int nw, const qd_rgb *fill);
 
@@ -180,6 +183,7 @@ typedef struct {
     const void *lane;                   /* SENDS (2026-10-26): the page's row at the foot (a ui_lane_t; 0: none) .. */
     int keys;                           /* .. the keyboard on (REC): the keys as plain cells instead .. */
     uint16_t keys_down;                 /* .. the W keys down (bit w) .. */
+    uint8_t kst[16];                    /* .. each W key as the sound editor's: 0 out, 1 in the scale, 2 a root; +4 sounding */
     float beat;                         /* .. seconds since the selected track's step was heard (-1: not following) .. */
     float flash;                        /* .. seconds since REVERB reached 100 % (-1: below it) */
     int rt_mode, rt_order[4], rt_held;  /* ROUTING (2026-10-26): CHAIN (1) / PARALLEL, the block at each place, the block
