@@ -2163,10 +2163,10 @@ static int k_menu(qd_app_t *a, int knob, int d)
         if (u->set_page == 1) {                         /* 2026-11-10 (owner): HOME: KNOB 1 the Home view (PIANO ROLL,
                                                          * STEPS, EDIT, GEEK OUT, OVERVIEW), KNOB 2 LOCK (HOME clicks no
                                                          * longer cycle: HOME always that view) */
-            if (knob == QD_K_1 && d) {
-                const int f = clampi(qd_ctl_view_family(u->view) + d, 0, 4);
+            if (knob == QD_K_1 && d) {                  /* (2026-11-11, owner: OVERVIEW is SEL's, never a Home view) */
+                const int f = clampi(qd_ctl_view_family(u->ov_back >= 0 ? u->ov_back : u->view) + d, 0, 3);
                 u->ov_back = -1;
-                set_view(a, f < 3 ? f : f == 3 ? QD_VIEW_METERS + u->geek % 5 : QD_VIEW_OVERVIEW);
+                set_view(a, f < 3 ? f : QD_VIEW_METERS + u->geek % 5);
             } else if (knob == QD_K_2) {
                 u->home_lock = d > 0;
             }

@@ -423,7 +423,7 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_PAGE] = QD_LED_LIT;
     if (u->latch == QD_LATCH_FX || u->arp_fill)
         out->button[QD_B_TRACKS] = QD_LED_LIT;
-    if (u->latch == QD_LATCH_TRK)
+    if (u->latch == QD_LATCH_TRK || (QD_OV_ON(a) && !u->latch))   /* (2026-11-11, owner: SEL lit on its OVERVIEW) */
         out->button[QD_B_PATTERN] = QD_LED_LIT;
     if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on (P1.5n: full in
                                                          * VALUES; MODES breathing 60 .. 100 %, a 1.5 s period: the
@@ -466,7 +466,7 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     if (u->mode == QD_MODE_STEP && !qd_snd_open(a) && !qd_tools_open(a) && !qd_mfx_open(a) &&   /* (2026-10-25: one page
                                                          * button lit: HOME on the step view, no page open) */
         u->latch != QD_LATCH_MIX && u->latch != QD_LATCH_FX && u->latch != QD_LATCH_TRK && u->latch != QD_LATCH_SAVE &&
-        u->latch != QD_LATCH_PRJ && u->latch != QD_LATCH_NAME)
+        u->latch != QD_LATCH_PRJ && u->latch != QD_LATCH_NAME && !(QD_OV_ON(a) && !u->latch))
         out->button[QD_B_HOME] = QD_LED_LIT;
     if (a->playing) {
         /* (the ms into the beat under QD_BEAT_LED_MS: rem / BEAT x 60000 / bpm < ms, in integers, P2.4) */

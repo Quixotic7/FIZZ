@@ -9616,8 +9616,8 @@ static void g_home_settings(void)
     CHECK(QD_VIEW_GEEK(A.ui.view), "KNOB 1: GEEK OUT");
     turn(QD_K_1, 1);
     turn(QD_K_1, 3);
-    CHECK(A.ui.view == QD_VIEW_OVERVIEW, "KNOB 1: OVERVIEW, the last");
-    turn(QD_K_1, -2);
+    CHECK(QD_VIEW_GEEK(A.ui.view), "KNOB 1: GEEK OUT, the last (2026-11-11: OVERVIEW is SEL's, never a Home view)");
+    turn(QD_K_1, -1);
     turn(QD_K_2, 1);
     run(60);
     qd_view_menu(&A, &mv);
@@ -9763,6 +9763,32 @@ static void g_shift_everywhere(void)
 /* 2026-11-10 (the owner, on the unit): A PLAY held opens F3 from the keyboard page; B the keyboard page's LEDs with a
  * step selected: its notes alone (and the keys sounding); C the orange keys (a B11 click) write a chord into the
  * selected steps, lit with the first's notes; D the steps / keys flag global, kept by every page and HOME */
+static void a_mute_some(void)                           /* tracks 1, 4 muted, 5 soloed (as the keys would) */
+{
+    A.seq.mute = 0x09u;
+    A.seq.solo = 0x10u;
+}
+/* 2026-11-11 (owner): a track key held + B11 clears every track's mute and solo, held long (its own mute toggled at
+ * the hold first) or not, in the mix and on OVERVIEW */
+static void g_mute_clear(void)
+{
+    int pass;
+    for (pass = 0; pass < 4; pass++) {
+        start();
+        if (pass & 2)
+            btap(QD_B_PATTERN);                         /* OVERVIEW */
+        else
+            btap(QD_B_PAGE);                            /* the mix */
+        a_mute_some();
+        kdown(BK(B2));
+        run(pass & 1 ? QD_SEL_HOLD_MS + 100 : 30);
+        black(B11);
+        kup(BK(B2));
+        run(300);
+        CHECK(!A.seq.mute && !A.seq.solo, "%s, B2 held %s + B11: every mute and solo off (mute %x solo %x)",
+              pass & 2 ? "OVERVIEW" : "the mix", pass & 1 ? "long" : "briefly", A.seq.mute, A.seq.solo);
+    }
+}
 static void g_keys_fixes(void)
 {
     static const uint8_t CH[3] = {60, 64, 67};
@@ -9991,6 +10017,7 @@ int main(void)
         {"2026-11-10: SHIFT the same on every page; + SELECT, + PLAY, + SEL", g_shift_everywhere},
         {"2026-11-10: the keys: PLAY held on the keyboard, its LEDs, the orange keys' chords, one global flag",
          g_keys_fixes},
+        {"2026-11-11: a track key held + B11 clears every mute and solo (the mix, OVERVIEW)", g_mute_clear},
     };
     size_t i;
     uint64_t h1, h2;

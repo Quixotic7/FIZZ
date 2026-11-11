@@ -1842,17 +1842,22 @@ int main(void)
         static uint8_t b[QDS_MAXREC];
         int len;
         B.ui.home_lock = 1;
-        B.ui.view = QD_VIEW_OVERVIEW;
+        B.ui.view = QD_VIEW_ROLL;                       /* (2026-11-11: OVERVIEW is SEL's, never saved as the view) */
         qd_persist_flush(&B);
         boot(&A);
         len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
-        CHECK(A.ui.home_lock && A.ui.view == QD_VIEW_OVERVIEW && len > 0 && b[len - 1] == 3,
-              "a restart: the Home view (OVERVIEW) and its LOCK kept (the last byte %d)", len > 0 ? b[len - 1] : -1);
+        CHECK(A.ui.home_lock && A.ui.view == QD_VIEW_ROLL && len > 0 && b[len - 1] == 3,
+              "a restart: the Home view (PIANO ROLL) and its LOCK kept (the last byte %d)", len > 0 ? b[len - 1] : -1);
         b[len - 1] = 1;
         qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
         qd_store_flush(&A.per.prj_st);
         boot(&B);
-        CHECK(!B.ui.home_lock && B.ui.view == QD_VIEW_OVERVIEW, "a record from before the LOCK: unlocked, the view kept");
+        CHECK(!B.ui.home_lock && B.ui.view == QD_VIEW_ROLL, "a record from before the LOCK: unlocked, the view kept");
+        b[6] = QD_VIEW_OVERVIEW;                        /* (a record from 1ad69a7 with OVERVIEW as its view: EDIT) */
+        qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+        qd_store_flush(&B.per.prj_st);
+        boot(&A);
+        CHECK(A.ui.view == QD_VIEW_EDIT, "2026-11-11: a saved OVERVIEW comes back as EDIT (SEL's only)");
     }
     demo_drums_test();
     pool_browse_test();

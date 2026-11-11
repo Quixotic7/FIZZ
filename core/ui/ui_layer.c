@@ -774,8 +774,8 @@ static void padlock(float cx, float cy, int shut, qd_rgb col)   /* its shackle (
 static __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /* (noinline: the Bluetooth package's second
                                                          * blob, as menu_set2) */
 {
-    static const char *const VN[5] = {"PIANO ROLL", "STEPS", "EDIT", "GEEK OUT", "OVERVIEW"};
-    const int hv = v->home_view < 0 || v->home_view > 4 ? 0 : v->home_view;
+    static const char *const VN[4] = {"PIANO ROLL", "STEPS", "EDIT", "GEEK OUT"};   /* (2026-11-11: OVERVIEW is SEL's) */
+    const int hv = v->home_view < 0 || v->home_view > 3 ? 0 : v->home_view;
     int k, i;
     for (k = 0; k < 2; k++) {
         const float y = 40.f + (float)k * 53.25f, vy = y + 30.f;
@@ -787,22 +787,21 @@ static __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /* (noinli
         if (k == 1)
             padlock(232.f - (w > 150.f ? 150.f : w) - 18.f, vy - 9.f, v->home_lock, col);
     }
-    for (k = 0; k < 5; k++) {                           /* the five views, small: a few bars each (x, y, w, h) */
-        static const uint8_t TH[5][6][4] = {
+    for (k = 0; k < 4; k++) {                           /* the four views, small: a few bars each (x, y, w, h) */
+        static const uint8_t TH[4][6][4] = {
             {{5, 24, 7, 4}, {13, 18, 7, 4}, {21, 26, 7, 4}, {29, 12, 6, 4}},                  /* PIANO ROLL: notes */
             {{5, 6, 30, 4}, {5, 13, 30, 12}, {5, 28, 30, 4}},                                 /* STEPS: a row open */
             {{11, 5, 18, 18}, {5, 29, 30, 6}},                                                /* EDIT: the picture, the row */
             {{6, 26, 5, 8}, {14, 20, 5, 14}, {22, 14, 5, 20}, {30, 8, 5, 26}},                /* GEEK OUT: meters */
-            {{6, 5, 28, 3}, {6, 10, 28, 3}, {6, 15, 28, 3}, {6, 20, 28, 3}, {6, 25, 28, 3}, {6, 30, 28, 3}},   /* OVERVIEW */
         };
-        const float x = 12.f + (float)k * 44.f, y = 160.f;
+        const float x = 22.f + (float)k * 52.f, y = 160.f;
         const qd_rgb c = k == hv ? KCOL[0] : UI_G2;
         ui_RR(x, y, 40.f, 40.f, 5.f, c, k == hv ? 2.f : 1.2f, QD_NONE);
         for (i = 0; i < 6 && TH[k][i][2]; i++)
             ui_RR(x + TH[k][i][0], y + TH[k][i][1], TH[k][i][2], TH[k][i][3], 1.f, QD_NONE, 1.f, c);
     }
     if (v->home_lock)                                   /* locked: the padlock under the chosen one */
-        padlock(32.f + (float)hv * 44.f, 214.f, 1, KCOL[1]);
+        padlock(42.f + (float)hv * 52.f, 214.f, 1, KCOL[1]);
     else                                                /* HOME clicks go round */
         ui_icon(UI_IC_RIGHT, 120.f, 216.f, 2.f, UI_G1);
 }

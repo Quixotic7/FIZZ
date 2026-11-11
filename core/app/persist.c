@@ -594,7 +594,8 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
 #else
     b[o++] = (uint8_t)((a->ui.boost ? 0x80 : 0) | (a->ui.clk_out ? 0 : 0x40) | (a->ui.cc_out ? 0 : 0x20));
 #endif
-    b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;   /* (2026-10-26: b[5]'s top bit BOOST; its low bits
+    b[o++] = (uint8_t)(a->ui.view != QD_VIEW_OVERVIEW ? a->ui.view : a->ui.ov_back >= 0 ? a->ui.ov_back : QD_VIEW_EDIT),
+    b[o++] = (uint8_t)a->ui.follow;   /* (2026-11-11: OVERVIEW is SEL's, never saved as the Home view) */   /* (2026-10-26: b[5]'s top bit BOOST; its low bits
                                                          * were the knob layout (0..3); FIZZ MIDI (c): bit 6 CLOCK OUT
                                                          * off, bit 5 CC OUT off: an older record's 0, on) */
     b[o++] = QD_NFXP;
@@ -620,7 +621,10 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
     *proj = b[2] % QD_NPROJ, *pat = b[3] % QD_NPAT, *sel = b[4] % QD_NTRACK;
     /* b[5]: BOOST (bit 7), CLOCK OUT off (6), CC OUT off (5); its low bits were the knob layout A..D (ignored since
      * 2026-10-25) */
-    a->ui.view = len == 11u + 2u * nf ? b[6] % QD_NVIEW : QD_VIEW_EDIT;   /* (P1.5s: a record from before EDIT was
+    a->ui.view = len == 11u + 2u * nf ? b[6] % QD_NVIEW : QD_VIEW_EDIT;
+    if (a->ui.view == QD_VIEW_OVERVIEW)                 /* (2026-11-11, owner: a record from 1ad69a7: OVERVIEW was a Home
+                                                         * view then; SEL's only now) */
+        a->ui.view = QD_VIEW_EDIT;   /* (P1.5s: a record from before EDIT was
                                                          * the default view: EDIT) */
     a->ui.follow = b[7] != 0;
     a->ui.boost = (b[5] & 0x80u) != 0;
