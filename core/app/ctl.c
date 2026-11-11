@@ -943,8 +943,8 @@ int qd_ctl_b11_free(const qd_app_t *a)
     const qd_ui_t *u = &a->ui;
     return b11_page(a) && !qd_type_open(a) && !qd_ctl_shift(a) && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN) &&
            !finger_held(a) && !u->mfx_wheld && qd_ctl_mkey(a) < 0 && qd_ctl_layer(a) == QD_LAYER_NONE &&
-           !(u->latch == QD_LATCH_MIX && (u->sel_down & 0xFF00u));   /* (the mix: a track key held + B11 clears the
-                                                         * mutes; OVERVIEW: B9 does, B11 stays the hold key) */
+           !((u->latch == QD_LATCH_MIX || QD_OV_ON(a)) && (u->sel_down & 0xFF00u));   /* (the mix and OVERVIEW: a
+                                                         * track key held + B11 clears the mutes; OVERVIEW: B9 too) */
 }
 
 /* 2026-11-10 (owner): a B11 click: the white keys between the steps and the keys (REC's orange keys in the scale),
@@ -1078,7 +1078,8 @@ static void k_ov_black(qd_app_t *a, int key, int b, int down, int vel)
     (void)key, (void)vel;
     if (b == 8 && down)
         a->seq.mute = a->seq.solo = 0;
-    else if (b < QD_NTRACK)
+    else if (b < QD_NTRACK || b == 10)                  /* (2026-11-11, owner: a track key held + B11 clears them too,
+                                                         * as the mix's) */
         qd_mix_black(a, b, down);
 }
 /* 2026-11-10 (owner): B11 held: B1..B8 the pages as F1's, B9 / B10 nothing; the W keys select steps */
@@ -1301,7 +1302,8 @@ int qd_ctl_view_family(int v) { return v <= QD_VIEW_EDIT ? v : QD_VIEW_GEEK(v) ?
 int qd_ctl_next_view(const qd_app_t *a)
 {
     const int v = a->ui.view;
-    return QD_VIEW_GEEK(v) ? QD_VIEW_OVERVIEW : v == QD_VIEW_OVERVIEW ? QD_VIEW_ROLL
+    return QD_VIEW_GEEK(v) || v == QD_VIEW_OVERVIEW ? QD_VIEW_ROLL   /* (2026-11-11, owner: OVERVIEW is SEL's, not in
+                                                         * HOME's cycle) */
                                               : v == QD_VIEW_EDIT ? QD_VIEW_METERS + a->ui.geek : v + 1;
 }
 static void set_view(qd_app_t *a, int v)
@@ -1497,6 +1499,10 @@ static void b_play(qd_app_t *a, int down)
         if (u->cap == 2) {                              /* CAPTURE: the take's end, on the press */
             u->play_used = 1;
             qd_rec_end(a);
+        } else if (u->latch == QD_LATCH_F3 && !qd_ctl_shift(a)) {   /* 2026-11-11 (owner): F3 open, PLAY tapped closes
+                                                         * it; playback is left as it is */
+            u->play_used = 1;
+            qd_latch_close(a);
         } else if (qd_ctl_shift(a) && qd_ctl_shift_page(a)) {   /* 2026-11-10 (owner): SHIFT + PLAY: F3, as PLAY held */
             u->play_used = 1;
             u->shift_used = 1;
@@ -1586,7 +1592,7 @@ static void b_sel(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
     if (!down) {
-        if (!u->sel_used && a->ms - u->sel_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE) {
+        if (!u->sel_used && a->ms - u->sel_ms < QD_SEL_TAP_MS && u->mode != QD_MODE_IDLE) {
             if (QD_OV_ON(a) && !u->latch && !u->slatch && !u->nheld) {   /* on OVERVIEW: SEL again, back */
                 if (u->ov_back >= 0)
                     set_view(a, u->ov_back);

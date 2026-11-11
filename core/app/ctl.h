@@ -169,6 +169,8 @@ extern "C" {
 struct qd_app;
 
 #define QD_TAP_MS 250u                 /* a white key held this long is held, not tapped */
+#define QD_SEL_TAP_MS 500u             /* 2026-11-11 (owner): SEL let go within this, nothing else pressed: OVERVIEW
+                                         * (the track map still shows from QD_TAP_MS) */
 #define QD_CLICK_MS 200u               /* Form's tap (a page key) and its double tap */
 #define QD_ARM_MS 2000u                /* SHIFT + B11's (CLEAR's) second press within this */
 #define QD_CHORD_MS 60u                /* F1 / F2 alone this long before its map shows (both within: F3) */

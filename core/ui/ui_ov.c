@@ -18,8 +18,19 @@ void ui_ov_draw(const ui_ov_t *v)
 {
     int t, i, mark = -1;
     ui_T(v->pattern, 10.f, 19.f, 12.f, 600, 0.8f, UI_OV_HEAD, QD_LEFT);
-    for (i = 0; i < 8; i++)                             /* the pages, the one shown lit */
-        ui_O(150.f + (float)i * 10.f, 14.f, 2.8f, i == v->page ? QD_NONE : UI_G2, 1.f, i == v->page ? UI_OV_HEAD : QD_NONE);
+    for (i = 0; i < 8; i++) {                           /* the pages, the one shown lit; 2026-11-11 (owner): the selected
+                                                         * track's loop: a page in it ringed grey, out of it dark; the
+                                                         * page shown out of the loop: its ring only, crossed */
+        const float x = 150.f + (float)i * 10.f;
+        const int in = (v->loop_sel >> i) & 1;
+        if (i == v->page) {
+            ui_O(x, 14.f, 2.8f, in ? QD_NONE : UI_OV_HEAD, 1.2f, in ? UI_OV_HEAD : QD_NONE);
+            if (!in)
+                line2(x - 3.5f, 17.5f, x + 3.5f, 10.5f, UI_OV_HEAD, 1.2f);
+        } else {
+            ui_O(x, 14.f, 2.8f, in ? UI_G1 : UI_G3, 1.f, QD_NONE);
+        }
+    }
     for (i = 0; i < 16; i += 4)                         /* the beats */
         ui_O(ov_cx(i) + OV_W / 2.f, 29.f, 1.3f, QD_NONE, 1.f, i ? UI_G2 : UI_G1);
     if (v->sel >= 0 && v->sel < UI_NTRACK && v->play[v->sel] >= 0)
@@ -32,7 +43,8 @@ void ui_ov_draw(const ui_ov_t *v)
     }
     for (t = 0; t < UI_NTRACK; t++) {
         const float y = OV_Y0 + (float)t * OV_RP;
-        const int k = ui_track_kind(t + 1), mute = v->mute[t] == 1, solo = v->mute[t] == 2;
+        const int k = ui_track_kind(t + 1), solo = v->mute[t] == 2, pgoff = (v->pg_off >> t) & 1;
+        const int mute = v->mute[t] == 1 || pgoff;          /* (2026-11-11: a page out of the loop is muted too) */
         const qd_rgb col = mute ? UI_G1 : k >= 0 ? UI_PK_COL[k] : UI_G1;   /* (muted: grey, at 55 %) */
         if (t == v->sel || solo)                        /* selected: boxed white; soloed: yellow (the mix's) */
             ui_RR(3.f, y - 1.f, 26.f, OV_H + 2.f, 6.f, solo ? UI_KSEL : UI_K3, 1.6f, QD_NONE);
@@ -43,12 +55,13 @@ void ui_ov_draw(const ui_ov_t *v)
         for (i = 0; i < 16; i++) {
             const float x = ov_cx(i);
             const int vel = v->vel[t][i], lock = (v->lock[t] >> i) & 1, out = (v->out[t] >> i) & 1;
-            if (out) {                                  /* outside the page's start..end: dimmed (2026-11-10, owner:
-                                                         * the loop's active steps at a glance; KNOB 3 / 4 move it) */
+            const qd_rgb sc = out ? UI_G2 : col;        /* outside the page's start..end (2026-11-11, owner): the step
+                                                         * still drawn, grey and darker; KNOB 3 / 4 move the range */
+            if (out) {
                 qd_save();
-                qd_alpha(mute ? 0.15f : 0.28f);
+                qd_alpha(mute ? 0.3f : 0.6f);
             }
-            ui_RR(x, y, OV_W, OV_H, 3.f, QD_NONE, 1.f, out ? UI_G2 : UI_G3);
+            ui_RR(x, y, OV_W, OV_H, 3.f, QD_NONE, 1.f, UI_G3);
             if (vel) {                                  /* a fill as tall as the velocity (a ghost: an outline) */
                 const float h = lock ? OV_H : (float)vel / 127.f * OV_H < 4.f ? 4.f : (float)vel / 127.f * OV_H;
                 const int hot = i == v->play[t] && !mute && !lock && !out;
@@ -58,8 +71,8 @@ void ui_ov_draw(const ui_ov_t *v)
                     ui_RR(x - 2.5f, y + OV_H - h - 2.5f, OV_W + 5.f, h + 5.f, 5.f, QD_NONE, 1.f, UI_K3);
                     qd_restore();
                 }
-                ui_RR(x, y + OV_H - h, OV_W, h, 3.f, lock ? col : QD_NONE, 1.2f,
-                      lock ? QD_NONE : hot ? 0xffffffu : col);
+                ui_RR(x, y + OV_H - h, OV_W, h, 3.f, lock ? sc : QD_NONE, 1.2f,
+                      lock ? QD_NONE : hot ? 0xffffffu : sc);
             }
             if (out)
                 qd_restore();
@@ -67,9 +80,15 @@ void ui_ov_draw(const ui_ov_t *v)
                 ui_RR(x - 2.f, y - 2.f, OV_W + 4.f, OV_H + 4.f, 4.5f, UI_K3, 1.3f, QD_NONE);
         }
         qd_restore();
-        if (mute) {                                     /* not heard: a line through the row */
+        if (mute && !pgoff) {                           /* not heard: a line through the row */
             const float p[4] = {OV_X0, y + OV_H / 2.f, 236.f, y + OV_H / 2.f};
             ui_P(p, 2, UI_G1, 1.5f, 0, QD_NONE);
+        } else if (pgoff) {                             /* the page out of its loop: dashed through (2026-11-11) */
+            float xx;
+            for (xx = OV_X0; xx < 232.f; xx += 9.f) {
+                const float p[4] = {xx, y + OV_H / 2.f, xx + 5.f, y + OV_H / 2.f};
+                ui_P(p, 2, UI_G1, 1.5f, 0, QD_NONE);
+            }
         }
     }
 }

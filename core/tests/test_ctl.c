@@ -204,11 +204,11 @@ static void shome(void)                                 /* the next view (P1.3y:
     btap(QD_B_HOME);
     run(10);
 }
-static void shome_wrap(void)                            /* P2.11: from EDIT past the GEEK OUT view (2026-11-10: and
-                                                         * OVERVIEW): the PIANO ROLL */
+static void shome_wrap(void)                            /* P2.11: from EDIT past the GEEK OUT view: the PIANO ROLL
+                                                         * (2026-11-11: OVERVIEW is SEL's, out of the cycle) */
 {
     int i;
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 2; i++)
         shome();
 }
 static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once); the map
@@ -1638,7 +1638,8 @@ static void g_live(void)
     bup(QD_B_PLAY);
     run(10);
     CHECK(A.ui.latch == QD_LATCH_F3 && !A.seq.playing, "PLAY held: F3 latched, the transport untouched");
-    btap(F1);
+    btap(QD_B_PLAY);
+    CHECK(A.ui.latch != QD_LATCH_F3 && !A.seq.playing, "2026-11-11: PLAY tapped with F3 open closes it, still stopped");
     btap(QD_B_PLAY);
     CHECK(A.seq.playing, "PLAY tapped: playing (on the release)");
     btap(QD_B_PLAY);
@@ -3072,10 +3073,7 @@ static void g_home(void)
     run(10);
     CHECK(!A.ui.latch && A.ui.view == QD_VIEW_NUMBERS, "HOME from the effects: back, the Geek Out page kept (no cycle)");
     btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_OVERVIEW && qd_view_screen(&A) == QD_SCR_OV,
-          "HOME again (2026-11-10: past the Geek Out pages): OVERVIEW");
-    btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME again (past OVERVIEW): the PIANO ROLL");
+    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME again (2026-11-11: past the Geek Out pages, OVERVIEW is SEL's): the PIANO ROLL");
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "the PIANO ROLL, SELECT: page 2 with its picker");
     turn(QD_K_SELECT, -1);
@@ -8837,8 +8835,7 @@ static void g_home_keeps_seq_latch(void)
     shome();
     shome();
     shome();
-    shome();
-    shome();
+    shome();                                            /* (2026-11-11: no OVERVIEW in HOME's cycle) */
     CHECK(A.ui.view == QD_VIEW_VOICES, "GEEK OUT comes back on its page (VOICES)");
     btap(QD_B_PLAY);
     run(300);
@@ -8876,9 +8873,8 @@ static void g_overview(void)
     int hm, on0;
     start();
     A.ui.view = QD_VIEW_EDIT;
-    shome();
-    shome();
-    CHECK(A.ui.view == QD_VIEW_OVERVIEW && qd_view_screen(&A) == QD_SCR_OV, "SHIFT + HOME: EDIT, GEEK OUT, OVERVIEW");
+    btap(QD_B_PATTERN);                                 /* (2026-11-11: OVERVIEW is SEL's, out of HOME's cycle) */
+    CHECK(A.ui.view == QD_VIEW_OVERVIEW && qd_view_screen(&A) == QD_SCR_OV, "SEL tapped: OVERVIEW");
     hm = A.ui.hmode;
     black(B3);
     run(300);
@@ -8907,6 +8903,15 @@ static void g_overview(void)
     run(300);
     CHECK(!A.seq.mute && !A.seq.solo && A.sel == 1 && leds().key[BK(B9)] == QD_LED_OFF,
           "B9 (2026-11-10, owner): every mute and solo off, B9 dark again");
+    black(B2);
+    black(B2);
+    run(300);
+    kdown(BK(B1));                                      /* 2026-11-11 (owner): a track key held + B11, as the mix's */
+    run(20);
+    black(B11);
+    kup(BK(B1));
+    run(300);
+    CHECK(!A.seq.mute && !A.seq.solo && !A.ui.b11, "B1 held + B11: every mute and solo off (B11 not the hold key)");
     on0 = qd_step_is_on(qd_step(qd_ctl_cpat(&A), 1, 0));
     wtap(0);
     CHECK(qd_step_is_on(qd_step(qd_ctl_cpat(&A), 1, 0)) != on0, "W1 tapped: track 2's step 1 made / removed");
@@ -8922,7 +8927,7 @@ static void g_overview(void)
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[1] == 1 && A.ui.tk == QD_TK_NONE, "SELECT: page 2, no picker");
     btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME (2026-11-10: clicks cycle): the PIANO ROLL");
+    CHECK(A.ui.view == QD_VIEW_EDIT, "HOME (2026-11-11): back where SEL came from, EDIT");
     btap(QD_B_PATTERN);
     CHECK(A.ui.view == QD_VIEW_OVERVIEW, "SEL tapped: OVERVIEW");
     turn(QD_K_SELECT, -1);
@@ -8932,7 +8937,7 @@ static void g_overview(void)
     CHECK(A.seq.playing && ov.play[1] >= 0 && ov.play[1] < 16, "playing: track 2's playhead on the page (%d)", ov.play[1]);
     btap(QD_B_PLAY);
     shome();
-    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME: back where SEL came from, the PIANO ROLL");
+    CHECK(A.ui.view == QD_VIEW_EDIT, "HOME: back where SEL came from, EDIT");
 }
 
 static void g_p211_geek(void)
@@ -8950,9 +8955,7 @@ static void g_p211_geek(void)
         turn(QD_K_SELECT, 1);
     }
     shome();
-    ok &= A.ui.view == QD_VIEW_OVERVIEW;
-    shome();
-    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, TRACKS, round) -> OVERVIEW -> PIANO ROLL");
+    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, TRACKS, round) -> PIANO ROLL (2026-11-11: OVERVIEW is SEL's)");
     A.ui.view = QD_VIEW_METERS;
     bpm0 = A.bpm, sel0 = A.sel;
     turn(QD_K_ALGO, 3);
@@ -9786,7 +9789,7 @@ static void g_keys_fixes(void)
     l = leds();
     for (ok = A.ui.nheld == 1, i = 0; i < 16; i++) {
         const int n = qd_rec_key_note(&A, QD_WHITE_KEY[i]), in = n == 60 || n == 64 || n == 67;
-        ok &= in ? l.key[QD_WHITE_KEY[i]] == QD_LED_LIT : l.key[QD_WHITE_KEY[i]] == QD_LED_OFF;
+        ok &= in ? l.key[QD_WHITE_KEY[i]] == QD_LED_LIT : l.key[QD_WHITE_KEY[i]] < QD_LED_LIT;   /* (2026-11-11: the scale stays dim under it) */
     }
     CHECK(ok, "B: the keyboard page, ALGORITHM on step 1 (C E G): those keys lit, every other white key off");
     turn(QD_K_ALGO, -5);
@@ -9804,13 +9807,13 @@ static void g_keys_fixes(void)
     run(400);
     l = leds();
     qd_view_kst(&A, kst, 0);
-    CHECK(l.key[WK(4)] == QD_LED_LIT && l.key[WK(0)] == QD_LED_OFF && kst[4] == 4 && !kst[0],
-          "its note lit on the orange keys (LEDs and the drawn row), the others off");
+    CHECK(l.key[WK(4)] == QD_LED_LIT && l.key[WK(0)] < QD_LED_LIT && kst[4] == 4 && !(kst[0] & 4),
+          "its note lit on the orange keys (LEDs and the drawn row), the others at most the scale's dim level");
     turn(QD_K_ALGO, -1);
     CHECK(A.ui.held[0] == 0, "ALGORITHM back: step 1 (C E G)");
     run(400);
     l = leds();
-    CHECK(l.key[WK(12)] == QD_LED_LIT && l.key[WK(4)] == QD_LED_OFF, "step 1's notes lit (C4 on W13)");
+    CHECK(l.key[WK(12)] == QD_LED_LIT && l.key[WK(4)] < QD_LED_LIT, "step 1's notes lit (C4 on W13)");
     turn(QD_K_ALGO, -5);
     /* D: the flag kept by every page, HOME, the views */
     btap(QD_B_SOUND);

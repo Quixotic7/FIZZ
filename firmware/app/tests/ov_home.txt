@@ -73,16 +73,13 @@ tapkey b8
 wait 200
 leds
 shot 10-ov-b9-cleared.png
-# SEL again: back to EDIT; HOME clicks: GEEK OUT, OVERVIEW, the PIANO ROLL, STEPS
+# SEL again: back to EDIT; HOME clicks: GEEK OUT, the PIANO ROLL, STEPS (2026-11-11: OVERVIEW is SEL's, not HOME's)
 tap SEL
 wait 200
 expect fz_view 2
 tap HOME
 wait 200
 expect fz_view 3
-tap HOME
-wait 200
-expect fz_view 8
 tap HOME
 wait 200
 expect fz_view 0

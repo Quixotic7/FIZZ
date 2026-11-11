@@ -285,8 +285,8 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
 }
 
 /* 2026-11-10 (owner): the keys (the keyboard page's, a B11 click's orange keys on every other page) with a step
- * selected (or held; the first one): only its notes and the keys sounding lit, the rest off (the scale's levels went
- * on under it: "extra white keys") */
+ * selected (or held; the first one): its notes lit full over the scale, the scale kept at its dim level (2026-11-11,
+ * the owner: the scale stays shown); the roots drop to the scale's level so only the step's notes stand out */
 void qd_keys_step_leds(const qd_app_t *a, uint8_t *key, int page)
 {
     const qd_ui_t *u = &a->ui;
@@ -296,11 +296,14 @@ void qd_keys_step_leds(const qd_app_t *a, uint8_t *key, int page)
         return;
     qd_step_resolve(qd_ctl_cpat(a), a->sel, u->held[0], &r);
     for (i = 0; i < QD_NKEY; i++) {
-        const int n = page ? qd_rec_key_note(a, i) : qd_snd_key_note(a, i);
+        const int n = page || a->proj.rec_ekeys || qd_ctl_white(i) < 0
+                          ? QD_NOTE0 + i + 12 * a->oct   /* (2026-11-11, owner: the key's own pitch, not the note it
+                                                          * plays: in a scale two keys play one note, F# and G) */
+                          : qd_snd_key_note(a, i);
         if (!page && !a->proj.rec_ekeys && qd_ctl_white(i) < 0)
             continue;                                   /* (SCALE: the black keys the page's own) */
-        if (key[i] != QD_LED_LIT)
-            key[i] = QD_LED_OFF;
+        if (key[i] == QD_LED_ROOT)
+            key[i] = QD_LED_SCALE;
         for (k = 0; k < r.nn && r.on; k++)
             if (r.notes[k] == n)
                 key[i] = QD_LED_LIT;

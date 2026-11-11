@@ -2727,13 +2727,15 @@ __attribute__((noinline)) void qd_view_ov(qd_app_t *a, ui_ov_t *v)   /* (noinlin
         const int s = a->seq.playing ? qd_seq_track_step(&a->seq, t) : -1;
         v->play[t] = (int8_t)(s >= 0 && s / QD_PAGE == page ? s % QD_PAGE : -1);
         v->mute[t] = !qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t) ? 1 : (a->seq.solo >> t) & 1 ? 2 : 0;
+        if (!((qd_track_loop(&P->trk[t]) >> page) & 1))   /* 2026-11-11 (owner): the page out of its loop: muted */
+            v->pg_off |= (uint8_t)(1u << t);
+        if (t == a->sel)
+            v->loop_sel = (uint8_t)qd_track_loop(&P->trk[t]);
         for (i = 0; i < QD_PAGE; i++) {
             qd_rstep_t r;
             const int st = page * QD_PAGE + i;
-            if (!qd_page_in_range(&P->trk[t], st)) {
+            if (!qd_page_in_range(&P->trk[t], st))       /* (2026-11-11, owner: still drawn, dimmed) */
                 v->out[t] |= (uint16_t)(1u << i);
-                continue;
-            }
             qd_step_resolve(P, t, st, &r);
             if (!r.on)
                 continue;

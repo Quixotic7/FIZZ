@@ -1027,6 +1027,8 @@ typedef struct {
     uint8_t vel[UI_NTRACK][16];         /* a step's velocity, 1..127 (0: no step) */
     uint16_t lock[UI_NTRACK];           /* bit s: a ghost (LOCK) */
     uint16_t out[UI_NTRACK];            /* bit s: outside the page's start..end */
+    uint8_t pg_off;                     /* 2026-11-11 (owner): bit t: the page shown is out of track t's loop (muted) */
+    uint8_t loop_sel;                   /* .. the selected track's loop mask (the page dots) */
     uint16_t held;                      /* bit s: the selected track's held / selected steps (outlined white) */
 } ui_ov_t;
 void ui_ov_draw(const ui_ov_t *v);
