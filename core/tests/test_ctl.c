@@ -9669,6 +9669,65 @@ static void g_ov_knobs(void)
     btap(QD_B_HOME);
 }
 
+/* 2026-11-11 (owner): OVERVIEW's black keys: the tracks with step entry off, the hold modes with it on whatever the
+ * latch's VALUES / MODES (a finger on a step: the values), the model telling the drawing which (the icons' sweep, the
+ * mode's band), M / S in a muted / soloed track's icon place */
+static void g_ov_keys(void)
+{
+    ui_ov_t ov;
+    qd_leds_t l;
+    start();
+    qd_step_on(PAT(), 0, 6);
+    btap(QD_B_PATTERN);
+    CHECK(QD_OV_ON(&A) && qd_ctl_ov_keys(&A) == QD_OVK_TRACKS, "OVERVIEW, step entry off: the tracks");
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mode == -1 && ov.sw_ms < 100, "the model: the tracks, just switched (the sweep)");
+    run(500);
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mode == -1 && ov.sw_ms >= 400, ".. and it runs on (%d ms)", ov.sw_ms);
+    black(B2);
+    CHECK(A.sel == 1, "B2: track 2");
+    black(B1);
+    A.ui.lmode = QD_LMODE_VALUES;                       /* (the latch's setting: VALUES; OVERVIEW takes MODES) */
+    btap(QD_B_MUTE);
+    l = leds();
+    CHECK(A.ui.slatch && qd_ctl_ov_keys(&A) == QD_OVK_MODES && qd_ctl_lmode(&A) == QD_LMODE_MODES &&
+              l.key[BK(qd_ctl_mode_key(A.ui.hmode))] == QD_LED_LIT, "LFO (VALUES set): the hold modes, its key lit");
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mode == A.ui.hmode && ov.sw_ms < 100, "the model: the mode, just switched (the band)");
+    run(1300);
+    black(B2);
+    CHECK(A.ui.hmode == M_VEL && A.sel == 0 && leds().key[BK(B2)] == QD_LED_LIT, "B2: VEL, not track 2");
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mode == M_VEL && ov.bkey == B2 && ov.sw_ms < 100 && ov.mname && !strcmp(ov.mname, "VELOCITY"),
+          "the mode's band: VELOCITY, B2");
+    turn(QD_K_ALGO, 1);
+    black(B3);
+    CHECK(A.ui.nheld == 1 && A.ui.hmode == M_LEN, "ALGORITHM: step 1 selected; B3 still a mode: LEN");
+    kdown(WK(6));
+    run(300);
+    CHECK(qd_ctl_ov_keys(&A) == QD_OVK_VALUES, "a finger on a step: the values");
+    black(B9);
+    CHECK(A.ui.hmode == M_LEN, ".. B9 a value, the mode kept");
+    kup(WK(6));
+    run(20);
+    CHECK(qd_ctl_ov_keys(&A) == QD_OVK_MODES, "let go: the modes again");
+    turn(QD_K_ALGO, -20);
+    CHECK(!A.ui.slatch && qd_ctl_ov_keys(&A) == QD_OVK_TRACKS, "ALGORITHM fully left: LIVE, the tracks");
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mode == -1 && ov.sw_ms < 100, ".. the sweep again");
+    black(B3);
+    CHECK(A.sel == 2, "B3: track 3");
+    A.seq.mute = 1u << 3;
+    A.seq.solo = 1u << 1;
+    qd_view_ov(&A, &ov);
+    CHECK(ov.mself == 1u << 3 && ov.mute[1] == 2 && ov.mute[0] == 1, "M: track 4 muted itself; S: track 2 soloed");
+    A.seq.mute = A.seq.solo = 0;
+    btap(QD_B_HOME);
+    CHECK(qd_ctl_lmode(&A) == QD_LMODE_VALUES, "off OVERVIEW: the latch's own setting");
+    A.ui.lmode = QD_LMODE_MODES;
+}
+
 /* 2026-11-10 (owner): SHIFT the same on every page: its screen, LEDs, shortcuts on the keyboard page and in the
  * sound editor; SHIFT + SELECT turns the band at once; SHIFT + PLAY F3; SHIFT + SEL the track settings */
 static void g_shift_everywhere(void)
@@ -9997,6 +10056,7 @@ int main(void)
         {"2026-11-10: the keys: PLAY held on the keyboard, its LEDs, the orange keys' chords, one global flag",
          g_keys_fixes},
         {"2026-11-11: a track key held + B11 clears every mute and solo (the mix, OVERVIEW)", g_mute_clear},
+        {"2026-11-11: OVERVIEW's black keys: tracks / modes / values, the model's sweep and band, M / S", g_ov_keys},
     };
     size_t i;
     uint64_t h1, h2;

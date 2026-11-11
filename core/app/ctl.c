@@ -1043,7 +1043,17 @@ static void k_lfo_mode(qd_app_t *a, int key, int b, int down, int vel)
 int qd_ctl_latch_modes(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
-    return u->mode == QD_MODE_STEP && u->slatch && u->lmode == QD_LMODE_MODES && !u->wk_down && !u->wk_pending;
+    return u->mode == QD_MODE_STEP && u->slatch && qd_ctl_lmode(a) == QD_LMODE_MODES && !u->wk_down && !u->wk_pending;
+}
+/* 2026-11-11 (owner): "inside the track overview they should always become modes, unless the user is physically
+ * holding down a step": OVERVIEW takes the latch as MODES whatever the setting (LFO's light, the labels too) */
+int qd_ctl_lmode(const qd_app_t *a) { return QD_OV_ON(a) ? QD_LMODE_MODES : a->ui.lmode; }
+int qd_ctl_ov_keys(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    if (!QD_OV_ON(a) || u->latch)
+        return QD_OVK_NONE;
+    return finger_held(a) ? QD_OVK_VALUES : u->slatch ? QD_OVK_MODES : QD_OVK_TRACKS;
 }
 static int w_latch_modes(const qd_app_t *a) { return qd_ctl_latch_modes(a); }
 static int w_latch_default(const qd_app_t *a) { return qd_step_latch_default(a); }
@@ -1604,6 +1614,7 @@ static void b_sel(qd_app_t *a, int down)
                 home_back(a);
                 set_view(a, QD_VIEW_OVERVIEW);
                 u->ov_back = (int8_t)back;
+                u->ov_st = QD_OVK_NONE;                 /* (2026-11-11: its keys' look starts afresh: the sweep) */
             }
         }
         return;

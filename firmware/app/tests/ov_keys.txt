@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-11 (owner): OVERVIEW's black keys: the tracks with step entry off (the icons lit as a row of keys, swept in),
+# the hold modes with it on (LFO, ALGORITHM, B11 + W keys; whatever the latch's VALUES / MODES), the values with a
+# finger on a step; a mode's change shown as a band over the head; M / S in a muted / soloed track's icon place.
+#   firmware/build.py --host, then (mkdir -p firmware/app/build/ov_keys first)
+#   firmware/app/build/host/fizz_host firmware/app/tests/ov_keys.txt firmware/app/build/ov_keys
+expect fz_up 1
+tap HOME
+wait 300
+press SEQ
+tapkey w1
+release SEQ
+wait 300
+# SEL tapped: OVERVIEW, the tracks' keys sweeping in, then lit
+tap SEL
+wait 120
+expect fz_view 8
+shot 01-tracks-sweep.png
+wait 600
+shot 02-tracks.png
+# B4 held: track 4 muted (M); B2 double-tapped: track 2 soloed (S)
+key b3 down
+wait 600
+key b3 up
+tapkey b1
+wait 60
+tapkey b1
+wait 300
+leds
+shot 03-tracks-m-s.png
+tapkey b8
+wait 300
+# LFO: step entry on: the hold modes (the band: NOTES), then the head's mode
+tap LFO
+wait 150
+shot 04-lfo-modes-band.png
+wait 1400
+leds
+shot 05-modes.png
+# ALGORITHM: the cursor on step 1; B2: VEL (its band), the knobs then the selection's velocity
+turn ALGO 1
+wait 300
+tapkey b1
+wait 200
+leds
+shot 06-mode-vel-band.png
+wait 1400
+turn K1 -20
+wait 200
+shot 07-vel-knob.png
+wait 1500
+# a finger on a step: the black keys its values (the held step's screen)
+key w5 down
+wait 400
+leds
+shot 08-finger-values.png
+key w5 up
+wait 300
+# ALGORITHM fully left: LIVE, the tracks again (swept in)
+turn ALGO -20
+wait 150
+shot 09-algo-live-sweep.png
+wait 800
+leds
+shot 10-tracks-again.png
+# B11 + W keys: modes
+key b10 down
+wait 50
+tapkey w2
+key b10 up
+wait 1500
+shot 11-b11-modes.png
+tapkey b6
+wait 200
+shot 12-mode-cond-band.png
+wait 1400
+# B11 + OCT-: the tracks
+key b10 down
+wait 50
+tap OCT-
+key b10 up
+wait 900
+shot 13-b11-live-tracks.png
+# LFO on, LFO off: the tracks
+tap LFO
+wait 1500
+tap LFO
+wait 900
+leds
+shot 14-lfo-off-tracks.png
+expect fz_lcd_stale 0

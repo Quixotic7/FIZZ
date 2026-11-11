@@ -1030,6 +1030,14 @@ typedef struct {
     uint8_t pg_off;                     /* 2026-11-11 (owner): bit t: the page shown is out of track t's loop (muted) */
     uint8_t loop_sel;                   /* .. the selected track's loop mask (the page dots) */
     uint16_t held;                      /* bit s: the selected track's held / selected steps (outlined white) */
+    int8_t mode;                        /* 2026-11-11 (owner): the black keys: -1 the tracks (step entry off: the icons
+                                         * lit as a row of keys), else the hold mode they pick (UI_F_*: its name on top) */
+    int8_t bkey;                        /* .. that mode's black key, 0..9 (the band's ten keys) */
+    uint16_t sw_ms;                     /* .. ms since they switched or the mode changed (capped): the icons' sweep, the
+                                         * mode's band */
+    const char *mname;                  /* .. the mode's full name ("VELOCITY"), the band's */
+    uint8_t mself;                      /* 2026-11-11 (owner): bit t: track t muted itself (an M in its icon's place; a
+                                         * soloed one an S; one silenced by another's solo keeps its icon, grey) */
 } ui_ov_t;
 void ui_ov_draw(const ui_ov_t *v);
 

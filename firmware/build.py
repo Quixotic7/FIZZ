@@ -219,7 +219,10 @@ BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # ui_rec_keybed gone again: the owner wants the white keybed back)
 # (2026-11-10, the owner's HOME, SHIFT and OVERVIEW changes: OVERVIEW's knob band's model and its knobs' handler, to
 # balance the slot and the blob)
-BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx", "fill_shift", "fill_mix", "fill_ovband"],
+# (2026-11-11, OVERVIEW's black keys: the tracks' sweep, the mode's band, M / S in ui_ov.c: the second blob 1,020 B
+# over: the SHIFT screen's, the mix's and OVERVIEW's band models (fill_shift, fill_mix, fill_ovband) back in the slot,
+# which ui_held.o and ui_turn.o at -Oz made room for, below)
+BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"],
              "build_units_c_ctl.o": ["qd_ctl_ov_knob"]}
 # (2026-11-10) units compiled at -Oz, not -Os, on the Bluetooth package: the screens' unit (ui_layer.o: the sound
 # editor, MIDI FX, the browser, the typewriter, the tools, Geek Out, OVERVIEW, the layer and SHIFT screens), main-loop
@@ -227,8 +230,11 @@ BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx", "fill_shift", "fi
 # -Os), 7,060 B smaller (ui_mfx_draw 1.8 KB, ui_snd_draw 1.6 KB: -Os's unrolled and inlined copies). FZ_BLE_OZ=a.o,b.o
 # adds units for a measure (FZ_MEASURE=1). 2026-11-10 (the SHIFT screen rebuilt, the settings' HOME page, HOME's
 # views, OVERVIEW's knobs: the USB package's slot 48 B over): the screens' unit at -Oz on the USB package too (USB_OZ),
-# as the Bluetooth package has had it
-BLE_OZ = {"build_units_c_ui_layer.o", *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
+# as the Bluetooth package has had it. 2026-11-11 (OVERVIEW's black keys): the held step's screens (ui_held.o, 1,984 B)
+# and the takeovers' and knob band's (ui_turn.o, 480 B) at -Oz too: drawing only (their one helper the keys use,
+# ui_itoa, is ui_kit.o's, still -Os)
+BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_ui_turn.o",
+          *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
 USB_OZ = {"build_units_c_ui_layer.o"}
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
