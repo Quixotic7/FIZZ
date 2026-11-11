@@ -442,8 +442,9 @@ Steps:
 
 Pages and tracks (hold **F1**):
 
-- **F1 + tap B9**: clear the page. **F1 + hold B9** (600 ms): clear the whole track (every page; it is reset too:
-  page 1 only, every page 16 steps; its sound and speed stay).
+- **F1 + B9**: clear the page. **F2 + B9 twice** (the first press arms it, B9 blinking; the second within 2 s clears):
+  clear the whole track (every page; it is reset too: page 1 only, every page 16 steps; its sound and speed stay). SHIFT
+  + B11 twice does the same. (2026-11-11: F1 + hold B9 no longer clears the track.)
 - **F1 + B10**: copy the page you're editing. Then **B1..B8** paste it onto that page (press again to paste again;
   the page joins the loop). The copied page's key blinks.
 - **F1 + B11**: undo. Everything you did during one F1 or F2 hold is undone together. Press it again to redo.

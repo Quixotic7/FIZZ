@@ -519,6 +519,25 @@ static int w_main_layer(const qd_app_t *a);
 static void k_main_black(qd_app_t *a, int key, int b, int down, int vel);
 static void k_flayer_black(qd_app_t *a, int key, int b, int down, int vel);
 static int w_f2(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F2; }
+/* 2026-11-11 (owner): F2 + B9 pressed twice (within QD_ARM_MS) clears the track, as SHIFT + B11 (the first arms it,
+ * B9 blinking); F1 + B9 held no longer does */
+static void k_f2_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    qd_ui_t *u = &a->ui;
+    (void)key, (void)vel;
+    if (b != 8 || !down)
+        return;
+    if (u->clr_armed == 2 && a->ms - u->clr_ms < QD_ARM_MS) {
+        u->clr_armed = 0;
+        qd_undo_hint(a, QD_UK_CLEAR);
+        qd_clip_clear_track(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel);
+        qd_ctl_confirm(a, "TRACK CLEARED", 0);
+    } else {
+        u->clr_armed = 2;
+        u->clr_ms = a->ms;
+        qd_ctl_confirm(a, "CLEAR?", 0);
+    }
+}
 static int w_f3(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F3; }
 
 /* SEQ held + white key n: pattern n of the bank shown (P1.3d: SEQ + B1..B4 = bank A..D), queued by the launch mode
@@ -808,7 +827,8 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
         u->pg_done |= bit;
         return;
     }
-    if (b == 8) {                                       /* B9: tap the page, held the track */
+    if (b == 8) {                                       /* B9: the page cleared (2026-11-11: held too; the track is F2
+                                                         * + B9 twice) */
         if (down) {
             u->b9_down = 1;
             u->b9_done = 0;
@@ -836,8 +856,8 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
     }
 }
 
-/* F1's timers: a page key held QD_PAGE_HOLD_MS toggles its page in the loop; B9 held QD_CLEAR_HOLD_MS clears the
- * track */
+/* F1's timers: a page key held QD_PAGE_HOLD_MS toggles its page in the loop (2026-11-11: B9 held no longer clears
+ * the track: F2 + B9 twice does) */
 static void f1_timers(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
@@ -851,12 +871,6 @@ static void f1_timers(qd_app_t *a)
             u->pg_done |= bit;
             u->pg_taps[b] = 0;
         }
-    }
-    if (u->b9_down && !u->b9_done && a->ms - u->b9_t0 >= QD_CLEAR_HOLD_MS) {
-        qd_undo_hint(a, QD_UK_CLEAR);
-        qd_clip_clear_track(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel);
-        qd_ctl_confirm(a, "TRACK CLEARED", "F1 + B11 undoes it");
-        u->b9_done = 1;
     }
 }
 
@@ -1164,7 +1178,7 @@ static const qd_key_row_t BLACK_ROWS[] = {
                                         * step: the values) */
     {w_steps_held, k_value},           /* steps held: the mode's values, B11 CLEAR */
     {w_f1, k_f1_black},                /* F1: pages, clear page / track, copy / paste a page, undo */
-    {w_f2, k_none},                    /* F2: (only the step pick-up / drop, on W) */
+    {w_f2, k_f2_black},                /* F2: B9 twice clears the track (2026-11-11); the rest nothing */
     {w_f3, k_f3_black},                /* F3: the rate */
     {w_latch_default, k_latch_default},   /* P1.6d: the latch in VALUES, nothing selected: the track's defaults */
     {w_ov, k_ov_black},                /* 2026-11-10: OVERVIEW, nothing held: the tracks, as the mix's */

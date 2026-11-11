@@ -122,7 +122,7 @@ void qd_shift_black(qd_app_t *a, int b)
             qd_ctl_confirm(a, "RESET", 0);
             break;
         }
-        if (u->clr_armed && a->ms - u->clr_ms < QD_ARM_MS) {
+        if (u->clr_armed == 1 && a->ms - u->clr_ms < QD_ARM_MS) {   /* (2: F2 + B9's own arm) */
             u->clr_armed = 0;
             qd_undo_hint(a, QD_UK_CLEAR);
             qd_clip_clear_track(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel);
@@ -164,6 +164,6 @@ void qd_shift_leds(const qd_app_t *a, uint8_t *key)
         key[QD_BLACK_KEY[2]] = QD_LED_DIM;              /* (nothing to recall, nothing to paste: dim) */
     if (!a->undo.pclip_ok)
         key[QD_BLACK_KEY[4]] = QD_LED_DIM;
-    if (a->ui.clr_armed && a->ms - a->ui.clr_ms < QD_ARM_MS)
+    if (a->ui.clr_armed == 1 && a->ms - a->ui.clr_ms < QD_ARM_MS)
         key[QD_BLACK_KEY[10]] = (a->ms / QD_FAST_MS) & 1u ? QD_LED_LIT : QD_LED_OFF;
 }

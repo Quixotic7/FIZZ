@@ -139,6 +139,7 @@ static int lb_flayer(const qd_app_t *a, qd_labels_t *o, int layer)
     if (layer == QD_LAYER_F2) {                         /* F2: Form's pick-up and drop */
         for (i = 0; i < 16; i++)
             lb_set(o, LB_W(i), "PICK/DROP");
+        lb_set(o, LB_B(8), "CLEAR TRK x2");               /* (2026-11-11: B9 twice clears the track) */
         return 1;
     }
     (void)a;

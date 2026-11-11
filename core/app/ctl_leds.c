@@ -243,9 +243,12 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         leds_pages(a, out, 1);
         return;
     }
-    if (layer == QD_LAYER_F2) {                         /* the pick-up / drop: the whites; the blacks off */
+    if (layer == QD_LAYER_F2) {                         /* the pick-up / drop: the whites; the blacks off but B9 (the
+                                                         * track's clear, 2026-11-11: blinking once armed) */
         for (i = 0; i < 11; i++)
             out->key[QD_BLACK_KEY[i]] = QD_LED_OFF;
+        out->key[QD_BLACK_KEY[8]] = u->clr_armed == 2 && a->ms - u->clr_ms < QD_ARM_MS
+                                        ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_LIT : QD_LED_OFF) : QD_LED_DIM;
         return;
     }
     if (layer == QD_LAYER_F3) {                         /* the page's range, the rate's base and type */

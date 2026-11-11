@@ -313,6 +313,16 @@ static void gk_voices(const ui_geek_t *v)
     }
 }
 
+/* 2026-11-11: a long wave stroked in short overlapping pieces (16 points, one shared): one stroke of the whole 113
+ * points at 5 px asked the drawing's arena for 27.5 KB at once (the stroker's outline, the rasterizer's spans) and a
+ * fragmented arena refused it; pieces keep each stroke's memory small, the line the same */
+static void gk_wave(const float *p, int n, qd_rgb col, float lw)
+{
+    int s;
+    for (s = 0; s < n - 1; s += 15)
+        ui_P(p + 2 * s, n - s < 16 ? n - s : 16, col, lw, 0, QD_NONE);
+}
+
 /* ---------------------------------------------------------------- 4. SCOPE */
 static void gk_scope(const ui_geek_t *v)
 {
@@ -329,9 +339,9 @@ static void gk_scope(const ui_geek_t *v)
     {
         const qd_rgb col = UI_TRACK_PAL[v->scope_track];
         gk_alpha_begin(0.22f);                          /* (one glow under it, then the line) */
-        ui_P(p, UI_GEEK_SCOPE, col, 5.f, 0, QD_NONE);
+        gk_wave(p, UI_GEEK_SCOPE, col, 5.f);
         qd_restore();
-        ui_P(p, UI_GEEK_SCOPE, gk_mix(col, 0xffffffu, 0.15f), 2.6f, 0, QD_NONE);
+        gk_wave(p, UI_GEEK_SCOPE, gk_mix(col, 0xffffffu, 0.15f), 2.6f);
     }
 }
 
@@ -347,8 +357,8 @@ static void gk_tracks(const ui_geek_t *v)
         for (k = 0; k < UI_GEEK_TPTS; k++)
             p[2 * k] = (float)k * 4.f, p[2 * k + 1] = mid - (v->tsc_live[t] ? (float)v->w.tsc[t][k] * (17.f / 127.f) : 0.f);
         if (v->tsc_live[t])
-            qd_save(), qd_alpha(0.16f), ui_P(p, UI_GEEK_TPTS, col, 4.f, 0, QD_NONE), qd_restore();
-        ui_P(p, UI_GEEK_TPTS, col, 1.5f, 0, QD_NONE);
+            qd_save(), qd_alpha(0.16f), gk_wave(p, UI_GEEK_TPTS, col, 4.f), qd_restore();
+        ui_P(p, UI_GEEK_TPTS, col, 1.5f, 0, QD_NONE);   /* (thin and low: one stroke, small; no seams) */
     }
 }
 

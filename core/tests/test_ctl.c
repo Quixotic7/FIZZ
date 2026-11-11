@@ -833,18 +833,18 @@ static void g_f1_pages(void)
     CHECK(R(0, 0).on && R(0, 5).on, "F1 + B11: the page back");
     PAT()->trk[0].rbase = 3;                            /* (2026-10-25: the clear resets the pages, the rate stays) */
     PAT()->trk[0].pend[1] = 9;
-    bdown(F1);
+    bdown(F2);                                          /* 2026-11-11 (owner): F2 + B9 twice clears the track */
     run(70);
-    kdown(BK(B9));
-    run(610);
-    CHECK(!R(0, 0).on && !R(0, 18).on, "F1 + B9 held 600 ms: the track cleared (at the mark, still down)");
+    black(B9);
+    CHECK(R(0, 0).on && R(0, 18).on && A.ui.clr_armed == 2 && leds().key[BK(B9)] != QD_LED_DIM,
+          "F2 + B9 once: armed (B9 blinking), nothing cleared");
+    black(B9);
+    bup(F2);
+    run(10);
+    CHECK(!R(0, 0).on && !R(0, 18).on, "F2 + B9 again: the track cleared");
     CHECK(qd_track_loop(&PAT()->trk[0]) == 1 && pages_full(0, 0) && PAT()->trk[0].rbase == 3,
           "the clear resets the track: page 1 only, every page 16 (loop %02x), the rate kept",
           qd_track_loop(&PAT()->trk[0]));
-    kup(BK(B9));
-    bup(F1);
-    run(10);
-    CHECK(!R(0, 0).on && !R(0, 18).on, "its release: nothing more");
     bdown(F1);
     black(B11);
     bup(F1);
