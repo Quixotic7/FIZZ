@@ -305,8 +305,9 @@ void qd_keys_step_leds(const qd_app_t *a, uint8_t *key, int page)
         if (key[i] == QD_LED_ROOT)
             key[i] = QD_LED_SCALE;
         for (k = 0; k < r.nn && r.on; k++)
-            if (r.notes[k] == n)
-                key[i] = QD_LED_LIT;
+            if (r.notes[k] == n && !((a->keys_held >> i) & 1u))   /* 2026-11-11 (owner): the step's notes blink over
+                                                         * the dim scale (a key pressed stays lit) */
+                key[i] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
     }
 }
 
@@ -323,21 +324,6 @@ static void leds_keys(const qd_app_t *a, qd_leds_t *out)
     }
 }
 
-
-/* SEL held (§8b 2.1): B1..B8 the tracks (selected lit, the others dim); W1..W8 lit = heard, off = not (muted, or
- * another track soloed), blinking = soloed; W9..W16 off; B11 lit while any mute or solo is set */
-static void leds_sel(const qd_app_t *a, qd_leds_t *out)
-{
-    int i;
-    for (i = 0; i < QD_NTRACK; i++) {
-        uint8_t l = qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, i), i) ? QD_LED_LIT : QD_LED_OFF;
-        if ((a->seq.solo >> i) & 1u)
-            l = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
-        out->key[QD_BLACK_KEY[i]] = i == a->sel ? QD_LED_LIT : QD_LED_DIM;
-        out->key[QD_WHITE_KEY[i]] = l;
-    }
-    out->key[QD_BLACK_KEY[10]] = a->seq.mute || a->seq.solo ? QD_LED_LIT : QD_LED_OFF;
-}
 
 /* SEQ held: the bank shown's patterns on W1..W16; P1.3d: B1..B4 the banks, the one shown lit, one with content dim */
 static void leds_pattern(const qd_app_t *a, qd_leds_t *out)
@@ -368,8 +354,6 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     memset(out, 0, sizeof *out);
     if ((held(a, QD_B_MIX) || (u->seq_used & 2)) && u->mode != QD_MODE_IDLE)  /* printed SEQ: the patterns */
         leds_pattern(a, out);
-    else if (held(a, QD_B_PATTERN) && u->mode != QD_MODE_IDLE)   /* printed SEL: the tracks */
-        leds_sel(a, out);
     else if (u->mode == QD_MODE_STEP || qd_ctl_b11(a))   /* (2026-11-10: the keyboard's B11 held: the step view's) */
         leds_step(a, out);
     else if (u->mode == QD_MODE_KEYS && qd_mfx_open(a))   /* (P1.6f: the MIDI FX screen over the keyboard) */

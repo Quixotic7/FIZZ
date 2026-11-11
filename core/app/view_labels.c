@@ -210,7 +210,8 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_ALGO), "LAUNCH");
         return;
     }
-    if (lb_held(a, QD_B_PATTERN)) {                        /* SEL held: mute, solo, the track */
+    if (0 && lb_held(a, QD_B_PATTERN)) {                   /* SEL held: mute, solo, the track (2026-11-11: retired;
+                                                         * SEL held is the track settings) */
         for (i = 0; i < QD_NTRACK; i++) {
             lb_setn(o, LB_W(i), "MUTE ", i + 1);
             lb_setn(o, LB_W(8 + i), "SOLO ", i + 1);

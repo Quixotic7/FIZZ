@@ -1020,57 +1020,32 @@ static void g_f2(void)
     (void)okall;
 }
 
-/* SEL held: B1..B8 select; W1..W8 tap mute, hold (400 ms) solo; B11 all off; the LEDs */
+/* 2026-11-11 (owner): SEL held: the track settings (the tracks' map it was is retired: OVERVIEW and the mix do it);
+ * they open on the page they were left on; a short tap is OVERVIEW */
 static void g_sel(void)
 {
-    qd_leds_t l;
-    int k, on = 0;
     start();
     bdown(QD_B_PATTERN);
     run(30);
-    CHECK(qd_view_screen(&A) != QD_SCR_SEL, "P1.3y: SEL down 30 ms: no map yet (a tap shows nothing)");
-    run(250);
-    CHECK(qd_view_screen(&A) == QD_SCR_SEL, "SEL held: the track map");
+    CHECK(qd_view_screen(&A) != QD_SCR_SEL && A.ui.latch != QD_LATCH_TRK, "SEL down 30 ms: nothing yet");
+    run(QD_SEL_TAP_MS);
+    CHECK(A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 0, "SEL held: the track settings");
     black(B3);
-    CHECK(A.sel == 2, "SEL + B3: track 3");
-    ktap(WK(1), 30);
-    run(10);
-    CHECK(A.seq.mute == 2 && !A.seq.solo, "W2 tapped: track 2 muted");
-    ktap(WK(1), 399);
-    run(10);
-    CHECK(A.seq.mute == 0 && !A.seq.solo, "W2 down 399 ms: a tap, unmuted");
-    kdown(WK(4));
-    run(401);
-    CHECK(A.seq.solo == 0x10 && !A.seq.mute, "W5 held 400 ms: track 5 soloed (at the mark)");
-    kup(WK(4));
-    run(10);
-    CHECK(A.seq.solo == 0x10 && !A.seq.mute, ".. its release: no mute");
-    ktap(WK(9), 30);
-    ktap(WK(15), 500);
-    CHECK(A.seq.solo == 0x10 && !A.seq.mute, "W10, W16: nothing");
-    ktap(WK(6), 30);
-    ktap(WK(7), 500);
-    CHECK(A.seq.solo == 0x10 && !A.seq.mute, "W7, W8 (six tracks): nothing");
-    ktap(WK(5), 30);
-    run(10);
-    l = leds();
-    CHECK(l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B1)] == QD_LED_DIM && l.key[WK(5)] == QD_LED_OFF &&
-              l.key[WK(0)] == QD_LED_OFF && l.key[BK(B11)] == QD_LED_LIT && l.key[BK(B7)] == QD_LED_OFF,
-          "LEDs: the selected track lit, the others dim (B7: no track, dark); W6 muted off, W1 off (track 5 soloed); "
-          "B11 lit");
-    for (k = 0; k < 500; k++) {
-        run(1);
-        on += leds().key[WK(4)] == QD_LED_LIT;
-    }
-    CHECK(on > 150 && on < 350, "the soloed track's W blinks (%d of 500 ms)", on);
-    black(B11);
-    l = leds();
-    CHECK(!A.seq.mute && !A.seq.solo && l.key[BK(B11)] == QD_LED_OFF && l.key[WK(5)] == QD_LED_LIT &&
-              l.key[WK(0)] == QD_LED_LIT && l.key[WK(6)] == QD_LED_OFF && l.key[WK(7)] == QD_LED_OFF,
-          "B11: every mute and solo off; all heard, lit; W7, W8 dark (six tracks); B11 off");
     bup(QD_B_PATTERN);
     run(10);
-    CHECK(qd_view_screen(&A) == QD_SCR_LANE, "SEL let go: the step view");
+    CHECK(A.ui.latch == QD_LATCH_TRK && A.ui.view != QD_VIEW_OVERVIEW, "let go: they stay, no OVERVIEW");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.trk_page == 1, "SELECT: their page 2");
+    btap(QD_B_OCTDN);
+    CHECK(!A.ui.latch, "OCT-: closed");
+    bdown(QD_B_PATTERN);
+    run(QD_SEL_TAP_MS + 20);
+    bup(QD_B_PATTERN);
+    run(10);
+    CHECK(A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 1, "SEL held again: back on page 2 (where they were left)");
+    btap(QD_B_OCTDN);
+    btap(QD_B_PATTERN);
+    CHECK(A.ui.view == QD_VIEW_OVERVIEW && !A.ui.latch, "SEL tapped: OVERVIEW");
 }
 
 /* SEQ held: W tap queues by the launch mode, held (400 ms) at once; ALGORITHM the launch mode */
@@ -2864,9 +2839,7 @@ static void g_step_latch(void)
           "LFO again: off, nothing selected, silence, the lane");
     btap(LFO);
     CHECK(A.ui.slatch && !A.ui.nheld, "on again: empty again (2026-10-26)");
-    bdown(QD_B_PATTERN);                                /* another track: its own selection (none edited: step 1) */
-    black(B2);
-    bup(QD_B_PATTERN);
+    qd_ctl_select_track(&A, 1);                                /* another track: its own selection (none edited: step 1) */   /* (2026-11-11: SEL's map retired) */
     run(10);
     CHECK(A.sel == 1 && A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 0, "track 2: step 1 selected");
     btap(QD_B_HOME);
@@ -4000,9 +3973,7 @@ static void beat_by_panel(void)
     black(B4);
     wrel(11);
     /* BASS (track 2): a 12-step loop, notes */
-    bdown(QD_B_PATTERN);                                /* SEL + B2: track 2 */
-    black(B2);
-    bup(QD_B_PATTERN);
+    qd_ctl_select_track(&A, 1);                                /* track 2: track 2 */   /* (2026-11-11: SEL's map retired) */
     run(10);
     f3_down();
     wtap(11);                                           /* page 1 ends at 12 */
@@ -4020,9 +3991,7 @@ static void beat_by_panel(void)
     wrel(3);
     mkturn(M_NOTE, QD_K_1, -24);                        /* the track's note: C2 (two octaves down; NOTE key held) */
     /* KEYS (track 3): a C major chord, two steps long */
-    bdown(QD_B_PATTERN);                                /* SEL + B3: track 3 */
-    black(B3);
-    bup(QD_B_PATTERN);
+    qd_ctl_select_track(&A, 2);                                /* track 3: track 3 */   /* (2026-11-11: SEL's map retired) */
     run(10);
     whold(0);
     btap(F2), btap(F2);                                 /* octave 4 again */
@@ -4089,9 +4058,7 @@ static void beat_by_panel(void)
     run(10);
     mode(M_VEL);
     turn(QD_K_4, -5);
-    bdown(QD_B_PATTERN);                                /* P1.3c: SEL + W6 tapped: track 6 muted */
-    wtap(5);
-    bup(QD_B_PATTERN);
+    A.seq.mute ^= 0x20u;                                /* track 6 muted (2026-11-11: SEL's map retired; as the mix) */
     run(10);
 }
 
@@ -8135,8 +8102,8 @@ static void g_p15u_shift(void)
     run(10);
     CHECK(A.ui.latch == QD_LATCH_SAVE && !strcmp(A.ui.ty.name, "0123456789-") && A.ui.view == view &&
               A.ui.mode == QD_MODE_STEP, "SHIFT + the black keys typed 0..9 -; SHIFT + REC (held), PLAY (held), SEL, HOME, F2 "
-          "nothing (%s)",
-          A.ui.ty.name);
+          "nothing (%s; latch %d view %d / %d mode %d)",
+          A.ui.ty.name, A.ui.latch, A.ui.view, view, A.ui.mode);
     btap(QD_B_HOME);
     CHECK(!A.ui.latch, "HOME: cancelled");
 }
@@ -9831,10 +9798,22 @@ static void g_keys_fixes(void)
     kdown(WK(4)), run(30), kup(WK(4)), run(20);
     CHECK(R(0, 1).nn == 1 && R(0, 1).notes[0] == 52, "the next key alone: its note replaces the chord");
     run(400);
-    l = leds();
-    qd_view_kst(&A, kst, 0);
-    CHECK(l.key[WK(4)] == QD_LED_LIT && l.key[WK(0)] < QD_LED_LIT && kst[4] == 4 && !(kst[0] & 4),
-          "its note lit on the orange keys (LEDs and the drawn row), the others at most the scale's dim level");
+    {
+        int k, on = 0, low = 1, drawn = 0;
+        for (k = 0; k < 500; k++) {                     /* (2026-11-11: the step's notes blink over the dim scale, the
+                                                         * drawn row with them) */
+            run(1);
+            l = leds();
+            on += l.key[WK(4)] == QD_LED_LIT;
+            low &= l.key[WK(0)] < QD_LED_LIT;
+            qd_view_kst(&A, kst, 0);
+            drawn += kst[4] == 4;
+            low &= !(kst[0] & 4);
+        }
+        CHECK(on > 150 && on < 350 && low && drawn > 150,
+              "its note blinking on the orange keys (%d of 500 ms; the drawn row lit), the others at most the scale's "
+              "dim level", on);
+    }
     turn(QD_K_ALGO, -1);
     CHECK(A.ui.held[0] == 0, "ALGORITHM back: step 1 (C E G)");
     run(400);
@@ -9884,7 +9863,7 @@ int main(void)
         {"F1 pages: tap, twice, hold, A..B; B9 / B10; undo", g_f1_pages},
         {"F1 + W: copy, then paste; one undo; F2 pre-loaded", g_f1_steps},
         {"F2: Form's pick-up / drop, press by press", g_f2},
-        {"SEL: select, tap mute, hold solo, B11, LEDs", g_sel},
+        {"SEL held: the track settings (2026-11-11), their page kept", g_sel},
         {"SEQ: tap queues by launch mode, hold at once", g_seq},
         {"F3: base / type keys and knobs, start / end, 21 rates", g_f3},
         {"NOTE, a step held: each knob its own note; ALGO all", g_note_knobs},

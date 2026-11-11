@@ -849,12 +849,10 @@ static void t_tracks(void)
     }
     tap_button(QD_B_PAGE);
     CHECK(A.ui.mix_page == 1 && qd_view_screen(&A) == QD_SCR_MIX, "ENV again: the sends");
-    qd_app_button(&A, QD_B_PATTERN, 1);                 /* SEL held + W1 (a tap): track 1 muted */
-    run(300, 0);
-    tap_key(WK[0]);
-    qd_app_button(&A, QD_B_PATTERN, 0);
+    A.seq.mute |= 1u;                                   /* track 1 muted (2026-11-11: SEL's map retired; the mix's
+                                                         * hold does it, tested in test_ctl) */
     run(10, 0);
-    CHECK((A.seq.mute & 1u) && A.ui.latch == QD_LATCH_MIX, "SEL held + W1: track 1 muted, the mix still open");
+    CHECK((A.seq.mute & 1u) && A.ui.latch == QD_LATCH_MIX, "track 1 muted, the mix still open");
     run(1000, 0);
     for (k = 0; k < A.pool.nvoice; k++)
         n1 += A.pool.v[k].track == 0 && qd_pool_sounding(&A.pool, k) && A.pool.v[k].q.gate;

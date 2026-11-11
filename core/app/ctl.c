@@ -372,8 +372,9 @@ typedef void (*qd_key_fn)(qd_app_t *a, int key, int idx, int down, int vel);   /
 
 /* printed SEQ: the patterns, held or latched (after a hold: seq_used bit 1) */
 static int w_seq_held(const qd_app_t *a) { return held(a, QD_B_MIX) || (a->ui.seq_used & 2); }
-static int w_sel_held(const qd_app_t *a) { return held(a, QD_B_PATTERN) && !(a->ui.sel_used & 2); }   /* printed SEL:
-                                                         * the tracks (not SHIFT + SEL's: the track settings) */
+static int w_sel_held(const qd_app_t *a) { (void)a; return 0; }   /* printed SEL held: the tracks' map, retired
+                                                         * (2026-11-11, owner: OVERVIEW and the mix do it; SEL held is
+                                                         * the track settings now) */
 /* P1.4a: the sound editor open: the black keys are its pages (ctl_snd.c); the W keys stay the steps */
 static int w_snd(const qd_app_t *a) { return qd_snd_open(a) && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN); }
 static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
@@ -1382,8 +1383,7 @@ static void home_hold(qd_app_t *a)
         qd_latch_close(a);
     u->slatch = 0;
     qd_step_release_all(a);
-    qd_latch_open(a, QD_LATCH_SET);
-    u->set_page = 0;
+    qd_latch_open(a, QD_LATCH_SET);                     /* (2026-11-11, owner: it opens on the page it was left on) */
 }
 
 /* P1.3d (§8b 2.2): LFO (printed) toggles the step latch: as if a step is always held, a W tap selects (ctl_step.c) */
@@ -1610,7 +1610,7 @@ static void b_sel(qd_app_t *a, int down)
     }
     u->sel_ms = a->ms;
     u->sel_used = 0;
-    if (qd_ctl_shift(a) && u->mode != QD_MODE_IDLE) {
+    if (qd_ctl_shift(a) && u->mode != QD_MODE_IDLE && qd_ctl_shift_page(a)) {   /* (not while naming: SHIFT signs) */
         u->shift_used = 1;
         u->sel_used = 2;
         if (u->mode != QD_MODE_STEP && u->latch != QD_LATCH_TRK)
@@ -1618,10 +1618,7 @@ static void b_sel(qd_app_t *a, int down)
         qd_trk_button(a);
     }
 }
-int qd_ctl_sel_map(const qd_app_t *a)
-{
-    return held(a, QD_B_PATTERN) && !(a->ui.sel_used & 2) && (a->ui.sel_used || a->ms - a->ui.sel_ms >= QD_TAP_MS);
-}
+int qd_ctl_sel_map(const qd_app_t *a) { (void)a; return 0; }   /* (2026-11-11: the tracks' map retired) */
 
 /* OCT- / OCT+ (d -1 / +1): the layers in the step view (F1 / F2 / both F3); with steps held: NOTE's octave, SOUND's
  * bank; the keyboard: the octave (step recording: OCT+ a rest, OCT- a step back), both: every voice out (PANIC) */
@@ -2479,6 +2476,14 @@ void qd_ctl_ms(qd_app_t *a)
                                                          * owner: from the keyboard page too, F3 over the step view) */
         if (u->mode == QD_MODE_STEP || u->mode == QD_MODE_KEYS)
             f3_open(a);
+    }
+    if (held(a, QD_B_PATTERN) && !u->sel_used && a->ms - u->sel_ms >= QD_SEL_TAP_MS && u->mode != QD_MODE_IDLE &&
+        qd_ctl_shift_page(a)) {
+        u->sel_used = 2;                                /* 2026-11-11 (owner): SEL held: the track settings (as SHIFT +
+                                                         * SEL; the tracks' map it was is retired) */
+        if (u->mode != QD_MODE_STEP && u->latch != QD_LATCH_TRK)
+            set_mode(a, QD_MODE_STEP);
+        qd_trk_button(a);
     }
     if (held(a, QD_B_HOME) && !(u->home_used & 2) && a->ms - u->home_ms >= QD_HOME_HOLD_MS && u->mode != QD_MODE_IDLE)
         home_hold(a);                                   /* 2026-11-10 (owner): HOME held: the global settings */

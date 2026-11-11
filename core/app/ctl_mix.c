@@ -83,8 +83,7 @@ void qd_trk_button(qd_app_t *a)
         a->ui.menu_knob = -1;
         return;
     }
-    panel_open(a, QD_LATCH_TRK);
-    a->ui.trk_page = 0;
+    panel_open(a, QD_LATCH_TRK);                        /* (2026-11-11, owner: it opens on the page it was left on) */
 }
 void qd_mix_button(qd_app_t *a)
 {
