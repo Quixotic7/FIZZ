@@ -829,6 +829,9 @@ static void draw_keys(qd_app_t *a)
     qd_track_key(&a->proj, P, a->sel, &sc, &rt);
     v.scale = sc;
     v.scale_name = qd_scale_name(sc);
+    v.root = (int8_t)(((rt % 12) + 12) % 12);
+    for (i = 0; i < 12; i++)                            /* (the keybed in REC's orange: the scale's keys) */
+        v.smask |= (uint16_t)(qd_scale_has(sc, rt, 60 + i) ? 1u << i : 0u);
     v.nvoice = a->pool.nvoice < UI_NVOICE_DOTS ? a->pool.nvoice : UI_NVOICE_DOTS;
     for (i = 0; i < v.nvoice; i++) {
         const qd_pool_voice_t *pv = &a->pool.v[i];

@@ -75,6 +75,7 @@ void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fil
 #define UI_REC_KEY UI_K4                /* (2026-11-10) the W keys playing notes (REC): orange, boxy (ui_rec_key) */
 void ui_rec_key(float x, float y, float w, float h, int st);   /* st: 0 out, 1 in the scale, 2 a root; +4 sounding */
 void ui_rec_kb_sign(float x, float y);  /* the keyboard sign beside the keys' row */
+void ui_rec_keybed(float x0, float y0, float w, float h, int lo, int nw, const uint8_t *snd, uint16_t smask, int root);
 /* the same with nw white keys from any white note lo (the FM-1's keybed: 16 from F) */
 void ui_keybed(float x0, float y0, float w, float h, int lo, int nw, const qd_rgb *fill);
 
@@ -104,6 +105,9 @@ typedef struct {
     int quantize;                       /* rec 2: quantize is on ("Q" by the badge) */
     int scale;                          /* P1.3b: the track's scale (not chromatic: its name by the octave) */
     const char *scale_name;
+    uint16_t smask;                     /* 2026-11-10: the scale's pitch classes (bit 0 C); root its pitch class: the
+                                         * keybed in REC's orange */
+    int8_t root;
     float pos;                          /* rec 2: the playhead, in steps of the track (fractional, 0..length) */
     int step;                           /* rec 2: the step under the playhead, 1..length */
     struct {

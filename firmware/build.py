@@ -215,7 +215,8 @@ BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-10) .. and single functions of other units the other way, into the second blob (sections renamed .fzx2.*;
 # main-loop drawing only, noinline in the source): OVERVIEW's model (view.c), ~0.4 KB the slot did not have; the
 # effects screen's model (fill_fx, 1.4 KB: also the Manager's LABELS, view_labels.c), to balance the slot and the blob
-BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"]}
+BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"],
+             "build_units_c_ui_kit.o": ["ui_rec_keybed"]}   # (2026-11-10: the keyboard page's orange keybed)
 # (2026-11-10) units compiled at -Oz, not -Os, on the Bluetooth package: the screens' unit (ui_layer.o: the sound
 # editor, MIDI FX, the browser, the typewriter, the tools, Geek Out, OVERVIEW, the layer and SHIFT screens), main-loop
 # drawing logic only (never the audio interrupt, core 1 or under the audio lock; the raster, qd_gfx_fast.o, stays

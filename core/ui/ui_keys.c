@@ -15,7 +15,7 @@
  * 0), so each drawn key is the one pressed.
  * P1.3b: the sound's pool number has three digits; a track in a scale shows the scale's name by the octave.
  * 2026-11-10: B11 held, or steps selected (the keys write into them): the page edited's row of sixteen, the selected
- * outlined white. */
+ * outlined white, over the sound's name; the keybed in REC's orange (ui_rec_keybed), as the other views' REC keys. */
 #include <math.h>
 #include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
@@ -95,7 +95,6 @@ static void live(const ui_keys_t *v)
 
 void ui_keys_draw(const ui_keys_t *v)
 {
-    static qd_rgb fill[128];
     char num[24], step[12];
     int i, lo = 53 + 12 * v->octave, below = 0, above = 0;   /* (QD_NOTE0, as live()) */
     float x;
@@ -124,13 +123,12 @@ void ui_keys_draw(const ui_keys_t *v)
 
     /* the keybed */
     for (i = 0; i < 128; i++) {
-        fill[i] = v->sounding[i] ? UI_K3 : QD_NONE;
         below |= v->sounding[i] && i < lo;
         above |= v->sounding[i] && i >= lo;
     }
     if (below && !above && lo >= 12)
         lo -= 12;
-    ui_keybed(14.f, 118.f, 212.f, 78.f, lo, 16, fill);
+    ui_rec_keybed(14.f, 118.f, 212.f, 78.f, lo, 16, v->sounding, v->smask, v->root);
 
     num[0] = 0;                                         /* the octave; a track in a scale: the scale */
     cat(num, oct_name(v->octave));
@@ -146,10 +144,10 @@ void ui_keys_draw(const ui_keys_t *v)
     if (v->rec == 1 || v->row) {                        /* STEP recording: the cursor's page (2026-11-10: B11 held
                                                          * or a selection: the page edited's, the selected outlined) */
         const int c = v->rec == 1 ? (v->cursor - 1) % 16 : -1;
-        for (i = 0; i < 16; i++) {
-            const float sx = 14.f + (float)i * 13.5f + (float)(i / 4) * 2.f;
+        for (i = 0; i < 16; i++) {                      /* (above the sound's name, 12 px: the owner, 2026-11-10) */
+            const float sx = 14.f + (float)i * 13.f + (float)(i / 4) * 2.7f;
             const int cur = i == c && v->blink, sel = (v->sel >> i) & 1u;
-            ui_RR(sx, 99.f, 9.f, 9.f, 2.f, cur ? UI_RED : sel ? UI_K3 : UI_G3, sel ? 2.f : 1.f,
+            ui_RR(sx, 38.f, 11.f, 12.f, 2.f, cur ? UI_RED : sel ? UI_K3 : UI_G3, sel ? 2.f : 1.f,
                   v->page_trig[i] ? UI_G2 : QD_NONE);
         }
     }

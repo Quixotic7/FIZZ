@@ -514,6 +514,28 @@ void ui_rec_key(float x, float y, float w, float h, int st)
     ui_RR(x, y, w, h, r, st & 3 ? UI_REC_KEY : UI_G3, 1.3f, QD_NONE);
 }
 
+/* 2026-11-10 (owner): the keyboard page's keybed in REC's orange, as the other views' REC keys (ui_rec_key): boxy
+ * keys apart, the scale's outlined orange, a root's filled faintly, the rest grey, a key sounding filled */
+void ui_rec_keybed(float x0, float y0, float w, float h, int lo, int nw, const uint8_t *snd, uint16_t smask, int root)
+{
+    const float kw = w / (float)nw, bw = kw * 0.62f, bh = h * 0.6f;
+    int i, n, pass;
+    for (pass = 0; pass < 2; pass++)                    /* the white keys, then the black ones over them */
+        for (i = 0, n = lo; i < nw && n < 128; n++) {
+            const int pc = n % 12, blk = (0x54au >> pc) & 1u;
+            const int st = (snd && snd[n] ? 4 : 0) | (pc == root ? 2 : (smask >> pc) & 1u);
+            if (!blk) {
+                if (!pass)
+                    ui_rec_key(x0 + (float)i * kw + 1.f, y0, kw - 2.f, h, st);
+                i++;
+            } else if (pass) {
+                const float bx = x0 + (float)i * kw - bw / 2.f;
+                ui_RR(bx - 1.5f, y0 - 1.f, bw + 3.f, bh + 2.5f, 1.f, QD_NONE, 1.f, UI_BG);
+                ui_rec_key(bx, y0, bw, bh, st);
+            }
+        }
+}
+
 /* the keyboard sign beside a row of REC's keys: three white keys and two black ones, top-left at x, y (13 px tall) */
 void ui_rec_kb_sign(float x, float y)
 {
