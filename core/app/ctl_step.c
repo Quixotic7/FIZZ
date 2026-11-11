@@ -646,7 +646,7 @@ static void band(qd_app_t *a, int tk, int job, int knob, int d);
 int qd_step_latch_default(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
-    return u->mode == QD_MODE_STEP && u->slatch && u->lmode == QD_LMODE_VALUES && !u->nheld && !u->wk_down &&
+    return u->mode == QD_MODE_STEP && u->slatch && qd_ctl_lmode(a) == QD_LMODE_VALUES && !u->nheld && !u->wk_down &&
            !u->wk_pending && qd_ctl_layer(a) == QD_LAYER_NONE &&
            (!u->latch || u->latch == QD_LATCH_F3);
 }

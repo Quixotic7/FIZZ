@@ -265,7 +265,8 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         out->key[QD_BLACK_KEY[10]] = qd_step_default_initial(a, m) ? QD_LED_OFF : QD_LED_LIT;
         return;
     }
-    if (QD_OV_ON(a) && !u->latch && !qd_ctl_latch_modes(a)) {   /* 2026-11-10: OVERVIEW: the tracks, as the mix's */
+    if (qd_ctl_ov_keys(a) == QD_OVK_TRACKS) {          /* 2026-11-10: OVERVIEW: the tracks, as the mix's (2026-11-11:
+                                                         * step entry off; on, the hold modes below) */
         uint8_t bk[11];
         qd_panel_leds(a, bk);
         for (i = 0; i < 11; i++)
@@ -428,7 +429,7 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on (P1.5n: full in
                                                          * VALUES; MODES breathing 60 .. 100 %, a 1.5 s period: the
                                                          * owner found P1.5b's half too dim) */
-        out->button[QD_B_MUTE] = u->lmode == QD_LMODE_MODES ? qd_led_breath(a->ms) : QD_LED_LIT;
+        out->button[QD_B_MUTE] = qd_ctl_lmode(a) == QD_LMODE_MODES ? qd_led_breath(a->ms) : QD_LED_LIT;
     if (u->khold && qd_keys_on(a))                      /* 2026-10-26: the live keys' HOLD: LFO lit */
         out->button[QD_B_MUTE] = QD_LED_LIT;
     if (qd_snd_open(a))                                 /* P1.4a: EDIT lit while the sound editor is open */

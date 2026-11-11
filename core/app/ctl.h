@@ -289,6 +289,13 @@ enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_NKR };
 int qd_ctl_sel_map(const struct qd_app *a);
 int qd_ctl_seq_map(const struct qd_app *a);
 int qd_ctl_latch_modes(const struct qd_app *a);
+/* 2026-11-11 (owner): the latch mode as the black keys take it: OVERVIEW always MODES (a finger on a step: the
+ * values), elsewhere the setting */
+int qd_ctl_lmode(const struct qd_app *a);
+/* .. OVERVIEW's black keys now: the tracks (step entry off), the hold modes (the latch on, no finger), the values (a
+ * finger on a step); QD_OVK_NONE off OVERVIEW */
+enum { QD_OVK_NONE = -1, QD_OVK_TRACKS, QD_OVK_MODES, QD_OVK_VALUES };
+int qd_ctl_ov_keys(const struct qd_app *a);
 /* ---- ctl_shift.c (P1.5c, built through ctl_latch.c): SHIFT's keys, undo / redo */
 extern const uint8_t QD_SHIFT_KEYS[11];
 void qd_shift_undo(struct qd_app *a, int dir);
@@ -428,6 +435,10 @@ typedef struct {
     uint8_t home_lock;                 /* .. the global settings' LOCK: HOME always the Home view (no cycling), saved */
     int8_t ov_back;                    /* .. SEL tapped opened OVERVIEW from this view (-1 none): HOME's first click, SEL
                                         * again, go back there */
+    int8_t ov_st, ov_hm;               /* 2026-11-11 (owner): OVERVIEW's black keys as last drawn (QD_OVK_*) and the
+                                        * hold mode then (the view's: a switch starts ov_ms, the icons' sweep or the
+                                        * mode's band) */
+    uint32_t ov_ms;
     uint32_t touch_ms;                 /* the last input (the idle screen's clock) */
     /* the step view */
     int hmode;                         /* the hold mode, UI_F_* (NOTE at power-on) */

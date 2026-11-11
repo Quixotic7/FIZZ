@@ -75,9 +75,21 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   outline), the pattern's name and the page dots on top. Playing, a red marker sits over the playing column and each
   track's playing step lights white; every track follows its own speed and loop, and a row shows its playhead only
   while that track is on this page. The selected track's icon is boxed white, a soloed one yellow; a muted track (or
-  one silenced by another's solo) goes grey with a line through it. The black keys work as in the mixer: **B1..B6**
-  tapped selects the track, held mutes / unmutes it, double-tapped solos it; **B9** clears every mute and solo (lit
-  while there is one to clear). **B11** is the hold key here exactly as on every page (held: the pages over OVERVIEW,
+  one silenced by another's solo) goes grey with a line through it; **a muted track shows a grey M and a soloed one a
+  yellow S in its icon's place** (2026-11-11; one silenced only by another's solo keeps its icon, grey). **The black
+  keys** (2026-11-11) are one of three things, and the screen says which:
+  - **Step entry off** (OVERVIEW opened, ALGORITHM turned fully left, LFO turning the latch off, B11 + OCT−): **the
+    tracks**, as in the mixer: **B1..B6** tapped selects the track, held mutes / unmutes it, double-tapped solos it;
+    **B9** clears every mute and solo (lit while there is one to clear). The left column's icons **light up as a row of
+    keys** (each on a key in its colour, swept in top to bottom when the keys become the tracks); B1..B6 lit as the
+    mix's.
+  - **Step entry on** (the latch: LFO, ALGORITHM's cursor, B11 + white keys) **with no finger on a step**: **always the
+    hold modes** (B1 NOTE .. B10 SOUND), whatever the latch's VALUES / MODES setting (LFO breathes as in MODES); the
+    knobs edit the selected steps in that mode, as in the other views. The icons go quiet, the mode's name stands in
+    its colour after the pattern's, and **each change of mode** (and the switch to the modes) **shows a band over the
+    top** for a second: the ten black keys with the mode's lit and its full name big in its colour (VELOCITY ..). The
+    modes' keys light as in the step view (the current one brightest).
+  - **A finger on a step**: **its values**, as on every page (the held step's screen). **B11** is the hold key here exactly as on every page (held: the pages over OVERVIEW,
   B1..B8 the pages, the white keys select steps of the selected track with the step lock; a click: the white keys
   steps / keys; B11 + OCT− leaves the lock, B11 + OCT+ resets the selection's value). The white keys are the selected
   track's steps, as in STEPS (tap makes / removes, hold edits it, with the held step's screen; selected steps stay on
@@ -86,8 +98,8 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   slowest to fastest), **KNOB 2** its **volume** (the mixer's LEVEL), **KNOB 3 / KNOB 4** the **start / end of its
   loop on the page shown** (as F3's KNOB 3 / 4); each turn shows its value in a band over the top. **Steps outside a
   track's start..end are drawn dimmed** on every row. SELECT turns the page, ALGORITHM the step cursor, PRESETS the
-  preset, as in every view. With a step held or selected the knobs work on that step as in STEPS. The hold modes
-  (B1..B10 in the other views) are not on the black keys here: LFO held + a black key still picks one.
+  preset, as in every view. With a step held or selected the knobs work on that step as in STEPS. With the tracks on
+  the black keys, LFO held + a black key still picks a hold mode.
 - **EDIT** (a HOME click from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold
   mode's drawing above it at full size, its value large in the top line: the step you hold, select or point at with
   the cursor, or the track's default when nothing is held (a mode key held: its default, "B11 RESET" small top

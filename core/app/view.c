@@ -1271,10 +1271,11 @@ static __attribute__((noinline)) void fill_ovband(const qd_app_t *a, ui_band_t *
         ui_itoa(v->val, k == 1 ? a->model.t[a->sel].mix.level : (k == 2 ? ts->pstart[pg] : ts->pend[pg]) + 1);
 }
 
+static const char *const MODE_MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
+                                                  "CONDITION", "TRIG", "FUNCTION", "SLIDE", "SOUND"};
 static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
 {
-    static const char *const MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
-                                                "CONDITION", "TRIG", "FUNCTION", "SLIDE", "SOUND"};
+    static const char *const *const MAIN = MODE_MAIN;
     static const char *const PORTN[3] = {"OFF", "ON", "LEGATO"};
     static const char *const TYPE[4] = {"", "NOTE", "LOCK", "TIE"};
     static const char *const RAMP[4] = {"FLAT", "UP", "DOWN", "ACCENT"};
@@ -2723,10 +2724,24 @@ __attribute__((noinline)) void qd_view_ov(qd_app_t *a, ui_ov_t *v)   /* (noinlin
     for (i = 0; i < u->nheld; i++)
         if (u->held[i] / QD_PAGE == page)
             v->held |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+    {   /* 2026-11-11 (owner): what the black keys do, and since when (the tracks' sweep, the mode's band) */
+        qd_ui_t *w = &a->ui;
+        const int st = qd_ctl_ov_keys(a) == QD_OVK_TRACKS ? QD_OVK_TRACKS : QD_OVK_MODES;
+        const int m = u->hmode >= 0 && u->hmode < UI_NFIELD ? u->hmode : UI_F_NOTE;
+        const uint32_t d = a->ms - w->ov_ms;
+        if (st != w->ov_st || (st == QD_OVK_MODES && m != w->ov_hm))
+            w->ov_st = (int8_t)st, w->ov_hm = (int8_t)m, w->ov_ms = a->ms;
+        v->sw_ms = (uint16_t)(w->ov_ms == a->ms ? 0u : d > 4000u ? 4000u : d);
+        v->mode = (int8_t)(st == QD_OVK_TRACKS ? -1 : m);
+        v->bkey = (int8_t)qd_ctl_mode_key(m);
+        v->mname = MODE_MAIN[m];
+    }
     for (t = 0; t < QD_NTRACK && t < UI_NTRACK; t++) {
         const int s = a->seq.playing ? qd_seq_track_step(&a->seq, t) : -1;
         v->play[t] = (int8_t)(s >= 0 && s / QD_PAGE == page ? s % QD_PAGE : -1);
         v->mute[t] = !qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t) ? 1 : (a->seq.solo >> t) & 1 ? 2 : 0;
+        if ((a->seq.mute >> t) & 1)
+            v->mself |= (uint8_t)(1u << t);
         if (!((qd_track_loop(&P->trk[t]) >> page) & 1))   /* 2026-11-11 (owner): the page out of its loop: muted */
             v->pg_off |= (uint8_t)(1u << t);
         if (t == a->sel)

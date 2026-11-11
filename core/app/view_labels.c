@@ -45,7 +45,7 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
     lb_set(o, LB_BTN(QD_B_TRACKS), "EFFECTS");
     lb_set(o, LB_BTN(QD_B_PATTERN), "OVERVIEW");     /* (2026-11-10: SEL tapped; SHIFT + SEL the track settings) */
     lb_set(o, LB_BTN(QD_B_PAGE), "MIX");
-    lb_set(o, LB_BTN(QD_B_MUTE), !u->slatch ? "LATCH" : u->lmode == QD_LMODE_MODES ? "MODES" : "VALUES");
+    lb_set(o, LB_BTN(QD_B_MUTE), !u->slatch ? "LATCH" : qd_ctl_lmode(a) == QD_LMODE_MODES ? "MODES" : "VALUES");
     lb_set(o, LB_BTN(QD_B_SOUND), "EDIT");
     lb_set(o, LB_BTN(QD_B_FUNC), "SHIFT");
     lb_set(o, LB_BTN(QD_B_HOME), u->mode == QD_MODE_STEP && !u->latch && !u->slatch && u->ov_back < 0 &&
@@ -512,7 +512,7 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         for (i = 0; i < 10; i++)
             lb_set(o, LB_B(i), lab[i]);
         lb_set(o, LB_B(10), "RESET");
-        if (u->slatch && u->lmode == QD_LMODE_MODES && !lb_finger(a))   /* (the latch in MODES: the hold modes) */
+        if (u->slatch && qd_ctl_lmode(a) == QD_LMODE_MODES && !lb_finger(a))   /* (the latch in MODES: the hold modes) */
             lb_modes(a, o);
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "SOUND LOCK");
@@ -522,14 +522,17 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     lb_modes(a, o);                                     /* nothing held: the black keys the hold modes */
-    if (QD_OV_ON(a) && !u->latch && !qd_ctl_latch_modes(a)) {   /* 2026-11-10: OVERVIEW: the tracks, B9 the mutes and
-                                                         * solos off; KNOB 1..4 the track's rate, volume, start, end */
+    if (QD_OV_ON(a) && !u->latch) {                    /* 2026-11-10: OVERVIEW: the tracks, B9 the mutes and solos
+                                                         * off (2026-11-11: step entry on, the hold modes); KNOB 1..4
+                                                         * the track's rate, volume, start, end */
         static const char *const OVK[4] = {"RATE", "VOLUME", "START", "END"};
-        for (i = 0; i < 10; i++)
-            lb_set(o, LB_B(i), "");
-        for (i = 0; i < QD_NTRACK; i++)
-            lb_setn(o, LB_B(i), "TRACK ", i + 1);
-        lb_set(o, LB_B(8), "CLEAR M/S");
+        if (qd_ctl_ov_keys(a) == QD_OVK_TRACKS) {
+            for (i = 0; i < 10; i++)
+                lb_set(o, LB_B(i), "");
+            for (i = 0; i < QD_NTRACK; i++)
+                lb_setn(o, LB_B(i), "TRACK ", i + 1);
+            lb_set(o, LB_B(8), "CLEAR M/S");
+        }
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), OVK[k]);
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
