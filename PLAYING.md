@@ -22,7 +22,7 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | ENV (printed) | **MIX**: the mixer |
 | EDIT (printed) | **EDIT**: the sound editor |
 | the black keys, left to right (F#3 .. D#5) | **B1 .. B10** |
-| the rightmost black key (F#5) | **B11** |
+| the rightmost black key (F#5) | **B11**, the hold key on every page (below) |
 | the white keys | **W1 .. W16**, the 16 steps of the page you are editing |
 
 The on-screen panel in FM1VST and the web preview labels the buttons by these roles (P1.5r): FX, TRACKS (SEL), MIX
@@ -69,7 +69,8 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   track's playing step lights white; every track follows its own speed and loop, and a row shows its playhead only
   while that track is on this page. The selected track's icon is boxed white, a soloed one yellow; a muted track (or
   one silenced by another's solo) goes grey with a line through it. The black keys work as in the mixer: **B1..B6**
-  tapped selects the track, held mutes / unmutes it, double-tapped solos it, **B11** clears every mute and solo. The
+  tapped selects the track, held mutes / unmutes it, double-tapped solos it, **a track key held + B11** clears every
+  mute and solo (B11 alone is the hold key here too, below). The
   white keys are the selected track's steps, as in STEPS (tap makes / removes, hold edits it, with the held step's
   screen); SELECT turns the page and the knobs work as in STEPS with nothing held. The hold modes (B1..B10 in the
   other views) are not on the black keys here: LFO held + a black key still picks one.
@@ -223,8 +224,9 @@ and chance; a LOCK step's runs too).
 
 ## How do I edit steps without holding them? (the step latch)
 
-- Press **LFO** (or click **B11**, below): the latch is on (LFO lit). It is as if a step is always held. It starts
-  with **nothing selected** (2026-10-26): tap a step, or turn ALGORITHM (the cursor lands on the page's step 1).
+- Press **LFO** (or hold **B11** and press white keys, below): the latch is on (LFO lit). It is as if a step is always
+  held. It starts with **nothing selected** (2026-10-26): tap a step, or turn ALGORITHM (the cursor lands on the page's
+  step 1).
 - **Tap a white key** to select just that step; **hold several together** to select exactly those. Whatever your
   fingers press, from the first key down until all are up, replaces the selection (it never adds or removes a note).
   Tapping the step that is the only one selected unselects it. Selected keys blink.
@@ -232,7 +234,7 @@ and chance; a LOCK step's runs too).
   preview.
 - **With nothing selected** the latch stays on and the knobs edit the track's defaults. In **MODES** (the default) the black
   keys choose the mode. In **VALUES** (0.9.1) they set **the track's default** for the mode, as a held mode key + value
-  does (NOTE: its notes; VEL: B10 is 127 ..; B11 resets it), and their LEDs show the default's value, not the modes;
+  does (NOTE: its notes; VEL: B10 is 127 ..), and their LEDs show the default's value, not the modes;
   **LFO + a black key** changes the mode. Tap a step to select again.
 - **Double-tap a white key** (0.9.1, two taps within 200 ms, as everywhere in FIZZ): an empty step gets a trig, a step
   with one loses it. A single tap still only selects; the first tap of a double leaves no edit or undo level of its own.
@@ -245,7 +247,7 @@ and chance; a LOCK step's runs too).
   second, in EDIT too (P1.5n), and F1 / F2's map only comes up when they are held longer than a tap.
 - **NOTE: KNOB 1 moves all the selected steps' notes** together (2026-10-26), as with a finger on a step, in every
   view; ALGORITHM stays the cursor (note 5 only while a step is physically held).
-- **LFO** again, a **B11** click or **HOME** turns it off (or ALGORITHM turned fully left past step 1).
+- **LFO** again, **B11 + F1** or **HOME** turns it off (or ALGORITHM turned fully left past step 1).
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
 - **Two latch modes** (P1.5b; P1.5h). **Hold LFO alone** (400 ms, no other key): while you hold it, a screen shows the
   latch mode (two drawings: MODES on the left, VALUES on the right, the current one lit). **Turn SELECT** toward one
@@ -257,28 +259,48 @@ and chance; a LOCK step's runs too).
     selected steps' values for that mode**. While a finger holds a step, the black keys are its values as always.
     LFO breathing slowly between 60 % and full (P1.5n; it was at half, too dim on the unit).
 
-## B11, the hold key (2026-11-10)
+## B11, the hold key: one design language (2026-11-10)
 
-Elasticat's second shift, in the step views (PIANO ROLL, STEPS, EDIT) and on the keyboard page (below). **GLO stays
-SHIFT** and every SHIFT shortcut
-stays (SHIFT + B11 still clears the track). B11 is the hold key only where it has no other job: with a step held it
-still resets the step's value, with a mode key held it resets the default, the latch in VALUES with nothing selected
-it resets the default, in OVERVIEW it clears the mutes and solos, F1 + B11 is still undo.
+Elasticat's second shift, and **the same on every page where steps can be locked**: the step view (PIANO ROLL, STEPS,
+EDIT, GEEK OUT, OVERVIEW), the keyboard page, the sound editor, the effects, the mixer, the MIDI FX screen and TOOLS.
+**GLO stays SHIFT** and every SHIFT shortcut stays (SHIFT + B11 still clears the track).
 
+- **Hold B11**: the screen shows **the pages and their steps** (F1's pages picture, headed B11 · PAGES) over the page
+  you are on, after a third of a second; **let go and it is gone at once** (the editor, the mixer, the keyboard .. are
+  back as they were).
 - **Hold B11 + B1..B8**: the pages, exactly as F1 + B1..B8: **tap** edits that page, **double-tap** loops it alone,
-  **hold** puts it in or out of the loop, hold one and press another for the pages between. While B11 is held the
-  screen shows the pages as F1's picture does (headed B11 · PAGES); B9 and B10 do nothing.
-- **Hold B11 + white keys**: they **select steps** (the step latch comes on). The first key of a B11 hold starts a new
-  selection, each next one goes in, or out again if it is in; no step is made or removed. **Let go of B11 and the
-  selection stays**: the black keys and the knobs edit it as the latch's selection always does.
-- **B11 + F1**: the selected steps are **cleared** (their notes and locks): one undo level, SHIFT + F1 brings them
-  back.
-- **A quick click of B11** (pressed and let go within 0.3 s, nothing else done): the step latch on / off, as LFO.
-  A hold that did something (a page, a step, a knob) is never also a click.
-- **On the keyboard page** (REC tapped) B11 is the same hold key: it no longer plays F#5. Held, B1..B8 are the
-  pages, the white keys select steps, B11 + F1 clears them, and the screen shows the page's sixteen steps (the
-  selected outlined white); let go, the keys are the keyboard again and **play into the selected steps** (below). A
-  click turns the latch on with the last step you edited selected, or off.
+  **hold** puts it in or out of the loop, hold one and press another for the pages between. B9 and B10 do nothing.
+- **Hold B11 + white keys**: they **select steps**, as the step latch's keys do: keys pressed **together** (one still
+  down when the next goes down) are one selection; once all are up, the next press starts **a new selection** (that
+  step alone). It is never a toggle; no step is made or removed. The **step lock** (the latch) comes on with it, so
+  the page's knobs now lock onto the selected steps, as a held step's would (the sound editor's values, the mixer's
+  LEVEL / PAN / sends, the effects' sends, the MIDI FX lock, the step view's values). **Let go of B11 and the
+  selection stays.** In TOOLS the scope turns SELECTED STEPS.
+- **B11 + F1 (OCT−)**: **leave the step lock**: the selection goes, the latch is off, the knobs are the track's again
+  (Elasticat's LIVE). Nothing is cleared.
+- **B11 + F2 (OCT+)**: **the selected steps' value back to the track's**: in the step view, the keyboard and TOOLS the
+  value of the current hold mode (VEL: their velocity is the track's again; the other values stay; FUNC none, SLIDE
+  off); in the **sound editor** the locks of **the parameters on the page shown** (as B11 with a finger on a step); in
+  the **mixer and the effects** the locks of the page's knobs (LEVEL, PAN, the sends); on the **MIDI FX screen** the
+  steps' MIDI FX back to the track's group.
+- **A quick click of B11** (pressed and let go within 0.3 s, nothing else done): **the white keys switch between the
+  steps and the keys**, the in-scale keys drawn in REC's orange (W1 the root at the keyboard's octave, then the scale
+  upwards; the record settings' EDIT KEYS FULL: every key plays). Click again: the steps. It never turns the step lock
+  on or off (a selection stays). Everywhere alike: **on HOME** (the step view stays the sequencer: the orange keys are
+  drawn along the foot of every view, over the page's row), in the sound editor (its strip under the top), the effects
+  (SENDS' foot), the mixer and TOOLS (along the foot), the MIDI FX screen (its KEYS / STEPS), and **on the keyboard
+  page the other way round**: its white keys become the steps (a tap makes / removes, hold one and play black keys
+  into it; the step row shows), the screen's keyboard stays. With the keys on, F1 / F2 are the octave and LFO the
+  keys' HOLD, as in the editor. **HOME** gives the steps back (SHIFT + HOME's next view keeps the keys).
+- **The step lock on, B11 is still the hold key** (it no longer resets the selection's values: B11 + F2 does).
+- A hold that did something (a page, a step, a knob, F1 / F2) is never also a click.
+- **Where B11 keeps another job**: a step **physically held** + B11 resets that step's value (in the sound editor: its
+  locks on the page); a mode key held + B11 resets the track's default; F1 + B11 is undo; SHIFT + B11 clears the
+  track; SEL held + B11 and, on the mixer and OVERVIEW, **a track key held + B11** clear every mute and solo; menus,
+  the browser and the typewriter keep theirs. **ALGORITHM** is unchanged (one step of the page shown; fully left LIVE).
+- What moved for it: the MIDI FX screen's **remove** is **B9** (twice); TOOLS' scope is **B7** and HUMANIZE /
+  QUANTIZE share **B6** (below); **REC** no longer switches the keys: it opens the keyboard page (below).
+- B11's light: **lit** while held, **dim** with the step lock on, **faint** otherwise.
 
 ## How do I enter notes and chords?
 
@@ -325,7 +347,7 @@ A step has up to **six notes**.
 
 - Open the **sound editor**, **hold the step** and turn a knob of the page: the value is locked on that step (a lock
   is a chip: **filled = locked on this step, outlined = locked on some step of the track**). **B11** there clears the
-  page's locks on the held steps; **F2 held + a knob** unlocks that value (with nothing held: on every step of the
+  page's locks on the held steps (B11 + F2 on the step lock's selection, 2026-11-10); **F2 held + a knob** unlocks that value (with nothing held: on every step of the
   track). In the step view, a step held + **PRESETS** is its sound lock. (P-LOCK, the old B11 mode, is gone:
   2026-10-26; SOUND is on B10 since 2026-11-10.)
 
@@ -432,8 +454,8 @@ Undo and redo of everything (P1.5c):
   kept for the next switch), **KNOB 2 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 3 ROOT**:
   on GLOBAL they set the global key (every GLOBAL track changes), on LOCAL only this track's; **KNOB 4 MIDI CH**
   (the channel that plays the track, 1..6 by default; channel 16 always plays the selected track).
-- The white keys are the track's steps (a tap makes, removes). **REC** tapped turns the keyboard on (they play notes)
-  or off again; the page stays open.
+- The white keys are the track's steps (a tap makes, removes). **REC** tapped opens the keyboard page (2026-11-10:
+  REC's only view job; the settings close).
 - Page 2: **KNOB 1 VOICES** (the voice limit, 1 = mono; the voices sounding white), **KNOB 2 SWING** on / off,
   **KNOB 3 PAGE FOLLOW**, **KNOB 4 MIDI FX**.
 - Page 3 (0.9.1): **KNOB 1 KIND**: BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (the presets' seven tags), each with its
@@ -453,7 +475,7 @@ Undo and redo of everything (P1.5c):
   (the default kit's: DRUMS, BASS, KEYS, LEAD, PLUCK, PAD, BELL, NOISE), with the kinds DRUMS, BASS, KEYS, LEAD,
   PLUCK, PAD, KEYS, FX. **A new project** (0.9.5) names its tracks from their sounds: each track's kind from its
   preset's tags, its name from the namesizer and the sound's own ideas (not typed: a kind chosen renames it).
-- **The white keys** are the page's steps (a tap makes or removes one); with the keyboard on (REC) they play notes.
+- **The white keys** are the page's steps (a tap makes or removes one).
 - SHIFT + ALGORITHM / PRESETS still set the scale / root from the step view (a following track: the global key).
 
 ## How do I mix? (ENV = MIX)
@@ -462,7 +484,8 @@ Undo and redo of everything (P1.5c):
   track crossed, a soloed one yellow), its delay and reverb sends as two little bars under it. **ALGORITHM** chooses
   the track; its parts take the knobs' colours: **KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4 REVERB**.
 - **Black keys, on both pages**: **tap B1..B6** to select the track, **hold** one to mute / unmute it (at the hold),
-  **double-tap** to solo it; **B11** clears every mute and solo. **PRESETS** left mutes the selected track, right
+  **double-tap** to solo it; **a track key held + B11** clears every mute and solo (2026-11-10: B11 alone is the
+  hold key, as everywhere; SEL + B11 still clears them). **PRESETS** left mutes the selected track, right
   unmutes it. The keys' lights: playing, dim muted, blinking soloed. **SELECT** turns the page (faders / sends).
 - **ENV again**: the **sends**, every track's chorus, delay and reverb as three bars; **KNOB 1 CHORUS, KNOB 2 DELAY,
   KNOB 3 REVERB**. ENV again goes back to the faders. **HOME** closes it (0.9.6: F1 no longer does: F1 / F2 + W copy
@@ -492,8 +515,9 @@ Undo and redo of everything (P1.5c):
   held + ALGORITHM** changes it) with its **CHORUS, DELAY and REVERB sends as three bars**, their values under them;
   **KNOB 1..3** turn them. Along the foot the page's steps, as the EDIT home's row, and **the white keys are the
   steps** (the LEDs too): hold one and KNOB 1..3 lock that send on it (the bar framed, the value a chip); the latch's
-  selection the same. **REC** turns the white keys into the keyboard (the row shows the keys) and back, as the sound
-  editor does, on every effects page. The old overview's every-track bars and W1..W8 track picking are gone.
+  selection the same. **A B11 click** (2026-11-10; it was REC) turns the white keys into the keys (the row shows the
+  keys) and back, as the sound editor does, on every effects page. The old overview's every-track bars and W1..W8
+  track picking are gone.
 - On **every other effects page** (and the mixer) the white keys are the steps too, lit as in the step view, so a send
   lock is never blind.
 - **ROUTING** (2026-10-26, as ChoralRoot 0.27's): the signal flow as boxes on a wire. **KNOB 1 MODE**: **PARALLEL**
@@ -557,8 +581,9 @@ A track's speed is a **note value** and a **type**, each kept when you change th
   So a dotted track stays dotted when you press F3 + the 1/8 key: dotted 1/8.
 - **F3 + KNOB 1**: the note value; **KNOB 2**: the type. The screen shows it as 1/8 with a dot (dotted) or a T
   (triplet); the black keys at the foot of the F3 screen are drawn as the note values, a dot and a triplet.
-- **F3 + SELECT**: the tempo; **F3 + ALGORITHM**: the swing. Each turn shows the TAP ape dancing to it for a second,
-  then the F3 screen again (which also shows both).
+- **F3 + SELECT**: the page you edit, round (2026-11-10; F3's map shows PAGE n). **F3 + PRESETS**: the tempo
+  (2026-11-10; it was SELECT); **F3 + ALGORITHM**: the swing. Each tempo or swing turn shows the TAP ape dancing to it
+  for a second, then the F3 screen again (which also shows both).
 - The page whose range you set is the one you edit (F3 + W sets its end, W + W its start..end; KNOB 3 / 4 too).
 - **EXT CLOCK**: while a MIDI clock (a DAW) is running the unit, the tempo is the clock's: the F3 screen says EXT CLOCK
   with its BPM, and a tempo turn shows EXT CLOCK instead of changing it. A MIDI STOP, or no clock for half a second,
@@ -600,25 +625,34 @@ Where OCT− / OCT+ change an octave (NOTE with a step held or tapped with nothi
 
 ## How do I play the keyboard and record?
 
-- **REC tapped**: the keybed becomes a keyboard for the selected track (REC lit). REC again: back to the steps. The
-  keyboard drawn is the FM-1's own, its 27 keys from F (F3 to G5 at OCT 0).
+- **REC tapped** (from anywhere): **the keyboard page**, the keybed a keyboard for the selected track (REC lit). The
+  keyboard drawn is the FM-1's own, its 27 keys from F (F3 to G5 at OCT 0), white, a key sounding filled
+  (2026-11-10: the white keybed again, not REC's orange). **HOME** (or a page's own key) leaves it.
+- **REC tapped on the keyboard page records** (2026-11-10): it arms / starts as holding REC does (the record
+  settings' MODE and TAKE: LIVE waits for the first note or PLAY, STEP the cursor); a tap while armed or recording
+  stops it. Holding REC arms everywhere as before; SHIFT + REC the record settings.
+- **SELECT** is the page you edit (2026-11-10; the tempo is F3 + PRESETS), the step row showing it.
 - In a scale, keys outside the scale play the scale note just below.
 - **The keys light the scale** (P1.5b): the root's keys at 75 %, the scale's other notes at 40 %, the rest dark, a
   key playing full.
 - **SHIFT + ALGORITHM** the track's scale, **SHIFT + PRESETS** its root, while you play (stopped or playing).
 - **F1 / F2** move the keyboard an octave (−2..+2).
-- **Playing chords into steps** (2026-11-10): **hold B11 + white keys** to select steps of the page (B11 + B1..B8
-  the page; the screen shows the page's sixteen steps while B11 is held), let go, and the steps stay outlined in the
-  row over the keyboard. Now **every chord you play is written into all the selected steps**: the keys held together
+- **Playing chords into steps** (2026-11-10): **hold B11 + white keys** to select steps of the page (keys pressed
+  together; B11 + B1..B8 the page; the pages picture while B11 is held), let go, and the steps stay outlined in the
+  row over the sound's name. **The selected step's notes show** (the first one's, if several; as ALGORITHM moves too):
+  the keys of its notes light, and on the screen's keybed they are filled in the held step's **magenta** (a key
+  sounding stays white). Now **every chord you play is written into all the selected steps**: the keys held together
   are one chord (as many notes as a step takes), and the first key after all were up starts the next chord, replacing
   the steps' notes. An empty step becomes a note step. You hear the notes as you play, nothing moves on, the
   selection stays so you can try chord after chord; **each chord is one undo level** (SHIFT + F1). MIDI notes on the
   selected track's channel do the same.
   - **ALGORITHM** moves one selected step through the page's steps (turning it from nothing selected starts at step
     1); **fully left past step 1: LIVE**, nothing selected, the keyboard just plays. **LFO** with steps selected is
-    LIVE too (with nothing selected it is still HOLD). A **B11 click** selects the last step you edited.
+    LIVE too (with nothing selected it is still HOLD); so is **B11 + F1**.
+  - **A B11 click** makes the white keys **the steps** (tap: a trig made / removed; hold one and play black keys:
+    its notes); the screen's keyboard stays, with the step row. Click again: the keys.
   - **REC armed** (step or live recording) records as ever: the recording takes the notes, not the selection.
-  - Leaving the keyboard page (REC) ends the selection; the steps view starts LIVE.
+  - Leaving the keyboard page (HOME) ends the selection; the steps view starts LIVE.
 - **SHIFT + REC**: the **record settings** (they stay open; OCT− or HOME back), kept with the project:
   - **KNOB 1 MODE**: LIVE or STEP, what holding REC arms;
   - **KNOB 2 QUANTIZE**: 0..100 % (5 % a click): how much of the played timing is pulled onto the step (0 % as
@@ -645,9 +679,9 @@ Where OCT− / OCT+ change an octave (NOTE with a step held or tapped with nothi
     its first note starts the transport again from the top with it, so takes follow one another without stopping.
   - **Playing: hold REC and let go without turning a knob**: the recording starts and **latches** (REC lit; CAPTURE:
     armed, waiting for the first note).
-  - **A tap of REC while armed or recording stops it**; playback goes on. Otherwise a tap is the view's own job, as
-    before: the keyboard / the steps, the editor's keys, the MIDI FX screen's STEPS / KEYS. (So a tap never switches
-    the view while recording: it stops the recording first; the next tap switches.)
+  - **A tap of REC while armed or recording stops it**; playback goes on. Otherwise a tap opens the keyboard page
+    (2026-11-10: from every view; the steps / keys switch is B11's click), and on the keyboard page arms the
+    recording as a hold does. (So a tap never switches the view while recording: it stops the recording first.)
   - **Playing: hold REC and turn knobs**: an **automation punch-in**, recording the knobs only while REC is held;
     letting go ends it, nothing latches. While a recording is latched, REC held + a knob records the knob and the
     recording goes on.
@@ -655,7 +689,7 @@ Where OCT− / OCT+ change an octave (NOTE with a step held or tapped with nothi
     take and playback goes on (PLAY again stops).
   - The page buttons: one is lit, the page you are on (EDIT, ENV, FX, SEL, SEQ, ARP, SAVE, REC); **HOME** is lit on the
     step view with no page open.
-  - REC's light: **off** (the steps), **lit** (the keyboard page), **dim** (the editor's keys, the keyboard under MIDI FX), **blinking**
+  - REC's light: **off** (every other page), **lit** (the keyboard page), **blinking**
     (armed), **lit** (recording). While it records the screen is framed in red, a red dot on the band under a knob as
     it writes.
   - The record settings' **MODE**: **LIVE** as above (notes to the nearest step at the track's speed, micro-timing
@@ -819,9 +853,9 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
   p-locks. **F2 held + a knob unlocks that value**: on the held or selected steps, with nothing held on every step of
   the track ("FREQ unlocked" a moment, in the knob's colour).
 - The top line: the group's page dots first (always in the same place), then the page's name.
-- **Live play in the editor** (P1.5b): **tap REC** with the editor open and its keyboard is on (EDIT opened from the
-  keyboard keeps it on too). A strip under the top shows the keys, the roots brighter, the ones playing in the track's
-  colour. REC again: the white keys are the steps again.
+- **Live play in the editor** (P1.5b): **click B11** (2026-11-10; it was REC) with the editor open and its keyboard is
+  on (EDIT opened from the keyboard keeps it on too). A strip under the top shows the keys, the roots brighter, the
+  ones playing in REC's orange. Click again: the white keys are the steps again.
   - **SCALE** (the record settings' EDIT KEYS, the default): **the 16 white keys play the track's scale**, W1 the root
     at the keyboard's octave, then each note of the scale upwards (chromatic: 16 semitones). **The black keys stay the
     editor's pages.**
@@ -900,13 +934,16 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
 ## TOOLS: change a whole page, track or pattern (SEQ tapped, 0.12.0)
 
 - **Tap SEQ**: TOOLS opens on the selected track (SHIFT + SELECT still changes it). **SEQ** again or **HOME** closes it.
-- **B1..B8**: ROTATE (the steps round the loop), REVERSE, RANDOM (new steps: density, notes, velocity, chance),
-  EUCLID (N hits spread evenly), GRIDS (a drum part from a map: X, Y, density, chaos), HUMANIZE (timing and velocity
-  jitter), QUANTIZE (the timing pulled back to the grid), LENGTH (the loop x2 / /2). **B9 STRETCH** squeezes or
-  spreads the track in time (x2..x8, /2../8, or onto 1..8 pages). **B10 CLIP**: COPY, PASTE or CLEAR (KNOB 1 picks,
-  OCT+ does it; CLEAR on a track or the pattern wants OCT+ twice). **PRESETS** steps through them all.
-- **B11 or ALGORITHM**: the scope, SELECTED STEPS, PAGE, TRACK or PATTERN. **W1..W16** put steps in or out of the
-  selection (the scope turns SELECTED); **SELECT** the page shown. **KNOB 1..4** the tool's values.
+- **B1..B5**: ROTATE (the steps round the loop), REVERSE, RANDOM (new steps: density, notes, velocity, chance),
+  EUCLID (N hits spread evenly), GRIDS (a drum part from a map: X, Y, density, chaos). **B6 HUMANIZE / QUANTIZE**
+  (2026-11-10, one key for the two: from another tool HUMANIZE, the timing and velocity jitter; B6 again QUANTIZE, the
+  timing pulled back to the grid; again HUMANIZE, a new die). **B8 LENGTH** (the loop x2 / /2). **B9 STRETCH**
+  squeezes or spreads the track in time (x2..x8, /2../8, or onto 1..8 pages). **B10 CLIP**: COPY, PASTE or CLEAR
+  (KNOB 1 picks, OCT+ does it; CLEAR on a track or the pattern wants OCT+ twice). **PRESETS** steps through them all.
+- **B7 or ALGORITHM** (2026-11-10; B11 was): the scope, SELECTED STEPS, PAGE, TRACK or PATTERN. **W1..W16** put steps
+  in or out of the selection (the scope turns SELECTED); **SELECT** the page shown. **KNOB 1..4** the tool's values.
+- **B11** is the hold key, as on every page: held, the pages over TOOLS, + W the selection (SELECTED), + F1 / F2 as
+  everywhere; a click the white keys the keys (along the foot) and back.
 - Every change plays at once; the white keys and the screen show the result, the steps it removes as ghosts.
   **OCT+ keeps it** (one undo level), **OCT− puts it back**; **SHIFT + F1** undoes a kept change later.
 
@@ -939,8 +976,8 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
     one); a track on OFF has none and its icon is grey; a group no track is on is grey. The selected track's wire is the
     thick one: it glides to the group you turn to (no restart a detent), the place it left dashed for a moment. The map
     closes a second after the last detent. **SHIFT + SELECT** goes to the next track (its group).
-  - **B10** bypasses the slot (and back; saved). **B11** removes its effect: press it twice (the first arms a red X).
-    **SHIFT + F1** undoes.
+  - **B10** bypasses the slot (and back; saved). **B9** (2026-11-10; B11 was) removes its effect: press it twice (the
+    first arms a red X). **SHIFT + F1** undoes.
   - **F1 / F2 as in the sequencer** (0.9.1): **F1 + B**: the first slot pressed is copied, every other slot pressed
     while F1 is held gets it pasted (the copy stays for F2). **F2 + B**: pick up and drop, as F2 + W on steps (the first
     press cuts into the hand, an empty slot gets a paste, a full one alternates; the slot flies to where it lands).
@@ -948,11 +985,11 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
     and where the next B puts it; F2 the hand, empty (the next B picks up) or with the effect in it (the next B drops).
     0.9.6, on **STEPS**: **F1 + W / F2 + W** copy and move **steps** as in the step view (whole, every lock), the
     picture then the step as a card (its notes, a LOCK step a lock); **F1 + B9** clears the page, **F1 + B11** undoes.
-  - **REC** (0.9.3) switches the white keys between **KEYS** (as before: the track through the group; REC lit) and
-    **STEPS** (REC dark): the track's 16 steps of the page you edit, lit as in the step view. 0.9.4: this is the same
-    switch as the main view's REC keyboard: opened from the step view the screen starts on STEPS, from the keyboard on
-    KEYS, and when you leave it you are in the keyboard if it was on KEYS, in the step view if on STEPS. REC held arms
-    recording there as in the keyboard (the screen stays, on KEYS); SHIFT + REC opens the record settings. **Hold steps and turn
+  - **A B11 click** (2026-11-10; REC was, 0.9.3) switches the white keys between **KEYS** (the track through the
+    group) and **STEPS**: the track's 16 steps of the page you edit, lit as in the step view. Opened from the step
+    view the screen starts on STEPS, from the keyboard on KEYS, and when you leave it you are in the keyboard if it was
+    on KEYS, in the step view if on STEPS. REC tapped opens the keyboard page; REC held arms recording there as in the
+    keyboard (the screen stays, on KEYS); SHIFT + REC opens the record settings. **Hold steps and turn
     ALGORITHM**: their MIDI FX lock (TRACK, OFF, group 1 .. 5), the same as TRIG's KNOB 2, with its picture and the
     step's frame; several held: all of them; the step latch's selection counts too. Nothing held: ALGORITHM is the
     track's group again. On the arp's lanes (pages 3, 4) the white keys stay the lane's steps.

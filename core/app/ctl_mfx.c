@@ -9,7 +9,8 @@
  *   PRESETS            the slot's effect: NONE, then the ten (heard at once; a rolodex while turning)
  *   KNOB 1..4, SELECT  the page's values (KNOB 4 CHANCE on page 1); SELECT the page too
  *   ALGORITHM          the track's group: OFF, 1..5 (the screen follows; the five groups as small rails)
- *   B10                the slot bypassed / playing; B11 its effect removed (twice: the first press arms it)
+ *   B10                the slot bypassed / playing; B9 its effect removed (twice: the first press arms it; 2026-11-10:
+ *                      B11 is the hold key, every page's)
  *   F1 + B n, F2 + B n the slot copied to n / moved to n (the others close up); F1 tapped (its release): closed
  *   the white keys     the track through the group (the editor's scale keyboard); on the arp's lanes (pages 3, 4)
  *                      the lane's 16 steps (a tap selects; SHIFT + W a random value), KNOB 1 the step's value, KNOB 4
@@ -177,8 +178,8 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
     }
     if (!g)
         return;
-    if (b != 10)
-        u->mfx_arm = -1;                                /* (any other key disarms B11) */
+    if (b != 8)
+        u->mfx_arm = -1;                                /* (any other key disarms B9) */
     if (b < QD_MFX_NSLOT) {
         qd_mfx_group_t *G = &a->proj.mfx[g - 1];
         if (mf_held(a, QD_B_OCTDN) || mf_held(a, QD_B_OCTUP))
@@ -233,7 +234,7 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
         s->bypass ^= 1u;
         return;
     }
-    if (b == 10 && s && s->type) {                      /* B11: armed, then removed */
+    if (b == 8 && s && s->type) {                       /* B9 (2026-11-10: B11 is the hold key): armed, then removed */
         if (u->mfx_arm == u->mfx_slot) {
             qd_undo_hint(a, QD_UK_CLEAR);
             qd_mfx_slot_init(s, QD_MFX_NONE);
@@ -295,7 +296,7 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
     }
 }
 
-/* P1.6e: REC tapped there: the white keys STEPS (the track's steps of the page edited) or KEYS (as before); P1.6f: the
+/* P1.6e: REC tapped there (2026-11-10: a B11 click): the white keys STEPS (the track's steps of the page edited) or KEYS (as before); P1.6f: the
  * mode itself, the main view's (the screen stays open over either; leaving it, the view is the mode's) */
 void qd_mfx_rec(qd_app_t *a)
 {
@@ -507,8 +508,8 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
     {
         const qd_mfx_slot_t *s = &a->proj.mfx[g - 1].slot[u->mfx_slot & 7];
         key[QD_BLACK_KEY[9]] = s->type && !s->bypass ? QD_LED_LIT : QD_LED_OFF;   /* B10: the slot plays */
-        key[QD_BLACK_KEY[10]] = !s->type ? QD_LED_OFF : u->mfx_arm == u->mfx_slot ? (bl ? QD_LED_LIT : QD_LED_OFF)
-                                                                                    : QD_LED_DIM;   /* B11 */
+        key[QD_BLACK_KEY[8]] = !s->type ? QD_LED_OFF : u->mfx_arm == u->mfx_slot ? (bl ? QD_LED_LIT : QD_LED_OFF)
+                                                                                   : QD_LED_DIM;   /* B9: remove */
         if (!lane && u->mode == QD_MODE_STEP)           /* (P1.6e, STEPS: the white keys above) */
             return;
         if (lane) {                                     /* the lane's steps: within its length dim, the selected

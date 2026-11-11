@@ -4,8 +4,9 @@
 /* T1: TOOLS, the track tools (ctl.h; docs/TRACK-TOOLS-PLAN.md §2, the owner's decisions §8, his revision §10). Built
  * through ctl_latch.c (it includes this file). The operations are seq/tools.c's.
  *
- * THE CONTROLS (the owner's layout, 2026-10-25): B1..B10 ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, QUANTIZE, LENGTH,
- * STRETCH, CLIP (COPY / PASTE / CLEAR: KNOB 1 picks, OCT+ or B10 does it); PRESETS every tool; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
+ * THE CONTROLS (the owner's layout, 2026-10-25; 2026-11-10: B11 the hold key, every page's): B1..B5 ROTATE, REVERSE,
+ * RANDOM, EUCLID, GRIDS, B6 HUMANIZE / QUANTIZE (again: the other), B7 the scope, B8 LENGTH, B9 STRETCH, B10 CLIP (COPY /
+ * PASTE / CLEAR: KNOB 1 picks, OCT+ or B10 does it); PRESETS every tool; B7 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
  * page shown (it stays: no page follow in TOOLS); W1..W16 the page's steps (a press: in / out of the selection, the
  * scope SELECTED; lit as the change makes them, the ghosts dim, the steps that do not play dark); KNOB 1..4 the
  * tool's values. SELECTED + ROTATE moves the selected steps along the track's loop (qd_tl_move). OCT+ keeps, OCT- reverts (it never leaves); HOME (or SEQ tapped, which opens it: T1b) is the way out. TOOLS works on
@@ -399,12 +400,25 @@ static void tl_scope(qd_app_t *a, int sc)
     tl_pop(a, 1, 0);
 }
 
+/* 2026-11-10 (owner: B11 freed for the hold key): B1..B5 ROTATE .. GRIDS, B6 HUMANIZE and QUANTIZE (from another tool
+ * HUMANIZE; again: the other), B7 the scope, B8 LENGTH, B9 STRETCH, B10 CLIP: the tool on key b (-1: B6's two, -2 the
+ * scope), the key of tool t */
+int qd_tools_key_tool(int b) { return b < 5 ? b : b == 5 ? -1 : b == 6 ? -2 : b < QD_TL_N ? b : -3; }
+int qd_tools_tool_key(int t) { return t < 5 ? t : t < 7 ? 5 : t; }
 void qd_tools_black(qd_app_t *a, int b, int down)
 {
     qd_tools_t *T = &a->ui.tl;
     if (!down)
         return;
-    if (b < QD_TL_N) {                                 /* B1..B10 the tools (B9 STRETCH: no again) */
+    if (b == 5) {                                       /* B6: HUMANIZE <-> QUANTIZE (each a fresh start: a new die) */
+        tl_tool(a, T->tool == QD_TL_HUMANIZE ? QD_TL_QUANTIZE : QD_TL_HUMANIZE);
+        return;
+    }
+    if (b == 6) {                                       /* B7: the scope, round */
+        tl_scope(a, (T->scope + 1) % QD_TS_N);
+        return;
+    }
+    if (b < QD_TL_N) {                                 /* the tools (B9 STRETCH: no again) */
         if (b != T->tool) {
             tl_tool(a, b);
         } else if (b == QD_TL_CLIP) {                  /* B10 again (CLIP): its action, as OCT+ */
@@ -415,34 +429,34 @@ void qd_tools_black(qd_app_t *a, int b, int down)
         } else if (b == QD_TL_REVERSE) {               /* again: REVERSE flips the result */
             T->flags ^= QD_TLF_FLIP;
             T->flags |= QD_TLF_DIRTY;
-        } else if (b == QD_TL_RANDOM || b == QD_TL_HUMANIZE) {   /* again: the die rolled (a new seed) */
-            uint16_t *sd = b == QD_TL_RANDOM ? &T->v.rn.seed : &T->v.hu.seed;
-            *sd = tl_seed(a, *sd);
+        } else if (b == QD_TL_RANDOM) {                /* again: the die rolled (a new seed) */
+            T->v.rn.seed = tl_seed(a, T->v.rn.seed);
             T->flags |= QD_TLF_DIRTY;
         } else if (b == QD_TL_GRIDS) {                 /* again: the next part (LOW, MID, HIGH), chaos rerolled */
             T->v.gr.part = (uint8_t)((T->v.gr.part + 1) % 3);
             T->v.gr.seed = tl_seed(a, T->v.gr.seed);
             T->flags |= QD_TLF_DIRTY;
         }
-        return;
     }
-    if (b == 10)                                        /* B11: the scope, round */
-        tl_scope(a, (T->scope + 1) % QD_TS_N);
 }
 
 /* W: the page's step in / out of the selection (the scope SELECTED: another scope's change kept first; SELECTED's
  * pending change follows the selection, live) */
-void qd_tools_white(qd_app_t *a, int w, int down)
+void qd_tools_sel_changed(qd_app_t *a)
 {
     qd_tools_t *T = &a->ui.tl;
-    if (!down)
-        return;
     if (T->scope != QD_TS_SEL)
         tl_scope(a, QD_TS_SEL);
-    qd_step_select_toggle(a, tl_page(a) * QD_PAGE + (w & 15));
     tl_norm(a);
     if (T->flags & QD_TLF_PEND)
         T->flags |= QD_TLF_DIRTY;
+}
+void qd_tools_white(qd_app_t *a, int w, int down)
+{
+    if (!down)
+        return;
+    qd_step_select_toggle(a, tl_page(a) * QD_PAGE + (w & 15));
+    qd_tools_sel_changed(a);
 }
 
 int qd_tools_knob(qd_app_t *a, int knob, int d)
@@ -692,9 +706,10 @@ void qd_tools_leds(const qd_app_t *a, uint8_t *key)
                                                          * the steps that do not play dark), the selected blinking */
         key[QD_WHITE_KEY[i]] = (sel >> i) & 1u ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
                              : !((inr >> i) & 1u) ? QD_LED_OFF : on[i] ? QD_LED_LIT : was[i] ? QD_LED_DIM : QD_LED_OFF;
-    for (i = 0; i < QD_TL_N; i++)                       /* B1..B10 the tools, B11 the scope */
-        key[QD_BLACK_KEY[i]] = i == T->tool ? QD_LED_LIT : QD_LED_DIM;
-    key[QD_BLACK_KEY[10]] = QD_LED_LIT;
+    for (i = 0; i < QD_TL_N; i++)                       /* the tools (B6 both of its two), B7 the scope; B11 the hold
+                                                         * key (ctl_leds.c) */
+        key[QD_BLACK_KEY[i]] = qd_tools_tool_key(T->tool) == i ? QD_LED_LIT : QD_LED_DIM;
+    key[QD_BLACK_KEY[6]] = QD_LED_LIT;
 }
 
 /* the playing step's position in the scope (-1: none) */

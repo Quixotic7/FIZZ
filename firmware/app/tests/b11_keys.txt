@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: MPL-2.0
-# 2026-11-10 (owner): B11 on the keyboard page (REC tapped). B11 is the hold key there too (no F#5): held, its W keys
-# select steps of the page edited (B1..B8 the pages) and the screen shows the page's sixteen steps; let go, the
-# selection stays (outlined) and the keyboard writes each chord into the selected steps (an empty one made), heard as
-# played; ALGORITHM moves the one selected step, fully left LIVE; LFO with a selection: LIVE.
+# 2026-11-10 (owner): B11 on the keyboard page (REC tapped). B11 is the hold key there too (no F#5): held, the pages
+# picture (B1..B8 the pages), its W keys select steps of the page edited (keys down together one selection); let go,
+# the keyboard at once, the selection stays (outlined in the step row) and the keyboard writes each chord into the
+# selected steps (an empty one made), heard as played; the selected step's notes light (keys and screen, the held
+# step's magenta); ALGORITHM moves the one selected step, fully left LIVE; LFO with a selection: LIVE; a B11 click: the
+# W keys the steps (the screen's keyboard stays); SELECT the page edited; the keybed white (the owner's second pass).
 #   firmware/build.py --host, then (mkdir -p firmware/app/build/b11_keys first)
 #   firmware/app/build/host/fizz_host firmware/app/tests/b11_keys.txt firmware/app/build/b11_keys
 expect fz_up 1
@@ -19,17 +21,20 @@ tapkey w0
 tapkey w8
 wait 100
 expect fz_ons_1_1 257
-# REC: the keyboard, LIVE
+# REC: the keyboard, LIVE (the keybed white)
 tap REC
-wait 300
+wait 1200
 expect fz_mode 2
 shot keys-live.png
-# B11 held: the page's steps; W3, W6 select (no notes, no trig)
+# B11 held: the pages; W3, W6 held together select (no notes, no trig)
 key b10 down
 wait 400
 shot keys-b11-held.png
-tapkey w2
-tapkey w5
+key w2 down
+key w5 down
+wait 50
+key w2 up
+key w5 up
 wait 100
 expect fz_ons_1_1 257
 shot keys-b11-select.png
@@ -45,11 +50,12 @@ shot keys-chord-down.png
 key w0 up
 key w2 up
 key w4 up
-wait 300
+wait 400
 expect fz_ons_1_1 293
-shot keys-chord-written.png
-# ALGORITHM: one step (the first selected moves on), then fully left: LIVE
-spin ALGO 2
+# let go: the selected step's notes lit on the keybed (magenta), not sounding
+shot keys-step-notes.png
+# ALGORITHM: one step (the first selected moves on: its notes shown), then fully left: LIVE
+spin ALGO 3
 wait 300
 shot keys-algo-step.png
 spin ALGO -16
@@ -73,3 +79,25 @@ wait 300
 tap LFO
 wait 300
 shot keys-lfo-live.png
+# SELECT: the page edited (page 1 again)
+spin SELECT -1
+wait 1500
+expect fz_page 0
+# a B11 click: the W keys the steps (the row shows, the keyboard stays); W12 tapped: a trig
+tapkey b10
+wait 300
+tapkey w11
+wait 300
+expect fz_ons_1_1 2341
+shot keys-ksteps.png
+tapkey b10
+wait 300
+# REC tapped on the keyboard page: recording armed (LIVE waits); again: off; HOME leaves
+tap REC
+wait 300
+shot keys-rec-armed.png
+tap REC
+wait 300
+tap HOME
+wait 300
+expect fz_mode 1

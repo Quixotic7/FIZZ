@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # 2026-11-10 (owner, Elasticat's B11): the new mode keys and B11, the hold key, on the unit's build. B8 FUNC, B9 TRIG
 # and SLIDE (tapped again: the other), B10 SOUND; B11 held: B1..B8 the pages (F1's picture), the W keys select steps,
-# B11 + F1 clears them (SHIFT + F1 undoes); a quick click of B11 the step latch; ALGORITHM the shown page's steps only,
+# B11 + F1 the lock off (LIVE); a quick click of B11 the W keys between the steps and the keys; ALGORITHM the shown page's steps only,
 # fully left LIVE.
 #   firmware/build.py --host, then (mkdir -p firmware/app/build/b11 first)
 #   firmware/app/build/host/fizz_host firmware/app/tests/b11.txt firmware/app/build/b11
@@ -67,42 +67,41 @@ shot b11-held-page3.png
 tapkey b0
 wait 100
 expect fz_page 0
-# .. W2, W6, W10 select (the latch on, no trig made); let go: the selection stays
-tapkey w1
-tapkey w5
-tapkey w9
+# .. W2, W6, W10 held together select (the latch's model: keys down together one selection; the lock on, no trig
+# made); let go of B11: the selection stays
+key w1 down
+key w5 down
+key w9 down
+wait 50
+key w1 up
+key w5 up
+key w9 up
 wait 100
 expect fz_ons_1_1 4369
 shot b11-held-select.png
 key b10 up
 wait 300
 shot b11-selection.png
-# B11 + W1, W5 + F1: steps 1 and 5 cleared; SHIFT + F1 brings them back
+# B11 + F1: the lock off (LIVE), nothing cleared
 key b10 down
 wait 50
-tapkey w0
-tapkey w4
 press OCT-
 wait 50
 release OCT-
 key b10 up
-wait 700
-expect fz_ons_1_1 4352
-shot b11-cleared.png
-press GLO
-tap OCT-
-release GLO
 wait 300
 expect fz_ons_1_1 4369
-# a quick click: the latch off; again: on
+shot b11-live.png
+# a quick click: the W keys the keys (REC's orange, along the foot), never the lock; again: the steps
 tapkey b10
 wait 300
-shot b11-click-off.png
+shot b11-click-keys.png
+tapkey w0
+wait 100
+expect fz_ons_1_1 4369
 tapkey b10
 wait 300
-shot b11-click-on.png
-tapkey b10
-wait 300
+shot b11-click-steps.png
 # ALGORITHM: the page's steps (3 on: step 3), the page kept; fully left: LIVE
 spin ALGO 3
 wait 300

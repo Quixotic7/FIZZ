@@ -550,7 +550,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
         v->tempo_hot = 1.f - (float)(a->ms - u->tempo_ms) / 1000.f;
 }
 
-static void fill_shift(const qd_app_t *a, ui_shift_t *v)
+static __attribute__((noinline)) void fill_shift(const qd_app_t *a, ui_shift_t *v)
 {
     static char scale[24], root[4], swing[8], trk[4];
     const qd_ui_t *u = &a->ui;
@@ -811,6 +811,20 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
     }
 }
 
+/* the keys' states as ui_rec_key draws them (0 out of the scale, 1 in it, 2 a root; +4 sounding), from their LEDs:
+ * the 16 W keys, or (full) all 27 */
+void qd_view_kst(const qd_app_t *a, uint8_t *kst, int full)
+{
+    uint8_t lv[QD_NKEY];
+    int i;
+    memset(lv, 0, sizeof lv);
+    qd_keys_leds(a, lv);
+    for (i = 0; i < (full ? QD_NKEY : 16); i++) {
+        const uint8_t l = lv[full ? i : QD_WHITE_KEY[i]];
+        kst[i] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_ROOT ? 2 : l == QD_LED_SCALE ? 1 : 0);
+    }
+}
+
 /* ---------------------------------------------------------------- the keyboard, the tracks, the picker, idle --- */
 static void draw_keys(qd_app_t *a)
 {
@@ -829,9 +843,6 @@ static void draw_keys(qd_app_t *a)
     qd_track_key(&a->proj, P, a->sel, &sc, &rt);
     v.scale = sc;
     v.scale_name = qd_scale_name(sc);
-    v.root = (int8_t)(((rt % 12) + 12) % 12);
-    for (i = 0; i < 12; i++)                            /* (the keybed in REC's orange: the scale's keys) */
-        v.smask |= (uint16_t)(qd_scale_has(sc, rt, 60 + i) ? 1u << i : 0u);
     v.nvoice = a->pool.nvoice < UI_NVOICE_DOTS ? a->pool.nvoice : UI_NVOICE_DOTS;
     for (i = 0; i < v.nvoice; i++) {
         const qd_pool_voice_t *pv = &a->pool.v[i];
@@ -839,6 +850,14 @@ static void draw_keys(qd_app_t *a)
             v.voice[i] = (uint8_t)((pv->pend ? pv->pend_track : pv->track) == a->sel ? 2 : 1);
     }
     qd_ctl_sounding(a, v.sounding);
+    if (u->nheld && !u->rec) {                          /* 2026-11-10 (owner): the selected (or held) step's notes, the
+                                                         * first one's: ALGORITHM's cursor, B11 + W */
+        qd_rstep_t r;
+        qd_step_resolve(P, a->sel, u->held[0], &r);
+        for (i = 0; i < r.nn && r.on; i++)
+            if (!v.sounding[r.notes[i] & 127])
+                v.sounding[r.notes[i] & 127] = 2;
+    }
     v.octave = a->oct;
     v.blink = (a->ms / QD_BLINK_MS) % 2u == 0;
     if (qd_rec_stepping(a)) {
@@ -865,7 +884,8 @@ static void draw_keys(qd_app_t *a)
             v.roll[v.nroll].live = u->roll[k].t1 < 0;
             v.nroll++;
         }
-    } else if (qd_ctl_b11(a) || (u->slatch && u->nheld)) {   /* 2026-11-10: the page edited's steps, the selection */
+    } else if (qd_ctl_b11(a) || u->nheld || u->ksteps) {   /* 2026-11-10: the page edited's steps, the selection (its W
+                                                         * keys the steps: a B11 click) */
         const int pg = u->page[a->sel] * QD_PAGE;
         v.row = 1;
         for (i = 0; i < 16; i++)
@@ -1409,6 +1429,9 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_SEL;
     if (QD_MENU_UP(u))
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
+    if (qd_ctl_b11(a) && qd_ctl_layer_shown(a) == QD_LAYER_F1)
+        return QD_SCR_LAYER;                            /* 2026-11-10 (owner): B11 held, every page: the pages and their
+                                                         * steps over it, gone the instant B11 is let go */
     if (u->latch != QD_LATCH_MFX && qd_ctl_main_layer(a) != QD_LAYER_NONE) {   /* P1.6h: the mix, the effects, the
                                                          * editor: F1 / F2 held, the step view's picture (F2 after a
                                                          * knob's unlock: the page) */
@@ -1683,15 +1706,8 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         }
     }
     if (qd_snd_keys(a)) {                               /* P1.5b: the keyboard on: its keys' states (as the LEDs) */
-        uint8_t lv[QD_NKEY];
-        int i;
-        memset(lv, 0, sizeof lv);
-        qd_keys_leds(a, lv);
         v->keys = a->proj.rec_ekeys ? 2 : 1;
-        for (i = 0; i < (v->keys == 1 ? 16 : QD_NKEY); i++) {
-            const uint8_t l = lv[v->keys == 1 ? QD_WHITE_KEY[i] : i];
-            v->kst[i] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_ROOT ? 2 : l == QD_LED_SCALE ? 1 : 0);
-        }
+        qd_view_kst(a, v->kst, v->keys == 2);
     }
     v->last = u->snd_knob;
     v->t = secs(a->ms);
@@ -2054,7 +2070,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
 }
 
 /* P1.4b: the mix's model: the eight tracks' mix, heard or not, their voices' level now */
-static void fill_mix(const qd_app_t *a, ui_mix_t *v)
+static __attribute__((noinline)) void fill_mix(const qd_app_t *a, ui_mix_t *v)
 {
     int t, i;
     memset(v, 0, sizeof *v);
@@ -2202,18 +2218,8 @@ static __attribute__((noinline)) void fill_fx(const qd_app_t *a, ui_fx_t *v)   /
         v->keys = qd_snd_keys(a);
         v->beat = qd_fx_sends_follows(a) >= 0 ? secs(a->ms - u->fol_ms) : -1.f;   /* (the cat's nod at each step) */
         v->flash = u->rv_full ? secs(a->ms - u->rv_full_ms) : -1.f;              /* (REVERB at 100 %: the glasses) */
-        for (k = 0; k < 16; k++)
-            if ((a->keys_held >> QD_WHITE_KEY[k]) & 1u)
-                v->keys_down |= (uint16_t)(1u << k);
-        if (v->keys) {                                  /* (2026-11-10) the keys' states, as the sound editor's */
-            uint8_t lv[QD_NKEY];
-            memset(lv, 0, sizeof lv);
-            qd_keys_leds(a, lv);
-            for (k = 0; k < 16; k++) {
-                const uint8_t l = lv[QD_WHITE_KEY[k]];
-                v->kst[k] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_ROOT ? 2 : l == QD_LED_SCALE ? 1 : 0);
-            }
-        }
+        if (v->keys)                                    /* (2026-11-10) the keys' states, as the sound editor's */
+            qd_view_kst(a, v->kst, 0);
     }
     {   /* the routing: the mode, the order, a block's key held (its lift over 120 ms), the chain amounts dim in PARALLEL */
         static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_CHORUS, QD_RT_DELAY, QD_RT_REVERB, QD_RT_FILTER, -1};
@@ -2452,10 +2458,11 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 #define fv (*fvp)
 #define mfv (*mfvp)
     const qd_ui_t *u = &a->ui;
+    const int scr = qd_view_screen(a);
     char pat[4], ctx[24];
     a->geek.scope_on = 0;                               /* (P2.11: the scope's samples only while it shows) */
     a->geek.tsc_on = 0;                                 /* (2026-10-27: TRACKS' too) */
-    switch (qd_view_screen(a)) {
+    switch (scr) {
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
         fill_menu(a, &mv);
         ui_menu_draw(&mv);
@@ -2553,6 +2560,13 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
     default:
         draw_idle(a);
         break;
+    }
+    if (qd_snd_keys(a) && (scr == QD_SCR_LANE || scr == QD_SCR_EDIT || scr == QD_SCR_OV || scr == QD_SCR_GEEK ||
+                           scr == QD_SCR_MIX || scr == QD_SCR_TOOLS)) {
+        uint8_t kst[16];                                /* 2026-11-10 (owner): a B11 click's keys along the foot, as
+                                                         * SENDS' (the sound editor: its strip) */
+        qd_view_kst(a, kst, 0);
+        ui_rec_keys_foot(kst, 1);
     }
     if (u->lmode_open) {                                /* P1.5h: LFO held: the latch mode's screen, while held */
         ui_lmode_draw(u->lmode, secs(a->ms));

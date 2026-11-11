@@ -53,8 +53,9 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
     lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (a tap the MIDI FX screen; held or SHIFT + ARP the MIDI FX on / off) */
     lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");          /* (held; T1b: tapped TOOLS) */
     lb_set(o, LB_BTN(QD_B_PLAY), a->seq.playing ? "STOP" : "PLAY");
-    lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : keys ? "STEPS" : "KEYS");   /* (P1.6f: what a tap switches to;
-                                                         * P1.6g: armed or recording, a tap stops it, in any view) */
+    lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : keys && !u->latch ? "RECORD" : "KEYBOARD");   /* (2026-11-10:
+                                                         * the keyboard page from anywhere; there a tap records; armed
+                                                         * or recording, a tap stops it) */
     lb_set(o, LB_BTN(QD_B_OCTDN), keys ? "OCT-" : "F1");
     lb_set(o, LB_BTN(QD_B_OCTUP), keys ? "OCT+" : "F2");
     lb_set(o, LB_KNOB(QD_LBL_MASTER - QD_LBL_KNOB0), "VOLUME");
@@ -94,7 +95,7 @@ static void lb_modes(const qd_app_t *a, qd_labels_t *o)
     for (i = 0; i < 10; i++)
         lb_set(o, LB_B(i), UI_FIELD_NAME[qd_ctl_key_mode(a, i)]);
     lb_set(o, LB_B(8), "TRIG/SLIDE");
-    lb_set(o, LB_B(10), "PAGES/SEL");
+    lb_set(o, LB_B(10), "SEL/KEYS");
 }
 
 /* the keys as notes (the keyboard, the editor's keyboard): each key's note, by the scale */
@@ -143,7 +144,16 @@ static int lb_flayer(const qd_app_t *a, qd_labels_t *o, int layer)
     return 0;
 }
 
+static void lb_ctx(const qd_app_t *a, qd_labels_t *o);
 void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
+{
+    const qd_ui_t *u = &a->ui;
+    lb_ctx(a, o);
+    if (qd_ctl_b11_free(a) && !qd_ctl_b11(a))         /* 2026-11-10: B11 the hold key (held: select, the pages; a
+                                                         * click: what the W keys become) */
+        lb_set(o, LB_B(10), qd_snd_keys(a) || (u->mode == QD_MODE_KEYS && !u->ksteps) ? "SEL/STEPS" : "SEL/KEYS");
+}
+static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
 {
     const qd_ui_t *u = &a->ui;
     const int shift = qd_ctl_shift(a), step = u->mode == QD_MODE_STEP;
@@ -283,6 +293,18 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_notes(a, o, 0);
         return;
     }
+    if (qd_ctl_b11(a)) {                                /* 2026-11-10: B11 held, every page: the pages, the W keys
+                                                         * select, F1 the lock off, F2 the selection's value back */
+        lb_flayer(a, o, QD_LAYER_F1);
+        lb_set(o, LB_B(8), "");
+        lb_set(o, LB_B(9), "");
+        lb_set(o, LB_B(10), "");
+        for (i = 0; i < 16; i++)
+            lb_set(o, LB_W(i), "SELECT");
+        lb_set(o, LB_BTN(QD_B_OCTDN), "LIVE");
+        lb_set(o, LB_BTN(QD_B_OCTUP), qd_snd_open(a) || QD_LATCH_PANEL(u->latch) ? "CLR LOCKS" : "RESET");
+        return;
+    }
     if (QD_MENU_UP(u)) {              /* the settings menus */
         static const char *const REC[4] = {"MODE", "QUANTIZE", "TAKE", "EDIT KEYS"};
         static const char *const SET[4] = {"FOLLOW", "BOOST", "CLOCK OUT", "CC OUT"};
@@ -331,7 +353,9 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_PRESETS), "MUTE");
         for (i = 0; i < QD_NTRACK; i++)
             lb_setn(o, LB_B(i), "TRACK ", i + 1);
-        lb_set(o, LB_B(10), "CLEAR M/S");
+        lb_set(o, LB_B(10), "CLEAR M/S");               /* (with a track key held; alone the hold key) */
+        if (qd_snd_keys(a))
+            lb_notes(a, o, !a->proj.rec_ekeys);
         lb_set(o, LB_BTN(QD_B_PAGE), (u->mix_page & 1) ? "FADERS" : "SENDS");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
@@ -352,7 +376,6 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             else
                 for (i = 0; i < 16; i++)
                     lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
-            lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : qd_snd_keys(a) ? "STEPS" : "KEYS");
         }
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
@@ -379,10 +402,15 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
                                                    {"ACTION", "", "", ""}};
         static const char *const CA[QD_CL_N] = {"COPY", "PASTE", "CLEAR"};
         const int tool = u->tl.tool % QD_TL_N;
-        for (i = 0; i < 11; i++)
-            lb_set(o, LB_B(i), i < QD_TL_NKEY ? TN[i] : i == 10 ? "SCOPE" : "");
-        for (i = 0; i < 16; i++)
-            lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
+        for (i = 0; i < 10; i++) {                      /* (2026-11-10: B6 HUMANIZE / QUANTIZE, B7 the scope) */
+            const int t = qd_tools_key_tool(i);
+            lb_set(o, LB_B(i), t >= 0 ? TN[t] : t == -1 ? "HUMAN/QUAN" : "SCOPE");
+        }
+        if (qd_snd_keys(a))
+            lb_notes(a, o, !a->proj.rec_ekeys);
+        else
+            for (i = 0; i < 16; i++)
+                lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         for (k = 0; k < 3; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), KL[tool][k]);
         lb_set(o, LB_KNOB(QD_K_4), KL[tool][3]);
@@ -398,8 +426,6 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a), ml = qd_ctl_main_layer(a);
         char val[12];
         lb_set(o, LB_KNOB(QD_K_ALGO), qd_mfx_steps_held(a, 0) ? "STEP MFX" : "GROUP");   /* (P1.6e: STEPS' steps) */
-        lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : u->mode == QD_MODE_STEP ? "KEYS" : "STEPS");   /* (P1.6e:
-                                                         * what REC switches to; P1.6f: the main view's) */
         if (u->mode == QD_MODE_STEP && !lane)
             for (i = 0; i < 16; i++)
                 lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
@@ -425,7 +451,8 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         }
         if (a->proj.mfx[g - 1].slot[u->mfx_slot & 7].type) {
             lb_set(o, LB_B(9), a->proj.mfx[g - 1].slot[u->mfx_slot & 7].bypass ? "PLAY" : "BYPASS");
-            lb_set(o, LB_B(10), u->mfx_arm == u->mfx_slot ? "REMOVE!" : "REMOVE");
+            if (ml != QD_LAYER_F1)                      /* (2026-11-10: B9; B11 is the hold key) */
+                lb_set(o, LB_B(8), u->mfx_arm == u->mfx_slot ? "REMOVE!" : "REMOVE");
         }
         if (ml == QD_LAYER_F1)
             lb_set(o, LB_B(10), "UNDO");
@@ -459,15 +486,15 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), u->nheld ? "SOUND LOCK" : "PRESETS");
         lb_set(o, LB_BTN(QD_B_SOUND), "CLOSE");
-        lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : qd_snd_keys(a) ? "STEPS" : "KEYS");
         return;
     }
-    if (u->mode == QD_MODE_KEYS && !qd_ctl_b11(a)) {   /* the keyboard (B11 held: the step view's B11, below) */
+    if (u->mode == QD_MODE_KEYS) {                      /* the keyboard (2026-11-10: SELECT the page; a B11 click: its
+                                                         * W keys the steps) */
         lb_notes(a, o, 0);
-        if (!u->latch)
-            lb_set(o, LB_B(10), "PAGES/SEL");           /* (2026-11-10: the hold key) */
+        for (i = 0; i < 16 && u->ksteps; i++)
+            lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         lb_set(o, LB_KNOB(QD_K_ALGO), "STEP");
-        lb_set(o, LB_KNOB(QD_K_SELECT), "TEMPO");
+        lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "PRESETS");
         lb_set(o, LB_KNOB(QD_K_1), "FREQ");
         lb_set(o, LB_KNOB(QD_K_2), "DECAY");
@@ -488,18 +515,9 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_flayer(a, o, QD_LAYER_F2);
             return;
         }
-        if (qd_ctl_b11(a)) {                            /* 2026-11-10: B11 held: the pages, the W keys select */
-            lb_flayer(a, o, QD_LAYER_F1);
-            lb_set(o, LB_B(8), "");
-            lb_set(o, LB_B(9), "");
-            lb_set(o, LB_B(10), "");
-            for (i = 0; i < 16; i++)
-                lb_set(o, LB_W(i), "SELECT");
-            lb_set(o, LB_BTN(QD_B_OCTDN), "CLEAR SEL");
-            return;
-        }
         if (layer == QD_LAYER_F3 || u->latch == QD_LATCH_F3) {   /* F3: the track's length, speed, start, end */
-            lb_set(o, LB_KNOB(QD_K_SELECT), "TEMPO");
+            lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");    /* (2026-11-10: the tempo on PRESETS) */
+            lb_set(o, LB_KNOB(QD_K_PRESETS), "TEMPO");
             lb_set(o, LB_KNOB(QD_K_ALGO), "SWING");
             lb_set(o, LB_KNOB(QD_K_1), "LENGTH");
             lb_set(o, LB_KNOB(QD_K_2), "RATE");
@@ -527,6 +545,8 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     lb_modes(a, o);                                     /* nothing held: the black keys the hold modes */
+    if (qd_snd_keys(a))                                 /* 2026-11-10: a B11 click's keys */
+        lb_notes(a, o, !a->proj.rec_ekeys);
     lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
     lb_set(o, LB_KNOB(QD_K_PRESETS), "PRESETS");
     {

@@ -9,7 +9,7 @@
  *             counted; euclid's hits equal `hits` for every (hits, len) and E(3, 8) is x..x..x. up to rotation; NEW /
  *             ADD / MASK; length's x2 / /2 on a track, on one page, on a page's end
  *   TOOLS     (the app, driven as the glue drives it) ARP held opens it, a tap is the MIDI FX screen, SHIFT + ARP FILL
- *             at once; SELECT the page, PRESETS the tool, ALGORITHM / B11 the four scopes, the step lock's SELECTED
+ *             at once; SELECT the page, PRESETS the tool, ALGORITHM / B7 (2026-11-10; B11 was) the four scopes, the step lock's SELECTED
  *             STEPS (W toggles); ROTATE / REVERSE / EUCLID / LENGTH live (the pattern rewritten at each change, heard), OCT+ one
  *             undo level that restores the original byte for byte, OCT- the original back and no level (never leaving); switching the tool / the scope / the track keeps a pending change; HOME keeps it; scope PAGE /
  *             TRACK / PATTERN; the name popup (~0.8 s) and the scope's takeover; the LEDs (ARP's rule, the keys);
@@ -581,7 +581,7 @@ static void t_rotate_live(void)
     tools_open();
     l = leds();
     CHECK(A.ui.tl.tool == QD_TL_ROTATE && A.ui.tl.scope == QD_TS_TRACK && l.key[BK(0)] == QD_LED_LIT &&
-              l.key[BK(1)] == QD_LED_DIM && l.key[BK(2)] == QD_LED_DIM && l.key[BK(10)] == QD_LED_LIT &&
+              l.key[BK(1)] == QD_LED_DIM && l.key[BK(2)] == QD_LED_DIM && l.key[BK(6)] == QD_LED_LIT &&
               l.key[WK(0)] == QD_LED_LIT && l.key[WK(1)] == QD_LED_OFF && l.key[WK(3)] == QD_LED_LIT &&
               l.button[F2] == QD_LED_OFF, "ROTATE, TRACK; B1 lit, B2 dim, B3 dim; W: the page's steps; OCT+ dark");
     turn(QD_K_1, 2);
@@ -655,12 +655,12 @@ static void t_knobs(void)                               /* SELECT the page, PRES
     CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tk_knob == 1, "ALGORITHM: the scope (PAGE), its takeover");
     turn(QD_K_ALGO, -5);
     CHECK(A.ui.tl.scope == QD_TS_SEL, "ALGORITHM down: SELECTED (the end)");
-    black(10);
-    CHECK(A.ui.tl.scope == QD_TS_PAGE, "B11: PAGE");
-    black(10), black(10), black(10);
-    CHECK(A.ui.tl.scope == QD_TS_SEL, "B11: TRACK, PATTERN, round to SELECTED");
+    black(6);
+    CHECK(A.ui.tl.scope == QD_TS_PAGE, "B7: PAGE");
+    black(6), black(6), black(6);
+    CHECK(A.ui.tl.scope == QD_TS_SEL, "B7: TRACK, PATTERN, round to SELECTED");
     black(0);
-    black(10);                                          /* PAGE */
+    black(6);                                          /* PAGE */
     turn(QD_K_1, 1);
     m = ons(0, 0, 16);
     turn(QD_K_SELECT, 1);
@@ -704,7 +704,7 @@ static void t_selected(void)                            /* the step lock: SELECT
           "W9 while pending: the selection follows, live (1 <-> 9)");
     btap(F1);
     CHECK(!memcmp(PAT()->step, before->step, sizeof before->step), "OCT-: back");
-    black(10);
+    black(6);
     white(2);
     CHECK(A.ui.tl.scope == QD_TS_SEL && A.ui.tk_knob == 1, "PAGE scope, a W: SELECTED again");
     btap(QD_B_HOME);
@@ -823,10 +823,10 @@ static void t_clip(void)
     ok = A.ui.tl.tool == QD_TL_STRETCH && leds().key[BK(8)] == QD_LED_LIT && leds().key[BK(9)] == QD_LED_DIM;
     black(9);
     n0 = A.ui.tl.scope;
-    black(10);
+    black(6);
     CHECK(ok && A.ui.tl.tool == QD_TL_CLIP && !A.ui.clip.pg.valid && leds().key[BK(9)] == QD_LED_LIT &&
-              leds().key[BK(8)] == QD_LED_DIM && A.ui.tl.scope != n0, "B9: STRETCH, B10: CLIP (lit), B11 the scope");
-    black(10), black(10), black(10);                   /* the scope round, back */
+              leds().key[BK(8)] == QD_LED_DIM && A.ui.tl.scope != n0, "B9: STRETCH, B10: CLIP (lit), B7 the scope");
+    black(6), black(6), black(6);                   /* the scope round, back */
     black(0);
     turn(QD_K_PRESETS, -1);
     turn(QD_K_ALGO, -1);                                /* PAGE */
@@ -956,7 +956,7 @@ static void t_euclid_pattern(void)
     n0 = qd_undo_count(&A, -1);
     tools_open();
     black(3);
-    black(10);                                          /* TRACK -> PATTERN */
+    black(6);                                          /* TRACK -> PATTERN */
     CHECK(A.ui.tl.tool == QD_TL_EUCLID && A.ui.tl.scope == QD_TS_PATTERN, "EUCLID, PATTERN");
     turn(QD_K_1, -1);                                   /* 3 of 16 */
     turn(QD_K_2, -8);                                   /* 3 of 8 */
@@ -1139,8 +1139,8 @@ static void t_sel_rotate(void)                          /* one step selected and
           "OCT+: kept (a level), the selection now step 7");
     black(3);                                           /* EUCLID: the selection's 1 step */
     CHECK(A.ui.tl.v.eu.len == 1, "EUCLID in SELECTED: its length the selection's");
-    black(10);
-    CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tl.v.eu.len == 16, "out to PAGE (B11): the length 16 again");
+    black(6);
+    CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tl.v.eu.len == 16, "out to PAGE (B7): the length 16 again");
     btap(QD_B_HOME);
 }
 
@@ -1253,13 +1253,13 @@ static void t_quant_live(void)
     *before = *PAT();
     n0 = qd_undo_count(&A, -1);
     tools_open();
-    black(6);                                           /* (B7: QUANTIZE, 2026-10-25) */
+    black(5), black(5);                                 /* (B6 twice: QUANTIZE, 2026-11-10; B7 was) */
     l = leds();
     for (i = 0; i < QD_TL_NKEY; i++)
-        ok &= l.key[BK(i)] == (i == 6 ? QD_LED_LIT : QD_LED_DIM);
+        ok &= l.key[BK(i)] == (i == 5 || i == 6 ? QD_LED_LIT : QD_LED_DIM);
     CHECK(A.ui.tl.tool == QD_TL_QUANTIZE && A.ui.tl.scope == QD_TS_TRACK && !qd_tools_pending(&A) && ok &&
               l.key[BK(8)] == QD_LED_DIM && l.key[BK(9)] == QD_LED_DIM && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob,
-          "B7: QUANTIZE (its name pops; B7 lit, the other tools dim); nothing yet");
+          "B6 twice: QUANTIZE (its name pops; B6 lit, B7 the scope lit, the other tools dim); nothing yet");
     turn(QD_K_1, 10);
     CHECK(qd_tools_pending(&A) && A.ui.tl.v.qu.amt == 50 && micro_of(0, 0) == 4 && micro_of(0, 3) == -5 &&
               micro_of(0, 18) == 3 && !memcmp(PAT()->step[1], before->step[1], sizeof before->step[1]),
@@ -1390,11 +1390,9 @@ static void t_screens(void)                             /* every tool's screen, 
     for (tool = 0; tool < QD_TL_N; tool++) {
         if (!QD_TL_BUILT(tool))
             continue;
-        if (tool < QD_TL_NKEY)
-            black(tool);
-        else                                            /* (QUANTIZE: PRESETS only) */
-            while (A.ui.tl.tool != tool)
-                turn(QD_K_PRESETS, 1);
+        black(qd_tools_tool_key(tool));                 /* (2026-11-10: B6 HUMANIZE, again QUANTIZE) */
+        if (A.ui.tl.tool != tool)
+            black(qd_tools_tool_key(tool));
         for (sc = 0; sc < QD_TS_N; sc++) {
             turn(QD_K_4, 1);
             turn(QD_K_1, 2);
@@ -1402,7 +1400,7 @@ static void t_screens(void)                             /* every tool's screen, 
             turn(QD_K_3, 1);
             run(40);
             qd_app_frame(&A, lcd);
-            black(10);
+            black(6);
             run(30);
             qd_app_frame(&A, lcd);
         }

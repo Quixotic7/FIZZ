@@ -1,0 +1,135 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-10 (owner): one B11 design language on every page where step locks are. On the sound editor, the effects,
+# the mix, the MIDI FX screen and TOOLS: B11 held shows the pages and their steps over the page (gone the instant B11 is
+# let go), B11 + W selects (the lock on), a B11 click turns the W keys into the keys (REC's orange) and back. And F3:
+# SELECT the page, PRESETS the tempo.
+#   firmware/build.py --host, then (mkdir -p firmware/app/build/b11_pages first)
+#   firmware/app/build/host/fizz_host firmware/app/tests/b11_pages.txt firmware/app/build/b11_pages
+expect fz_up 1
+tap HOME
+wait 300
+expect fz_mode 1
+tapkey w0
+tapkey w4
+tapkey w9
+wait 100
+# the sound editor: B11 held, the pages over it; W2 + W5 together selected; let go: the editor
+tap EDIT
+wait 300
+key b10 down
+wait 400
+shot snd-b11-held.png
+key w1 down
+key w4 down
+wait 50
+key w1 up
+key w4 up
+key b10 up
+wait 300
+shot snd-b11-selected.png
+# .. a click: its keys (the strip under the head); again: the steps
+tapkey b10
+wait 300
+shot snd-b11-keys.png
+tapkey b10
+wait 300
+shot snd-b11-steps.png
+# .. B11 + F1: LIVE
+key b10 down
+wait 50
+press OCT-
+wait 50
+release OCT-
+key b10 up
+wait 200
+tap HOME
+wait 300
+# the effects (SENDS)
+tap FX
+wait 300
+key b10 down
+wait 400
+shot fx-b11-held.png
+key b10 up
+wait 300
+shot fx-after.png
+tapkey b10
+wait 300
+shot fx-b11-keys.png
+tapkey b10
+wait 200
+tap HOME
+wait 300
+# the mix
+tap ENV
+wait 300
+key b10 down
+wait 400
+shot mix-b11-held.png
+key b10 up
+wait 300
+tapkey b10
+wait 300
+shot mix-b11-keys.png
+tapkey b10
+wait 200
+tap HOME
+wait 300
+# the MIDI FX screen
+tap ARP
+wait 300
+key b10 down
+wait 400
+shot mfx-b11-held.png
+key b10 up
+wait 300
+tap HOME
+wait 300
+# TOOLS
+tap SEQ
+wait 300
+key b10 down
+wait 400
+shot tools-b11-held.png
+key b10 up
+wait 300
+shot tools-after.png
+tapkey b10
+wait 300
+shot tools-b11-keys.png
+tapkey b10
+wait 200
+tap HOME
+wait 300
+# HOME, every view: a click's keys along the foot
+tapkey b10
+wait 300
+shot home-keys-edit.png
+press GLO
+tap HOME
+release GLO
+press GLO
+tap HOME
+release GLO
+wait 300
+shot home-keys-overview.png
+press GLO
+tap HOME
+release GLO
+wait 300
+shot home-keys-roll.png
+tap HOME
+wait 300
+# F3 (PLAY held): SELECT the page, PRESETS the tempo
+press PLAY
+wait 500
+release PLAY
+wait 200
+turn SELECT 2
+wait 300
+shot f3-select-page.png
+turn PRESET 3
+wait 300
+shot f3-presets-tempo.png
+tap OCT-
+wait 300

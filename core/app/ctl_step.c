@@ -246,39 +246,57 @@ void qd_step_latch(qd_app_t *a, int on)                 /* (2026-10-26, the owne
     a->ui.scursor = 0;
 }
 
-/* 2026-11-10 (owner, Elasticat's B11): B11 held + W: the step latch's selection (the latch comes on); the hold's first
- * W starts a new one, the later ones go in or out; letting go of B11 keeps it */
+/* 2026-11-10 (owner, Elasticat's B11): B11 held + W: the step latch's selection (the latch comes on), the HOME latch's
+ * model: keys down together are one selection; once all are up, the next press starts a new one (never a toggle);
+ * letting go of B11 keeps it. TOOLS: its SELECTED scope follows */
+static void mode_reset(qd_app_t *a);
 void qd_step_b11_select(qd_app_t *a, int w)
 {
     qd_ui_t *u = &a->ui;
     const int s = step_of(a, w);
-    int i;
     if (!u->slatch)
         qd_step_latch(a, 1);
-    if (!u->b11_sel)
+    if (!u->b11_w)
         u->nheld = 0;
-    u->b11_sel = 1;
+    u->b11_w |= (uint16_t)(1u << w);
     u->scursor = 0;
     if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
         u->tk = QD_TK_NONE;
-    i = held_find(u, s);
-    if (i >= 0) {
-        held_remove(u, i);
-        return;
-    }
-    held_add(a, s, -1);
+    if (held_find(u, s) < 0)
+        held_add(a, s, -1);
     qd_ctl_preview_once(a, s);
+    if (qd_tools_open(a))
+        qd_tools_sel_changed(a);
 }
 
-/* .. B11 + F1: the selected steps cleared, notes and locks (one undo level) */
-void qd_step_b11_clear(qd_app_t *a)
+/* .. B11 + F2: the selection's value of the hold mode back to the track's (the step view, the keyboard, TOOLS); the
+ * sound editor, the mix, the effects: the selection's locks of the page's parameters; the MIDI FX screen: the steps'
+ * MIDI FX back to the track's */
+void qd_step_b11_reset(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
+    int i, k;
     if (!u->nheld)
         return;
-    qd_undo_hint(a, QD_UK_CLEAR);
-    qd_clip_clear_steps(&u->clip, PAT(a), a->seq.cur, a->sel, u->held, u->nheld);
-    qd_ctl_confirm(a, "CLEARED", 0);
+    if (qd_snd_open(a)) {
+        qd_snd_black(a, 10);
+        return;
+    }
+    if (u->latch == QD_LATCH_MIX || u->latch == QD_LATCH_FX) {
+        qd_clip_keep(&u->clip, CPAT(a), a->seq.cur, a->sel);
+        for (i = 0; i < u->nheld; i++)
+            for (k = QD_K_1; k <= QD_K_4; k++)
+                if (qd_panel_lock_id(a, k) >= 0)
+                    qd_lock_clear(PAT(a), a->sel, u->held[i], qd_panel_lock_id(a, k));
+        qd_ctl_confirm(a, "LOCKS CLEARED", 0);
+        return;
+    }
+    if (u->latch == QD_LATCH_MFX) {
+        for (i = 0; i < u->nheld; i++)
+            qd_step_set_mfx(PAT(a), a->sel, u->held[i], QD_SMFX_TRACK);
+        return;
+    }
+    mode_reset(a);
 }
 
 void qd_step_promote(qd_app_t *a, int w)
@@ -559,6 +577,28 @@ static void chord_add(uint8_t *chord, int *n, int note)
     chord[(*n)++] = (uint8_t)note;
 }
 
+/* B11 (a step held) / B11 + F2 (the selection): the hold mode's value back to the track's */
+static void mode_reset(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    const int m = u->hmode;
+    int i;
+    for (i = 0; i < u->nheld; i++) {
+        if (m == UI_F_FUNC) {                           /* (P1.3w: no default: none) */
+            qd_step_set_func(PAT(a), a->sel, u->held[i], QD_FN_NONE);
+            continue;
+        }
+        if (m == UI_F_SLIDE) {                          /* (2026-10-26: no default: the three locks go) */
+            slide_clear(PAT(a), a->sel, u->held[i]);
+            continue;
+        }
+        qd_step_reset(PAT(a), a->sel, u->held[i], MODE_PM[m]);
+        if (m == UI_F_MICRO)
+            qd_step_reset(PAT(a), a->sel, u->held[i], QD_PM_STRUM);
+    }
+    u->chord_ms = a->ms;
+}
+
 void qd_step_value_key(qd_app_t *a, int b, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -576,20 +616,7 @@ void qd_step_value_key(qd_app_t *a, int b, int down)
     if (m == UI_F_FUNC && b == 8)
         u->fn_b9 = 1;                                   /* P1.3y: B9 down: a W pressed now is the jump's target */
     if (b == 10) {                                      /* B11: the mode back to the track's */
-        for (i = 0; i < u->nheld; i++) {
-            if (m == UI_F_FUNC) {                       /* (P1.3w: no default: none) */
-                qd_step_set_func(PAT(a), a->sel, u->held[i], QD_FN_NONE);
-                continue;
-            }
-            if (m == UI_F_SLIDE) {                      /* (2026-10-26: no default: the three locks go) */
-                slide_clear(PAT(a), a->sel, u->held[i]);
-                continue;
-            }
-            qd_step_reset(PAT(a), a->sel, u->held[i], MODE_PM[m]);
-            if (m == UI_F_MICRO)
-                qd_step_reset(PAT(a), a->sel, u->held[i], QD_PM_STRUM);
-        }
-        u->chord_ms = a->ms;
+        mode_reset(a);
         return;
     }
     if (m == UI_F_NOTE) {                               /* Form's "pressed": replace, then add while held */

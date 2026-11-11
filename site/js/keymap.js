@@ -5,13 +5,14 @@
 const WHITE_PC = ["2", "3", "4", "Tab", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "]"];
 const BLACK_PC = ["F1", "F2", "F3", "F4", "E", "T", "Y", "U", "O", "P", "["];
 const BLACK_AFTER = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14];      // a black key sits after these white keys (F3 .. G5)
-// (2026-11-10: B8 FUNC, B9 TRIG and SLIDE, B10 SOUND, B11 the hold key: the pages and step select)
+// (2026-11-10: B8 FUNC, B9 TRIG and SLIDE, B10 SOUND, B11 the hold key on every page: held the pages and step select,
+// a click the W keys steps / keys; REC the keyboard page, there a tap records)
 const MODES = [["NOTE", "#3F7DFF"], ["VEL", "#1FD47E"], ["LEN", "#36D6E7"], ["MICRO", "#A879FF"], ["RATCH", "#FF6A2C"],
   ["CHNC", "#FFD23F"], ["COND", "#FF52C0"], ["FUNC", "#9FE6FF"], ["TRIG\nSLIDE", "#F1F0EA"], ["SOUND", "#B5E853"], ["HOLD", "#D8C39A"]];
 // [printed, FIZZ's job, computer key, colour]
 const BUTTONS = [
   ["FX", "FX", "C"], ["SEL", "TRACKS", "V"], ["ENV", "MIX", "B"], ["LFO", "LATCH", "N"], ["EDIT", "EDIT", "M"], ["GLO", "SHIFT", ",", "#FFD23F"],
-  ["HOME", "HOME", "7"], ["SAVE", "SOUNDS", "8"], ["ARP", "MIDI FX", "9"], ["SEQ", "PATTERNS", "0"], ["PLAY", "PLAY", "-", "#1FD47E"], ["REC", "REC", "=", "#FF3448"],
+  ["HOME", "HOME", "7"], ["SAVE", "SOUNDS", "8"], ["ARP", "MIDI FX", "9"], ["SEQ", "PATTERNS", "0"], ["PLAY", "PLAY", "-", "#1FD47E"], ["REC", "KEYBOARD", "=", "#FF3448"],
 ];
 // [cx, cy, name, job, colour]
 const KNOBS = [[84, 82, "MASTER", "volume"], [204, 82, "SELECT", "page", "#FFD23F"], [84, 196, "PRESETS", "sound", "#28E1FF"],
@@ -69,7 +70,7 @@ export function keymapSvg(opt = {}) {
     o.push(t(x + KW / 2, 514, `W${i + 1}`, "km-key-n white"));
     if (pcKeys) o.push(cap(x + KW / 2, 538, WHITE_PC[i]));
   }
-  o.push(t(500, 610, "W1-W16: the page's 16 steps (tap: on / off, hold: edit) · B1-B10, nothing held: what you edit; a step held: its values · B11 held: pages, step select", "km-note"));
+  o.push(t(500, 610, "W1-W16: the page's 16 steps (tap: on / off, hold: edit) · B1-B10, nothing held: what you edit; a step held: its values · B11 held: pages, select · a click: keys", "km-note"));
   o.push(t(870, 352, pcKeys ? "FILL: SHIFT + FX held ( , + C )" : "FILL: SHIFT + FX held", "km-job"));
   if (pcKeys) o.push(`<rect x="420" y="620" width="22" height="15" rx="4" class="km-cap"/>`, `<text x="450" y="632" class="km-job">= the computer key</text>`);
   o.push("</svg>");

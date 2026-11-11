@@ -21,9 +21,9 @@ export const empty = () => ({ enc: Array(NENC).fill(""), master: "", buttons: Ar
 // ---- the stand-in (PLAYING.md "Getting around", "SHIFT's keys"): held = { shift: bool }
 const BLACK = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];        // B1..B11 as keys (F#3 .. F#5)
 const WHITE = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
-const MODES = ["NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "FUNC", "TRIG/SLIDE", "SOUND", "PAGES/SEL"];   // (2026-11-10)
+const MODES = ["NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "FUNC", "TRIG/SLIDE", "SOUND", "SEL/KEYS"];   // (2026-11-10: B11 the hold key; a click the keys)
 // buttons in matrix order: 0 OCT- 1 OCT+ 2 FX 3 SEL 4 ENV 5 LFO 6 EDIT 7 GLO 8 HOME 9 SAVE 10 ARP 11 SEQ 12 PLAY 13 REC
-const BASE_BTN = ["COPY", "MOVE", "EFFECTS", "TRACKS", "MIX", "LATCH", "EDITOR", "SHIFT", "HOME", "SOUNDS", "MIDI FX", "PATTERNS", "PLAY", "KEYS"];
+const BASE_BTN = ["COPY", "MOVE", "EFFECTS", "TRACKS", "MIX", "LATCH", "EDITOR", "SHIFT", "HOME", "SOUNDS", "MIDI FX", "PATTERNS", "PLAY", "KEYBOARD"];
 const SHIFT_BTN = ["UNDO", "REDO", "", "GLOBAL", "", "", "", "SHIFT", "VIEWS", "", "", "", "", "REC SET"];
 const SHIFT_BLACK = ["SNAPSHOT", "", "RECALL", "COPY PAT", "PASTE PAT", "TAP TEMPO", "CLICK", "FOLLOW", "DOUBLE", "", "CLEAR TRK"];   // (P1.5z: B8 page follow)
 export function stubLabels(held = {}) {

@@ -9,7 +9,7 @@
  *   SEL tapped (held: the track map, as before)  THE TRACK SETTINGS of the selected track in the pattern: KNOB 1 MODE
  *        (GLOBAL, a new track's default: it follows the project's key and SCALE / ROOT edit that one; LOCAL: its own,
  *        kept while GLOBAL; never set, a copy of the global one at the switch), KNOB 2 SCALE, KNOB 3 ROOT, KNOB 4 MIDI CHANNEL; W the steps (a tap
- *        makes, removes); REC tapped: the keyboard on / off, the page stays (W then notes); SEL again (or SELECT): the
+ *        makes, removes; 2026-11-10: REC the keyboard page, the settings closed); SEL again (or SELECT): the
  *        second page, KNOB 1 VOICES (the limit), KNOB 2 SWING on / off, KNOB 3 PAGE FOLLOW (the global setting's),
  *        KNOB 4 MIDI FX; the third, KNOB 1 KIND, KNOB 2 NAME, KNOB 3 ENGINE (FIZZ MIDI (e): FM TONE / MIDI), KNOB 4
  *        MIDI OUT (FIZZ MIDI (c): OFF, 1..16, the track's notes to USB on that channel); B1..B8 the track
@@ -17,7 +17,8 @@
  *        REVERB of the selected track; MIX again (or SELECT): the SENDS, every track's three (KNOB 1 CHORUS, KNOB 2
  *        DELAY, KNOB 3 REVERB); again: the faders. On both pages: B1..B6 tapped the track, held QD_SEL_HOLD_MS its
  *        mute (at the hold), double-tapped (the second press within QD_CLICK_MS) its solo; B11 every mute and solo
- *        off; ALGORITHM the track; PRESETS left mutes the selected track, right unmutes it
+ *        off (2026-11-10: with a track key held; alone B11 is the hold key); ALGORITHM the track; PRESETS left mutes
+ *        the selected track, right unmutes it
  *   FX (printed) tapped  THE EFFECTS (global, ChoralRoot's: no sound load touches them): DELAY (TIME, SPREAD,
  *        FEEDBACK, SEND), DELAY 2 (SYNC, MODE, TONE, WOW), REVERB (SIZE, DAMP, DECAY, SEND), REVERB 2 (PRE-DELAY, MOD,
  *        LOW CUT, WIDTH), CHORUS (RATE, DEPTH, WIDTH, SEND), MASTER (the master filter: LOW CUT, HIGH CUT, SLOPE, ON);
@@ -143,8 +144,10 @@ void qd_mix_black(qd_app_t *a, int b, int down)    /* (2026-11-10: OVERVIEW's bl
 {
     qd_ui_t *u = &a->ui;
     const uint16_t bit = MIXB(b);
-    if (b == 10 && down)
+    if (b == 10 && down) {                              /* (2026-11-10: with a track key held: B11 is the hold key else) */
         a->seq.mute = a->seq.solo = 0;
+        u->sel_done |= u->sel_down & 0xFF00u;           /* (the key held: no mute at its hold) */
+    }
     if (b >= QD_NTRACK)
         return;
     if (down) {

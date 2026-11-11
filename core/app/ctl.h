@@ -131,7 +131,19 @@
  * 2026-11-10 (the owner): THE KEYBOARD's B11 is the hold key too (no F#5; not under a menu): the same pages, W
  * selection, + F1 clear; its click turns the latch on with qd_step_latch_seed's step. With a selection the keys (and
  * MIDI) write the selected steps' notes, a chord at a time (ctl_rec.c qd_rec_midi_note; REC armed: the recording);
- * ALGORITHM the cursor, LFO with a selection: LIVE (without: HOLD); leaving the keyboard ends the selection. */
+ * ALGORITHM the cursor, LFO with a selection: LIVE (without: HOLD); leaving the keyboard ends the selection.
+ * 2026-11-10 (the owner's second pass; supersedes the B11 lines above): ONE B11 DESIGN LANGUAGE on every page where
+ * step locks are (b11_page: the step view's every view, the keyboard, the sound editor, the effects, the mix, the MIDI
+ * FX screen, TOOLS). B11 is the hold key whenever it has no other job (qd_ctl_b11_free: no finger on a step, no mode
+ * key, no F layer, no SHIFT / SEQ / SEL, no track key held on the mix or OVERVIEW), taken before the keys' table:
+ * held, F1's pages picture over the page (QD_SCR_LAYER, gone at the release), B1..B8 the pages, the W keys select by
+ * the latch's model (b11_w: keys down together one selection; all up, the next a new one) and turn the lock on; + F1
+ * the lock off (LIVE); + F2 qd_step_b11_reset (the hold mode's value; the editor's, mix's, effects' page locks; MIDI
+ * FX: the track's group); a quick click keys_toggle: the W keys steps <-> keys (ekeys: REC's orange keys in the
+ * scale, qd_snd_keys on HOME, the editor, the effects, the mix, TOOLS; the MIDI FX screen its KEYS mode; the
+ * keyboard page ksteps: its W keys the steps), never the lock. REC tapped: the keyboard page from anywhere, there it
+ * arms (rec_arm); the keyboard's SELECT the page; F3's SELECT the page, PRESETS the tempo. TOOLS: B6 HUMANIZE /
+ * QUANTIZE, B7 the scope; MIDI FX: B9 removes. */
 #pragma once
 #include <stdint.h>
 
@@ -507,8 +519,11 @@ typedef struct {
     /* the buttons */
     int tracks_tap;                    /* TRACKS went down alone: its release toggles the tracks screen */
     int lfo_used;                      /* P1.3y: LFO held picked a hold mode (B1..B10): its release is no tap */
-    uint8_t b11, b11_used, b11_sel;    /* 2026-11-10 (owner, Elasticat's): B11 held as the hold key; something done
-                                        * with it (no click); a W selected this hold (the next ones go in / out) */
+    uint8_t b11, b11_used;             /* 2026-11-10 (owner, Elasticat's): B11 held as the hold key; something done
+                                        * with it (no click) */
+    uint8_t ksteps;                    /* 2026-11-10 (owner): the keyboard page's W keys are the steps (a B11 click) */
+    uint16_t b11_w;                    /* .. the W keys down with B11 (the latch's model: none down, the next starts a
+                                        * new selection) */
     uint8_t ts_slide, b9_tog;          /* .. B9 (TRIG / SLIDE): SLIDE was the one used last; B9 went down in one */
     uint32_t b11_ms;                   /* .. when B11 went down */
     uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
@@ -529,7 +544,7 @@ typedef struct {
     uint32_t name_seed;                /* P1.5y: the namesizer's seeds come from it (qd_type_seed) */
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
-    int ekeys;                         /* P1.5b: the keyboard on in the sound editor (REC tapped there) */
+    int ekeys;                         /* P1.5b: the W keys the keys (2026-11-10: a B11 click; the step view, the editor, the effects, the mix, TOOLS) */
     int mod_slot, mod_src;             /* E4: the MOD page's chosen slot (0..7); hold-to-map's source (QD_MS_*) */
     /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
     int mfx_slot, mfx_page;            /* the slot selected, its page */
@@ -780,7 +795,7 @@ int qd_mfx_oct(struct qd_app *a, int d, int down);   /* F1 / F2 there; 1 taken *
 void qd_mfx_leds(const struct qd_app *a, uint8_t *key);
 int qd_mfx_lane_page(const struct qd_app *a);     /* the arp's lane on screen: 0 none, 1 MOD, 2 TRANSPOSE */
 void qd_mfx_ms(struct qd_app *a);                 /* P1.6e: a slot key let go however: its move dropped */
-void qd_mfx_rec(struct qd_app *a);                /* P1.6e: REC tapped there: STEPS / KEYS */
+void qd_mfx_rec(struct qd_app *a);                /* P1.6e: STEPS / KEYS (2026-11-10: a B11 click) */
 int qd_mfx_steps_held(const struct qd_app *a, int *first);   /* P1.6e: STEPS: the steps held (or the latch's), 1st */
 #define QD_MFX_GLIDE_MS 260u
 int qd_mfx_glide(const struct qd_app *a, int from, int to, uint32_t t0);   /* P1.6d: a glide's place now (x100) */
@@ -797,6 +812,9 @@ int qd_tools_open(const struct qd_app *a);
 void qd_tools_screen(struct qd_app *a);          /* opened (SEQ tapped) */
 void qd_tools_black(struct qd_app *a, int b, int down);
 void qd_tools_white(struct qd_app *a, int w, int down);
+void qd_tools_sel_changed(struct qd_app *a);    /* 2026-11-10: the selection changed (B11 + W): SELECTED follows */
+int qd_tools_key_tool(int b);                   /* .. the tool on black key b (-1 B6's two, -2 the scope, -3 none) */
+int qd_tools_tool_key(int t);                   /* .. the black key of tool t */
 int qd_tools_knob(struct qd_app *a, int knob, int d);
 void qd_tools_ms(struct qd_app *a);
 void qd_tools_leds(const struct qd_app *a, uint8_t *key);
@@ -919,6 +937,7 @@ int qd_ctl_mkey_shown(const struct qd_app *a);   /* P1.3d: QD_KJ_* of a knob (QD
 int qd_ctl_key_mode(const struct qd_app *a, int b);   /* the mode black key b shows (B9: the one in use or last), -1 */
 int qd_ctl_mode_key(int m);                           /* .. the key of mode m */
 int qd_ctl_b11(const struct qd_app *a);               /* B11 held as the hold key (the step view, no menu) */
+int qd_ctl_b11_free(const struct qd_app *a);          /* .. B11 pressed now would be the hold key (no other job) */
 void qd_ctl_select_track(struct qd_app *a, int t);
 
 /* ---- ctl_latch.c (P1.3d) */
@@ -962,7 +981,7 @@ void qd_step_latch(struct qd_app *a, int on);   /* P1.3d: the step latch (LFO) o
 void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the last step edited, else the page's first) */
 void qd_step_cursor(struct qd_app *a, int d);   /* ALGORITHM: the latch's one selection on the page shown (2026-11-10) */
 void qd_step_b11_select(struct qd_app *a, int w);   /* 2026-11-10: B11 held + W: the latch's selection */
-void qd_step_b11_clear(struct qd_app *a);       /* .. B11 + F1: the selected steps cleared (one undo level) */
+void qd_step_b11_reset(struct qd_app *a);       /* .. B11 + F2: the selection's value of the mode (the page's locks) */
 void qd_step_cursor_page(struct qd_app *a);     /* P1.3y: the selection to the page's first step (a page change) */
 int qd_step_quick_id(int k);           /* the quick page's lock id of KNOB k (FREQ, DECAY, HARM, FDBK) */
 int qd_step_id_detent(int id);         /* a SHIFT detent's size for a value (100 for the hi-res ones) */
@@ -1033,6 +1052,7 @@ enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
 struct ui_snd;
+void qd_view_kst(const struct qd_app *a, uint8_t *kst, int full);   /* 2026-11-10: the keys' ui_rec_key states */
 void qd_view_snd(struct qd_app *a, struct ui_snd *v);   /* P1.4a: the sound editor's model (the tests read it) */
 struct ui_mfx;
 void qd_view_mfx(struct qd_app *a, struct ui_mfx *v);   /* P1.6c: the MIDI FX screen's model (the tests read it) */

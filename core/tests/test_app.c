@@ -224,12 +224,13 @@ static void t_screens(void)
     CHECK(l.key[11] == QD_LED_LIT, "a note sounding on the track lights its key (%d)", l.key[11]);
     qd_app_midi(&A, 0x80, 64, 0);
     tap_button(QD_B_REC);
-    CHECK(A.ui.mode == QD_MODE_STEP, "REC again: the step view");
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.rec, "REC again (2026-11-10): the keyboard records (armed)");
     tap_button(QD_B_REC);
+    CHECK(A.ui.mode == QD_MODE_KEYS && !A.ui.rec, ".. again: disarmed, still the keyboard");
     tap_button(QD_B_HOME);
     qd_app_leds(&A, &l);
     CHECK(A.ui.mode == QD_MODE_STEP && l.button[QD_B_REC] == QD_LED_OFF, "HOME: the step view, REC's LED off");
-    printf("  screens: REC toggles the keyboard (lit), HOME: the step view; C keys faint; sounding notes light their "
+    printf("  screens: REC the keyboard (lit; there a tap records), HOME: the step view; C keys faint; sounding notes light their "
            "keys\n");
 }
 

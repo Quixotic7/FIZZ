@@ -15,7 +15,8 @@
  * 0), so each drawn key is the one pressed.
  * P1.3b: the sound's pool number has three digits; a track in a scale shows the scale's name by the octave.
  * 2026-11-10: B11 held, or steps selected (the keys write into them): the page edited's row of sixteen, the selected
- * outlined white, over the sound's name; the keybed in REC's orange (ui_rec_keybed), as the other views' REC keys. */
+ * outlined white, over the sound's name (the keybed white again: the owner, 2026-11-10; a selected step's notes in
+ * the held step's magenta). */
 #include <math.h>
 #include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
@@ -35,10 +36,11 @@ static char *cat(char *d, const char *s)
     return d;
 }
 
+static qd_rgb fill[128];                               /* (the keybed's, both drawings') */
+
 /* rec 2: LIVE recording (s18) */
 static void live(const ui_keys_t *v)
 {
-    static qd_rgb fill[128];
     const float now = 186.f, pxs = 11.f;
     char s[64], n[12];
     int i, lo = 53 + 12 * v->octave, mn = 128, rl;   /* the FM-1's keybed: F3 .. G5 at OCT 0 (QD_NOTE0) */
@@ -122,13 +124,15 @@ void ui_keys_draw(const ui_keys_t *v)
         ui_O(x + ui_TW(v->sound, 26.f, 300, 0.5f) + 6.f, 74.f, 2.f, QD_NONE, 1.f, UI_K4);
 
     /* the keybed */
-    for (i = 0; i < 128; i++) {
+    for (i = 0; i < 128; i++) {                         /* (2026-11-10: back to the white keybed; a selected step's
+                                                         * notes in the held step's magenta) */
+        fill[i] = v->sounding[i] == 1 ? UI_K3 : v->sounding[i] ? UI_STEP_FRAME : QD_NONE;
         below |= v->sounding[i] && i < lo;
         above |= v->sounding[i] && i >= lo;
     }
     if (below && !above && lo >= 12)
         lo -= 12;
-    ui_rec_keybed(14.f, 118.f, 212.f, 78.f, lo, 16, v->sounding, v->smask, v->root);
+    ui_keybed(14.f, 118.f, 212.f, 78.f, lo, 16, fill);
 
     num[0] = 0;                                         /* the octave; a track in a scale: the scale */
     cat(num, oct_name(v->octave));

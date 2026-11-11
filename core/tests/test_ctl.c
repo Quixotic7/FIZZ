@@ -354,11 +354,12 @@ static void g_modes(void)
         CHECK(A.ui.hmode == KM[b] && leds().key[BK(b)] == QD_LED_LIT, "nothing held: B%d = the hold mode %s", b + 1,
               UI_FIELD_NAME[KM[b]]);
     }
-    A.ui.lmode = QD_LMODE_MODES;                        /* (VALUES: the latch's empty selection, B11 resets the default) */
+    A.ui.lmode = QD_LMODE_MODES;
     black(B11);
-    CHECK(A.ui.hmode == M_SOUND && A.ui.slatch, "B11 clicked: no mode (SOUND stays), the step latch on");
+    CHECK(A.ui.hmode == M_SOUND && !A.ui.slatch && qd_snd_keys(&A), "B11 clicked: no mode (SOUND stays), the W keys "
+          "the keys (2026-11-10: never the step lock)");
     black(B11);
-    CHECK(!A.ui.slatch, ".. clicked again: the latch off");
+    CHECK(!A.ui.slatch && !qd_snd_keys(&A), ".. clicked again: the steps");
     CHECK(!strcmp(UI_FIELD_NAME[M_FUNC], "FUNC") && !strcmp(UI_FIELD_NAME[M_SLIDE], "SLIDE") &&
               !strcmp(UI_FIELD_NAME[M_SOUND], "SOUND") && UI_NFIELD == 11,
           "the modes' names (2026-10-26: no P-LOCK)");
@@ -1178,9 +1179,15 @@ static void g_f3(void)
     run(10);
     CHECK(ts->pstart[0] == 2 && ts->pend[0] == 9, "F3 + hold W3, press W10: 3..10");
     bpm = A.bpm;
-    turn(QD_K_SELECT, 5);
+    turn(QD_K_SELECT, 2);
+    CHECK(A.bpm == bpm && A.ui.page[0] == 2 && qd_view_screen(&A) == QD_SCR_LAYER, "2026-11-10: F3 + SELECT: the page "
+          "edited (3)");
+    turn(QD_K_SELECT, -3);
+    CHECK(A.ui.page[0] == 7, ".. round (8)");
+    turn(QD_K_SELECT, 1);
+    turn(QD_K_PRESETS, 5);
     CHECK(A.bpm == bpm + 5 && A.ui.tk == UI_TK_TEMPO && qd_view_screen(&A) == QD_SCR_LAYER && A.ui.page[0] == 0,
-          "P1.3x: F3 + SELECT: the tempo, its metronome over the map (the page untouched)");
+          "2026-11-10: F3 + PRESETS: the tempo, its metronome over the map (P1.3x: it was SELECT)");
     turn(QD_K_ALGO, 6);
     CHECK(PAT()->swing == 56 && A.ui.tk == UI_TK_SWING && A.bpm == bpm + 5, "P1.3x: F3 + ALGORITHM: the swing, its "
           "metronome");
@@ -1188,9 +1195,10 @@ static void g_f3(void)
     CHECK(A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3, "a second later: the map again");
     {
         const int snd = A.model.t[0].sound;
-        turn(QD_K_PRESETS, 2);
-        CHECK(A.model.t[0].sound == snd && A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3,
-              "P1.3j: F3 + PRESETS: nothing (the track's sound untouched, no picker)");
+        turn(QD_K_PRESETS, -2);
+        CHECK(A.model.t[0].sound == snd && A.bpm == bpm + 3 && qd_ctl_layer_shown(&A) == QD_LAYER_F3,
+              "P1.3j: F3 + PRESETS: the track's sound untouched, no picker (2026-11-10: the tempo)");
+        run(QD_TK_MS + QD_TK_FADE_MS + 5);
     }
     f3_up();
     bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3, latched (P1.3d) */
@@ -1465,7 +1473,7 @@ static void g_octave(void)
     CHECK(near(half_period(F1), QD_OCT_BLINK1_MS), "-1: OCT- slow");
     btap(F1);
     CHECK(near(half_period(F1), QD_OCT_BLINK2_MS) && A.oct == -2, "-2: OCT- faster");
-    btap(QD_B_REC);
+    btap(QD_B_HOME);                                    /* (2026-11-10: HOME leaves the keyboard page) */
     mode(M_SOUND);                                      /* SOUND's banks */
     whold(0);
     CHECK(!half_period(F2) && A.ui.sound_bank == 0, "SOUND, the first bank: no blink");
@@ -1485,7 +1493,12 @@ static void g_rec(void)
     btap(QD_B_REC);
     CHECK(A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC lit (its page)");
     btap(QD_B_REC);
-    CHECK(A.ui.mode == QD_MODE_STEP && leds().button[QD_B_REC] == QD_LED_OFF, "REC again: the sequencer");
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.rec && A.ui.live_wait && !A.seq.playing,
+          "2026-11-10: REC tapped on the keyboard page: recording armed (LIVE: waiting), as a hold");
+    btap(QD_B_REC);
+    CHECK(A.ui.mode == QD_MODE_KEYS && !A.ui.rec, "REC again: disarmed, the keyboard stays");
+    btap(QD_B_HOME);
+    CHECK(A.ui.mode == QD_MODE_STEP && leds().button[QD_B_REC] == QD_LED_OFF, "HOME: the sequencer");
     btap(QD_B_REC);
     bdown(SHIFT);                                       /* P1.3y: SHIFT + REC: the record settings; KNOB 1 STEP */
     btap(QD_B_REC);
@@ -1520,8 +1533,8 @@ static void g_rec(void)
     CHECK(A.ui.cursor == 4, "PRESETS moves the cursor");
     btap(QD_B_REC);
     CHECK(!A.ui.rec && A.ui.mode == QD_MODE_KEYS, "P1.3y: REC tapped: the recording ends, still the keyboard");
-    btap(QD_B_REC);
-    CHECK(A.ui.mode == QD_MODE_STEP, "REC: back to the sequencer");
+    btap(QD_B_HOME);
+    CHECK(A.ui.mode == QD_MODE_STEP, "HOME: back to the sequencer");
     bdown(SHIFT);
     btap(QD_B_REC);
     bup(SHIFT);
@@ -1872,7 +1885,7 @@ static void g_rec_play(void)
     btap(QD_B_PLAY);
     CHECK(!A.seq.playing && !A.ui.rec, "PLAY: stopped");
 
-    btap(QD_B_REC);                                     /* the step view: REC held past the hold, then PLAY */
+    btap(QD_B_HOME);                                    /* the step view: REC held past the hold, then PLAY */
     CHECK(A.ui.mode == QD_MODE_STEP, "(the step view)");
     bdown(QD_B_REC);
     run(QD_REC_HOLD_MS + 50);
@@ -2029,13 +2042,16 @@ static void g_track_keys(void)
     A.keys_struck = 0;
     kdown(WK(3));
     run(5);
-    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.latch == QD_LATCH_TRK && qd_view_screen(&A) == QD_SCR_MENU &&
-              (A.keys_struck >> WK(3)) & 1u && !R(0, 3).on, "REC: the keyboard on, the page stays, W4 plays a note");
+    CHECK(A.ui.mode == QD_MODE_KEYS && !A.ui.latch && qd_view_screen(&A) == QD_SCR_KEYS &&
+              (A.keys_struck >> WK(3)) & 1u && !R(0, 3).on, "2026-11-10: REC there: the keyboard page (REC's only "
+          "view job), W4 plays a note");
     kup(WK(3));
     run(5);
-    btap(QD_B_REC);
+    btap(QD_B_HOME);
+    btap(QD_B_PATTERN);
     wtap(3);
-    CHECK(A.ui.mode == QD_MODE_STEP && A.ui.latch == QD_LATCH_TRK && R(0, 3).on, "REC again: W4 a step again");
+    CHECK(A.ui.mode == QD_MODE_STEP && A.ui.latch == QD_LATCH_TRK && R(0, 3).on, "HOME, SEL: the track settings, W4 a "
+          "step again");
     wtap(3);
     turn(QD_K_2, 1);
     CHECK(ts->key_global && A.proj.key_scale == QD_SCALE_CHROMATIC + 1 && ts->scale == QD_SCALE_CHROMATIC,
@@ -2146,9 +2162,9 @@ static void g_tracks_screen(void)
         run(300);
         CHECK(A.seq.solo == 0x02u && A.sel == 1, "the mix: B2 double-tapped, track 2 soloed (%x)", A.seq.solo);
         l = leds();
-        CHECK(l.key[BK(B5)] == QD_LED_DIM && l.key[BK(B3)] == QD_LED_MID && l.key[BK(B11)] == QD_LED_LIT &&
+        CHECK(l.key[BK(B5)] == QD_LED_DIM && l.key[BK(B3)] == QD_LED_MID && l.key[BK(B11)] == QD_LED_FAINT &&
                   l.key[BK(B7)] == QD_LED_OFF,
-              "the mix's LEDs: muted dim, playing mid, B11 lit");
+              "the mix's LEDs: muted dim, playing mid, B11 the hold key (2026-11-10: faint)");
         {
             int on = 0, off = 0, k;
             for (k = 0; k < 4; k++, run(QD_FAST_MS)) {
@@ -2166,8 +2182,16 @@ static void g_tracks_screen(void)
         CHECK(A.seq.mute == 0x10u, "the mix: PRESETS right unmutes it");
         A.seq.solo = 4;
         black(B11);
+        CHECK(A.seq.mute && A.seq.solo && !A.ui.b11, "the mix: B11 alone the hold key (2026-11-10), no clear");
+        black(B11);                                     /* (the keys back: the click toggled them) */
+        kdown(BK(B1));
+        run(20);
+        black(B11);
+        kup(BK(B1));
+        run(500);
         l = leds();
-        CHECK(!A.seq.mute && !A.seq.solo && l.key[BK(B11)] == QD_LED_OFF, "the mix: B11 every mute and solo off");
+        CHECK(!A.seq.mute && !A.seq.solo && A.sel == 1, "the mix: a track key held + B11: every mute and solo off (no "
+              "mute, no track at the key's release)");
         turn(QD_K_SELECT, 1);
         CHECK(A.ui.mix_page == 1, "the mix: SELECT, the sends");
     }
@@ -2713,9 +2737,10 @@ static void g_f3_latch(void)
     turn(QD_K_3, 2);
     CHECK(ts->pstart[0] == 2, "open: KNOB 3 = the start");
     bpm = A.bpm;
-    turn(QD_K_SELECT, 3);
+    turn(QD_K_PRESETS, 3);
     turn(QD_K_ALGO, 4);
-    CHECK(A.bpm == bpm + 3 && PAT()->swing == 54, "open: SELECT the tempo, ALGORITHM the swing (P1.3x)");
+    CHECK(A.bpm == bpm + 3 && PAT()->swing == 54, "open: PRESETS the tempo (2026-11-10), ALGORITHM the swing (P1.3x)");
+    run(QD_TK_MS + QD_TK_FADE_MS + 5);
     btap(F2);
     CHECK(A.ui.latch == QD_LATCH_F3 && !A.ui.f2_loaded, "OCT+ (confirm, reserved): nothing, still open");
     bdown(F1);
@@ -2924,9 +2949,9 @@ static void g_mkey(void)
     CHECK(PAT()->trk[0].def.vel == 127 && A.ui.hmode == M_VEL, "P1.6d: .. B10: the default's velocity 127, the mode kept");
     {
         const qd_leds_t l = leds();
-        CHECK(l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B1)] != QD_LED_LIT && l.key[BK(B11)] == QD_LED_LIT,
-              "the latch in VALUES, nothing selected: the black keys show the default's values (B10 127 lit, B11 to "
-              "reset), not the modes (2026-10-26, the owner)");
+        CHECK(l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B1)] != QD_LED_LIT && l.key[BK(B11)] == QD_LED_DIM,
+              "the latch in VALUES, nothing selected: the black keys show the default's values (B10 127 lit; B11 the "
+              "hold key, 2026-11-10: dim, the lock on), not the modes (2026-10-26, the owner)");
     }
     btap(LFO);
     printf("  mode keys held: %d of 9 modes edit their default with the picture, %d reset by B11\n", ok, okr);
@@ -3840,20 +3865,20 @@ static void g_ext_clock(void)
     bup(F2), bup(F1);
     run(10);
     b0 = A.bpm;
-    turn(QD_K_SELECT, 4);
-    CHECK(A.bpm == b0 + 4 && !A.seq.ext && !A.seq.playing, "after a START and STOP: F3 + SELECT moves the tempo "
+    turn(QD_K_PRESETS, 4);
+    CHECK(A.bpm == b0 + 4 && !A.seq.ext && !A.seq.playing, "after a START and STOP: F3 + PRESETS (2026-11-10) moves the tempo "
           "(%d, now %d)", b0, A.bpm);
     qd_app_midi(&A, 0xFA, 0, 0);                        /* a clock at 100 BPM */
     clock_pulses(96, 25);
     b0 = A.bpm;
-    turn(QD_K_SELECT, 4);
+    turn(QD_K_PRESETS, 4);
     CHECK(qd_seq_ext_running(&A.seq) && b0 >= 97 && b0 <= 102 && A.bpm == b0 && A.ui.cf_on &&
               !strcmp(A.ui.cf_big, "EXT CLOCK") && qd_ctl_layer_shown(&A) == QD_LAYER_F3,
           "a running clock: the tempo is its (%d), a turn shows EXT CLOCK and moves nothing (F3 still open)", b0);
     run(600);                                           /* the clock gone quiet */
     CHECK(!A.seq.ext && !A.seq.playing, "no pulse for 0.6 s: not following, stopped");
     b0 = A.bpm;
-    turn(QD_K_SELECT, -3);
+    turn(QD_K_PRESETS, -3);
     CHECK(A.bpm == b0 - 3, "the turn works again (%d, now %d)", b0, A.bpm);
     btap(F1);
     qd_app_midi(&A, 0xFA, 0, 0);
@@ -3861,18 +3886,11 @@ static void g_ext_clock(void)
     qd_app_midi(&A, 0xFC, 0, 0);
     run(20);
     CHECK(!A.seq.ext && !A.seq.playing, "STOP: not following");
-    btap(QD_B_REC);                                     /* the keyboard: SELECT the tempo */
+    btap(QD_B_REC);                                     /* the keyboard: SELECT the page (2026-11-10, no tempo) */
     b0 = A.bpm;
     turn(QD_K_SELECT, 2);
-    CHECK(A.bpm == b0 + 2 && A.ui.tk == UI_TK_TEMPO, "the keyboard, stopped after a clock: SELECT the tempo");
-    qd_app_midi(&A, 0xFA, 0, 0);
-    clock_pulses(48, 25);
-    b0 = A.bpm;
-    turn(QD_K_SELECT, 2);
-    CHECK(A.bpm == b0 && A.ui.cf_on && !strcmp(A.ui.cf_big, "EXT CLOCK"), "the keyboard, a clock running: EXT CLOCK");
-    qd_app_midi(&A, 0xFC, 0, 0);
-    run(20);
-    btap(QD_B_REC);
+    CHECK(A.bpm == b0 && A.ui.page[0] == 2, "the keyboard: SELECT the page edited (2026-11-10), the tempo untouched");
+    btap(QD_B_HOME);
 }
 
 /* ================================================================ program a beat === */
@@ -4287,7 +4305,7 @@ static void t_leds(void)
     l = leds();
     CHECK(l.button[QD_B_REC] == QD_LED_LIT && l.key[7] == QD_LED_ROOT && l.key[8] == QD_LED_SCALE,
           "the keyboard: REC dim (P1.6g), the scale lit (P1.5b: chromatic on C, C 80 %%, the rest 50 %%)");
-    btap(QD_B_REC);
+    btap(QD_B_HOME);
     btap(QD_B_PLAY);                                    /* F1: the playing page flashes */
     bdown(F1);
     {
@@ -4354,9 +4372,9 @@ static void g_p15b_keys(void)
     qd_leds_t l;
     start();
     btap(QD_B_SOUND);
-    btap(QD_B_REC);
+    black(B11);
     CHECK(qd_snd_keys(&A) && qd_view_screen(&A) == QD_SCR_SOUND && A.ui.mode == QD_MODE_STEP,
-          "EDIT, then REC tapped: the editor stays, its keyboard on");
+          "EDIT, then B11 clicked (2026-11-10; REC was): the editor stays, its keyboard on");
     set_key(QD_SCALE_MAJOR, 0);
     for (ok = 1, i = 0; i < 8; i++)
         ok &= play_key(WK(i)) == MAJ[i];
@@ -4431,8 +4449,8 @@ static void g_p15b_keys(void)
           "the keyboard's LEDs, E major: E4 80 %%, F4 dark, F#4 50 %%");
     btap(QD_B_SOUND);
     CHECK(qd_snd_keys(&A), "EDIT from the keyboard: the editor, its keyboard on");
-    btap(QD_B_REC);
-    CHECK(qd_snd_open(&A) && !qd_snd_keys(&A), "REC again: the keyboard off, the editor stays (W: the steps)");
+    black(B11);
+    CHECK(qd_snd_open(&A) && !qd_snd_keys(&A), "B11 again: the keyboard off, the editor stays (W: the steps)");
     wtap(3);
     CHECK(R(0, 3).on, "W4 tapped: a trig again");
     btap(QD_B_HOME);
@@ -4497,21 +4515,21 @@ static void g_p15b_fx(void)
     bup(SHIFT);
     run(10);
     CHECK(A.sel == 2 && A.ui.latch == QD_LATCH_FX, "SHIFT + SELECT +2: track 3, SENDS stays");
-    btap(QD_B_REC);
-    CHECK(qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC: the keyboard on SENDS (as the sound editor's)");
+    black(B11);
+    CHECK(qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "B11 clicked (2026-11-10; REC was): the keyboard on SENDS (as the sound editor's)");
     kdown(WK(0));
     run(30);
     CHECK(sounding(48), "W1: C3 plays (the scale's root at octave 3)");
     kup(WK(0));
     run(30);
-    btap(QD_B_REC);
-    CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC again: the steps");
+    black(B11);
+    CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "B11 again: the steps");
     black(B3);
-    btap(QD_B_REC);
+    black(B11);
     CHECK(qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"),
-          "DELAY page, REC: the keyboard there too, the effects stay (the owner, 2026-10-26)");
-    btap(QD_B_REC);
-    CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC again: the steps, still DELAY");
+          "DELAY page, B11: the keyboard there too, the effects stay (the owner, 2026-10-26)");
+    black(B11);
+    CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "B11 again: the steps, still DELAY");
     black(B1);
     whold(4);
     turn(QD_K_2, 5);
@@ -5212,11 +5230,12 @@ static void g_p16c_screen(void)
     black(B10);
     CHECK(!G->slot[1].bypass && leds().key[BK(B10)] == QD_LED_LIT, "B10 again: playing (lit)");
     run(QD_UNDO_QUIET_MS + 10);
-    black(B11);
+    black(B9);
     qd_view_mfx(&A, &v);
-    CHECK(G->slot[1].type == QD_MFX_CHANCE && v.arm > 0.f, "B11: armed (the red X), nothing removed yet");
-    black(B11);
-    CHECK(G->slot[1].type == QD_MFX_NONE, "B11 again: removed");
+    CHECK(G->slot[1].type == QD_MFX_CHANCE && v.arm > 0.f, "B9 (2026-11-10; B11 was): armed (the red X), nothing "
+          "removed yet");
+    black(B9);
+    CHECK(G->slot[1].type == QD_MFX_NONE, "B9 again: removed");
     run(QD_UNDO_QUIET_MS + 10);
     bdown(SHIFT), btap(F1), bup(SHIFT), run(10);
     CHECK(G->slot[1].type == QD_MFX_CHANCE && G->slot[1].v[QD_MC_CHANCE] == 70, "SHIFT + F1: the removal undone");
@@ -5237,8 +5256,8 @@ static void g_p16c_screen(void)
     qd_ctl_labels(&A, &lb);
     CHECK(!strcmp(lb.s[QD_LBL_B0 + 2], "ARP") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_ALGO], "GROUP") &&
               !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_PRESETS], "EFFECT") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "PATTERN") &&
-              !strcmp(lb.s[QD_LBL_B0 + 10], "REMOVE"), "the labels: B3 ARP, GROUP, EFFECT, PATTERN, REMOVE");
-    btap(QD_B_REC);                                     /* (P1.6f: opened from the step view: STEPS; REC: KEYS) */
+              !strcmp(lb.s[QD_LBL_B0 + 8], "REMOVE"), "the labels: B3 ARP, GROUP, EFFECT, PATTERN, B9 REMOVE");
+    black(B11);                                         /* (P1.6f: opened from the step view: STEPS; a B11 click: KEYS) */
     kdown(WK(0)), kdown(WK(2));                         /* the keys through the group: the arp plays them */
     run(600);
     CHECK(qd_mfx_arp_playing(&A.player.mfx, 1) && leds().button[QD_B_KEYS] >= 153,
@@ -5246,7 +5265,7 @@ static void g_p16c_screen(void)
     kup(WK(0)), kup(WK(2));
     run(300);
     CHECK(!qd_mfx_arp_playing(&A.player.mfx, 1), "let go: it stops");
-    btap(QD_B_REC);
+    black(B11);
     bdown(SHIFT), turn(QD_K_SELECT, 1), bup(SHIFT), run(10);
     qd_view_mfx(&A, &v);
     CHECK(A.sel == 1 && !v.g && qd_view_screen(&A) == QD_SCR_MFX, "SHIFT + SELECT: track 2, its group (OFF)");
@@ -5861,8 +5880,9 @@ static void g_p16e_mfx(void)
     turn(QD_K_ALGO, 1);
     CHECK(PAT()->trk[0].mfx == 2, "nothing held: ALGORITHM the track's group again");
     turn(QD_K_ALGO, -1);
-    btap(QD_B_REC);
-    CHECK(A.ui.mode == QD_MODE_KEYS && qd_mfx_open(&A) && leds().button[QD_B_REC] == QD_LED_DIM, "REC: KEYS (REC dim, P1.6g)");
+    black(B11);
+    CHECK(A.ui.mode == QD_MODE_KEYS && qd_mfx_open(&A) && leds().button[QD_B_REC] == QD_LED_OFF, "a B11 click "
+          "(2026-11-10; REC was): KEYS (REC dark)");
     kdown(WK(0));
     run(400);
     for (n = 0; n < 128; n++)
@@ -6028,19 +6048,20 @@ static void g_p16f_keys(void)
     btap(QD_B_KEYS);
     qd_ctl_labels(&A, &lb);
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP && leds().button[QD_B_REC] == QD_LED_OFF &&
-              !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "KEYS"), "opened from the step view: STEPS (REC dark, its label KEYS)");
-    btap(QD_B_REC);
+              !strcmp(lb.s[QD_LBL_B0 + 10], "SEL/KEYS") && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "KEYBOARD"),
+          "opened from the step view: STEPS (REC dark; 2026-11-10: B11 labelled SEL/KEYS, REC KEYBOARD)");
+    black(B11);
     qd_ctl_labels(&A, &lb);
-    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_DIM &&
-              !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "REC: KEYS (REC dim, its label STEPS)");
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_OFF &&
+              !strcmp(lb.s[QD_LBL_B0 + 10], "SEL/STEPS"), "a B11 click: KEYS (B11 labelled SEL/STEPS)");
     btap(QD_B_KEYS);
     CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && qd_view_screen(&A) == QD_SCR_KEYS, "left on KEYS: the keyboard");
     qd_ctl_labels(&A, &lb);
-    CHECK(leds().button[QD_B_REC] == QD_LED_LIT && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "the keyboard: REC lit, "
-          "its label STEPS (the same)");
+    CHECK(leds().button[QD_B_REC] == QD_LED_LIT && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "RECORD"), "the keyboard: REC "
+          "lit, its label RECORD (2026-11-10: a tap records there)");
     btap(QD_B_KEYS);
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS, "opened from the keyboard: KEYS");
-    btap(QD_B_REC);
+    black(B11);
     btap(QD_B_HOME);
     CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP && qd_view_screen(&A) != QD_SCR_KEYS, "left on STEPS: the step view");
     btap(QD_B_KEYS);
@@ -6088,7 +6109,7 @@ static void g_p16h_f1(void)
     btap(QD_B_SOUND);
     btap(F1);
     CHECK(qd_snd_open(&A) && qd_view_screen(&A) == QD_SCR_SOUND, "the sound editor: F1 tapped, open");
-    btap(QD_B_REC);
+    black(B11);                                         /* (2026-11-10: a B11 click the keys; REC was) */
     oct = A.oct;
     btap(F1);
     CHECK(qd_snd_keys(&A) && A.oct == oct - 1, "its keyboard: F1 the octave (%d -> %d), open", oct, A.oct);
@@ -6097,7 +6118,7 @@ static void g_p16h_f1(void)
     btap(QD_B_KEYS);
     btap(F1);
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP, "MIDI FX, STEPS: F1 tapped, open");
-    btap(QD_B_REC);
+    black(B11);                                         /* (2026-11-10: a B11 click the keys; REC was) */
     oct = A.oct;
     btap(F1);
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && A.oct == oct, "MIDI FX, KEYS: F1 tapped, open (no octave)");
@@ -6303,8 +6324,9 @@ static void g_p16g_rec(void)
     A.proj.rec_dub = QD_TAKE_REPLACE;                   /* (2026-10-25: into the steps as they are; CAPTURE:
                                                          * g_capture) */
     btap(QD_B_SOUND);                                   /* the sound editor, its keyboard */
-    btap(QD_B_REC);
-    CHECK(qd_snd_open(&A) && qd_snd_keys(&A) && !A.ui.rec, "the editor: REC tapped: its keys (not recording)");
+    black(B11);
+    CHECK(qd_snd_open(&A) && qd_snd_keys(&A) && !A.ui.rec, "the editor: B11 clicked (2026-11-10): its keys (not "
+          "recording)");
     live_arm();
     CHECK(qd_snd_open(&A) && A.ui.rec && A.ui.live_wait && !A.seq.playing, "REC held, stopped: armed, the editor stays");
     {
@@ -8850,8 +8872,8 @@ static void g_overview(void)
     run(300);
     CHECK(A.seq.mute == 0x10u && A.sel == 2, "B5 held: track 5 muted, the selection kept");
     l = leds();
-    CHECK(l.key[BK(B5)] == QD_LED_DIM && l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B11)] == QD_LED_LIT,
-          "the LEDs: the mix's (muted dim, selected lit, B11 lit)");
+    CHECK(l.key[BK(B5)] == QD_LED_DIM && l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B11)] == QD_LED_FAINT,
+          "the LEDs: the mix's (muted dim, selected lit; B11 the hold key, 2026-11-10: faint)");
     qd_view_ov(&A, &ov);
     CHECK(ov.mute[4] == 1 && ov.mute[0] == 0 && ov.sel == 2 && ov.page == 0 && ov.play[0] == -1,
           "the model: track 5 not heard, stopped: no playhead");
@@ -8861,9 +8883,12 @@ static void g_overview(void)
     CHECK(A.seq.solo == 0x02u && A.sel == 1, "B2 double-tapped: track 2 soloed (%x)", A.seq.solo);
     qd_view_ov(&A, &ov);
     CHECK(ov.mute[1] == 2 && ov.mute[0] == 1, "the model: track 2 soloed, track 1 not heard");
+    kdown(BK(B2));
+    run(20);
     black(B11);
+    kup(BK(B2));
     run(300);
-    CHECK(!A.seq.mute && !A.seq.solo, "B11: every mute and solo off");
+    CHECK(!A.seq.mute && !A.seq.solo, "B2 held + B11 (2026-11-10: alone the hold key): every mute and solo off");
     on0 = qd_step_is_on(qd_step(qd_ctl_cpat(&A), 1, 0));
     wtap(0);
     CHECK(qd_step_is_on(qd_step(qd_ctl_cpat(&A), 1, 0)) != on0, "W1 tapped: track 2's step 1 made / removed");
@@ -9078,7 +9103,7 @@ static void g_p16l_labels(void)
     mode(M_VEL);
     CHECK(!strcmp(lab(LW(0)), "STEP 1") && !strcmp(lab(LW(15)), "STEP 16") && !strcmp(lab(LBK(0)), "NOTE") &&
               !strcmp(lab(LBK(1)), "VEL") && !strcmp(lab(LBK(9)), "SOUND") && !strcmp(lab(LBK(8)), "TRIG/SLIDE") &&
-              !strcmp(lab(LBK(7)), "FUNC") && !strcmp(lab(LBK(10)), "PAGES/SEL") &&
+              !strcmp(lab(LBK(7)), "FUNC") && !strcmp(lab(LBK(10)), "SEL/KEYS") &&
               !strcmp(lab(LKN(QD_K_SELECT)), "PAGE") &&
               !strcmp(lab(LKN(QD_K_ALGO)), "VEL DEF") && !strcmp(lab(LBT(QD_B_PLAY)), "PLAY") &&
               !strcmp(lab(LBT(QD_B_OCTDN)), "F1") && !strcmp(lab(QD_LBL_MASTER), "VOLUME") && labels_clean(),
@@ -9137,9 +9162,12 @@ static void g_p16l_labels(void)
           "asleep: HOME WAKE, the rest none but PLAY and MASTER");
 }
 
-/* 2026-11-10 (owner, Elasticat's B11): B11 with nothing held is the hold key: held, B1..B8 the pages as F1's (tap edit,
- * double tap loop alone, hold in / out of the loop) with F1's pages picture, the W keys select steps (the latch on, the
- * selection stays), B11 + F1 clears them (one undo level); a quick click toggles the latch; B11's other jobs stay */
+/* 2026-11-10 (owner, Elasticat's B11; the one design language, the owner's second pass): B11 with nothing else to do is
+ * the hold key: held, B1..B8 the pages as F1's (tap edit, double tap loop alone, hold in / out of the loop) with F1's
+ * pages picture, the W keys select steps by the HOME latch's model (keys down together one selection; all up, the next
+ * press a new one; never a toggle), the step lock on; B11 + F1 the lock off (LIVE), B11 + F2 the selection's value of
+ * the mode back to the track's; a quick click the W keys between the steps and the keys (never the lock); with the
+ * lock on B11 is still the hold key; B11's other jobs stay (a step held, F1) */
 static void g_b11(void)
 {
     qd_leds_t l;
@@ -9158,8 +9186,10 @@ static void g_b11(void)
     CHECK(l.key[BK(B1)] == QD_LED_LIT && l.key[BK(B9)] == QD_LED_OFF && l.key[BK(B10)] == QD_LED_OFF &&
               l.key[BK(B11)] == QD_LED_LIT,
           "B11 held: the page keys lit as F1's, B9 / B10 off, B11 lit");
-    CHECK(!strcmp(lab(LBK(2)), "PAGE 3") && !strcmp(lab(LW(0)), "SELECT") && !lab(LBK(10))[0] && labels_clean(),
-          "B11 held: the labels PAGE n, SELECT on the W keys");
+    CHECK(!strcmp(lab(LBK(2)), "PAGE 3") && !strcmp(lab(LW(0)), "SELECT") && !lab(LBK(10))[0] &&
+              !strcmp(lab(LBT(F1)), "LIVE") && !strcmp(lab(LBT(F2)), "RESET") && labels_clean(),
+          "B11 held: the labels PAGE n, SELECT on the W keys, F1 LIVE, F2 RESET (%s %s %s %s)", lab(LBK(2)), lab(LW(0)),
+          lab(LBT(F1)), lab(LBT(F2)));
     black(B3);
     CHECK(A.ui.page[0] == 2, "B11 + B3 tapped: page 3 edited");
     black(B2), black(B2);
@@ -9173,67 +9203,80 @@ static void g_b11(void)
     black(B1);
     kup(BK(B11));
     run(10);
-    CHECK(!qd_ctl_b11(&A) && !A.ui.slatch && A.ui.page[0] == 0 && qd_view_screen(&A) == QD_SCR_LANE,
-          "B11 let go after the pages: no click (the latch stays off), the lane");
-    /* the W keys select: the first replaces, the later ones go in / out; let go of B11, the selection stays */
+    CHECK(!qd_ctl_b11(&A) && !A.ui.slatch && !qd_snd_keys(&A) && A.ui.page[0] == 0 && qd_view_screen(&A) == QD_SCR_LANE,
+          "B11 let go after the pages: no click, the picture gone at once");
+    /* the W keys select, the HOME latch's model */
     kdown(BK(B11));
     run(20);
-    wtap(1);
+    kdown(WK(1)), run(20), kdown(WK(3)), run(20), kup(WK(1)), run(10), kdown(WK(5)), run(20);
+    kup(WK(3)), kup(WK(5)), run(10);
+    CHECK(A.ui.slatch && A.ui.nheld == 3 && A.ui.held[0] == 1 && A.ui.held[1] == 3 && A.ui.held[2] == 5 &&
+              !R(0, 5).on && qd_view_screen(&A) == QD_SCR_LAYER,
+          "B11 + W2, W4 together, W6 while W4 is down: one selection 2, 4, 6 (the lock on, no trig made)");
     wtap(3);
-    wtap(5);
-    wtap(3);
-    CHECK(A.ui.slatch && A.ui.nheld == 2 && A.ui.held[0] == 1 && A.ui.held[1] == 5 && !R(0, 5).on &&
-              qd_view_screen(&A) == QD_SCR_LAYER,
-          "B11 + W2, W4, W6, W4 again: the latch on, steps 2 and 6 selected (no trig made), the pages picture");
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 3, "all up, W4 again: a new selection, step 4 alone (no toggle)");
+    kdown(WK(1)), kdown(WK(5)), run(20), kup(WK(1)), kup(WK(5)), run(10);
     kup(BK(B11));
     run(10);
-    CHECK(A.ui.slatch && A.ui.nheld == 2 && qd_view_screen(&A) == QD_SCR_HELD, "B11 let go: the selection stays");
+    CHECK(A.ui.slatch && A.ui.nheld == 2 && A.ui.held[0] == 1 && A.ui.held[1] == 5 &&
+              qd_view_screen(&A) == QD_SCR_HELD, "W2 + W6 together, B11 let go: the selection 2, 6 stays");
     black(B2);
     CHECK(A.ui.hmode == M_VEL && A.ui.slatch, "MODES, the selection: B2 picks VEL");
+    turn(QD_K_1, 5);
+    qd_step_set_chance(PAT(), 0, 1, 50);
+    CHECK(OV(0, 1, QD_PM_VEL) && OV(0, 5, QD_PM_VEL), "KNOB 1: the selection's velocity");
+    /* the lock on: B11 is still the hold key (no reset) */
+    black(B11);
+    CHECK(OV(0, 1, QD_PM_VEL) && A.ui.slatch && A.ui.nheld == 2 && qd_snd_keys(&A),
+          "the lock on, B11 clicked: no reset (2026-11-10), the keys");
+    black(B11);
+    CHECK(!qd_snd_keys(&A) && A.ui.nheld == 2, ".. again: the steps, the selection kept");
+    /* B11 + F2: the mode's value back to the track's (the others stay) */
     kdown(BK(B11));
     run(20);
-    wtap(0);
-    kup(BK(B11));
+    bdown(F2);
+    run(20);
+    CHECK(!OV(0, 1, QD_PM_VEL) && !OV(0, 5, QD_PM_VEL) && OV(0, 1, QD_PM_CHANCE) && A.ui.slatch && A.ui.nheld == 2 &&
+              qd_ctl_layer(&A) == 0, "B11 + F2: VEL back to the track's (CHANCE kept), the lock and the selection stay");
+    bup(F2);
     run(10);
-    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 0, "B11 + W1 in a new hold: a new selection (step 1)");
-    /* B11 + F1: the selected steps cleared, one undo level */
-    kdown(BK(B11));
-    run(20);
-    wtap(1);
-    wtap(2);
-    wtap(7);
+    /* B11 + F1: the lock off, LIVE */
     bdown(F1);
     run(20);
-    CHECK(!R(0, 1).on && !R(0, 2).on && !R(0, 7).on && R(0, 0).on && R(0, 3).on && qd_ctl_layer(&A) == 0,
-          "B11 + W2, W3, W8, F1: steps 2 and 3 cleared, the others kept, no F1 layer");
+    CHECK(!A.ui.slatch && !A.ui.nheld && R(0, 1).on && R(0, 3).on && qd_ctl_layer(&A) == 0,
+          "B11 + F1: the lock off (LIVE), nothing cleared, no F1 layer");
     bup(F1);
     run(10);
     kup(BK(B11));
-    run(QD_UNDO_QUIET_MS + 20);
-    CHECK(A.ui.slatch && !A.ui.latch, "let go: the latch stays, no menu");
-    bdown(SHIFT);
     run(10);
-    btap(F1);
-    bup(SHIFT);
+    CHECK(!A.ui.slatch && !qd_snd_keys(&A) && !A.ui.latch, "let go: LIVE, no click, no menu");
+    /* a quick click: the W keys the keys; held long or used: none */
+    black(B11);
+    l = leds();
+    CHECK(qd_snd_keys(&A) && !A.ui.slatch && l.key[WK(0)] == QD_LED_ROOT && l.key[WK(1)] == QD_LED_SCALE &&
+              !strcmp(lab(LBK(10)), "SEL/STEPS"),
+          "B11 clicked: the W keys the keys (the scale's, as the editors'), no step lock; B11 labelled SEL/STEPS");
+    kdown(WK(6));
+    run(30);
+    kup(WK(6));
     run(10);
-    CHECK(R(0, 1).on && R(0, 2).on && !R(0, 7).on, "SHIFT + F1: both back (one undo level)");
-    /* a quick click: the latch off / on; held long or used: none */
+    CHECK(!R(0, 6).on && A.ui.mode == QD_MODE_STEP, "a key played: no step made");
     black(B11);
-    CHECK(!A.ui.slatch && !A.ui.nheld, "B11 clicked: the latch off");
-    black(B11);
-    CHECK(A.ui.slatch && !A.ui.nheld, "B11 clicked again: on (empty)");
+    CHECK(!qd_snd_keys(&A), "B11 clicked again: the steps");
     kdown(BK(B11));
     run(QD_B11_CLICK_MS + 20);
     kup(BK(B11));
     run(10);
-    CHECK(A.ui.slatch, "B11 held 320 ms alone: no click");
+    CHECK(!qd_snd_keys(&A), "B11 held 320 ms alone: no click");
     kdown(BK(B11));
     run(20);
     turn(QD_K_1, 1);
     kup(BK(B11));
     run(10);
-    CHECK(A.ui.slatch, "B11 + a knob: no click");
+    CHECK(!qd_snd_keys(&A), "B11 + a knob: no click");
+    black(B11);
     btap(QD_B_HOME);
+    CHECK(!qd_snd_keys(&A), "HOME: the steps again");
     /* B11's own jobs stay: a step held, F1 */
     mode(M_VEL);
     whold(0);
@@ -9250,9 +9293,10 @@ static void g_b11(void)
     CHECK(!A.ui.slatch && !qd_ctl_b11(&A), "F1 + B11: F1's undo (no hold key)");
 }
 
-/* 2026-11-10 (owner): the keyboard page's B11: the hold key (no F#5); B11 + W selects steps, the keys then write
- * chords into them (one undo level a chord); ALGORITHM the cursor, fully left LIVE; LFO with a selection LIVE;
- * REC armed keeps the recording */
+/* 2026-11-10 (owner): the keyboard page's B11: the hold key (no F#5); held, the pages picture; B11 + W selects steps,
+ * the keys then write chords into them (one undo level a chord), the selected step's notes lit; ALGORITHM the cursor,
+ * fully left LIVE; LFO with a selection LIVE; a B11 click its W keys the steps (the screen's keyboard stays); SELECT
+ * the page; REC armed keeps the recording; HOME leaves it */
 static void g_keys_b11(void)
 {
     int c, e, g, oct;
@@ -9261,26 +9305,27 @@ static void g_keys_b11(void)
     wtap(2);                                            /* step 3 on (the track's default note) */
     btap(QD_B_REC);
     c = qd_rec_key_note(&A, WK(0)), e = qd_rec_key_note(&A, WK(2)), g = qd_rec_key_note(&A, WK(4)), oct = A.oct;
-    CHECK(A.ui.mode == QD_MODE_KEYS && !A.ui.slatch && !strcmp(lab(LBK(10)), "PAGES/SEL") &&
-              !strcmp(lab(QD_LBL_KNOB0 + QD_K_ALGO), "STEP"),
-          "the keyboard: LIVE, B11 labelled the hold key, ALGORITHM STEP");
+    CHECK(A.ui.mode == QD_MODE_KEYS && !A.ui.slatch && !strcmp(lab(LBK(10)), "SEL/STEPS") &&
+              !strcmp(lab(QD_LBL_KNOB0 + QD_K_ALGO), "STEP") && !strcmp(lab(QD_LBL_KNOB0 + QD_K_SELECT), "PAGE"),
+          "the keyboard: LIVE, B11 labelled the hold key, ALGORITHM STEP, SELECT PAGE");
     kdown(BK(B11));
     run(20);
     CHECK(qd_ctl_b11(&A) && !((A.keys_struck >> BK(B11)) & 1u), "B11 down on the keyboard: the hold key, no note");
-    wtap(2);
-    wtap(5);
+    run(300);
+    CHECK(qd_view_screen(&A) == QD_SCR_LAYER, "B11 held: the pages picture over the keyboard");
+    kdown(WK(2)), kdown(WK(5)), run(20), kup(WK(2)), kup(WK(5)), run(10);
     l = leds();
     CHECK(A.ui.slatch && A.ui.nheld == 2 && A.ui.held[0] == 2 && A.ui.held[1] == 5 && !A.keys_struck &&
-              !R(0, 5).on && qd_view_screen(&A) == QD_SCR_KEYS && !strcmp(lab(LW(0)), "SELECT") &&
-              l.key[BK(B1)] == QD_LED_LIT,
-          "B11 + W3, W6: steps 3 and 6 selected (no notes, no trig), the keyboard's screen, the step view's keys");
+              !R(0, 5).on && !strcmp(lab(LW(0)), "SELECT") && l.key[BK(B1)] == QD_LED_LIT,
+          "B11 + W3 and W6 together: steps 3 and 6 selected (no notes, no trig), the step view's keys");
     black(B2);
     CHECK(A.ui.page[0] == 1 && A.ui.nheld == 2, "B11 + B2: page 2 edited, the selection kept");
     black(B1);
     kup(BK(B11));
     run(10);
-    CHECK(!qd_ctl_b11(&A) && A.ui.slatch && A.ui.nheld == 2 && A.ui.page[0] == 0 && strcmp(lab(LW(0)), "SELECT"),
-          "B11 let go: the selection stays, the W keys the keyboard again");
+    CHECK(!qd_ctl_b11(&A) && A.ui.slatch && A.ui.nheld == 2 && A.ui.page[0] == 0 && strcmp(lab(LW(0)), "SELECT") &&
+              qd_view_screen(&A) == QD_SCR_KEYS,
+          "B11 let go: the keyboard at once, the selection stays, the W keys the keyboard again");
     kdown(WK(0)), kdown(WK(2));
     run(10);
     kdown(WK(4));
@@ -9289,7 +9334,11 @@ static void g_keys_b11(void)
               R(0, 5).on && R(0, 5).nn == 3 && ((A.keys_struck >> WK(4)) & 1u) && A.ui.nheld == 2,
           "C, E, G held together: the chord in steps 3 and 6 (6 made), heard, the selection kept");
     kup(WK(0)), kup(WK(2)), kup(WK(4));
-    run(10);
+    run(400);
+    l = leds();
+    CHECK(l.key[WK(0)] == QD_LED_LIT && l.key[WK(2)] == QD_LED_LIT && l.key[WK(4)] == QD_LED_LIT &&
+              l.key[WK(1)] != QD_LED_LIT && l.key[WK(6)] != QD_LED_LIT,
+          "let go: the selected step's notes lit (C, E, G), the others by the scale");
     kdown(WK(2));
     run(10);
     kup(WK(2));
@@ -9319,23 +9368,41 @@ static void g_keys_b11(void)
     CHECK(!A.ui.slatch && A.ui.khold, "LFO again, nothing selected: HOLD as before");
     btap(QD_B_MUTE);
     CHECK(!A.ui.khold, "and off");
-    /* a B11 click: the latch on with the last step; again off */
+    /* a B11 click: the W keys the steps (the latch untouched, the screen's keyboard stays); again the keys */
     black(B11);
-    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 3, "B11 clicked: the latch on, the last step selected");
+    CHECK(A.ui.ksteps && !A.ui.slatch && qd_view_screen(&A) == QD_SCR_KEYS && !strcmp(lab(LW(7)), "STEP 8") &&
+              !strcmp(lab(LBK(10)), "SEL/KEYS"),
+          "B11 clicked: the W keys the steps (no step lock), the keyboard's screen; B11 labelled SEL/KEYS");
+    A.keys_struck = 0;
+    wtap(7);
+    l = leds();
+    CHECK(R(0, 7).on && !((A.keys_struck >> WK(7)) & 1u) && l.key[WK(7)] == QD_LED_LIT, "W8 tapped: a trig (lit), no "
+          "note");
+    whold(2);
+    kdown(BK(B1));
+    run(20);
+    kup(BK(B1));
+    run(10);
+    wrel(2);
+    CHECK(R(0, 2).nn == 1 && R(0, 2).notes[0] == qd_rec_key_note(&A, BK(B1)), "W3 held + B1: its note into step 3");
     black(B11);
-    CHECK(!A.ui.slatch && !A.ui.nheld, "B11 clicked again: LIVE");
-    /* B11 + F1: the selected steps cleared (the octave untouched) */
+    CHECK(!A.ui.ksteps, "B11 clicked again: the keys");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.page[0] == 1 && A.ui.tk != UI_TK_TEMPO, "SELECT: the page edited (2026-11-10), not the tempo");
+    turn(QD_K_SELECT, -1);
+    /* B11 + F1: LIVE (the octave untouched) */
     kdown(BK(B11));
     run(20);
     wtap(2);
     bdown(F1);
     run(20);
-    CHECK(!R(0, 2).on && A.oct == oct, "B11 + W3 + F1: step 3 cleared, the octave kept");
+    CHECK(!A.ui.slatch && !A.ui.nheld && R(0, 2).on && A.oct == oct, "B11 + W3 + F1: LIVE, the step kept, the octave kept");
     bup(F1);
     run(10);
     kup(BK(B11));
     run(10);
     /* REC armed: the recording's (step recording writes the cursor's step, not the selection) */
+    turn(QD_K_ALGO, 3);
     A.proj.rec_mode = 1;
     bdown(QD_B_REC);
     run(QD_REC_HOLD_MS + 50);
@@ -9347,15 +9414,135 @@ static void g_keys_b11(void)
     run(10);
     kup(WK(4));
     run(10);
-    CHECK(R(0, 0).on && R(0, 0).notes[0] == g && !R(0, 2).on,
+    CHECK(R(0, 0).on && R(0, 0).notes[0] == g && R(0, 2).nn == 1,
           "armed: the note to the cursor's step, not the selection");
     btap(QD_B_REC);
     CHECK(!A.ui.rec && A.ui.mode == QD_MODE_KEYS, "REC: disarmed, the keyboard");
     /* leaving the keyboard ends its selection */
-    turn(QD_K_ALGO, 3);
     CHECK(A.ui.slatch && A.ui.nheld == 1, "a selection");
-    btap(QD_B_REC);
-    CHECK(A.ui.mode == QD_MODE_STEP && !A.ui.slatch && !A.ui.nheld, "REC: the step view, LIVE");
+    btap(QD_B_HOME);
+    CHECK(A.ui.mode == QD_MODE_STEP && !A.ui.slatch && !A.ui.nheld, "HOME: the step view, LIVE");
+}
+
+/* 2026-11-10 (owner): one B11 design language on every page where step locks are: the sound editor, the mix, the
+ * effects, the MIDI FX screen, TOOLS. On each: held, the pages picture over the page (gone the instant B11 is let go),
+ * + B1..B8 the pages, + W the selection (the lock on, the page's knobs then lock on it), + F2 the selection's locks of
+ * the page's parameters cleared (MIDI FX: the steps' group back to the track's), + F1 LIVE; a click the W keys
+ * between the steps and the keys */
+static int b11_overlay(int scr)                        /* B11 held 320 ms: the pages over scr; let go: scr at once */
+{
+    int ok;
+    kdown(BK(B11));
+    run(20);
+    ok = qd_view_screen(&A) == scr;
+    run(300);
+    ok &= qd_view_screen(&A) == QD_SCR_LAYER && qd_ctl_b11(&A) && leds().key[BK(B11)] == QD_LED_LIT;
+    black(B3);
+    ok &= A.ui.page[A.sel] == 2;
+    black(B1);
+    kdown(WK(1)), kdown(WK(4)), run(20), kup(WK(1)), kup(WK(4)), run(10);
+    ok &= A.ui.slatch && A.ui.nheld == 2 && A.ui.held[0] == 1 && A.ui.held[1] == 4;
+    kup(BK(B11));
+    run(10);
+    return ok && qd_view_screen(&A) == scr && !qd_ctl_b11(&A) && A.ui.slatch && A.ui.nheld == 2;
+}
+static void b11_f(int f)                                /* B11 + F1 / F2 */
+{
+    kdown(BK(B11));
+    run(20);
+    btap(f);
+    kup(BK(B11));
+    run(10);
+}
+static void g_b11_pages(void)
+{
+    int ok;
+    start();
+    wtap(1), wtap(4);
+    /* the sound editor */
+    btap(QD_B_SOUND);
+    ok = b11_overlay(QD_SCR_SOUND);
+    CHECK(ok, "the sound editor: B11 held, the pages over it, B3 page 3, W2 + W5 selected; let go: the editor at once");
+    turn(QD_K_1, 3);
+    CHECK(qd_lock_count(PAT(), 0, 1) && qd_lock_count(PAT(), 0, 4), "its KNOB 1: locks on the selection");
+    black(B11);
+    CHECK(qd_snd_keys(&A) && A.ui.slatch && A.ui.nheld == 2, "a click: its keys (the lock kept)");
+    black(B11);
+    CHECK(!qd_snd_keys(&A), ".. again: the steps");
+    b11_f(F2);
+    CHECK(!qd_lock_count(PAT(), 0, 1) && !qd_lock_count(PAT(), 0, 4) && A.ui.slatch && A.ui.nheld == 2 &&
+              qd_snd_open(&A), "B11 + F2: the page's locks on the selection cleared, the lock stays");
+    b11_f(F1);
+    CHECK(!A.ui.slatch && !A.ui.nheld && qd_snd_open(&A), "B11 + F1: LIVE, the editor stays");
+    btap(QD_B_HOME);
+    /* the mix */
+    btap(QD_B_PAGE);
+    ok = b11_overlay(QD_SCR_MIX);
+    CHECK(ok, "the mix: the same (the pages over it, W the selection)");
+    turn(QD_K_1, -5);
+    CHECK(LK(0, 1, QD_LK_LEVEL) != -99999 && LK(0, 4, QD_LK_LEVEL) != -99999, "its KNOB 1: LEVEL locks on the selection");
+    b11_f(F2);
+    CHECK(LK(0, 1, QD_LK_LEVEL) == -99999 && LK(0, 4, QD_LK_LEVEL) == -99999 && A.ui.nheld == 2,
+          "B11 + F2: the page's locks (LEVEL) cleared");
+    black(B11);
+    kdown(WK(0));
+    run(30);
+    CHECK(qd_snd_keys(&A) && A.keys_struck, "a click: the mix's W keys the keys (a note)");
+    kup(WK(0));
+    run(10);
+    black(B11);
+    b11_f(F1);
+    CHECK(!A.ui.slatch && A.ui.latch == QD_LATCH_MIX, "B11 + F1: LIVE, the mix stays");
+    btap(QD_B_HOME);
+    /* the effects */
+    btap(QD_B_TRACKS);
+    ok = b11_overlay(QD_SCR_FX);
+    CHECK(ok && QD_FX_PAGES[A.ui.fx_page].fx == QD_FXG_OVER, "the effects (SENDS): the same");
+    turn(QD_K_2, 4);
+    CHECK(LK(0, 1, QD_LK_DELAY) != -99999, "its KNOB 2: DELAY send locks on the selection");
+    b11_f(F2);
+    CHECK(LK(0, 1, QD_LK_DELAY) == -99999 && LK(0, 4, QD_LK_DELAY) == -99999, "B11 + F2: the sends' locks cleared");
+    b11_f(F1);
+    btap(QD_B_HOME);
+    /* the MIDI FX screen */
+    PAT()->trk[0].mfx = 1;
+    btap(QD_B_KEYS);
+    ok = b11_overlay(QD_SCR_MFX);
+    CHECK(ok && qd_mfx_open(&A), "the MIDI FX screen: the same");
+    turn(QD_K_ALGO, 2);
+    CHECK(PAT()->step[0][1].mfx != QD_SMFX_TRACK && PAT()->step[0][4].mfx != QD_SMFX_TRACK,
+          "ALGORITHM: the selection's own MIDI FX");
+    b11_f(F2);
+    CHECK(PAT()->step[0][1].mfx == QD_SMFX_TRACK && PAT()->step[0][4].mfx == QD_SMFX_TRACK,
+          "B11 + F2: the steps' MIDI FX the track's again");
+    black(B11);
+    CHECK(A.ui.mode == QD_MODE_KEYS && qd_mfx_open(&A), "a click: KEYS");
+    black(B11);
+    CHECK(A.ui.mode == QD_MODE_STEP && qd_mfx_open(&A), ".. again: STEPS");
+    btap(QD_B_HOME);
+    /* TOOLS: B6 HUMANIZE / QUANTIZE, B7 the scope, B11 the hold key; the selection SELECTED */
+    btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A), "TOOLS");
+    black(B6);
+    CHECK(A.ui.tl.tool == QD_TL_HUMANIZE, "B6: HUMANIZE");
+    black(B6);
+    CHECK(A.ui.tl.tool == QD_TL_QUANTIZE, "B6 again: QUANTIZE");
+    black(B6);
+    CHECK(A.ui.tl.tool == QD_TL_HUMANIZE, ".. and back");
+    {
+        const int sc = A.ui.tl.scope;
+        black(B7);
+        CHECK(A.ui.tl.scope == (sc + 1) % QD_TS_N, "B7: the scope round (B11 was)");
+    }
+    black(B1);
+    ok = b11_overlay(QD_SCR_TOOLS);
+    CHECK(ok && A.ui.tl.scope == QD_TS_SEL && qd_tools_sel_mask(&A) == 0x12, "TOOLS: the same; the selection SELECTED "
+          "(%#x)", qd_tools_sel_mask(&A));
+    btap(QD_B_HOME);
+    /* HOME: a click's keys drawn along the foot (the orange keys), every view */
+    black(B11);
+    CHECK(qd_snd_keys(&A) && qd_view_screen(&A) == QD_SCR_LANE && !A.ui.slatch, "HOME: a click, the keys");
+    btap(QD_B_HOME);
 }
 
 int main(void)
@@ -9504,6 +9691,7 @@ int main(void)
         {"P1.3v: no text under 11 px on any screen", g_clarity},
         {"P2.6h: every screen again, every name at its longest (ASan: no buffer overrun)", g_long_names},
         {"2026-11-10: the keyboard's B11: select steps, the keys write chords into them", g_keys_b11},
+        {"2026-11-10: B11 on every page: the editor, the mix, the effects, MIDI FX, TOOLS", g_b11_pages},
     };
     size_t i;
     uint64_t h1, h2;

@@ -518,7 +518,7 @@ static void cat_draw(const ui_fx_t *v)
 static void fx_sends(const ui_fx_t *v)
 {
     static const float AT[4][2] = {{28.f, 60.f}, {212.f, 60.f}, {28.f, 172.f}, {212.f, 172.f}};
-    int k, i;
+    int k;
     cat_draw(v);
     for (k = 0; k < 4; k++) {
         const float x = AT[k][0], y = AT[k][1];
@@ -530,13 +530,9 @@ static void fx_sends(const ui_fx_t *v)
         else
             ui_T(v->txt[k], x, y, 17.f, 500, 0.f, FK[k], QD_CENTER);
     }
-    if (v->keys) {
-        for (i = 0; i < 16; i++) {
-            const float x = 20.f + (float)i * 13.3f;   /* (2026-11-10: orange, boxy keys; the sign at the left) */
-            ui_rec_key(x, 184.f, 11.2f, 42.f, v->kst[i] | ((v->keys_down >> i) & 1 ? 4 : 0));
-        }
-        ui_rec_kb_sign(3.f, 198.f);
-    } else if (v->lane) {
+    if (v->keys)
+        ui_rec_keys_foot(v->kst, 0);                       /* (2026-11-10: orange, boxy keys; the sign at the left) */
+    else if (v->lane) {
         ui_steps_row((const ui_lane_t *)v->lane, 180.f, 58.f);
     }
 }

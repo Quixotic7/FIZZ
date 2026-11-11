@@ -7,7 +7,11 @@
  *                   playing, the playhead's key inverts for its step; a key going down shows at once what its tap
  *                   makes. black, nothing held: B1..B10 the hold modes (2026-11-10: B8 FUNC, B9 TRIG / SLIDE, B10
  *                   SOUND), the current one lit, the modes some step of the page overrides dim, the others faint;
- *                   B11 (the hold key) dim with the latch on, else faint; B11 held: the pages, as F1's
+ *                   B11 (the hold key) dim with the latch on, else faint; B11 held: the pages, as F1's (2026-11-10:
+ *                   every page where B11 is the hold key: the editors, the mix, the effects, MIDI FX, TOOLS, the
+ *                   keyboard; the W keys the steps, the selected blinking); a B11 click's keys: the scale's (the
+ *                   keyboard's levels); the keyboard page: a selected (or held) step's notes lit, its W keys the steps
+ *                   after a B11 click
  *   a step held     the held steps blink fast; B1..B10 the mode's value keys: the step's value lit, the track's
  *                   default dim, the others faint (keys that do nothing off); B11 lit when the step overrides the mode
  *   F1 held         (§8b 2.1) B1..B8 the pages: the one edited lit, the others in the loop dim, out of it off, the
@@ -150,6 +154,28 @@ static void leds_lib(const qd_app_t *a, qd_leds_t *out)
     }
 }
 
+/* F1's pages (2026-11-10: B11 held too, f1 0: B9 / B10 off, B11 lit) */
+static void leds_pages(const qd_app_t *a, qd_leds_t *out, int f1)
+{
+    const qd_ui_t *u = &a->ui;
+    const int loop = qd_track_loop(&qd_ctl_cpat(a)->trk[a->sel]), pp = qd_ctl_playing_page(a, a->sel);
+    const int page = u->page[a->sel];
+    int i;
+    for (i = 0; i < QD_NPAGE; i++) {
+        uint8_t l = i == page ? QD_LED_LIT : ((loop >> i) & 1) ? QD_LED_DIM : QD_LED_OFF;
+        if (i == u->pg_copied)                          /* the page copied: blinking (B1..B8 paste it) */
+            l = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
+        else if (i == pp)                               /* the playing page: flashing */
+            l = blink(a, QD_FAST_MS) ? QD_LED_LIT : l == QD_LED_LIT ? QD_LED_DIM : QD_LED_OFF;
+        out->key[QD_BLACK_KEY[i]] = l;
+    }
+    out->key[QD_BLACK_KEY[8]] = QD_LED_FAINT;
+    out->key[QD_BLACK_KEY[9]] = u->pg_copied >= 0 ? QD_LED_LIT : QD_LED_FAINT;
+    out->key[QD_BLACK_KEY[10]] = qd_clip_can_undo(&u->clip, a->seq.cur, a->sel) ? QD_LED_DIM : QD_LED_OFF;
+    if (!f1)
+        out->key[QD_BLACK_KEY[8]] = out->key[QD_BLACK_KEY[9]] = QD_LED_OFF, out->key[QD_BLACK_KEY[10]] = QD_LED_LIT;
+}
+
 static void leds_step(const qd_app_t *a, qd_leds_t *out)
 {
     const qd_ui_t *u = &a->ui;
@@ -160,6 +186,10 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     leds_whites(a, out);
     if (qd_lib_open(a)) {                               /* P1.5a: the sounds page, the name editor, the projects */
         leds_lib(a, out);
+        return;
+    }
+    if (qd_ctl_b11(a)) {                                /* 2026-11-10: B11 held, every page: the pages, the steps */
+        leds_pages(a, out, 0);
         return;
     }
     if (qd_tools_open(a)) {                             /* T1: TOOLS: the tools, the scope, the tracks */
@@ -173,14 +203,6 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         qd_panel_leds(a, bk);
         for (i = 0; i < 11; i++)
             out->key[QD_BLACK_KEY[i]] = bk[i];
-        if (qd_snd_keys(a)) {                           /* 2026-10-26: SENDS' keyboard (REC): the keys by the scale */
-            uint8_t k[QD_NKEY];
-            memset(k, 0, sizeof k);
-            qd_keys_leds(a, k);
-            for (i = 0; i < QD_NKEY; i++)
-                if (qd_ctl_white(i) >= 0 || a->proj.rec_ekeys)
-                    out->key[i] = k[i];
-        }
         return;                                         /* (2026-10-26: else the W keys stay the steps, as the step
                                                          * view lights them: the mix, every effects page, the track
                                                          * settings) */
@@ -199,19 +221,10 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
             out->key[QD_BLACK_KEY[0]] = QD_LED_LIT;
             return;
         }
-        if (u->ekeys) {                                 /* P1.5b: its keyboard: the scale (SCALE: the W keys; FULL:
-                                                         * every key) */
-            uint8_t k[QD_NKEY];
-            memset(k, 0, sizeof k);
-            qd_keys_leds(a, k);
-            for (i = 0; i < QD_NKEY; i++)
-                if (qd_ctl_white(i) >= 0 || a->proj.rec_ekeys)
-                    out->key[i] = k[i];
-        }
         return;
     }
 
-    if ((u->nheld || qd_step_latch_default(a)) && !qd_ctl_latch_modes(a) && !qd_ctl_b11(a) &&
+    if ((u->nheld || qd_step_latch_default(a)) && !qd_ctl_latch_modes(a) &&
         !(u->slatch && layer != QD_LAYER_NONE)) {       /* the mode's ten values, B11 (2026-10-26, the owner: the latch
                                                          * in VALUES with nothing selected too: the track's defaults;
                                                          * P1.5m: the latch's selection under an F layer: the layer's;
@@ -226,21 +239,8 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         out->key[QD_BLACK_KEY[10]] = clr ? QD_LED_LIT : QD_LED_OFF;
         return;
     }
-    if (layer == QD_LAYER_F1 || qd_ctl_b11(a)) {       /* the pages (2026-11-10: B11 held too: B9 / B10 off) */
-        const int loop = qd_track_loop(ts), pp = qd_ctl_playing_page(a, a->sel);
-        for (i = 0; i < QD_NPAGE; i++) {
-            uint8_t l = i == page ? QD_LED_LIT : ((loop >> i) & 1) ? QD_LED_DIM : QD_LED_OFF;
-            if (i == u->pg_copied)                      /* the page copied: blinking (B1..B8 paste it) */
-                l = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
-            else if (i == pp)                           /* the playing page: flashing */
-                l = blink(a, QD_FAST_MS) ? QD_LED_LIT : l == QD_LED_LIT ? QD_LED_DIM : QD_LED_OFF;
-            out->key[QD_BLACK_KEY[i]] = l;
-        }
-        out->key[QD_BLACK_KEY[8]] = QD_LED_FAINT;
-        out->key[QD_BLACK_KEY[9]] = u->pg_copied >= 0 ? QD_LED_LIT : QD_LED_FAINT;
-        out->key[QD_BLACK_KEY[10]] = qd_clip_can_undo(&u->clip, a->seq.cur, a->sel) ? QD_LED_DIM : QD_LED_OFF;
-        if (layer != QD_LAYER_F1)
-            out->key[QD_BLACK_KEY[8]] = out->key[QD_BLACK_KEY[9]] = QD_LED_OFF, out->key[QD_BLACK_KEY[10]] = QD_LED_LIT;
+    if (layer == QD_LAYER_F1) {                         /* the pages */
+        leds_pages(a, out, 1);
         return;
     }
     if (layer == QD_LAYER_F2) {                         /* the pick-up / drop: the whites; the blacks off */
@@ -286,7 +286,20 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
 
 static void leds_keys(const qd_app_t *a, qd_leds_t *out)
 {
+    const qd_ui_t *u = &a->ui;
     qd_keys_leds(a, out->key);                          /* P1.5b: the scale (roots 75 %, its notes 40 %, sounding full) */
+    if (u->nheld && !u->rec) {                          /* 2026-11-10 (owner): a selected (or held) step: its notes lit
+                                                         * (the first one's) */
+        qd_rstep_t r;
+        int i, k;
+        qd_step_resolve(qd_ctl_cpat(a), a->sel, u->held[0], &r);
+        for (i = 0; i < QD_NKEY; i++)
+            for (k = 0; k < r.nn && r.on; k++)
+                if (r.notes[k] == qd_rec_key_note(a, i))
+                    out->key[i] = QD_LED_LIT;
+    }
+    if (u->ksteps)                                      /* .. a B11 click: its W keys the steps */
+        leds_whites(a, out);
     if (qd_rec_stepping(a)) {                           /* step recording: the cursor's place blinks */
         const int s = qd_track_loop_step(&qd_ctl_cpat(a)->trk[a->sel], a->ui.cursor);
         out->key[QD_WHITE_KEY[s % QD_PAGE]] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
@@ -346,6 +359,17 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         qd_mfx_leds(a, out->key);
     else if (u->mode == QD_MODE_KEYS)
         leds_keys(a, out);
+    if (qd_snd_keys(a) && !qd_ctl_b11(a) && u->snd_lk != 4 && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN)) {
+        uint8_t k[QD_NKEY];                             /* 2026-11-10: a B11 click's keys, every page (P1.5b: SCALE the
+                                                         * W keys; FULL every key) */
+        memset(k, 0, sizeof k);
+        qd_keys_leds(a, k);
+        for (i = 0; i < QD_NKEY; i++)
+            if (qd_ctl_white(i) >= 0 || a->proj.rec_ekeys)
+                out->key[i] = k[i];
+    }
+    if (qd_ctl_b11_free(a) && !qd_ctl_b11(a))        /* 2026-11-10: B11 the hold key: dim with the step lock on */
+        out->key[QD_BLACK_KEY[10]] = u->slatch ? QD_LED_DIM : QD_LED_FAINT;
     if (held(a, QD_B_FUNC) && u->mode == QD_MODE_STEP &&
         (!u->latch || u->latch == QD_LATCH_F3 || u->latch == QD_LATCH_SND))
         qd_shift_leds(a, out->key);                     /* P1.5c: SHIFT held: only its shortcuts lit (P1.5z: the editor
@@ -369,8 +393,9 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                          * off */
         out->button[QD_B_REC] = u->rec ? (!(u->live_wait || u->cap == 1) || blink(a, QD_BLINK_MS) ? QD_LED_LIT
                                                                                                    : QD_LED_OFF)
-                              : u->mode == QD_MODE_KEYS && !qd_mfx_open(a) && u->latch != QD_LATCH_TRK ? QD_LED_LIT   /* (2026-10-25: its page) */
-                              : u->mode == QD_MODE_KEYS || (qd_snd_open(a) && u->ekeys) ? QD_LED_DIM : QD_LED_OFF;
+                              : u->mode == QD_MODE_KEYS && !u->latch ? QD_LED_LIT   /* (2026-10-25: its page; 2026-11-10:
+                                                         * REC's only page, a B11 click the keys) */
+                              : QD_LED_OFF;
     /* T1 (the owner, 2026-10-24): ARP lit while the MIDI FX screen is open (T1b: TOOLS lights SEQ); 2026-10-25: else
      * lit while the track's MIDI FX is on (a group, not bypassed), no dim; FX lit while SHIFT + FX holds FILL */
     out->button[QD_B_KEYS] = qd_mfx_open(a) || (qd_mfx_tgroup(a) && !(qd_ctl_cpat(a)->trk[a->sel].mfx & QD_TMFX_OFF))
