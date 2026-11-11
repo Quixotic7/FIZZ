@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ SHIFT screen</title>
+<!-- FIZZ: SHIFT (GLO) held (the owner, 2026-11-10: "it shows a bunch of help shortcuts, but it's still confusing, and it
+     would be nice if it could communicate which track you are on"). Takes with the track first, the shortcuts as tiles
+     in their control's colour, the black keys' strip; the same screen over every page. Already with the new key plan:
+     SHIFT + SEL the track settings, HOME clicks the views (no SHIFT + HOME row). ?shot=N one canvas at 1x, ?sheet=1 all -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 16px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the SHIFT screen, track first (mock-up, 2026-11-10)</h1>
+<p>Holding SHIFT (GLO) now says <strong>which track you are on</strong> before anything else: its number, kind and
+name big in its colour, and the six tracks beside it (SELECT turns them while SHIFT is held). The shortcuts become tiles,
+each with its control and its value now; the black keys' strip stays at the foot. The same screen shows over every page.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', ksel:'#ffd23f', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d',
+            red:'#ff3b4e', bg:'#000' };
+const F = 'IT';
+// the demo's six tracks: kind colour, the mixer column of its kind icon (ref/ov-real-mix.png)
+const TR = [
+  { name:'DRUMS', col:C.k4 }, { name:'BASS', col:C.k1 }, { name:'KEYS', col:C.k3 },
+  { name:'LEAD', col:C.k2 }, { name:'PLUCK', col:'#36d6e7' }, { name:'PAD', col:'#9664ff' },
+];
+const TPAL = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f'];   // UI_TRACK_PAL: the track's own colour
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 500} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; c.fillStyle = o.col || C.k3;
+  c.textAlign = o.al || 'center'; c.textBaseline = 'alphabetic'; if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y);
+  const w = c.measureText(s).width; c.restore(); return w;
+}
+function TW(c, s, sz, w = 500) { c.save(); c.font = `${w} ${sz}px ${F}`; const m = c.measureText(s).width; c.restore(); return m; }
+function L(c, pts, col, lw, a = 1) {
+  c.save(); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function O(c, x, y, r, fill, stroke, lw = 1, a = 1) { c.save(); c.globalAlpha = a; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore(); }
+function RR(c, x, y, w, h, r, fill, a = 1, stroke, lw = 1) {
+  c.save(); c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function glow(c, col, b, fn) { c.save(); c.shadowColor = col; c.shadowBlur = b; fn(); c.restore(); }
+function kicon(c, t, x, y, s = 1, dim = false) {          // a track's kind icon, cut from the firmware's mixer
+  const ix = 20 + t * 40 - 10, w = 20 * s, h = 18 * s;
+  c.save(); if (dim) c.filter = 'grayscale(1) brightness(0.55)';
+  c.globalCompositeOperation = 'lighten'; c.drawImage(IMG.mix, ix, 20, 20, 18, x - w / 2, y - h / 2, w, h); c.restore();
+}
+// ---- the controls, drawn as on the panel (the firmware's control(): knob badges S A P, REC's button, named buttons)
+function badge(c, ch, x, y, col) { O(c, x, y, 8.5, col); T(c, ch, x, y + 4.3, { s: 12, w: 700, col: '#000' }); }
+function button(c, nm, x, y, col = C.k3) { const w = TW(c, nm, 12, 700) + 8; RR(c, x - w / 2, y - 8, w, 16, 3.5, null, 1, col, 1.2); T(c, nm, x, y + 4.3, { s: 12, w: 700, col }); return w; }
+function recBtn(c, x, y) { O(c, x, y, 8.5, null, C.red, 1.3); O(c, x, y, 3.8, C.red); }
+function octs(c, x, y, col = C.k3) { RR(c, x - 10, y - 6, 8, 12, 2, null, 1, col, 1.2); RR(c, x + 1, y - 6, 8, 12, 2, null, 1, col, 1.2); }
+// ---- icons for the tiles (line-drawn, 1.3 px)
+const IC = {
+  scale(c, x, y, col) { for (let i = 0; i < 5; i++) RR(c, x - 10 + i * 4.4, y + 4 - i * 2.6, 3.4, 4 + i * 2.6 > 12 ? 12 : 4 + i * 2.6, 1, col); },
+  root(c, x, y, col) { for (let i = 0; i < 3; i++) RR(c, x - 8 + i * 5.5, y - 7, 5, 14, 1.2, null, 1, col, 1.2); RR(c, x - 3.8, y - 7, 3.4, 8, 0.8, col); RR(c, x + 1.6, y - 7, 3.4, 8, 0.8, col); O(c, x - 5.5, y + 4, 1.6, col); },
+  swing(c, x, y, col) { L(c, [x - 9, y + 6, x - 9, y - 6], col, 1.4); L(c, [x - 1, y + 6, x - 1, y - 2], col, 1.4); L(c, [x + 7, y + 6, x + 7, y - 6], col, 1.4); L(c, [x - 9, y + 6, x + 9, y + 6], col, 1.4); },
+  gear(c, x, y, col) { for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; L(c, [x + Math.cos(a) * 6, y + Math.sin(a) * 6, x + Math.cos(a) * 8.5, y + Math.sin(a) * 8.5], col, 2); } O(c, x, y, 5.6, null, col, 1.4); O(c, x, y, 2, col); },
+  now(c, x, y, col) { L(c, [x + 2, y - 8, x - 4, y + 1, x + 1, y + 1, x - 2, y + 8], col, 1.5); },
+  fill(c, x, y, col) { for (let i = 0; i < 4; i++) RR(c, x - 9 + i * 5, y - 6, 3.6, 12, 1, i % 2 ? col : null, 1, col, 1.1); },
+  undo(c, x, y, col, d = -1) { c.save(); c.strokeStyle = col; c.lineWidth = 1.5; c.lineCap = 'round'; c.beginPath(); c.arc(x, y + 2, 6, d < 0 ? Math.PI * 1.1 : -Math.PI * 0.1, d < 0 ? Math.PI * 2.05 : Math.PI * 0.95, d > 0); c.stroke(); c.restore();
+    const ax = x + d * 6.4, ay = y + 1; L(c, [ax - 3, ay - 3, ax, ay + 1, ax + 3, ay - 3], col, 1.5); },
+};
+// ---- the black keys' strip (ctl_shift.c: B1 snapshot, B3 recall, B4 copy pattern, B5 paste, B6 tap, B7 metronome,
+// B8 page follow, B9 double, B11 clear; B2, B10 free), 18 x 40 at y 190 as today
+const SK = [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1];
+function strip(c, y0 = 192, h = 38, on = { metro: true, follow: true }) {
+  for (let i = 0; i < 11; i++) {
+    const x = 10 + i * 20.4, cx = x + 9, cy = y0 + h / 2;
+    const col = !SK[i] ? C.g3 : i === 6 && on.metro ? C.k2 : i === 7 && on.follow ? C.k2 : i === 10 ? C.k4 : C.k3;
+    RR(c, x, y0, 18, h, 4, null, 1, col, SK[i] ? 1.4 : 1);
+    switch (i) {
+      case 0: RR(c, cx - 6, cy - 4, 12, 9, 2, null, 1, col, 1.2); O(c, cx, cy + 0.5, 2.2, col); break;
+      case 2: RR(c, cx - 6, cy - 1, 12, 9, 2, null, 1, col, 1.2); L(c, [cx, cy - 10, cx, cy + 2], col, 1.2); L(c, [cx - 3, cy - 7, cx, cy - 10, cx + 3, cy - 7], col, 1.2); break;
+      case 3: RR(c, cx - 5, cy - 6, 8, 9, 1.5, null, 1, col, 1.1); RR(c, cx - 2, cy - 3, 8, 9, 1.5, '#000', 1, col, 1.1); break;
+      case 4: RR(c, cx - 5, cy - 5, 10, 11, 1.5, null, 1, col, 1.1); L(c, [cx, cy - 9, cx, cy + 1], col, 1.2); L(c, [cx - 3, cy - 2, cx, cy + 1, cx + 3, cy - 2], col, 1.2); break;
+      case 5: O(c, cx, cy, 2.5, col); O(c, cx, cy, 6.5, null, col, 1.2); break;
+      case 6: L(c, [cx - 6, cy + 8, cx - 2, cy - 8, cx + 2, cy - 8, cx + 6, cy + 8, cx - 6, cy + 8], col, 1.2); L(c, [cx, cy + 5, cx + 5, cy - 6], col, 1.2); break;
+      case 7: RR(c, cx - 7, cy - 5, 6, 10, 1, null, 1, col, 1.1); RR(c, cx + 1, cy - 5, 6, 10, 1, null, 1, col, 1.1); L(c, [cx - 3, cy + 8, cx + 5, cy + 8], col, 1.2); L(c, [cx + 2, cy + 6, cx + 5, cy + 8, cx + 2, cy + 10], col, 1.2); break;
+      case 8: RR(c, cx - 7, cy - 4, 6, 8, 1, null, 1, col, 1.1); RR(c, cx + 1, cy - 4, 6, 8, 1, null, 1, col, 1.1); break;
+      case 10: L(c, [cx - 5, cy - 5, cx + 5, cy + 5], col, 1.6); L(c, [cx + 5, cy - 5, cx - 5, cy + 5], col, 1.6); break;
+    }
+  }
+}
+// ---- the track first: the band (number in its colour, kind icon, name big) and the six beside it
+function trackBand(c, t, o = {}) {
+  const tc = TPAL[t], kc = TR[t].col, y = o.y || 8;
+  glow(c, tc, 8, () => RR(c, 8, y, 34, 34, 7, tc));
+  T(c, String(t + 1), 25, y + 25, { s: 24, w: 700, col: '#000' });
+  kicon(c, t, 58, y + 17, 1.3);
+  const nw = TW(c, TR[t].name, 26, 300);
+  T(c, TR[t].name, 74, y + 27, { s: nw > 110 ? 26 * 110 / nw : 26, w: 300, col: kc, al: 'left' });
+  // SELECT's six: small boxes at the right, the selected filled, S's badge before them
+  badge(c, 'S', 152 + 0, y + 44, C.ksel);
+  for (let i = 0; i < 6; i++) {
+    const bx = 166 + i * 11.3, by = y + 37, s = i === t;
+    RR(c, bx, by, 9, 14, 2, s ? TPAL[i] : null, 1, s ? TPAL[i] : C.g2, 1.1);
+  }
+  L(c, [8, y + 60, 232, y + 60], C.g3, 1);
+}
+// a tile: the control (left), the icon, the value now (in the control's colour where it has one)
+function tile(c, x, y, w, ctl, ic, val, col = C.k3) {
+  RR(c, x, y, w, 30, 6, null, 1, C.g3, 1.2);
+  ctl(c, x + 14, y + 15);
+  IC[ic](c, x + 38, y + 15, col);
+  if (val) { const vw = TW(c, val, 16, 400), sz = vw > w - 58 ? Math.max(12, 16 * (w - 58) / vw) : 16; T(c, val, x + w - 8, y + 21, { s: sz, w: 400, col, al: 'right' }); }
+}
+// ---- take A: the band, then tiles in two columns, the strip at the foot
+function takeA(c, t = 0) {
+  trackBand(c, t);
+  const L0 = 8, R0 = 122, W = 110, Y = [76, 112, 148];
+  tile(c, L0, Y[0], W, (c, x, y) => badge(c, 'A', x, y, C.k3), 'scale', 'MAJOR', C.k3);
+  tile(c, R0, Y[0], W, (c, x, y) => badge(c, 'P', x, y, C.k3), 'root', 'C', C.k3);
+  tile(c, L0, Y[1], W, (c, x, y) => { octs(c, x - 2, y); }, 'swing', '56%', C.k3);
+  tile(c, R0, Y[1], W, (c, x, y) => { octs(c, x - 2, y); }, 'undo', '', C.k3);
+  IC.undo(c, R0 + 66, Y[1] + 15, C.k3, 1);
+  tile(c, L0, Y[2], W, (c, x, y) => recBtn(c, x, y), 'gear', 'LIVE', C.red);
+  tile(c, R0, Y[2], W, (c, x, y) => button(c, 'SEL', x + 4, y, TPAL[t]), 'gear', String(t + 1), TPAL[t]);
+  strip(c);
+}
+// ---- take A2 (the owner, 2026-11-10: "only use a circle if it's a KNOB"): knobs round (S A P), buttons boxy with their
+// printed names (REC, SEL, F1, F2, F3 = F1 + F2), undo and redo each on its own F key, swing on F3 + ALGORITHM
+function recBox(c, x, y) { RR(c, x - 11, y - 8, 22, 16, 3.5, null, 1, C.red, 1.3); O(c, x, y, 3.6, C.red); }
+function key(c, nm, x, y, col = C.k3) { return button(c, nm, x, y, col); }
+function tileA(c, x, y, w, ctl, ic, val, col = C.k3, icx = 42) {
+  RR(c, x, y, w, 30, 6, null, 1, C.g3, 1.2);
+  ctl(c, x, y + 15);
+  if (ic) IC[ic](c, x + icx, y + 15, col);
+  if (val) { const room = w - icx - 16, vw = TW(c, val, 16, 400), sz = vw > room ? Math.max(12, 16 * room / vw) : 16; T(c, val, x + w - 8, y + 21, { s: sz, w: 400, col, al: 'right' }); }
+}
+function playBox(c, x, y, col = C.k3) { RR(c, x - 11, y - 8, 22, 16, 3.5, null, 1, col, 1.3); c.save(); c.fillStyle = col; c.beginPath(); c.moveTo(x - 3, y - 4.5); c.lineTo(x + 4.5, y); c.lineTo(x - 3, y + 4.5); c.closePath(); c.fill(); c.restore(); }
+// the track settings: the track's box with a small gear on its corner (the global settings are HOME held now)
+function trkSet(c, x, y, t) {
+  RR(c, x - 9, y - 9, 16, 16, 3.5, null, 1, TPAL[t], 1.4); T(c, String(t + 1), x - 1, y + 3.5, { s: 12, w: 700, col: TPAL[t] });
+  O(c, x + 7, y + 6, 5.5, '#000'); for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; L(c, [x + 7 + Math.cos(a) * 3, y + 6 + Math.sin(a) * 3, x + 7 + Math.cos(a) * 5, y + 6 + Math.sin(a) * 5], TPAL[t], 1.4); }
+  O(c, x + 7, y + 6, 2.6, null, TPAL[t], 1.2);
+}
+function takeA2(c, t = 0) {
+  trackBand(c, t);
+  const L0 = 8, R0 = 122, W = 110, Y = [76, 112, 148];
+  // the knobs in the panel's order: PRESETS left of ALGORITHM (the owner, 2026-11-10)
+  tileA(c, L0, Y[0], W, (c, x, y) => badge(c, 'P', x + 14, y, C.k3), 'root', 'C', C.k3, 36);
+  tileA(c, R0, Y[0], W, (c, x, y) => badge(c, 'A', x + 14, y, C.k3), 'scale', 'MAJOR', C.k3, 36);
+  // PLAY: SHIFT + PLAY opens F3 (as PLAY held); the tempo and the swing now
+  RR(c, L0, Y[1], W, 30, 6, null, 1, C.g3, 1.2);
+  playBox(c, L0 + 16, Y[1] + 15);
+  T(c, '120', L0 + 56, Y[1] + 21, { s: 15, w: 400, col: C.k3, al: 'right' });
+  IC.swing(c, L0 + 67, Y[1] + 15, C.k3);
+  T(c, '56%', L0 + W - 6, Y[1] + 21, { s: 13, w: 400, col: C.k3, al: 'right' });
+  // undo / redo: two small tiles, each its F key and its arrow
+  tileA(c, R0, Y[1], 53, (c, x, y) => key(c, 'F1', x + 15, y), 'undo', '', C.k3, 38);
+  tileA(c, R0 + 57, Y[1], 53, (c, x, y) => key(c, 'F2', x + 15, y), null, '', C.k3);
+  IC.undo(c, R0 + 57 + 38, Y[1] + 15, C.k3, 1);
+  tileA(c, L0, Y[2], W, (c, x, y) => recBox(c, x + 16, y), 'gear', 'LIVE', C.red, 42);
+  RR(c, R0, Y[2], W, 30, 6, null, 1, C.g3, 1.2);   // SEL: the track settings
+  key(c, 'SEL', R0 + 18, Y[2] + 15, TPAL[t]);
+  trkSet(c, R0 + 50, Y[2] + 15, t);
+  strip(c);
+}
+// ---- take B: the six tracks down the left as tabs (the selected one wide with its name), tiles on the right
+function takeB(c, t = 0) {
+  for (let i = 0; i < 6; i++) {
+    const y = 6 + i * 30.5, s = i === t, tc = TPAL[i];
+    if (s) {
+      glow(c, tc, 8, () => RR(c, 6, y, 106, 27, 6, tc, 0.18, tc, 1.6));
+      T(c, String(i + 1), 18, y + 19, { s: 16, w: 700, col: tc });
+      kicon(c, i, 38, y + 13.5, 1.1);
+      T(c, TR[i].name, 52, y + 19.5, { s: 16, w: 400, col: TR[i].col, al: 'left' });
+    } else {
+      RR(c, 6, y + 4, 24, 19, 4, null, 1, C.g2, 1.1);
+      T(c, String(i + 1), 18, y + 18, { s: 12, w: 700, col: C.g1 });
+      kicon(c, i, 44, y + 13.5, 0.9, true);
+    }
+  }
+  badge(c, 'S', 18, 195 - 8, C.ksel);
+  L(c, [30, 187, 40, 187], C.ksel, 1.3); L(c, [37, 184, 40, 187, 37, 190], C.ksel, 1.3);
+  const X = 120, W = 114, Y = [6, 42, 78, 114, 150];
+  tile(c, X, Y[0], W, (c, x, y) => badge(c, 'A', x, y, C.k3), 'scale', 'MAJOR');
+  tile(c, X, Y[1], W, (c, x, y) => badge(c, 'P', x, y, C.k3), 'root', 'C');
+  tile(c, X, Y[2], W, (c, x, y) => octs(c, x - 2, y), 'swing', '56%');
+  tile(c, X, Y[3], W, (c, x, y) => recBtn(c, x, y), 'gear', 'LIVE', C.red);
+  tile(c, X, Y[4], W, (c, x, y) => button(c, 'SEL', x + 4, y, TPAL[t]), 'gear', String(t + 1), TPAL[t]);
+  strip(c, 196, 36);
+}
+// over another page: that page dimmed to 10 %, the SHIFT screen on it
+function over(c, img, fn) { c.save(); c.globalAlpha = 0.1; c.drawImage(img, 0, 0, 240, 240); c.restore(); fn(c); }
+const SCREENS = [
+  { title: 'A2 · knobs round, buttons boxy', f: c => takeA2(c, 0), text: 'Only the knobs are circles, P left of A as on the panel. Buttons are boxes with their printed names. PLAY: SHIFT + PLAY opens F3 (as PLAY held), and its tile shows the tempo and the swing now. F1 undo, F2 redo. REC the record settings (LIVE). SEL the track settings: the track box with a gear (the global settings are HOME held).' },
+  { title: 'A2 · another track', f: c => takeA2(c, 3), text: 'Track 4 selected with SELECT: the band and the SEL tile take its colour.' },
+  { title: 'A2 over the sound editor', f: c => over(c, IMG.snd, c => takeA2(c, 0)), text: 'The same over every page.' },
+  { title: 'Today · HOME', f: c => c.drawImage(IMG.home, 0, 0, 240, 240), text: 'A list of controls, arrows and icons; the track is only the "1" after S. Nine rows to read.' },
+  { title: 'Today · sound editor', f: c => c.drawImage(IMG.snd, 0, 0, 240, 240), text: 'In the sound editor SHIFT shows nothing at all: you cannot tell what it will do or which track you are on.' },
+  { title: 'A · track band + tiles', f: c => takeA(c, 0), text: 'The track first: its number in a box of its colour, its kind and name big; the six beside it under S (SELECT turns them). Below, six tiles: the control, what it does, its value now (scale, root, swing, undo/redo on F1/F2, the record settings, the track settings on SEL). The black keys at the foot as today.' },
+  { title: 'A · another track (SELECT turned)', f: c => takeA(c, 3), text: 'Turning SELECT with SHIFT held: the band changes at once to track 4, LEAD in its green; the SEL tile takes the track\'s colour too.' },
+  { title: 'B · track tabs', f: c => takeB(c, 0), text: 'The six tracks as tabs down the left, the selected one wide with its kind and name (the others dim); the shortcuts as tiles on the right; the strip at the foot.' },
+  { title: 'B · another track', f: c => takeB(c, 3), text: 'Track 4 selected: its tab opens, the others close.' },
+  { title: 'A over the sound editor', f: c => over(c, IMG.snd, c => takeA(c, 0)), text: 'The same screen over every page (the sound editor here, faint underneath), so SHIFT always looks and works the same.' },
+  { title: 'B over the sound editor', f: c => over(c, IMG.snd, c => takeB(c, 0)), text: 'Take B over the sound editor.' },
+];
+const IMG = {};
+const load = (k, src) => new Promise(r => { IMG[k] = new Image(); IMG[k].onload = r; IMG[k].src = src; });
+const ready = Promise.all([load('home', 'ref/shift-today-home.png'), load('snd', 'ref/shift-today-snd.png'), load('mix', 'ref/ov-real-mix.png'),
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]);
+function draw(i, cv, scale) {
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.fillStyle = '#000'; c.fillRect(0, 0, 240, 240); SCREENS[i].f(c);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>

@@ -76,6 +76,11 @@ for i, n in enumerate(RK, 1):                  # fizz-rec-keys.html: the white k
     SHOTS[f'rk-{i}'] = (f'shot={i}', 240, 240, f'fizz-rec-keys-{i:02d}-{n}.png', 'fizz-rec-keys.html')
 SHOTS['sheet-rk'] = ('sheet=1', 2030, 1100, 'fizz-rec-keys-sheet.png', 'fizz-rec-keys.html')
 
+SH = ['a2-buttons', 'a2-other', 'a2-over-snd', 'today-home', 'today-snd', 'a-band', 'a-other', 'b-tabs', 'b-other', 'a-over-snd', 'b-over-snd']
+for i, n in enumerate(SH, 1):                  # fizz-shift.html: the SHIFT screen, track first (2026-11-10)
+    SHOTS[f'sh-{i}'] = (f'shot={i}', 240, 240, f'fizz-shift-{i:02d}-{n}.png', 'fizz-shift.html')
+SHOTS['sheet-sh'] = ('sheet=1', 2030, 1100, 'fizz-shift-sheet.png', 'fizz-shift.html')
+
 def render(key, scratch):
     query, w, h, name = SHOTS[key][:4]
     page = SHOTS[key][4] if len(SHOTS[key]) > 4 else 'index.html'
