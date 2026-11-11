@@ -106,15 +106,19 @@ static void f1(const ui_layer_t *v)
         if (p == v->play_page)                          /* playing: a red line under its number, blinking */
             line2(x + 8.f, y + 31.f, x + 21.f, y + 31.f, v->blink ? UI_RED : 0xa01c2au, 2.f);
     }
-    /* the W keys' step copy: a white key and COPY, or PASTE (green) once a step is copied */
-    ui_icon(UI_IC_KEY, 104.f, 178.f, 1.4f, UI_G1);
-    ui_icon(v->f1_copied ? UI_IC_PASTE : UI_IC_COPY, 132.f, 178.f, 1.5f, v->f1_copied ? UI_K2 : UI_G1);
     keys_clear(k);
     for (p = 0; p < 8; p++) {
         k[p].num = p + 1;
         k[p].col = v->page_copied >= 0 ? UI_K2 : (v->loop >> p) & 1 ? UI_K3 : UI_G1;
         k[p].lit = p == v->page && v->page_copied < 0;
     }
+    if (v->b11) {                                       /* 2026-11-10: B11 held: the pages only */
+        ui_keymap(k, KM_Y, KM_H);
+        return;
+    }
+    /* the W keys' step copy: a white key and COPY, or PASTE (green) once a step is copied */
+    ui_icon(UI_IC_KEY, 104.f, 178.f, 1.4f, UI_G1);
+    ui_icon(v->f1_copied ? UI_IC_PASTE : UI_IC_COPY, 132.f, 178.f, 1.5f, v->f1_copied ? UI_K2 : UI_G1);
     k[8].icon = UI_IC_CLEAR, k[8].col = UI_K4;
     k[9].icon = UI_IC_COPY, k[9].lit = v->page_copied >= 0;
     k[10].icon = UI_IC_UNDO, k[10].dim = !v->can_undo;
@@ -323,7 +327,7 @@ void ui_layer_draw(const ui_layer_t *v)
         ui_RR(180.f, 4.f, 24.f, 17.f, 4.f, UI_K3, 1.2f, QD_NONE);
         ui_icon(UI_IC_BACK, 192.f, 12.5f, 1.f, UI_K3);
     } else {
-        ui_head_track(T[l - 1], v->track, v->name ? v->name : "", UI_K3);
+        ui_head_track(v->b11 ? "B11 \xc2\xb7 PAGES" : T[l - 1], v->track, v->name ? v->name : "", UI_K3);
     }
     if (l == 1)
         f1(v);

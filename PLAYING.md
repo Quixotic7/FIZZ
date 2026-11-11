@@ -62,7 +62,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   Outside NOTE mode, a thin bar in the mode's colour under a step means it has its own value for that mode. Playing,
   a red marker hops along the steps (on a folded row, a red tick under the step) and each step's fill flashes white
   as it plays; only selected or held steps get a white outline. SELECT changes the page (the rows fold and
-  unfold). The step cursor (ALGORITHM, below) moves through the rows.
+  unfold). The step cursor (ALGORITHM, below) moves along the page you edit.
 - **OVERVIEW** (SHIFT + HOME from GEEK OUT) shows all six tracks at once: a row a track with its kind's icon, the page
   you edit as 16 cells in groups of four, each step's fill as tall as its velocity in the track's colour (a ghost: an
   outline), the pattern's name and the page dots on top. Playing, a red marker sits over the playing column and each
@@ -71,7 +71,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   one silenced by another's solo) goes grey with a line through it. The black keys work as in the mixer: **B1..B6**
   tapped selects the track, held mutes / unmutes it, double-tapped solos it, **B11** clears every mute and solo. The
   white keys are the selected track's steps, as in STEPS (tap makes / removes, hold edits it, with the held step's
-  screen); SELECT turns the page and the knobs work as in STEPS with nothing held. The hold modes (B1..B11 in the
+  screen); SELECT turns the page and the knobs work as in STEPS with nothing held. The hold modes (B1..B10 in the
   other views) are not on the black keys here: LFO held + a black key still picks one.
 - **EDIT** (SHIFT + HOME from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold
   mode's drawing above it at full size, its value large in the top line: the step you hold, select or point at with
@@ -93,9 +93,12 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   playing, the latch off, nothing held, its values and pictures are the playing step's (its sound lock and its locks,
   marked), shown only (nothing is edited by following).
 - **The knobs with no finger on a step** (nothing held, or the step latch's selection), in every view:
-  - **ALGORITHM = the step cursor**: it turns the step latch on and moves its one selected step through all eight
-    pages in order (each over its start..end; page 8 runs on to page 1 and back), the page following. The black keys
-    and knobs then edit that step; the view stays (in the PIANO ROLL the cursor's step is outlined). LFO or HOME ends it.
+  - **ALGORITHM = the step cursor** (2026-11-10, as Elasticat's ALGO): it selects **one step of the page you edit**,
+    steps 1..16 (it stops at 16; it never changes the page: SELECT does). The first turn right turns the step latch on
+    and selects step 1; the black keys and knobs then edit that step; the view stays (in the PIANO ROLL the cursor's
+    step is outlined), and stopped, each step it lands on is heard once. **Turned fully left past step 1** the cursor
+    and the selection go and the latch with them: nothing is selected and the knobs edit the track (Elasticat's
+    LIVE). LFO or HOME ends it too.
   - **SELECT = the page**. With the cursor on, a page change puts it on the new page's first step.
   - **PRESETS = the track's sound** (preset).
   - **KNOB 1..4 = the mode's values** on the track's defaults (NOTE: KNOB 1 is the root, the whole default chord;
@@ -126,8 +129,10 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 ## How do I change one step's note, velocity, length …?
 
 1. Pick what to edit with a black key, **nothing held**: **B1 NOTE, B2 VEL, B3 LEN, B4 MICRO, B5 RATCH, B6 CHNC
-   (chance), B7 COND (condition), B8 TRIG, B9 FUNC (the step functions), B10 SLIDE (a slide into the next note), B11
-   SOUND**. The screen draws the page
+   (chance), B7 COND (condition), B8 FUNC (the step functions), B9 TRIG and SLIDE (a slide into the next note), B10
+   SOUND** (2026-11-10). **B9** holds two modes: from another mode it opens the one of TRIG and SLIDE you used last;
+   tapped while you are in one, it switches to the other (held, it is that mode's default key as any mode key).
+   **B11** is no mode: it is the hold key (below). The screen draws the page
    for that choice; steps that have their own value are in colour, steps on the track's default are grey, and the
    default is a dashed line or a grey label.
 2. **Hold** the step's white key. The screen shows that step (the black keys' ten values are in the table below; the
@@ -184,10 +189,10 @@ the lower key; MICRO 0, on the step, lights none; a sound in another group of te
 | COND | B1 FILL, B2 NOT FILL, B3..B6 "A" = 1..4, B7..B10 "B" = 1..4 (plays on pass A of every B) | every condition |
 | TRIG | B1 NOTE, B2 LOCK (changes the sound, no note), B3 TIE (slides a mono note) | the same |
 | FUNC | B1 none, B2 RESTART, B3 REVERSE, B4 FORWARD, B5 FLIP, B6 RANDOM (jump), B7 RANDOM FUNCTION, B8 LEAP, B9 JUMP | the nine kinds |
-| SLIDE | B1 OFF, B2 ON, B3 LEGATO; B10 cycles them (KNOB 2 TIME, KNOB 3 SLOPE) | the same |
+| SLIDE | B1 OFF, B2 ON, B3 LEGATO (KNOB 2 TIME, KNOB 3 SLOPE) | the same |
 | SOUND | ten sounds of the pool (see below) | any sound |
 
-**FUNC (B9), the step functions** (as the OMX-27's Form): a function runs when its step plays (after its condition
+**FUNC (B8), the step functions** (as the OMX-27's Form): a function runs when its step plays (after its condition
 and chance; a LOCK step's runs too).
 
 - **RESTART**: the next step is the loop's start, and the passes count from 1 again (A:B, 1ST).
@@ -196,10 +201,10 @@ and chance; a LOCK step's runs too).
   forwards** (a pattern change keeps the direction).
 - **RANDOM**: the next step is one of the loop at random. **RANDOM FUNCTION**: none, restart, reverse, forward or flip
   at random, each time.
-- **LEAP n** (B8; KNOB 2 the amount, −15..+15, 0 skipped): the next step is n steps on from this one in the playing
+- **LEAP n** (a step held: B8; KNOB 2 the amount, −15..+15, 0 skipped): the next step is n steps on from this one in the playing
   direction, round the loop (LEAP +1 is a normal step, +2 skips one, −1 plays the step before again). B8 uses the
   last amount (+2 at first).
-- **JUMP n** (B9; KNOB 3 the target): the next step is step n (on a page outside the loop: the loop's start). B9 uses
+- **JUMP n** (a step held: B9; KNOB 3 the target): the next step is step n (on a page outside the loop: the loop's start). B9 uses
   the last target (at first the page's first step). To aim it: **hold B9 and press the target's white key** (it is
   not held; it works with the step latch too). **SELECT** while holding turns the page to target a step on another
   page. KNOB 1 (or ALGORITHM, with a finger on the step) walks the nine kinds.
@@ -218,8 +223,8 @@ and chance; a LOCK step's runs too).
 
 ## How do I edit steps without holding them? (the step latch)
 
-- Press **LFO**: the latch is on (LFO lit). It is as if a step is always held. It starts with **nothing selected**
-  (2026-10-26): tap a step, or turn ALGORITHM (the cursor lands on the step you last edited).
+- Press **LFO** (or click **B11**, below): the latch is on (LFO lit). It is as if a step is always held. It starts
+  with **nothing selected** (2026-10-26): tap a step, or turn ALGORITHM (the cursor lands on the page's step 1).
 - **Tap a white key** to select just that step; **hold several together** to select exactly those. Whatever your
   fingers press, from the first key down until all are up, replaces the selection (it never adds or removes a note).
   Tapping the step that is the only one selected unselects it. Selected keys blink.
@@ -240,7 +245,7 @@ and chance; a LOCK step's runs too).
   second, in EDIT too (P1.5n), and F1 / F2's map only comes up when they are held longer than a tap.
 - **NOTE: KNOB 1 moves all the selected steps' notes** together (2026-10-26), as with a finger on a step, in every
   view; ALGORITHM stays the cursor (note 5 only while a step is physically held).
-- **LFO** again or **HOME** turns it off.
+- **LFO** again, a **B11** click or **HOME** turns it off (or ALGORITHM turned fully left past step 1).
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
 - **Two latch modes** (P1.5b; P1.5h). **Hold LFO alone** (400 ms, no other key): while you hold it, a screen shows the
   latch mode (two drawings: MODES on the left, VALUES on the right, the current one lit). **Turn SELECT** toward one
@@ -251,6 +256,24 @@ and chance; a LOCK step's runs too).
   - **MODES** (the default): with the latch on, the black keys choose the hold mode (as with nothing held) and **the knobs set the
     selected steps' values for that mode**. While a finger holds a step, the black keys are its values as always.
     LFO breathing slowly between 60 % and full (P1.5n; it was at half, too dim on the unit).
+
+## B11, the hold key (2026-11-10)
+
+Elasticat's second shift, in the step views (PIANO ROLL, STEPS, EDIT). **GLO stays SHIFT** and every SHIFT shortcut
+stays (SHIFT + B11 still clears the track). B11 is the hold key only where it has no other job: with a step held it
+still resets the step's value, with a mode key held it resets the default, the latch in VALUES with nothing selected
+it resets the default, in OVERVIEW it clears the mutes and solos, F1 + B11 is still undo.
+
+- **Hold B11 + B1..B8**: the pages, exactly as F1 + B1..B8: **tap** edits that page, **double-tap** loops it alone,
+  **hold** puts it in or out of the loop, hold one and press another for the pages between. While B11 is held the
+  screen shows the pages as F1's picture does (headed B11 · PAGES); B9 and B10 do nothing.
+- **Hold B11 + white keys**: they **select steps** (the step latch comes on). The first key of a B11 hold starts a new
+  selection, each next one goes in, or out again if it is in; no step is made or removed. **Let go of B11 and the
+  selection stays**: the black keys and the knobs edit it as the latch's selection always does.
+- **B11 + F1**: the selected steps are **cleared** (their notes and locks): one undo level, SHIFT + F1 brings them
+  back.
+- **A quick click of B11** (pressed and let go within 0.3 s, nothing else done): the step latch on / off, as LFO.
+  A hold that did something (a page, a step, a knob) is never also a click.
 
 ## How do I enter notes and chords?
 
@@ -277,13 +300,14 @@ A step has up to **six notes**.
 - The notes are kept in the order you entered them: the first key pressed is note 1 (KNOB 1's), the second note 2
   (KNOB 2's), and so on.
 
-## How do I make a note slide into the next? (SLIDE, B10)
+## How do I make a note slide into the next? (SLIDE, B9)
 
-- The 303's slide on one key (2026-10-26). Press **B10** with nothing held: the **SLIDE** mode. The page shows each
+- The 303's slide on one key (2026-10-26). Press **B9** with nothing held (2026-11-10: B9 is TRIG and SLIDE; in TRIG
+  tap it again): the **SLIDE** mode. The page shows each
   step's slide as a ramp from the step towards the next column, as long as its TIME (LEGATO adds a slur under it);
   a dot alone: no slide.
 - **Hold a step**: the screen shows its note sliding into the track's next note along a ramp (the next note's bar
-  higher or lower as its pitch). **B1 OFF, B2 ON, B3 LEGATO**, or **B10 again** cycles them; **KNOB 1** is PORT too,
+  higher or lower as its pitch). **B1 OFF, B2 ON, B3 LEGATO**; **KNOB 1** is PORT too,
   **KNOB 2 TIME**, **KNOB 3 SLOPE** (TIME: the same time whatever the interval; RATE: a fixed speed); **B11** clears
   the slide.
 - **ON**: the next note is struck and its pitch glides from this one over TIME. **LEGATO**: this note is held until
@@ -298,18 +322,18 @@ A step has up to **six notes**.
   is a chip: **filled = locked on this step, outlined = locked on some step of the track**). **B11** there clears the
   page's locks on the held steps; **F2 held + a knob** unlocks that value (with nothing held: on every step of the
   track). In the step view, a step held + **PRESETS** is its sound lock. (P-LOCK, the old B11 mode, is gone:
-  2026-10-26; B11 is SOUND.)
+  2026-10-26; SOUND is on B10 since 2026-11-10.)
 
 ## How do I change the track's defaults?
 
-- **Hold the mode's black key** (B1..B11): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
+- **Hold the mode's black key** (B1..B10): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
   chord name and the keybed). While you hold it:
   - the knobs edit the default, in the same layout as with a step held (NOTE: KNOB 1 = the whole chord, its root,
     KNOB 2..4 = notes 2..4, each alone, ALGORITHM = note 5; B1 + SELECT moves the chord too); in the other modes
     ALGORITHM turns the main default;
   - **B11 (F#5) resets** that default to the track's starting value: NOTE back to a single C4 (clears a chord), VEL 100,
     LEN one step, MICRO 0 (and no strum), RATCH x1 flat, CHNC 100 %, COND always, TRIG NOTE, SOUND the track's
-    starting sound (B11 is SOUND's own key: no reset there). FUNC and SLIDE have no default. B11 is lit while there is
+    starting sound (B10 held + B11). FUNC and SLIDE have no default. B11 is lit while there is
     something to reset;
   - the other black keys do nothing. Let go to get the page back.
 - With **nothing held at all**, KNOB 1..4 still edit the defaults; the TRACK DEFAULT picture shows for a second.
@@ -319,7 +343,8 @@ A step has up to **six notes**.
 
 ## How do I work with pages and loops?
 
-- A track has 8 pages of 16 steps. **SELECT** chooses the page you edit (F1 + B1..B8 too).
+- A track has 8 pages of 16 steps. **SELECT** chooses the page you edit (F1 + B1..B8 too, and B11 + B1..B8:
+  2026-11-10, B11 held does everything below that F1 + B1..B8 does).
 - **Page follow** (on: the page you see follows the playhead) is on the track settings' second page (SEL tapped
   twice, KNOB 3) and the global settings (SHIFT + SEL, KNOB 1). (ENV is MIX now: PAGE + W is gone.)
 - Hold **F1** to see the pages:

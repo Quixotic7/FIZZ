@@ -197,37 +197,31 @@ void qd_step_latch_seed(qd_app_t *a)
     qd_ctl_set_page(a, s / QD_PAGE);
 }
 
-/* P1.3q: PRESETS in the STEPS view (P1.3r: and EDIT; no finger on a step): a step cursor. Off, the step latch comes on
- * with its selection where it starts (qd_step_latch_seed); on, its one selection moves d steps through the pages in
- * order, looped or not (P1.3r), each over its start..end: past a page's end the next page's start, before its start
- * the previous page's end, page 8 on to page 1 and back; the page edited follows (the row unfolds). Off steps are
- * selected too: values then turn them on */
+/* P1.3q: ALGORITHM (no finger on a step): a step cursor, the step latch's one selection. 2026-11-10 (owner, Elasticat's
+ * ALGO): it selects only the page shown's steps 1..16 (SELECT turns the page), turning on the latch from step 1; fully
+ * left past step 1 the cursor and the selection go, the latch with them: the knobs edit the track (Elasticat's LIVE).
+ * Off steps are selected too: values then turn them on */
 void qd_step_cursor(qd_app_t *a, int d)
 {
     qd_ui_t *u = &a->ui;
-    const qd_tset_t *ts = &PAT(a)->trk[a->sel];
-    int s, k;
-    if (!u->slatch || !u->nheld) {                      /* the latch on / its selection started */
-        if (!u->slatch)
-            qd_step_latch(a, 1);
-        qd_step_latch_seed(a);
-        u->scursor = 1;
-        if (u->nheld)
-            qd_ctl_preview_once(a, u->held[0]);         /* P1.5s: the step it lands on, once */
+    const int pg = u->page[a->sel];
+    const int was = u->slatch && u->nheld && u->held[0] / QD_PAGE == pg ? u->held[0] % QD_PAGE + 1 : 0;
+    const int pos = clampi(was + d, 0, QD_PAGE), s = pg * QD_PAGE + pos - 1;
+    if (!d)
+        return;
+    if (!pos) {                                         /* LIVE */
+        if (u->slatch && u->nheld)
+            qd_step_latch(a, 0);
         return;
     }
-    s = u->held[0];
-    for (k = 0; k < (d < 0 ? -d : d); k++) {           /* P1.3r: through every page in order, looped or not */
-        int n = 0;
-        do
-            s = (s + (d < 0 ? -1 : 1) + QD_NSTEP) % QD_NSTEP;
-        while (!qd_page_in_range(ts, s) && ++n < QD_NSTEP);
-    }
+    if (pos == was && u->nheld == 1)
+        return;
+    if (!u->slatch)
+        qd_step_latch(a, 1);
     u->nheld = 0;
     if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
         u->tk = QD_TK_NONE;
     held_add(a, s, -1);
-    qd_ctl_set_page(a, s / QD_PAGE);
     u->scursor = 1;
     qd_ctl_preview_once(a, s);                          /* P1.5s: the step it moved to, once */
 }
@@ -250,6 +244,41 @@ void qd_step_latch(qd_app_t *a, int on)                 /* (2026-10-26, the owne
     qd_step_release_all(a);
     a->ui.slatch = on != 0;
     a->ui.scursor = 0;
+}
+
+/* 2026-11-10 (owner, Elasticat's B11): B11 held + W: the step latch's selection (the latch comes on); the hold's first
+ * W starts a new one, the later ones go in or out; letting go of B11 keeps it */
+void qd_step_b11_select(qd_app_t *a, int w)
+{
+    qd_ui_t *u = &a->ui;
+    const int s = step_of(a, w);
+    int i;
+    if (!u->slatch)
+        qd_step_latch(a, 1);
+    if (!u->b11_sel)
+        u->nheld = 0;
+    u->b11_sel = 1;
+    u->scursor = 0;
+    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
+        u->tk = QD_TK_NONE;
+    i = held_find(u, s);
+    if (i >= 0) {
+        held_remove(u, i);
+        return;
+    }
+    held_add(a, s, -1);
+    qd_ctl_preview_once(a, s);
+}
+
+/* .. B11 + F1: the selected steps cleared, notes and locks (one undo level) */
+void qd_step_b11_clear(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    if (!u->nheld)
+        return;
+    qd_undo_hint(a, QD_UK_CLEAR);
+    qd_clip_clear_steps(&u->clip, PAT(a), a->seq.cur, a->sel, u->held, u->nheld);
+    qd_ctl_confirm(a, "CLEARED", 0);
 }
 
 void qd_step_promote(qd_app_t *a, int w)
@@ -499,11 +528,10 @@ static void value_set_p(qd_app_t *a, qd_pattern_t *p, int s, int m, int b)
             qd_step_set_sound(p, t, s, k);
         break;
     }
-    case UI_F_SLIDE:                                    /* 2026-10-26: B1 OFF, B2 ON, B3 LEGATO; B10 cycles them */
+    case UI_F_SLIDE:                                    /* 2026-10-26: B1 OFF, B2 ON, B3 LEGATO (2026-11-10: B10's
+                                                         * cycle gone: B9 toggles TRIG / SLIDE) */
         if (b < 3)
             slide_set(p, t, s, b);
-        else if (b == 9)
-            slide_set(p, t, s, (qd_step_slide(p, t, s, 0, 0) + 1) % 3);
         break;
     default:
         break;
@@ -1491,12 +1519,10 @@ keys:
             else
                 *none |= bit;
             break;
-        case UI_F_SLIDE:                                /* 2026-10-26: B1..B3 OFF / ON / LEGATO, B10 cycles */
+        case UI_F_SLIDE:                                /* 2026-10-26: B1..B3 OFF / ON / LEGATO */
             if (b < 3) {
                 strncpy(lab[b], b == 2 ? "LEG" : PORT_NAME[b], 5);
                 *lit |= u->nheld && qd_step_slide(p, a->sel, u->held[0], 0, 0) == b ? bit : 0;
-            } else if (b == 9) {
-                strncpy(lab[b], "CYCLE", 5);
             } else {
                 *none |= bit;
             }

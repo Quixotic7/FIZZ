@@ -93,8 +93,8 @@ int qd_ctl_main_layer(const qd_app_t *a)
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes, [mode][SELECT, KNOB 1..4]. With a step held SELECT and KNOB 1
  * are the main value (NOTE: SELECT note 1, KNOB 1..4 notes 2..5), KNOB 2 the mode's extra; with nothing held KNOB 1..4
- * the same on the track's defaults (SELECT the page). A knob without a job does nothing. 2026-10-26: SLIDE (B10) KNOB
- * 1 PORT, 2 TIME, 3 SLOPE (no defaults: a step's own); SOUND on B11; P-LOCK is gone */
+ * the same on the track's defaults (SELECT the page). A knob without a job does nothing. 2026-10-26: SLIDE KNOB
+ * 1 PORT, 2 TIME, 3 SLOPE (no defaults: a step's own); P-LOCK is gone (2026-11-10: the keys, KEY_MODE below) */
 static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the quiet main value where it is free.
                                                          * 2026-10-26 (the owner): SELECT is the page everywhere, held or
                                                          * not; KNOB 1 the main value (NOTE: the chord / the root), KNOB
@@ -137,6 +137,8 @@ int qd_ctl_knob_job(int mode, int knob)
 int qd_ctl_layer_shown(const qd_app_t *a)
 {
     const int l = qd_ctl_layer(a);
+    if (l == QD_LAYER_NONE && qd_ctl_b11(a) && (a->ui.b11_used || a->ms - a->ui.b11_ms >= QD_B11_CLICK_MS))
+        return QD_LAYER_F1;                             /* 2026-11-10 (owner): B11 held: F1's pages picture */
     if ((l == QD_LAYER_F1 || l == QD_LAYER_F2) && a->ui.oct_tap && !a->ui.oct_tap_used)   /* P1.5n: the latch's
                                                          * selection (2026-10-26: or nothing held): maybe a tap (its
                                                          * octave), no map for a tap */
@@ -334,6 +336,7 @@ static void set_mode(qd_app_t *a, int mode)
 static int touch(qd_app_t *a)
 {
     a->ui.touch_ms = a->ms;
+    a->ui.b11_used = 1;                                 /* (2026-11-10: B11 held with something: no click) */
     if (held(a, QD_B_FUNC))
         a->ui.shift_used = 1;
     if (held(a, QD_B_MUTE) && !a->ui.lmode_open)
@@ -823,7 +826,7 @@ static void f1_timers(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     int b;
-    if (qd_ctl_layer(a) != QD_LAYER_F1)
+    if (qd_ctl_layer(a) != QD_LAYER_F1 && !qd_ctl_b11(a))   /* (2026-11-10: B11's pages too) */
         return;
     for (b = 0; b < QD_NPAGE; b++) {
         const uint16_t bit = (uint16_t)(1u << b);
@@ -882,25 +885,93 @@ static void k_f3_black(qd_app_t *a, int key, int b, int down, int vel)
         ts->rtype = (uint8_t)(b - QD_NVAL);
 }
 
-/* the black keys with nothing held: B1..B11 the hold mode (P1.3c: B11 = P-LOCK, PLAN question 37; P1.3d: B10 is
- * empty, reserved: LOCKS is dropped) */
+/* 2026-11-10 (owner): the mode keys: B1..B7 NOTE..COND, B8 FUNC, B9 TRIG and SLIDE (from another mode the one used
+ * last; pressed in one, the other), B10 SOUND; B11 is the hold key (no mode) */
+static const int8_t KEY_MODE[11] = {UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND,
+                                    UI_F_FUNC, UI_F_TRIG, UI_F_SOUND, -1};
+static const int8_t MODE_KEY[UI_NFIELD] = {0, 1, 2, 3, 4, 5, 6, 8, 7, 8, 9};   /* [UI_F_*] */
+int qd_ctl_mode_key(int m) { return m >= 0 && m < UI_NFIELD ? MODE_KEY[m] : -1; }
+int qd_ctl_key_mode(const qd_app_t *a, int b)
+{
+    const int h = a->ui.hmode;
+    if (b == 8)
+        return h == UI_F_TRIG || h == UI_F_SLIDE ? h : a->ui.ts_slide ? UI_F_SLIDE : UI_F_TRIG;
+    return b >= 0 && b < 11 ? KEY_MODE[b] : -1;
+}
+static int pick_mode(qd_app_t *a, int b)               /* black key b chooses the hold mode: the mode, -1 none */
+{
+    qd_ui_t *u = &a->ui;
+    int m = qd_ctl_key_mode(a, b);
+    if (b == 8 && (u->hmode == UI_F_TRIG || u->hmode == UI_F_SLIDE))
+        m = u->hmode == UI_F_TRIG ? UI_F_SLIDE : UI_F_TRIG;   /* (B9 again: the other) */
+    if (m < 0)
+        return -1;
+    u->hmode = m;
+    if (b == 8)
+        u->ts_slide = m == UI_F_SLIDE;
+    return m;
+}
+int qd_ctl_b11(const qd_app_t *a) { return a->ui.b11 && a->ui.mode == QD_MODE_STEP && !a->ui.latch; }
+
+/* LFO tapped (and B11 clicked): the step latch on / off */
+static void latch_toggle(qd_app_t *a)
+{
+    if (!a->ui.slatch && !QD_LATCH_MAIN(a->ui.latch))
+        qd_latch_close(a);                              /* (F3's menu gives way to the selection; P1.4a: the sound
+                                                         * editor takes it: the selection's turns are its p-locks;
+                                                         * P1.6h: so do the mix, the effects, the MIDI FX screen) */
+    qd_step_latch(a, !a->ui.slatch);
+    if (a->ui.slatch && (a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_FX))
+        qd_step_release_all(a);                         /* (P1.6h: there it starts empty: the knobs the track's until
+                                                         * W keys select) */
+}
+
+/* 2026-11-10 (owner, Elasticat's B11): B11 with nothing held is the hold key: held, B1..B8 the pages (F1's), the W
+ * keys select steps, B11 + F1 clears them; a quick click (QD_B11_CLICK_MS, nothing done) turns the step latch on / off */
+static void b11_key(qd_app_t *a, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->b11 = 1;
+        u->b11_ms = a->ms;
+        u->b11_used = u->b11_sel = 0;
+        return;
+    }
+    if (!u->b11)
+        return;
+    u->b11 = 0;
+    u->lk_down = 0;
+    u->pg_range = 0;
+    if (!u->b11_used && a->ms - u->b11_ms < QD_B11_CLICK_MS && u->mode == QD_MODE_STEP && !u->latch)
+        latch_toggle(a);
+}
+
+/* the black keys with nothing held: the hold mode (B1..B10), B11 the hold key */
 static void k_mode(qd_app_t *a, int key, int b, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
+    int m;
     (void)key, (void)vel;
+    if (b == 10) {
+        b11_key(a, down);
+        return;
+    }
     if (!down) {                                        /* P1.3e: the mode key let go: back to the lane */
-        if (u->mkey == b) {
+        if (u->mkey >= 0 && MODE_KEY[u->mkey] == b) {
+            if (u->b9_tog && !u->mkey_used && a->ms - u->mkey_t0 < QD_TAP_MS)
+                pick_mode(a, 8);                        /* (B9 tapped in TRIG / SLIDE: the other) */
             u->mkey = -1;
             if (u->tk == QD_TK_DEFAULT)
                 u->tk = QD_TK_NONE;
         }
         return;
     }
-    if (b < UI_NFIELD)
-        u->hmode = b;
-    if (b < UI_NFIELD) {                                /* P1.3e: held, it holds the track's default (B1..B11; FUNC
-                                                         * and SLIDE have none: the picture) */
-        u->mkey = b;
+    u->b9_tog = b == 8 && (u->hmode == UI_F_TRIG || u->hmode == UI_F_SLIDE);   /* (in one: held, its default; a
+                                                         * tap toggles at the release) */
+    m = u->b9_tog ? u->hmode : pick_mode(a, b);
+    if (m >= 0) {                                       /* P1.3e: held, it holds the track's default (FUNC and SLIDE
+                                                         * have none: the picture) */
+        u->mkey = m;
         u->mkey_t0 = a->ms;
         u->mkey_used = 0;
     }
@@ -913,10 +984,8 @@ static int w_lfo_held(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && 
 static void k_lfo_mode(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
-    if (!down || b < 0 || b >= UI_NFIELD)
-        return;
-    a->ui.hmode = b;
-    a->ui.lfo_used = 1;
+    if (down && pick_mode(a, b) >= 0)
+        a->ui.lfo_used = 1;
 }
 /* P1.5b: the step latch in MODES, no finger on a step: the black keys choose the hold mode (as with nothing held) */
 int qd_ctl_latch_modes(const qd_app_t *a)
@@ -957,6 +1026,19 @@ static void k_ov_black(qd_app_t *a, int key, int b, int down, int vel)
     (void)key, (void)vel;
     qd_mix_black(a, b, down);
 }
+/* 2026-11-10 (owner): B11 held: B1..B8 the pages as F1's, B9 / B10 nothing; the W keys select steps */
+static int w_b11(const qd_app_t *a) { return qd_ctl_b11(a); }
+static void k_b11_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    if (b < QD_NPAGE)
+        k_f1_black(a, key, b, down, vel);
+}
+static void k_b11_white(qd_app_t *a, int key, int w, int down, int vel)
+{
+    (void)key, (void)vel;
+    if (down)
+        qd_step_b11_select(a, w);
+}
 
 typedef struct {
     qd_when_fn when;
@@ -977,6 +1059,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_panel, k_panel_white},          /* P1.4b: the track settings, the mix, the effects: the steps */
     {w_mfx, k_mfx_white},              /* P1.6c: the MIDI FX screen: the track through the group (the lanes' steps) */
     {w_keys_mode, k_note},             /* the keyboard */
+    {w_b11, k_b11_white},              /* 2026-11-10: B11 held: the W keys select steps */
     {w_flayer_latch, k_flayer_white},  /* P1.5m: the latch's selection, F1 / F2 / F3 down: the layer's W */
     {w_steps_held, k_step},            /* steps held: more held steps */
     {w_f1, k_f1_white},                /* F1: the first W copies, the later ones paste */
@@ -999,17 +1082,19 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_mfx, k_mfx_black},              /* P1.6c: the MIDI FX screen: the slots, bypass, remove */
     {w_snd, k_snd_black},              /* P1.4a: the sound editor: B1..B5 its groups, B11 the page's locks */
     {w_keys_mode, k_note},             /* the keyboard */
+    {w_b11, k_b11_black},              /* 2026-11-10: B11 held: B1..B8 the pages (F1's) */
     {w_lfo_held, k_lfo_mode},          /* P1.3y: LFO held: the hold mode, the latch untouched */
     {w_mkey, k_mkey},                  /* a mode key held (P1.3e): B11 resets its default, the rest nothing */
     {w_flayer_latch, k_flayer_black},  /* P1.5m: the latch's selection, F1 / F2 / F3 down: the layer's black keys */
-    {w_latch_modes, k_mode},           /* P1.5b: the latch in MODES: the hold mode (a finger on a step: the values) */
+    {w_latch_modes, k_mode},           /* P1.5b: the latch in MODES: the hold mode, B11 the hold key (a finger on a
+                                        * step: the values) */
     {w_steps_held, k_value},           /* steps held: the mode's values, B11 CLEAR */
     {w_f1, k_f1_black},                /* F1: pages, clear page / track, copy / paste a page, undo */
     {w_f2, k_none},                    /* F2: (only the step pick-up / drop, on W) */
     {w_f3, k_f3_black},                /* F3: the rate */
     {w_latch_default, k_latch_default},   /* P1.6d: the latch in VALUES, nothing selected: the track's defaults */
     {w_ov, k_ov_black},                /* 2026-11-10: OVERVIEW, nothing held: the tracks, as the mix's */
-    {w_step_view, k_mode},             /* nothing held: the hold mode */
+    {w_step_view, k_mode},             /* nothing held: the hold mode, B11 the hold key */
 };
 static int w_main_layer(const qd_app_t *a) { return qd_ctl_main_layer(a) != QD_LAYER_NONE; }
 static void k_main_black(qd_app_t *a, int key, int b, int down, int vel)
@@ -1206,14 +1291,7 @@ static void b_lfo(qd_app_t *a, int down)
         return;
     if (a->ms - a->ui.lfo_ms >= QD_LFO_HOLD_MS)         /* (held long, the screen never opened: nothing) */
         return;
-    if (!a->ui.slatch && !QD_LATCH_MAIN(a->ui.latch))
-        qd_latch_close(a);                              /* (F3's menu gives way to the selection; P1.4a: the sound
-                                                         * editor takes it: the selection's turns are its p-locks;
-                                                         * P1.6h: so do the mix, the effects, the MIDI FX screen) */
-    qd_step_latch(a, !a->ui.slatch);
-    if (a->ui.slatch && (a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_FX))
-        qd_step_release_all(a);                         /* (P1.6h: there it starts empty: the knobs the track's until
-                                                         * W keys select) */
+    latch_toggle(a);
 }
 
 /* the owner, 2026-10-25: the track's MIDI FX routing bypassed / back (QD_TMFX_OFF: the group kept and still edited;
@@ -1404,6 +1482,11 @@ static void b_oct(qd_app_t *a, int d, int down)
         u->shift_used = 1;
         u->oct_eaten |= (uint8_t)(d < 0 ? 1u : 2u);
         qd_shift_undo(a, d);
+        return;
+    }
+    if (down && d < 0 && !both && qd_ctl_b11(a)) {      /* 2026-11-10 (owner): B11 + F1: the selected steps cleared */
+        u->oct_eaten |= 1u;
+        qd_step_b11_clear(a);
         return;
     }
     if (qd_mfx_oct(a, d, down))                         /* P1.6c: the MIDI FX screen: F1 / F2 held + B copy / move

@@ -120,7 +120,14 @@
  *   LATCH MODES (P1.5h): LFO held alone QD_LFO_HOLD_MS opens the latch-mode screen while held (lmode_open), SELECT
  *   turns VALUES / MODES there (set at once), the release closes it (no toggle); MODES the default (qd_ctl_init;
  *   the owner, 2026-10-25): no finger on a step, the black keys choose the hold mode (the knobs set the selection's
- *   values as ever); VALUES: the black keys set the selection's values. */
+ *   values as ever); VALUES: the black keys set the selection's values.
+ *
+ * 2026-11-10 (the owner; supersedes the key names above): THE MODE KEYS B1..B7 NOTE..COND, B8 FUNC, B9 TRIG and SLIDE
+ * (from another mode the one used last; tapped in one, the other; held, its default), B10 SOUND. B11 THE HOLD KEY
+ * (Elasticat's), where B11 has no other job (the step view, nothing held, no menu): held, B1..B8 the pages as F1's
+ * (F1's picture), the W keys select steps (the latch on; the selection stays), + F1 clears them (one undo level); a
+ * quick click (QD_B11_CLICK_MS, nothing done) the step latch on / off. ALGORITHM'S CURSOR selects the page shown's
+ * steps 1..16 only; left past step 1 it ends (the latch off: the knobs the track's, Elasticat's LIVE). */
 #pragma once
 #include <stdint.h>
 
@@ -195,6 +202,7 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TOOL_POP_MS 800u            /* T1: a tool's name pops up this long (its last 300 ms a fade) */
 #define QD_TK_MFX_STEP 110             /* P1.6c: a held step's MIDI FX (TRIG's KNOB 2, B4..B10) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
+#define QD_B11_CLICK_MS 300u           /* 2026-11-10 (owner): B11 pressed and let go within this, nothing done: a click */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes
                                               * (MODES the default since 2026-10-25; the saved byte keeps this order) */
 
@@ -494,7 +502,11 @@ typedef struct {
     int8_t key_row[27];
     /* the buttons */
     int tracks_tap;                    /* TRACKS went down alone: its release toggles the tracks screen */
-    int lfo_used;                      /* P1.3y: LFO held picked a hold mode (B1..B11): its release is no tap */
+    int lfo_used;                      /* P1.3y: LFO held picked a hold mode (B1..B10): its release is no tap */
+    uint8_t b11, b11_used, b11_sel;    /* 2026-11-10 (owner, Elasticat's): B11 held as the hold key; something done
+                                        * with it (no click); a W selected this hold (the next ones go in / out) */
+    uint8_t ts_slide, b9_tog;          /* .. B9 (TRIG / SLIDE): SLIDE was the one used last; B9 went down in one */
+    uint32_t b11_ms;                   /* .. when B11 went down */
     uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
     int lmode;                         /* P1.5b: the latch mode (QD_LMODE_*; a global setting, saved) */
     int lmode_open;                    /* P1.5h: LFO held alone: the latch mode's screen is up (SELECT turns it) */
@@ -899,6 +911,10 @@ int qd_ctl_acc(const struct qd_app *a, int d, int steps);         /* .. for the 
  * used) */
 int qd_ctl_mkey(const struct qd_app *a);
 int qd_ctl_mkey_shown(const struct qd_app *a);   /* P1.3d: QD_KJ_* of a knob (QD_K_SELECT, QD_K_1..4) in a hold mode */
+/* 2026-11-10 (owner): the mode keys B1..B7 NOTE..COND, B8 FUNC, B9 TRIG / SLIDE, B10 SOUND; B11 the hold key */
+int qd_ctl_key_mode(const struct qd_app *a, int b);   /* the mode black key b shows (B9: the one in use or last), -1 */
+int qd_ctl_mode_key(int m);                           /* .. the key of mode m */
+int qd_ctl_b11(const struct qd_app *a);               /* B11 held as the hold key (the step view, no menu) */
 void qd_ctl_select_track(struct qd_app *a, int t);
 
 /* ---- ctl_latch.c (P1.3d) */
@@ -940,7 +956,9 @@ void qd_step_default_reset(struct qd_app *a, int m);
 int qd_step_default_initial(const struct qd_app *a, int m);
 void qd_step_latch(struct qd_app *a, int on);   /* P1.3d: the step latch (LFO) on / off */
 void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the last step edited, else the page's first) */
-void qd_step_cursor(struct qd_app *a, int d);   /* P1.3q: PRESETS in STEPS: the latch's one selection moved d steps */
+void qd_step_cursor(struct qd_app *a, int d);   /* ALGORITHM: the latch's one selection on the page shown (2026-11-10) */
+void qd_step_b11_select(struct qd_app *a, int w);   /* 2026-11-10: B11 held + W: the latch's selection */
+void qd_step_b11_clear(struct qd_app *a);       /* .. B11 + F1: the selected steps cleared (one undo level) */
 void qd_step_cursor_page(struct qd_app *a);     /* P1.3y: the selection to the page's first step (a page change) */
 int qd_step_quick_id(int k);           /* the quick page's lock id of KNOB k (FREQ, DECAY, HARM, FDBK) */
 int qd_step_id_detent(int id);         /* a SHIFT detent's size for a value (100 for the hi-res ones) */

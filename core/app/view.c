@@ -492,6 +492,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     int i, s;
     memset(v, 0, sizeof *v);
     v->layer = layer;
+    v->b11 = layer == QD_LAYER_F1 && qd_ctl_layer(a) == QD_LAYER_NONE;   /* (2026-11-10: B11's pages) */
     v->track = t + 1;
     v->name = a->model.t[t].name;
     v->t = secs(a->ms);

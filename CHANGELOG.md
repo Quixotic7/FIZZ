@@ -15,6 +15,9 @@ its text becomes the release's notes on the install page and on GitHub.
 - **ENGINE keeps the other sound.** Switching a track from FM TONE to MIDI and back gives it its own FM TONE sound again (not INIT), and MIDI → FM TONE → MIDI its MIDI sound, until the FM-1 is switched off or a project is loaded.
 - **A third ENGINE: FM+MIDI.** The track plays its FM TONE sound and sends its sound editor's moves as CCs on its MIDI OUT channel: knob turns at once, p-locks as their steps play (back to the track's value after), REC + AUTOMATION turns too.
 - **MIDI FX routing map.** Turning ALGORITHM on the MIDI FX screen now shows every track wired to its group, each group's eight slots beside it; the selected track's wire moves as you turn.
+- **New mode keys.** B8 is FUNC, B9 is TRIG and SLIDE together (from another mode it opens the one you used last; tapped again it switches to the other), B10 is SOUND. SLIDE's B1 OFF, B2 ON, B3 LEGATO stay; the old "B10 again" cycle is gone. Holding B10 (SOUND) + B11 now resets the track's sound to its starting one.
+- **B11, a second shift key** (as in Elasticat), in the step views. Hold B11 + B1..B8 for the pages (as F1 + B1..B8: tap, double tap, hold), hold B11 + white keys to select steps (the selection stays when you let go), B11 + F1 clears the selected steps (SHIFT + F1 undoes), and a quick click of B11 turns the step latch on and off, as LFO. GLO stays SHIFT; B11 keeps its jobs with a step or a mode key held, in the mixer and OVERVIEW.
+- **ALGORITHM selects the page's steps only.** The step cursor now stays on the page you edit (steps 1..16; SELECT turns the page), and turned fully left past step 1 it lets go: nothing selected, the knobs edit the track.
 
 ## 0.12.0-beta.14 (2026-11-08)
 

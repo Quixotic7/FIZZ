@@ -5,8 +5,9 @@
  *
  *   step view       white: trigs lit, LOCK steps dim, empty steps faint, steps outside the page's start..end off;
  *                   playing, the playhead's key inverts for its step; a key going down shows at once what its tap
- *                   makes. black, nothing held: B1..B11 the hold modes (B10 SLIDE, B11 SOUND), the current one lit,
- *                   the modes some step of the page overrides dim, the others faint
+ *                   makes. black, nothing held: B1..B10 the hold modes (2026-11-10: B8 FUNC, B9 TRIG / SLIDE, B10
+ *                   SOUND), the current one lit, the modes some step of the page overrides dim, the others faint;
+ *                   B11 (the hold key) dim with the latch on, else faint; B11 held: the pages, as F1's
  *   a step held     the held steps blink fast; B1..B10 the mode's value keys: the step's value lit, the track's
  *                   default dim, the others faint (keys that do nothing off); B11 lit when the step overrides the mode
  *   F1 held         (§8b 2.1) B1..B8 the pages: the one edited lit, the others in the loop dim, out of it off, the
@@ -210,7 +211,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         return;
     }
 
-    if ((u->nheld || qd_step_latch_default(a)) && !qd_ctl_latch_modes(a) &&
+    if ((u->nheld || qd_step_latch_default(a)) && !qd_ctl_latch_modes(a) && !qd_ctl_b11(a) &&
         !(u->slatch && layer != QD_LAYER_NONE)) {       /* the mode's ten values, B11 (2026-10-26, the owner: the latch
                                                          * in VALUES with nothing selected too: the track's defaults;
                                                          * P1.5m: the latch's selection under an F layer: the layer's;
@@ -225,7 +226,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         out->key[QD_BLACK_KEY[10]] = clr ? QD_LED_LIT : QD_LED_OFF;
         return;
     }
-    if (layer == QD_LAYER_F1) {                         /* the pages */
+    if (layer == QD_LAYER_F1 || qd_ctl_b11(a)) {       /* the pages (2026-11-10: B11 held too: B9 / B10 off) */
         const int loop = qd_track_loop(ts), pp = qd_ctl_playing_page(a, a->sel);
         for (i = 0; i < QD_NPAGE; i++) {
             uint8_t l = i == page ? QD_LED_LIT : ((loop >> i) & 1) ? QD_LED_DIM : QD_LED_OFF;
@@ -238,6 +239,8 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         out->key[QD_BLACK_KEY[8]] = QD_LED_FAINT;
         out->key[QD_BLACK_KEY[9]] = u->pg_copied >= 0 ? QD_LED_LIT : QD_LED_FAINT;
         out->key[QD_BLACK_KEY[10]] = qd_clip_can_undo(&u->clip, a->seq.cur, a->sel) ? QD_LED_DIM : QD_LED_OFF;
+        if (layer != QD_LAYER_F1)
+            out->key[QD_BLACK_KEY[8]] = out->key[QD_BLACK_KEY[9]] = QD_LED_OFF, out->key[QD_BLACK_KEY[10]] = QD_LED_LIT;
         return;
     }
     if (layer == QD_LAYER_F2) {                         /* the pick-up / drop: the whites; the blacks off */
@@ -258,7 +261,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
                                                          * differs from the initial one, the rest off */
         const int m = qd_ctl_mkey(a);
         for (i = 0; i < 10; i++)
-            out->key[QD_BLACK_KEY[i]] = i == m ? QD_LED_LIT : QD_LED_OFF;
+            out->key[QD_BLACK_KEY[i]] = i == qd_ctl_mode_key(m) ? QD_LED_LIT : QD_LED_OFF;
         out->key[QD_BLACK_KEY[10]] = qd_step_default_initial(a, m) ? QD_LED_OFF : QD_LED_LIT;
         return;
     }
@@ -271,8 +274,13 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     }
     {   /* the hold modes */
         const unsigned set = qd_step_modes_set(a, a->sel, page);
-        for (i = 0; i < UI_NFIELD; i++)                 /* (P1.3w: B9 FUNC; 2026-10-26: B10 SLIDE, B11 SOUND) */
-            out->key[QD_BLACK_KEY[i]] = i == u->hmode ? QD_LED_LIT : ((set >> i) & 1u) ? QD_LED_DIM : QD_LED_FAINT;
+        for (i = 0; i < 10; i++) {                      /* (2026-11-10: B8 FUNC, B9 TRIG / SLIDE, B10 SOUND) */
+            const int m = qd_ctl_key_mode(a, i);
+            out->key[QD_BLACK_KEY[i]] = m == u->hmode ? QD_LED_LIT
+                                      : ((i == 8 ? set >> UI_F_TRIG | set >> UI_F_SLIDE : set >> m) & 1u) ? QD_LED_DIM
+                                                                                                         : QD_LED_FAINT;
+        }
+        out->key[QD_BLACK_KEY[10]] = u->slatch ? QD_LED_DIM : QD_LED_FAINT;   /* (B11: the hold key; the latch on) */
     }
 }
 

@@ -87,6 +87,16 @@ static const char *lb_job(int job, int mode)
     }
 }
 
+/* 2026-11-10: the black keys as the hold modes (B9 TRIG / SLIDE), B11 the hold key */
+static void lb_modes(const qd_app_t *a, qd_labels_t *o)
+{
+    int i;
+    for (i = 0; i < 10; i++)
+        lb_set(o, LB_B(i), UI_FIELD_NAME[qd_ctl_key_mode(a, i)]);
+    lb_set(o, LB_B(8), "TRIG/SLIDE");
+    lb_set(o, LB_B(10), "PAGES/SEL");
+}
+
 /* the keys as notes (the keyboard, the editor's keyboard): each key's note, by the scale */
 static void lb_notes(const qd_app_t *a, qd_labels_t *o, int scale_whites)
 {
@@ -475,6 +485,16 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_flayer(a, o, QD_LAYER_F2);
             return;
         }
+        if (qd_ctl_b11(a)) {                            /* 2026-11-10: B11 held: the pages, the W keys select */
+            lb_flayer(a, o, QD_LAYER_F1);
+            lb_set(o, LB_B(8), "");
+            lb_set(o, LB_B(9), "");
+            lb_set(o, LB_B(10), "");
+            for (i = 0; i < 16; i++)
+                lb_set(o, LB_W(i), "SELECT");
+            lb_set(o, LB_BTN(QD_B_OCTDN), "CLEAR SEL");
+            return;
+        }
         if (layer == QD_LAYER_F3 || u->latch == QD_LATCH_F3) {   /* F3: the track's length, speed, start, end */
             lb_set(o, LB_KNOB(QD_K_SELECT), "TEMPO");
             lb_set(o, LB_KNOB(QD_K_ALGO), "SWING");
@@ -495,8 +515,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_set(o, LB_B(i), lab[i]);
         lb_set(o, LB_B(10), "RESET");
         if (u->slatch && u->lmode == QD_LMODE_MODES && !lb_finger(a))   /* (the latch in MODES: the hold modes) */
-            for (i = 0; i < 11; i++)
-                lb_set(o, LB_B(i), UI_FIELD_NAME[i < UI_NFIELD ? i : 0]);
+            lb_modes(a, o);
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "SOUND LOCK");
         lb_set(o, LB_KNOB(QD_K_ALGO), lb_job(QD_KJ_MAIN, u->hmode));
@@ -504,8 +523,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_set(o, LB_KNOB(k), lb_job(qd_ctl_knob_job(u->hmode, k), u->hmode));
         return;
     }
-    for (i = 0; i < 11; i++)                            /* nothing held: the black keys the hold modes */
-        lb_set(o, LB_B(i), UI_FIELD_NAME[i < UI_NFIELD ? i : 0]);
+    lb_modes(a, o);                                     /* nothing held: the black keys the hold modes */
     lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
     lb_set(o, LB_KNOB(QD_K_PRESETS), "PRESETS");
     {

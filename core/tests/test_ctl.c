@@ -145,7 +145,13 @@ static void black(int b)                                /* a black key tapped (B
     kup(BK(b));
     run(10);
 }
-static void mode(int m) { black(m); }                   /* nothing held: the hold mode */
+static void mode(int m)                                 /* nothing held: the hold mode (2026-11-10: by its key; B9 is
+                                                         * TRIG and SLIDE, tapped again the other) */
+{
+    int i;
+    for (i = 0; i < 2 && A.ui.hmode != m; i++)
+        black(qd_ctl_mode_key(m));
+}
 static void turn(int knob, int d)                      /* (one gesture: no acceleration from the turn before) */
 {
     A.ui.knob_ms[knob] = 0;
@@ -169,10 +175,12 @@ static void f3_up(void)                                /* P1.3d: F3 is latched: 
 static void wake(void) { btap(QD_B_HOME); }             /* power-on: idle; HOME: the step view */
 static void mkturn(int m, int knob, int d)              /* P1.3y: a mode key held, a knob (its default), let go */
 {
-    kdown(BK(m));
+    if (qd_ctl_mode_key(m) == B9)
+        mode(m);                                        /* (2026-11-10: B9 opens the one in use) */
+    kdown(BK(qd_ctl_mode_key(m)));
     run(20);
     turn(knob, d);
-    kup(BK(m));
+    kup(BK(qd_ctl_mode_key(m)));
     run(10);
 }
 static void shome(void)                                 /* P1.3y: SHIFT + HOME: the next view (HOME alone: back) */
@@ -338,16 +346,74 @@ static void g_edge(void)
 
 static void g_modes(void)
 {
-    int m;
+    static const int KM[10] = {M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_FUNC, M_TRIG, M_SOUND};
+    int b;
     start();
-    for (m = 0; m < 11; m++) {                          /* (P1.3w: B9 FUNC; 2026-10-26: B10 SLIDE, B11 SOUND) */
-        mode(m);
-        CHECK(A.ui.hmode == m && leds().key[BK(m)] == QD_LED_LIT, "nothing held: B%d = the hold mode %s", m + 1,
-              UI_FIELD_NAME[m]);
+    for (b = 0; b < 10; b++) {                          /* (2026-11-10: B8 FUNC, B9 TRIG / SLIDE, B10 SOUND) */
+        black(b);
+        CHECK(A.ui.hmode == KM[b] && leds().key[BK(b)] == QD_LED_LIT, "nothing held: B%d = the hold mode %s", b + 1,
+              UI_FIELD_NAME[KM[b]]);
     }
+    A.ui.lmode = QD_LMODE_MODES;                        /* (VALUES: the latch's empty selection, B11 resets the default) */
+    black(B11);
+    CHECK(A.ui.hmode == M_SOUND && A.ui.slatch, "B11 clicked: no mode (SOUND stays), the step latch on");
+    black(B11);
+    CHECK(!A.ui.slatch, ".. clicked again: the latch off");
     CHECK(!strcmp(UI_FIELD_NAME[M_FUNC], "FUNC") && !strcmp(UI_FIELD_NAME[M_SLIDE], "SLIDE") &&
               !strcmp(UI_FIELD_NAME[M_SOUND], "SOUND") && UI_NFIELD == 11,
-          "B9 FUNC, B10 SLIDE, B11 SOUND (2026-10-26: no P-LOCK)");
+          "the modes' names (2026-10-26: no P-LOCK)");
+}
+
+/* 2026-11-10 (owner): B9 is TRIG and SLIDE: from another mode the one used last, tapped in one the other; held in one,
+ * its default (no toggle) */
+static void g_b9_trig_slide(void)
+{
+    start();
+    black(B9);
+    CHECK(A.ui.hmode == M_TRIG && leds().key[BK(B9)] == QD_LED_LIT, "B9 from NOTE: TRIG (none used yet)");
+    black(B9);
+    CHECK(A.ui.hmode == M_SLIDE && leds().key[BK(B9)] == QD_LED_LIT, "B9 again: SLIDE, B9 still lit");
+    black(B9);
+    CHECK(A.ui.hmode == M_TRIG, ".. again: TRIG");
+    black(B9);
+    mode(M_VEL);
+    black(B9);
+    CHECK(A.ui.hmode == M_SLIDE, "VEL, then B9: SLIDE, the one used last");
+    mode(M_TRIG);
+    mode(M_NOTE);
+    black(B9);
+    CHECK(A.ui.hmode == M_TRIG, "NOTE, then B9: TRIG, the one used last");
+    kdown(BK(B9));
+    run(20);
+    turn(QD_K_ALGO, 1);
+    run(300);
+    kup(BK(B9));
+    run(10);
+    CHECK(A.ui.hmode == M_TRIG && PAT()->trk[0].def.type == QD_TRIG_LOCK, "B9 held in TRIG + ALGORITHM: TRIG's default "
+          "(LOCK), no toggle");
+    kdown(BK(B9));
+    run(400);
+    kup(BK(B9));
+    run(10);
+    CHECK(A.ui.hmode == M_TRIG, "B9 held long in TRIG, let go: still TRIG");
+    bdown(QD_B_MUTE);
+    run(10);
+    black(B9);
+    bup(QD_B_MUTE);
+    run(10);
+    CHECK(A.ui.hmode == M_SLIDE && !A.ui.slatch, "LFO held + B9 in TRIG: SLIDE (the latch untouched)");
+    whold(0);
+    black(B9);
+    wrel(0);
+    CHECK(A.ui.hmode == M_SLIDE && qd_step_slide(PAT(), 0, 0, 0, 0) < 0, "a step held + B9 in SLIDE: a value key, "
+          "nothing (the old B10 cycle is gone), still SLIDE");
+    mkturn(M_SOUND, QD_K_ALGO, 1);
+    kdown(BK(B10));
+    run(20);
+    black(B11);
+    kup(BK(B10));
+    run(10);
+    CHECK(qd_step_default_initial(&A, M_SOUND), "B10 (SOUND) held + B11: the track's starting sound back");
 }
 
 /* every mode's ten values on a held step, and B11 */
@@ -1264,18 +1330,20 @@ static void g_slide(void)
     start();
     wtap(0), wtap(4);
     qd_step_set_notes(PAT(), 0, 4, &G4, 1);
-    black(B10);
-    CHECK(A.ui.hmode == UI_F_SLIDE && leds().key[BK(B10)] == QD_LED_LIT && qd_view_screen(&A) == QD_SCR_LANE,
-          "B10, nothing held: the SLIDE mode (B10 lit), its lane");
+    mode(M_SLIDE);
+    CHECK(A.ui.hmode == UI_F_SLIDE && leds().key[BK(B9)] == QD_LED_LIT && qd_view_screen(&A) == QD_SCR_LANE,
+          "B9 (2026-11-10: TRIG / SLIDE), nothing held: the SLIDE mode (B9 lit), its lane");
     whold(0);
     CHECK(qd_view_screen(&A) == QD_SCR_HELD && qd_step_slide(PAT(), 0, 0, 0, 0) < 0, "step 1 held: SLIDE's screen, no "
           "slide yet");
     black(B2);
     CHECK(qd_step_slide(PAT(), 0, 0, 0, 0) == QD_PORT_ON && LK(0, 0, QD_QP_PORT) == 1, "B2: PORT ON (a lock)");
+    black(B3);
+    CHECK(qd_step_slide(PAT(), 0, 0, 0, 0) == QD_PORT_LEGATO, "B3: LEGATO");
     black(B10);
-    CHECK(qd_step_slide(PAT(), 0, 0, 0, 0) == QD_PORT_LEGATO, "B10 again: LEGATO (it cycles)");
-    black(B10);
-    CHECK(qd_step_slide(PAT(), 0, 0, 0, 0) == QD_PORT_OFF, ".. OFF");
+    CHECK(qd_step_slide(PAT(), 0, 0, 0, 0) == QD_PORT_LEGATO, "B10: nothing (2026-11-10: its cycle gone)");
+    black(B1);
+    CHECK(qd_step_slide(PAT(), 0, 0, 0, 0) == QD_PORT_OFF, "B1: OFF");
     turn(QD_K_1, 1);
     CHECK(qd_step_slide(PAT(), 0, 0, 0, 0) == QD_PORT_ON && A.ui.tk == QD_TK_HELDKNOB, "KNOB 1 +1: ON, the band");
     turn(QD_K_2, 10);
@@ -2451,7 +2519,7 @@ static void g_plock_track(void)
 {
     qd_pattern_t before;
     start();
-    black(B11);
+    mode(M_SOUND);
     before = *PAT();
     bdown(QD_B_TRACKS);
     run(10);
@@ -2783,32 +2851,28 @@ static void g_mkey(void)
     start();
     wtap(0);
     for (i = 0; i < sizeof MKEY_ROWS / sizeof MKEY_ROWS[0]; i++) {
-        const int m = MKEY_ROWS[i].mode;
+        const int m = MKEY_ROWS[i].mode, mk = qd_ctl_mode_key(m);   /* (2026-11-10: B8 FUNC, B9 TRIG, B10 SOUND) */
         unsigned got, defm;
         int scr, k1, b11;
-        kdown(BK(m));
+        kdown(BK(mk));
         run(300);
         scr = qd_view_screen(&A) == QD_SCR_DEFAULT && A.ui.hmode == m;
         snap();
         turn(QD_K_1, m == M_CHNC ? -1 : 1);
         got = changed(0, &defm);
         k1 = m == M_SOUND ? (got & X_TRK) != 0 : defm == MKEY_ROWS[i].what;
-        b11 = (m == M_SOUND || leds().key[BK(B11)] == QD_LED_LIT) && leds().key[BK(m)] == QD_LED_LIT &&
-              leds().key[BK(m == 0 ? 1 : 0)] == QD_LED_OFF;   /* (2026-10-26: SOUND is B11 itself: no reset key) */
+        b11 = leds().key[BK(B11)] == QD_LED_LIT && leds().key[BK(mk)] == QD_LED_LIT &&
+              leds().key[BK(m == 0 ? 1 : 0)] == QD_LED_OFF;   /* (2026-11-10: SOUND on B10, B11 resets it too) */
         black(m == B1 ? B2 : B1);                       /* another black key: nothing */
         CHECK(scr && k1 && b11 && A.ui.hmode == m && qd_ctl_mkey(&A) == m,
               "%s key held: its default picture %d, KNOB 1 the default (%#x), B11 lit, the mode key lit (%d), "
               "another black key nothing", UI_FIELD_NAME[m], scr, defm, b11);
         ok += scr && k1 && b11;
-        if (m != M_SOUND) {
-            black(B11);
-            CHECK(qd_step_default_initial(&A, m) && leds().key[BK(B11)] == QD_LED_OFF,
-                  "%s key held + B11: the default reset (B11 off)", UI_FIELD_NAME[m]);
-            okr += qd_step_default_initial(&A, m);
-        } else {
-            okr++;
-        }
-        kup(BK(m));
+        black(B11);
+        CHECK(qd_step_default_initial(&A, m) && leds().key[BK(B11)] == QD_LED_OFF,
+              "%s key held + B11: the default reset (B11 off)", UI_FIELD_NAME[m]);
+        okr += qd_step_default_initial(&A, m);
+        kup(BK(mk));
         run(10);
         CHECK(qd_view_screen(&A) == QD_SCR_LANE && A.ui.tk == QD_TK_NONE && qd_ctl_mkey(&A) < 0,
               "%s key let go: the lane", UI_FIELD_NAME[m]);
@@ -3074,7 +3138,7 @@ static void g_play_outline(void)
 }
 
 /* P1.3q / P1.3y: ALGORITHM (no finger on a step, any view) is the step cursor: the latch on, its one selection moved
- * through the loop (into the next page and round), the page following; SELECT a page puts it on the page's first
+ * (2026-11-10: over the page shown only; left past step 1: LIVE); SELECT a page puts it on the page's first
  * step; values apply to it (an off step turned on); PRESETS is the track's sound in every view */
 static void g_cursor(void)
 {
@@ -3097,21 +3161,31 @@ static void g_cursor(void)
     turn(QD_K_ALGO, 3);
     CHECK(A.ui.nheld == 1 && A.ui.held[0] == 3, "three detents: step 4 (%d)", A.ui.held[0] + 1);
     turn(QD_K_ALGO, 13);
-    CHECK(A.ui.held[0] == 16 && A.ui.page[0] == 1, "on past the page's end: page 2's step 1, the page follows");
+    CHECK(A.ui.held[0] == 15 && A.ui.page[0] == 0, "2026-11-10: on past the page's end: step 16, the page stays");
     turn(QD_K_ALGO, -1);
-    CHECK(A.ui.held[0] == 15 && A.ui.page[0] == 0, "back: page 1's step 16");
-    turn(QD_K_ALGO, 17);
-    CHECK(A.ui.held[0] == 32 && A.ui.page[0] == 2, "P1.3r: on into page 3 (not in the loop): its step 1");
-    turn(QD_K_ALGO, -33);
-    CHECK(A.ui.held[0] == 127 && A.ui.page[0] == 7, "back past page 1's start: page 8's step 16");
-    turn(QD_K_ALGO, 1);
-    CHECK(A.ui.held[0] == 0 && A.ui.page[0] == 0, "page 8's end on to page 1's step 1");
+    CHECK(A.ui.held[0] == 14 && A.ui.page[0] == 0, "back: step 15");
+    turn(QD_K_ALGO, -14);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 0, ".. step 1");
+    turn(QD_K_ALGO, -1);
+    CHECK(!A.ui.slatch && !A.ui.nheld && !A.ui.scursor && qd_view_screen(&A) == QD_SCR_LANE,
+          "left past step 1: LIVE (the cursor, the selection and the latch gone)");
+    turn(QD_K_1, 1);
+    CHECK(PAT()->trk[0].def.vel != 100 && A.ui.tk == QD_TK_DEFAULT, "LIVE: KNOB 1 the track's default (VEL)");
+    turn(QD_K_ALGO, -3);
+    CHECK(!A.ui.slatch && !A.ui.nheld, "LIVE, ALGORITHM left: nothing");
+    qd_ctl_set_page(&A, 2);
+    turn(QD_K_ALGO, 2);
+    CHECK(A.ui.slatch && A.ui.held[0] == 33 && A.ui.page[0] == 2, "on page 3: its step 2 (%d)", A.ui.held[0] + 1);
+    turn(QD_K_ALGO, 40);
+    CHECK(A.ui.held[0] == 47 && A.ui.page[0] == 2, "never past the page: its step 16 (%d)", A.ui.held[0] + 1);
+    turn(QD_K_ALGO, -40);
+    CHECK(!A.ui.slatch && A.ui.page[0] == 2, "fully left: LIVE, the page stays");
+    qd_ctl_set_page(&A, 0);
+    PAT()->trk[0].def.vel = 100;
     PAT()->trk[0].pstart[1] = 4;                        /* page 2 plays steps 5 .. 12 */
     PAT()->trk[0].pend[1] = 11;
     turn(QD_K_ALGO, 16);
-    CHECK(A.ui.held[0] == 20, "a page's range: page 2 starts at its step 5 (%d)", A.ui.held[0] + 1);
-    turn(QD_K_ALGO, -1);
-    CHECK(A.ui.held[0] == 15, "before it: page 1's step 16 (%d)", A.ui.held[0] + 1);
+    CHECK(A.ui.held[0] == 15, "page 1's step 16 (%d)", A.ui.held[0] + 1);
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 20,
           "P1.3y: SELECT: page 2, the selection on its first step in range (5) (%d)", A.ui.held[0] + 1);
@@ -3340,8 +3414,8 @@ static void g_clarity(void)
 static void g_func(void)
 {
     start();
-    mode(M_FUNC);
-    CHECK(A.ui.hmode == UI_F_FUNC, "B9: FUNC");
+    black(B8);
+    CHECK(A.ui.hmode == UI_F_FUNC, "B8: FUNC (2026-11-10; B9 below is still JUMP's value key)");
     whold(2);
     black(B3);
     CHECK(ST(0, 2)->func == QD_FN_REVERSE && R(0, 2).on, "B3: REVERSE (an empty step: a trig)");
@@ -3418,7 +3492,7 @@ static void g_func(void)
           A.ui.nheld, A.ui.held[0]);
     btap(LFO);
     CHECK(!A.ui.slatch, "LFO tapped: the latch off");
-    mode(M_SOUND);
+    black(B10);
     CHECK(A.ui.hmode == UI_F_SOUND, "B10: SOUND");
 }
 
@@ -3908,7 +3982,8 @@ static void beat_by_panel(void)
     btap(F1), btap(F1);
     black(B8);
     wrel(3);
-    black(B10);                                         /* 2026-10-26: SLIDE; step 4 held, B2: it slides into step 7 */
+    mode(M_SLIDE);                                      /* 2026-10-26: SLIDE (2026-11-10: B9); step 4 held, B2: it
+                                                         * slides into step 7 */
     whold(3);
     black(B2);
     wrel(3);
@@ -3960,13 +4035,13 @@ static void beat_by_panel(void)
     wtap(4);
     black(B4);
     btap(QD_B_MUTE);
-    /* P1.3y: the cursor: ALGORITHM (no finger on a step) turns the latch on at its last step (5), seven on: step 12;
-     * LFO held + B9: FUNC (the latch kept); B8: LEAP +2 (an empty step: a trig); HOME ends the latch */
-    turn(QD_K_ALGO, 1);
-    turn(QD_K_ALGO, 7);
+    /* P1.3y: the cursor: ALGORITHM (no finger on a step) turns the latch on (2026-11-10: from the page's step 1),
+     * twelve on: step 12; LFO held + B8: FUNC (the latch kept); B8: LEAP +2 (an empty step: a trig); HOME ends the
+     * latch */
+    turn(QD_K_ALGO, 12);
     bdown(LFO);
     run(10);
-    black(B9);
+    black(B8);
     bup(LFO);
     run(10);
     black(B8);
@@ -4149,9 +4224,10 @@ static void t_leds(void)
               l.key[WK(12)] == QD_LED_OFF,
           "stopped: a trig lit, a LOCK step dim, an empty one faint, outside the page's range off (%d %d %d %d)",
           l.key[WK(0)], l.key[WK(1)], l.key[WK(2)], l.key[WK(12)]);
-    CHECK(l.key[BK(M_VEL)] == QD_LED_LIT && l.key[BK(M_TRIG)] == QD_LED_DIM && l.key[BK(M_NOTE)] == QD_LED_FAINT &&
-              l.key[BK(B11)] == QD_LED_FAINT,
-          "black: the mode lit, a mode some step overrides dim, the others faint (B11 SOUND: no sound lock, faint)");
+    CHECK(l.key[BK(B2)] == QD_LED_LIT && l.key[BK(B9)] == QD_LED_DIM && l.key[BK(B1)] == QD_LED_FAINT &&
+              l.key[BK(B10)] == QD_LED_FAINT && l.key[BK(B11)] == QD_LED_FAINT,
+          "black: the mode lit, a mode some step overrides dim (B9 TRIG), the others faint (B10 SOUND: no sound lock; "
+          "B11 the hold key, the latch off)");
     whold(0);
     l = leds();
     CHECK(l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B8)] == QD_LED_DIM && l.key[BK(B11)] == QD_LED_LIT,
@@ -6533,7 +6609,7 @@ static void g_p15m_flatch(void)
         CHECK(A.ui.entry_oct == o0, "%s: F1 tapped: down again", M);
         bdown(LFO);
         run(20);
-        black(B11);                                     /* SOUND (2026-10-26: B11) */
+        black(B10);                                     /* SOUND (2026-11-10: B10) */
         bup(LFO);
         run(20);
         b0 = A.ui.sound_bank;
@@ -6573,7 +6649,7 @@ static void g_p15n(void)
         CHECK(A.ui.tk == QD_TK_NONE, "view %d: .. gone after its time", v);
         bdown(LFO);
         run(20);
-        black(B11);                                     /* SOUND (2026-10-26: B11) */
+        black(B10);                                     /* SOUND (2026-11-10: B10) */
         bup(LFO);
         run(20);
         t = A.ui.sound_bank;
@@ -7385,10 +7461,10 @@ static void g_p15s_preview(void)
     n = onsets(3000, 60, &still);
     CHECK(A.ui.slatch && A.ui.nheld == 0 && n == 0 && !still, "the latch on (empty), nothing pressed, 3 s: no note (%d)",
           n);
-    turn(QD_K_ALGO, 1);
+    turn(QD_K_ALGO, 3);
     n = onsets(1500, 60, &still);
-    CHECK(A.ui.held[0] == 2 && n <= 1 && !still, "ALGORITHM: the cursor lands on step 3 (the last edited), one short "
-          "preview (%d), then silence", n);
+    CHECK(A.ui.held[0] == 2 && n <= 1 && !still, "ALGORITHM +3: the cursor lands on step 3 (2026-11-10: the page's "
+          "steps from 1), one short preview (%d), then silence", n);
     CHECK(A.ui.pvs_n == 0, ".. nothing left sounding");
     turn(QD_K_ALGO, 1);
     n = onsets(1500, 60, &still);
@@ -9001,7 +9077,8 @@ static void g_p16l_labels(void)
     start();
     mode(M_VEL);
     CHECK(!strcmp(lab(LW(0)), "STEP 1") && !strcmp(lab(LW(15)), "STEP 16") && !strcmp(lab(LBK(0)), "NOTE") &&
-              !strcmp(lab(LBK(1)), "VEL") && !strcmp(lab(LBK(10)), "SOUND") && !strcmp(lab(LBK(9)), "SLIDE") &&
+              !strcmp(lab(LBK(1)), "VEL") && !strcmp(lab(LBK(9)), "SOUND") && !strcmp(lab(LBK(8)), "TRIG/SLIDE") &&
+              !strcmp(lab(LBK(7)), "FUNC") && !strcmp(lab(LBK(10)), "PAGES/SEL") &&
               !strcmp(lab(LKN(QD_K_SELECT)), "PAGE") &&
               !strcmp(lab(LKN(QD_K_ALGO)), "VEL DEF") && !strcmp(lab(LBT(QD_B_PLAY)), "PLAY") &&
               !strcmp(lab(LBT(QD_B_OCTDN)), "F1") && !strcmp(lab(QD_LBL_MASTER), "VOLUME") && labels_clean(),
@@ -9060,6 +9137,119 @@ static void g_p16l_labels(void)
           "asleep: HOME WAKE, the rest none but PLAY and MASTER");
 }
 
+/* 2026-11-10 (owner, Elasticat's B11): B11 with nothing held is the hold key: held, B1..B8 the pages as F1's (tap edit,
+ * double tap loop alone, hold in / out of the loop) with F1's pages picture, the W keys select steps (the latch on, the
+ * selection stays), B11 + F1 clears them (one undo level); a quick click toggles the latch; B11's other jobs stay */
+static void g_b11(void)
+{
+    qd_leds_t l;
+    int i;
+    start();
+    A.ui.lmode = QD_LMODE_MODES;
+    for (i = 0; i < 4; i++)
+        wtap(i);
+    kdown(BK(B11));
+    run(20);
+    CHECK(qd_ctl_b11(&A) && qd_view_screen(&A) == QD_SCR_LANE, "B11 down: the hold key, no picture yet (a click maybe)");
+    run(300);
+    CHECK(qd_view_screen(&A) == QD_SCR_LAYER && qd_ctl_layer_shown(&A) == QD_LAYER_F1 && qd_ctl_layer(&A) == 0,
+          "B11 held 320 ms: F1's pages picture (no F1 layer)");
+    l = leds();
+    CHECK(l.key[BK(B1)] == QD_LED_LIT && l.key[BK(B9)] == QD_LED_OFF && l.key[BK(B10)] == QD_LED_OFF &&
+              l.key[BK(B11)] == QD_LED_LIT,
+          "B11 held: the page keys lit as F1's, B9 / B10 off, B11 lit");
+    CHECK(!strcmp(lab(LBK(2)), "PAGE 3") && !strcmp(lab(LW(0)), "SELECT") && !lab(LBK(10))[0] && labels_clean(),
+          "B11 held: the labels PAGE n, SELECT on the W keys");
+    black(B3);
+    CHECK(A.ui.page[0] == 2, "B11 + B3 tapped: page 3 edited");
+    black(B2), black(B2);
+    CHECK(A.ui.page[0] == 1 && qd_track_loop(&PAT()->trk[0]) == 2, "B11 + B2 double-tapped: page 2 looped alone");
+    kdown(BK(B4));
+    run(QD_PAGE_HOLD_MS + 20);
+    kup(BK(B4));
+    run(10);
+    CHECK(qd_track_loop(&PAT()->trk[0]) == (2 | 8), "B11 + B4 held: page 4 into the loop (%#x)",
+          qd_track_loop(&PAT()->trk[0]));
+    black(B1);
+    kup(BK(B11));
+    run(10);
+    CHECK(!qd_ctl_b11(&A) && !A.ui.slatch && A.ui.page[0] == 0 && qd_view_screen(&A) == QD_SCR_LANE,
+          "B11 let go after the pages: no click (the latch stays off), the lane");
+    /* the W keys select: the first replaces, the later ones go in / out; let go of B11, the selection stays */
+    kdown(BK(B11));
+    run(20);
+    wtap(1);
+    wtap(3);
+    wtap(5);
+    wtap(3);
+    CHECK(A.ui.slatch && A.ui.nheld == 2 && A.ui.held[0] == 1 && A.ui.held[1] == 5 && !R(0, 5).on &&
+              qd_view_screen(&A) == QD_SCR_LAYER,
+          "B11 + W2, W4, W6, W4 again: the latch on, steps 2 and 6 selected (no trig made), the pages picture");
+    kup(BK(B11));
+    run(10);
+    CHECK(A.ui.slatch && A.ui.nheld == 2 && qd_view_screen(&A) == QD_SCR_HELD, "B11 let go: the selection stays");
+    black(B2);
+    CHECK(A.ui.hmode == M_VEL && A.ui.slatch, "MODES, the selection: B2 picks VEL");
+    kdown(BK(B11));
+    run(20);
+    wtap(0);
+    kup(BK(B11));
+    run(10);
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 0, "B11 + W1 in a new hold: a new selection (step 1)");
+    /* B11 + F1: the selected steps cleared, one undo level */
+    kdown(BK(B11));
+    run(20);
+    wtap(1);
+    wtap(2);
+    wtap(7);
+    bdown(F1);
+    run(20);
+    CHECK(!R(0, 1).on && !R(0, 2).on && !R(0, 7).on && R(0, 0).on && R(0, 3).on && qd_ctl_layer(&A) == 0,
+          "B11 + W2, W3, W8, F1: steps 2 and 3 cleared, the others kept, no F1 layer");
+    bup(F1);
+    run(10);
+    kup(BK(B11));
+    run(QD_UNDO_QUIET_MS + 20);
+    CHECK(A.ui.slatch && !A.ui.latch, "let go: the latch stays, no menu");
+    bdown(SHIFT);
+    run(10);
+    btap(F1);
+    bup(SHIFT);
+    run(10);
+    CHECK(R(0, 1).on && R(0, 2).on && !R(0, 7).on, "SHIFT + F1: both back (one undo level)");
+    /* a quick click: the latch off / on; held long or used: none */
+    black(B11);
+    CHECK(!A.ui.slatch && !A.ui.nheld, "B11 clicked: the latch off");
+    black(B11);
+    CHECK(A.ui.slatch && !A.ui.nheld, "B11 clicked again: on (empty)");
+    kdown(BK(B11));
+    run(QD_B11_CLICK_MS + 20);
+    kup(BK(B11));
+    run(10);
+    CHECK(A.ui.slatch, "B11 held 320 ms alone: no click");
+    kdown(BK(B11));
+    run(20);
+    turn(QD_K_1, 1);
+    kup(BK(B11));
+    run(10);
+    CHECK(A.ui.slatch, "B11 + a knob: no click");
+    btap(QD_B_HOME);
+    /* B11's own jobs stay: a step held, F1 */
+    mode(M_VEL);
+    whold(0);
+    black(B10);
+    CHECK(OV(0, 0, QD_PM_VEL), "a step held + B10: VEL 127");
+    black(B11);
+    wrel(0);
+    CHECK(!OV(0, 0, QD_PM_VEL) && !A.ui.slatch, "a step held + B11: its value reset (no hold key)");
+    bdown(F1);
+    run(100);
+    black(B11);
+    bup(F1);
+    run(10);
+    CHECK(!A.ui.slatch && !qd_ctl_b11(&A), "F1 + B11: F1's undo (no hold key)");
+}
+
 int main(void)
 {
     static const struct {
@@ -9069,7 +9259,7 @@ int main(void)
         {"wake and idle", g_wake},
         {"W tap: a trig with no overrides / removed; SHIFT + W free", g_tap},
         {"hold vs tap at the 250 ms edge", g_edge},
-        {"B1..B11: the hold mode (B10 SLIDE, B11 SOUND)", g_modes},
+        {"B1..B10: the hold mode (2026-11-10: B8 FUNC, B9 TRIG / SLIDE, B10 SOUND), B11 clicked", g_modes},
         {"every mode's ten values, B11, several held", g_values},
         {"ALGORITHM: defaults (nothing held), finely (held)", g_algo},
         {"SELECT: pages", g_select},
@@ -9084,7 +9274,7 @@ int main(void)
         {"F3: base / type keys and knobs, start / end, 21 rates", g_f3},
         {"NOTE, a step held: each knob its own note; ALGO all", g_note_knobs},
         {"five and six notes by the keys", g_five_keys},
-        {"SLIDE (B10): the locks, the keys, the knobs, the player's slide", g_slide},
+        {"SLIDE (B9): the locks, the keys, the knobs, the player's slide", g_slide},
         {"the OCT LEDs' blink levels; the octave takeover", g_octave},
         {"REC, REC + PLAY, SHIFT + REC, step / live rec", g_rec},
         {"the keyboard in a scale, the global key", g_keyboard_scale},
@@ -9119,7 +9309,7 @@ int main(void)
         {"P1.3q: STEPS: PRESETS the step cursor", g_cursor},
         {"P1.3s: STEPS playing: no outline but the selection's", g_play_outline},
         {"P1.3r: the EDIT view", g_edit},
-        {"P1.3w: FUNC on B9: the functions, the jump's target, SOUND on B10", g_func},
+        {"P1.3w: FUNC (2026-11-10: on B8): the functions, B9 + W the jump's target, SOUND on B10", g_func},
         {"P1.3x: PLAY held F3; REC held live recording, growing", g_live},
         {"the TAKE CAPTURE: cleared, the take's length, micro kept", g_capture},
         {"the TAKE REPLACE / OVERDUB: the first note starts it", g_take_replace},
@@ -9201,6 +9391,8 @@ int main(void)
         {"the page LEDs", g_page_leds},
         {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},
         {"P1.6l: the controls' labels", g_p16l_labels},
+        {"2026-11-10: B11 the hold key: the pages, the W select, F1 clears, a click the latch", g_b11},
+        {"2026-11-10: B9 is TRIG and SLIDE (last used, a tap toggles, held its default)", g_b9_trig_slide},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
         {"P2.6h: every screen again, every name at its longest (ASan: no buffer overrun)", g_long_names},
     };

@@ -78,7 +78,8 @@
     <h2>Hold a step, and the black keys</h2>
     <ol>
       <li><b>Pick what to edit</b> with a black key, nothing held:
-        <span class="modes"><b style="--m:#3F7DFF">B1 NOTE</b><b style="--m:#1FD47E">B2 VEL</b><b style="--m:#36D6E7">B3 LEN</b><b style="--m:#A879FF">B4 MICRO</b><b style="--m:#FF6A2C">B5 RATCH</b><b style="--m:#FFD23F">B6 CHNC</b><b style="--m:#FF52C0">B7 COND</b><b style="--m:#F1F0EA">B8 TRIG</b><b style="--m:#9FE6FF">B9 FUNC</b><b style="--m:#B5E853">B10 SOUND</b><b style="--m:#D8C39A">B11 P-LOCK</b></span>
+        <span class="modes"><b style="--m:#3F7DFF">B1 NOTE</b><b style="--m:#1FD47E">B2 VEL</b><b style="--m:#36D6E7">B3 LEN</b><b style="--m:#A879FF">B4 MICRO</b><b style="--m:#FF6A2C">B5 RATCH</b><b style="--m:#FFD23F">B6 CHNC</b><b style="--m:#FF52C0">B7 COND</b><b style="--m:#9FE6FF">B8 FUNC</b><b style="--m:#F1F0EA">B9 TRIG / SLIDE</b><b style="--m:#B5E853">B10 SOUND</b></span>
+        B9 opens the one of TRIG and SLIDE used last; tap it again for the other.
         The screen draws the page for that choice: steps with their own value in colour, the rest grey.</li>
       <li><b>Hold the step's white key.</b> The screen shows that step with a magenta frame, and it plays (when stopped).</li>
       <li><b>Turn SELECT or KNOB 1</b> for the value, or <b>press a black key B1 … B10</b> for one of ten values (VEL 13 … 127, LEN ¼ … ∞, chance 10 % … 100 % …).</li>
@@ -89,7 +90,7 @@
       <li><b>Several steps at once:</b> hold several white keys.</li>
       <li><b>No holding:</b> <b>LFO (LATCH)</b> is the step latch: tap steps to select them, then edit as if held. <b>Double-tap</b> a step to add or remove it. With nothing selected the black keys choose the mode (MODES, the default; hold LFO and turn SELECT for VALUES, where they set the selection's values or the track's default). LFO or HOME ends it.</li>
       <li><b>A track's default:</b> hold the mode's black key and turn the knobs; B11 resets it.</li>
-      <li><b>P-LOCK (B11):</b> hold a step and turn KNOB 1 … 4 to lock FREQ, DECAY, HARM and FDBK on it.</li>
+      <li><b>B11, the hold key:</b> hold B11 + B1 … B8 for the pages (as F1: tap, double-tap, hold), hold B11 + white keys to select steps (the selection stays when you let go), B11 + F1 clears them. A quick click of B11 turns the step latch on and off, as LFO.</li>
     </ul>
   </section>
 
@@ -97,7 +98,7 @@
     <h2>The knobs</h2>
     <div class="knobs">
       <div><b style="--k:#FFD23F">SELECT</b><span>the page · with a step held: its main value (NOTE: the chord)</span></div>
-      <div><b style="--k:#FF8FC8">ALGORITHM</b><span>the step cursor: it selects one step and walks through the pages</span></div>
+      <div><b style="--k:#FF8FC8">ALGORITHM</b><span>the step cursor: it selects one step of the page (1 … 16); fully left: nothing selected, the knobs edit the track</span></div>
       <div><b style="--k:#28E1FF">PRESETS</b><span>the preset library: every detent plays the next preset · with a step held: that step's sound from the pool</span></div>
       <div><b style="--k:#3F7DFF">KNOB 1</b><b style="--k:#1FD47E">KNOB 2</b><b style="--k:#F1F0EA">KNOB 3</b><b style="--k:#FF6A2C">KNOB 4</b><span>the held step's values, or the track's defaults when nothing is held (KNOB 4 quietly, with no picture)</span></div>
     </div>

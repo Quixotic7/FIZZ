@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-10 (owner, Elasticat's B11): the new mode keys and B11, the hold key, on the unit's build. B8 FUNC, B9 TRIG
+# and SLIDE (tapped again: the other), B10 SOUND; B11 held: B1..B8 the pages (F1's picture), the W keys select steps,
+# B11 + F1 clears them (SHIFT + F1 undoes); a quick click of B11 the step latch; ALGORITHM the shown page's steps only,
+# fully left LIVE.
+#   firmware/build.py --host, then (mkdir -p firmware/app/build/b11 first)
+#   firmware/app/build/host/fizz_host firmware/app/tests/b11.txt firmware/app/build/b11
+expect fz_up 1
+tap HOME
+wait 300
+expect fz_mode 1
+expect fz_view 2
+# an empty track 1 page 1 (SHIFT + B11 twice clears the track), four steps on it
+press GLO
+tapkey b10
+tapkey b10
+release GLO
+wait 200
+expect fz_ons_1_1 0
+tapkey w0
+tapkey w4
+tapkey w8
+tapkey w12
+wait 100
+expect fz_ons_1_1 4369
+# SHIFT + HOME from EDIT four times: STEPS
+press GLO
+tap HOME
+release GLO
+press GLO
+tap HOME
+release GLO
+press GLO
+tap HOME
+release GLO
+press GLO
+tap HOME
+release GLO
+wait 300
+expect fz_view 1
+shot b11-steps.png
+# the mode keys: B8 FUNC, B9 TRIG, B9 again SLIDE, B10 SOUND
+tapkey b7
+wait 200
+shot b11-mode-func.png
+tapkey b8
+wait 200
+shot b11-mode-trig.png
+tapkey b8
+wait 200
+shot b11-mode-slide.png
+tapkey b9
+wait 200
+shot b11-mode-sound.png
+tapkey b1
+wait 200
+leds
+# B11 held: the pages picture; B3 tapped: page 3; B1: page 1
+key b10 down
+wait 400
+shot b11-held-pages.png
+leds
+tapkey b2
+wait 100
+expect fz_page 2
+shot b11-held-page3.png
+tapkey b0
+wait 100
+expect fz_page 0
+# .. W2, W6, W10 select (the latch on, no trig made); let go: the selection stays
+tapkey w1
+tapkey w5
+tapkey w9
+wait 100
+expect fz_ons_1_1 4369
+shot b11-held-select.png
+key b10 up
+wait 300
+shot b11-selection.png
+# B11 + W1, W5 + F1: steps 1 and 5 cleared; SHIFT + F1 brings them back
+key b10 down
+wait 50
+tapkey w0
+tapkey w4
+press OCT-
+wait 50
+release OCT-
+key b10 up
+wait 700
+expect fz_ons_1_1 4352
+shot b11-cleared.png
+press GLO
+tap OCT-
+release GLO
+wait 300
+expect fz_ons_1_1 4369
+# a quick click: the latch off; again: on
+tapkey b10
+wait 300
+shot b11-click-off.png
+tapkey b10
+wait 300
+shot b11-click-on.png
+tapkey b10
+wait 300
+# ALGORITHM: the page's steps (3 on: step 3), the page kept; fully left: LIVE
+spin ALGO 3
+wait 300
+expect fz_page 0
+shot b11-algo-step3.png
+spin ALGO 20
+wait 300
+expect fz_page 0
+shot b11-algo-step16.png
+spin ALGO -16
+wait 300
+shot b11-algo-live.png
+expect fz_page 0

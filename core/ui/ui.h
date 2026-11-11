@@ -316,7 +316,9 @@ enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_CO
        UI_F_SOUND, UI_NFIELD };         /* 2026-10-26 (the sequencer clean-up): B10 SLIDE (a step's portamento into
                                          * the next note: its PORT / TIME / SLOPE locks), B11 SOUND (was B10). P-LOCK
                                          * (P1.3c's B11) is gone: the sound editor's hold-a-step lock is the way.
-                                         * P1.3w (§8b "FUNC on B9"): B9 FUNC, the step functions */
+                                         * P1.3w (§8b "FUNC on B9"): B9 FUNC, the step functions.
+                                         * 2026-11-10 (owner): the keys are no longer the order here: B8 FUNC, B9
+                                         * TRIG / SLIDE, B10 SOUND, B11 the hold key (ctl.c KEY_MODE, MODE_KEY) */
 extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "FUNC", "SLIDE", "SOUND" */
 extern const qd_rgb UI_MODE_COL[UI_NFIELD];
 #define UI_LOCK_COL 0xd8c39au           /* the padlock's sand (P-LOCK's colour, kept for the locks' icons) */
@@ -555,6 +557,7 @@ int qd_view_edit_follows(const struct qd_app *a);   /* P1.5q: EDIT shows the ste
 /* ---- the layer maps (§8b: while F1, F2 or F3 is held the screen is that layer's map, so it explains itself) */
 typedef struct {
     int layer;                          /* 1 F1, 2 F2, 3 F3 */
+    int b11;                            /* 2026-11-10: F1's pages for B11 held (its head; no clear, copy, undo) */
     int track;                          /* 1..8 */
     const char *name;                   /* the track's */
     float t;                            /* seconds (the blinks) */
