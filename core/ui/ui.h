@@ -98,7 +98,9 @@ typedef struct {
     int rec;
     int blink;                          /* the blink's lit half */
     int cursor;                         /* rec 1: the cursor's step, 1..128 */
-    uint8_t page_trig[16];              /* rec 1: the cursor's page: 1 a step with a trig */
+    uint8_t page_trig[16];              /* rec 1: the cursor's page: 1 a step with a trig (row: the page edited's) */
+    int row;                            /* 2026-11-10: B11 held or steps selected (rec 0): the page edited's row */
+    uint16_t sel;                       /* .. its selected steps, outlined */
     int quantize;                       /* rec 2: quantize is on ("Q" by the badge) */
     int scale;                          /* P1.3b: the track's scale (not chromatic: its name by the octave) */
     const char *scale_name;

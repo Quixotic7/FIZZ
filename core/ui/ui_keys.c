@@ -13,7 +13,9 @@
  * scrolling in from the red line (11 px a step, the grid's beats darker), the keybed small at the foot with the keys
  * held white, OCT and the step under the playhead. The live keybed is the FM-1's own: 27 keys from F (F3 .. G5 at OCT
  * 0), so each drawn key is the one pressed.
- * P1.3b: the sound's pool number has three digits; a track in a scale shows the scale's name by the octave. */
+ * P1.3b: the sound's pool number has three digits; a track in a scale shows the scale's name by the octave.
+ * 2026-11-10: B11 held, or steps selected (the keys write into them): the page edited's row of sixteen, the selected
+ * outlined white. */
 #include <math.h>
 #include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
@@ -141,13 +143,17 @@ void ui_keys_draw(const ui_keys_t *v)
         ui_lab(num, 120.f, 224.f, UI_G1, QD_CENTER);
     }
 
-    if (v->rec == 1) {                                  /* STEP recording: the cursor's page, the cursor's step */
-        const int c = (v->cursor - 1) % 16;
+    if (v->rec == 1 || v->row) {                        /* STEP recording: the cursor's page (2026-11-10: B11 held
+                                                         * or a selection: the page edited's, the selected outlined) */
+        const int c = v->rec == 1 ? (v->cursor - 1) % 16 : -1;
         for (i = 0; i < 16; i++) {
             const float sx = 14.f + (float)i * 13.5f + (float)(i / 4) * 2.f;
-            const int cur = i == c && v->blink;
-            ui_RR(sx, 99.f, 9.f, 9.f, 2.f, cur ? UI_RED : UI_G3, 1.f, v->page_trig[i] ? UI_G2 : QD_NONE);
+            const int cur = i == c && v->blink, sel = (v->sel >> i) & 1u;
+            ui_RR(sx, 99.f, 9.f, 9.f, 2.f, cur ? UI_RED : sel ? UI_K3 : UI_G3, sel ? 2.f : 1.f,
+                  v->page_trig[i] ? UI_G2 : QD_NONE);
         }
+    }
+    if (v->rec == 1) {
         ui_icon(UI_IC_REC, 20.f, 220.f, 1.f, UI_RED);  /* (P1.3v: step recording: the red dot, the step number) */
         ui_T(ui_itoa(step, v->cursor), 226.f, 224.f, 12.f, 600, 0.f, UI_K3, QD_RIGHT);
     }

@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-10 (owner): B11 on the keyboard page (REC tapped). B11 is the hold key there too (no F#5): held, its W keys
+# select steps of the page edited (B1..B8 the pages) and the screen shows the page's sixteen steps; let go, the
+# selection stays (outlined) and the keyboard writes each chord into the selected steps (an empty one made), heard as
+# played; ALGORITHM moves the one selected step, fully left LIVE; LFO with a selection: LIVE.
+#   firmware/build.py --host, then (mkdir -p firmware/app/build/b11_keys first)
+#   firmware/app/build/host/fizz_host firmware/app/tests/b11_keys.txt firmware/app/build/b11_keys
+expect fz_up 1
+tap HOME
+wait 300
+expect fz_mode 1
+# an empty track 1 (SHIFT + B11 twice clears the track), steps 1 and 9 on
+press GLO
+tapkey b10
+tapkey b10
+release GLO
+wait 200
+tapkey w0
+tapkey w8
+wait 100
+expect fz_ons_1_1 257
+# REC: the keyboard, LIVE
+tap REC
+wait 300
+expect fz_mode 2
+shot keys-live.png
+# B11 held: the page's steps; W3, W6 select (no notes, no trig)
+key b10 down
+wait 400
+shot keys-b11-held.png
+tapkey w2
+tapkey w5
+wait 100
+expect fz_ons_1_1 257
+shot keys-b11-select.png
+key b10 up
+wait 300
+shot keys-selection.png
+# a chord (C, E, G held together): into steps 3 and 6
+key w0 down
+key w2 down
+key w4 down
+wait 300
+shot keys-chord-down.png
+key w0 up
+key w2 up
+key w4 up
+wait 300
+expect fz_ons_1_1 293
+shot keys-chord-written.png
+# ALGORITHM: one step (the first selected moves on), then fully left: LIVE
+spin ALGO 2
+wait 300
+shot keys-algo-step.png
+spin ALGO -16
+wait 300
+shot keys-algo-live.png
+# a key in LIVE writes nothing
+tapkey w7
+wait 300
+expect fz_ons_1_1 293
+# B11 + B2: page 2 (B11 held), W1 selects step 17; LFO: LIVE
+key b10 down
+wait 100
+tapkey b1
+wait 100
+tapkey w0
+wait 300
+expect fz_page 1
+shot keys-b11-page2.png
+key b10 up
+wait 300
+tap LFO
+wait 300
+shot keys-lfo-live.png

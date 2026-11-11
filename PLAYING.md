@@ -259,7 +259,8 @@ and chance; a LOCK step's runs too).
 
 ## B11, the hold key (2026-11-10)
 
-Elasticat's second shift, in the step views (PIANO ROLL, STEPS, EDIT). **GLO stays SHIFT** and every SHIFT shortcut
+Elasticat's second shift, in the step views (PIANO ROLL, STEPS, EDIT) and on the keyboard page (below). **GLO stays
+SHIFT** and every SHIFT shortcut
 stays (SHIFT + B11 still clears the track). B11 is the hold key only where it has no other job: with a step held it
 still resets the step's value, with a mode key held it resets the default, the latch in VALUES with nothing selected
 it resets the default, in OVERVIEW it clears the mutes and solos, F1 + B11 is still undo.
@@ -274,6 +275,10 @@ it resets the default, in OVERVIEW it clears the mutes and solos, F1 + B11 is st
   back.
 - **A quick click of B11** (pressed and let go within 0.3 s, nothing else done): the step latch on / off, as LFO.
   A hold that did something (a page, a step, a knob) is never also a click.
+- **On the keyboard page** (REC tapped) B11 is the same hold key: it no longer plays F#5. Held, B1..B8 are the
+  pages, the white keys select steps, B11 + F1 clears them, and the screen shows the page's sixteen steps (the
+  selected outlined white); let go, the keys are the keyboard again and **play into the selected steps** (below). A
+  click turns the latch on with the last step you edited selected, or off.
 
 ## How do I enter notes and chords?
 
@@ -602,6 +607,18 @@ Where OCT− / OCT+ change an octave (NOTE with a step held or tapped with nothi
   key playing full.
 - **SHIFT + ALGORITHM** the track's scale, **SHIFT + PRESETS** its root, while you play (stopped or playing).
 - **F1 / F2** move the keyboard an octave (−2..+2).
+- **Playing chords into steps** (2026-11-10): **hold B11 + white keys** to select steps of the page (B11 + B1..B8
+  the page; the screen shows the page's sixteen steps while B11 is held), let go, and the steps stay outlined in the
+  row over the keyboard. Now **every chord you play is written into all the selected steps**: the keys held together
+  are one chord (as many notes as a step takes), and the first key after all were up starts the next chord, replacing
+  the steps' notes. An empty step becomes a note step. You hear the notes as you play, nothing moves on, the
+  selection stays so you can try chord after chord; **each chord is one undo level** (SHIFT + F1). MIDI notes on the
+  selected track's channel do the same.
+  - **ALGORITHM** moves one selected step through the page's steps (turning it from nothing selected starts at step
+    1); **fully left past step 1: LIVE**, nothing selected, the keyboard just plays. **LFO** with steps selected is
+    LIVE too (with nothing selected it is still HOLD). A **B11 click** selects the last step you edited.
+  - **REC armed** (step or live recording) records as ever: the recording takes the notes, not the selection.
+  - Leaving the keyboard page (REC) ends the selection; the steps view starts LIVE.
 - **SHIFT + REC**: the **record settings** (they stay open; OCT− or HOME back), kept with the project:
   - **KNOB 1 MODE**: LIVE or STEP, what holding REC arms;
   - **KNOB 2 QUANTIZE**: 0..100 % (5 % a click): how much of the played timing is pulled onto the step (0 % as

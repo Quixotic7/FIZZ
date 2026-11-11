@@ -462,8 +462,11 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : qd_snd_keys(a) ? "STEPS" : "KEYS");
         return;
     }
-    if (u->mode == QD_MODE_KEYS) {                      /* the keyboard */
+    if (u->mode == QD_MODE_KEYS && !qd_ctl_b11(a)) {   /* the keyboard (B11 held: the step view's B11, below) */
         lb_notes(a, o, 0);
+        if (!u->latch)
+            lb_set(o, LB_B(10), "PAGES/SEL");           /* (2026-11-10: the hold key) */
+        lb_set(o, LB_KNOB(QD_K_ALGO), "STEP");
         lb_set(o, LB_KNOB(QD_K_SELECT), "TEMPO");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "PRESETS");
         lb_set(o, LB_KNOB(QD_K_1), "FREQ");

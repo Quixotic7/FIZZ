@@ -127,7 +127,11 @@
  * (Elasticat's), where B11 has no other job (the step view, nothing held, no menu): held, B1..B8 the pages as F1's
  * (F1's picture), the W keys select steps (the latch on; the selection stays), + F1 clears them (one undo level); a
  * quick click (QD_B11_CLICK_MS, nothing done) the step latch on / off. ALGORITHM'S CURSOR selects the page shown's
- * steps 1..16 only; left past step 1 it ends (the latch off: the knobs the track's, Elasticat's LIVE). */
+ * steps 1..16 only; left past step 1 it ends (the latch off: the knobs the track's, Elasticat's LIVE).
+ * 2026-11-10 (the owner): THE KEYBOARD's B11 is the hold key too (no F#5; not under a menu): the same pages, W
+ * selection, + F1 clear; its click turns the latch on with qd_step_latch_seed's step. With a selection the keys (and
+ * MIDI) write the selected steps' notes, a chord at a time (ctl_rec.c qd_rec_midi_note; REC armed: the recording);
+ * ALGORITHM the cursor, LFO with a selection: LIVE (without: HOLD); leaving the keyboard ends the selection. */
 #pragma once
 #include <stdint.h>
 

@@ -862,6 +862,14 @@ static void draw_keys(qd_app_t *a)
             v.roll[v.nroll].live = u->roll[k].t1 < 0;
             v.nroll++;
         }
+    } else if (qd_ctl_b11(a) || (u->slatch && u->nheld)) {   /* 2026-11-10: the page edited's steps, the selection */
+        const int pg = u->page[a->sel] * QD_PAGE;
+        v.row = 1;
+        for (i = 0; i < 16; i++)
+            v.page_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, a->sel, pg + i));
+        for (i = 0; i < u->nheld; i++)
+            if (u->held[i] / QD_PAGE == pg / QD_PAGE)
+                v.sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
     }
     ui_keys_draw(&v);
 }

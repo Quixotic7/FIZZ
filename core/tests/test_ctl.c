@@ -9250,6 +9250,114 @@ static void g_b11(void)
     CHECK(!A.ui.slatch && !qd_ctl_b11(&A), "F1 + B11: F1's undo (no hold key)");
 }
 
+/* 2026-11-10 (owner): the keyboard page's B11: the hold key (no F#5); B11 + W selects steps, the keys then write
+ * chords into them (one undo level a chord); ALGORITHM the cursor, fully left LIVE; LFO with a selection LIVE;
+ * REC armed keeps the recording */
+static void g_keys_b11(void)
+{
+    int c, e, g, oct;
+    qd_leds_t l;
+    start();
+    wtap(2);                                            /* step 3 on (the track's default note) */
+    btap(QD_B_REC);
+    c = qd_rec_key_note(&A, WK(0)), e = qd_rec_key_note(&A, WK(2)), g = qd_rec_key_note(&A, WK(4)), oct = A.oct;
+    CHECK(A.ui.mode == QD_MODE_KEYS && !A.ui.slatch && !strcmp(lab(LBK(10)), "PAGES/SEL") &&
+              !strcmp(lab(QD_LBL_KNOB0 + QD_K_ALGO), "STEP"),
+          "the keyboard: LIVE, B11 labelled the hold key, ALGORITHM STEP");
+    kdown(BK(B11));
+    run(20);
+    CHECK(qd_ctl_b11(&A) && !((A.keys_struck >> BK(B11)) & 1u), "B11 down on the keyboard: the hold key, no note");
+    wtap(2);
+    wtap(5);
+    l = leds();
+    CHECK(A.ui.slatch && A.ui.nheld == 2 && A.ui.held[0] == 2 && A.ui.held[1] == 5 && !A.keys_struck &&
+              !R(0, 5).on && qd_view_screen(&A) == QD_SCR_KEYS && !strcmp(lab(LW(0)), "SELECT") &&
+              l.key[BK(B1)] == QD_LED_LIT,
+          "B11 + W3, W6: steps 3 and 6 selected (no notes, no trig), the keyboard's screen, the step view's keys");
+    black(B2);
+    CHECK(A.ui.page[0] == 1 && A.ui.nheld == 2, "B11 + B2: page 2 edited, the selection kept");
+    black(B1);
+    kup(BK(B11));
+    run(10);
+    CHECK(!qd_ctl_b11(&A) && A.ui.slatch && A.ui.nheld == 2 && A.ui.page[0] == 0 && strcmp(lab(LW(0)), "SELECT"),
+          "B11 let go: the selection stays, the W keys the keyboard again");
+    kdown(WK(0)), kdown(WK(2));
+    run(10);
+    kdown(WK(4));
+    run(10);
+    CHECK(R(0, 2).nn == 3 && R(0, 2).notes[0] == c && R(0, 2).notes[1] == e && R(0, 2).notes[2] == g &&
+              R(0, 5).on && R(0, 5).nn == 3 && ((A.keys_struck >> WK(4)) & 1u) && A.ui.nheld == 2,
+          "C, E, G held together: the chord in steps 3 and 6 (6 made), heard, the selection kept");
+    kup(WK(0)), kup(WK(2)), kup(WK(4));
+    run(10);
+    kdown(WK(2));
+    run(10);
+    kup(WK(2));
+    run(10);
+    CHECK(R(0, 2).nn == 1 && R(0, 2).notes[0] == e && R(0, 5).nn == 1, "E alone after: the steps' notes replaced");
+    bdown(SHIFT), btap(F1), bup(SHIFT);
+    run(10);
+    CHECK(R(0, 2).nn == 3 && R(0, 5).nn == 3, "SHIFT + F1: the chord before back (one undo level a chord)");
+    bdown(SHIFT), btap(F1), bup(SHIFT);
+    run(10);
+    CHECK(!R(0, 5).on && R(0, 2).on && R(0, 2).nn == 1, "again: as before the keys");
+    /* ALGORITHM: the cursor on the page's steps; fully left LIVE */
+    turn(QD_K_ALGO, -1);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 1, "ALGORITHM left: the cursor, step 2 alone");
+    turn(QD_K_ALGO, -5);
+    CHECK(!A.ui.slatch && !A.ui.nheld, "fully left: LIVE");
+    kdown(WK(0));
+    run(10);
+    kup(WK(0));
+    run(10);
+    CHECK(!R(0, 0).on && !R(0, 1).on && A.ui.mode == QD_MODE_KEYS, "LIVE: the keys write nothing");
+    turn(QD_K_ALGO, 4);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 3, "ALGORITHM right from LIVE: step 4");
+    btap(QD_B_MUTE);
+    CHECK(!A.ui.slatch && !A.ui.nheld && !A.ui.khold, "LFO with a selection: LIVE (no HOLD)");
+    btap(QD_B_MUTE);
+    CHECK(!A.ui.slatch && A.ui.khold, "LFO again, nothing selected: HOLD as before");
+    btap(QD_B_MUTE);
+    CHECK(!A.ui.khold, "and off");
+    /* a B11 click: the latch on with the last step; again off */
+    black(B11);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 3, "B11 clicked: the latch on, the last step selected");
+    black(B11);
+    CHECK(!A.ui.slatch && !A.ui.nheld, "B11 clicked again: LIVE");
+    /* B11 + F1: the selected steps cleared (the octave untouched) */
+    kdown(BK(B11));
+    run(20);
+    wtap(2);
+    bdown(F1);
+    run(20);
+    CHECK(!R(0, 2).on && A.oct == oct, "B11 + W3 + F1: step 3 cleared, the octave kept");
+    bup(F1);
+    run(10);
+    kup(BK(B11));
+    run(10);
+    /* REC armed: the recording's (step recording writes the cursor's step, not the selection) */
+    A.proj.rec_mode = 1;
+    bdown(QD_B_REC);
+    run(QD_REC_HOLD_MS + 50);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(A.ui.rec && A.ui.mode == QD_MODE_KEYS && qd_rec_stepping(&A) && A.ui.slatch && A.ui.nheld == 1,
+          "REC held: step recording armed (the selection there)");
+    kdown(WK(4));
+    run(10);
+    kup(WK(4));
+    run(10);
+    CHECK(R(0, 0).on && R(0, 0).notes[0] == g && !R(0, 2).on,
+          "armed: the note to the cursor's step, not the selection");
+    btap(QD_B_REC);
+    CHECK(!A.ui.rec && A.ui.mode == QD_MODE_KEYS, "REC: disarmed, the keyboard");
+    /* leaving the keyboard ends its selection */
+    turn(QD_K_ALGO, 3);
+    CHECK(A.ui.slatch && A.ui.nheld == 1, "a selection");
+    btap(QD_B_REC);
+    CHECK(A.ui.mode == QD_MODE_STEP && !A.ui.slatch && !A.ui.nheld, "REC: the step view, LIVE");
+}
+
 int main(void)
 {
     static const struct {
@@ -9395,6 +9503,7 @@ int main(void)
         {"2026-11-10: B9 is TRIG and SLIDE (last used, a tap toggles, held its default)", g_b9_trig_slide},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
         {"P2.6h: every screen again, every name at its longest (ASan: no buffer overrun)", g_long_names},
+        {"2026-11-10: the keyboard's B11: select steps, the keys write chords into them", g_keys_b11},
     };
     size_t i;
     uint64_t h1, h2;

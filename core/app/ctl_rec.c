@@ -31,7 +31,9 @@
  * replaces it). Knob turns (KNOB 1..4: the quick page) are written as locks on the step playing.
  *
  * MIDI: notes on the selected track's channel do the same in the keyboard; with steps held in the step view they
- * become the held steps' notes (the notes struck while any is down are one chord). */
+ * become the held steps' notes (the notes struck while any is down are one chord). 2026-11-10 (owner): on the
+ * keyboard with the step latch's selection (B11 + W, ALGORITHM) the keys and MIDI notes become the selected steps'
+ * notes the same way (played as ever; not while REC is armed: the recording's). */
 #include <math.h>
 #include <string.h>
 
@@ -480,15 +482,21 @@ int qd_rec_knob(qd_app_t *a, int knob, int d)
     return 1;
 }
 
-/* a MIDI note on the selected track's channel: into the held steps, or the recording */
+/* a MIDI note on the selected track's channel: into the held steps, or the recording. 2026-11-10 (owner): the
+ * keyboard's keys too, and on the keyboard the step latch's selection takes them (not while recording): each chord
+ * (the first note after all were up) replaces the selected steps' notes, one undo level a chord */
 void qd_rec_midi_note(qd_app_t *a, int note, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
-    if (u->mode == QD_MODE_STEP && (u->nheld || u->wk_pending)) {
+    const int keys = u->mode == QD_MODE_KEYS && u->slatch && u->nheld && !u->rec && !u->latch;
+    if (keys || (u->mode == QD_MODE_STEP && (u->nheld || u->wk_pending))) {
         qd_step_promote_all(a);
         if (down) {
-            if (!u->midi_n)
+            if (!u->midi_n) {
                 u->midi_nchord = 0;
+                if (keys)
+                    qd_undo_hint(a, QD_UK_EDIT);        /* (a chord a level, however quick the next) */
+            }
             chord_add(u->midi_chord, &u->midi_nchord, note);
             qd_step_notes_in(a, u->midi_chord, u->midi_nchord);
             u->midi_n++;

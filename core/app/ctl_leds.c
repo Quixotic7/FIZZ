@@ -340,7 +340,7 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         leds_pattern(a, out);
     else if (held(a, QD_B_PATTERN) && u->mode != QD_MODE_IDLE)   /* printed SEL: the tracks */
         leds_sel(a, out);
-    else if (u->mode == QD_MODE_STEP)
+    else if (u->mode == QD_MODE_STEP || qd_ctl_b11(a))   /* (2026-11-10: the keyboard's B11 held: the step view's) */
         leds_step(a, out);
     else if (u->mode == QD_MODE_KEYS && qd_mfx_open(a))   /* (P1.6f: the MIDI FX screen over the keyboard) */
         qd_mfx_leds(a, out->key);
