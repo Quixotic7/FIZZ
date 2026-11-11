@@ -45,15 +45,22 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   coloured letters, then fizzes apart again. While a DAW plays it, a surge of bubbles rises on each beat.
   Press anything to get to the **step view**, in **EDIT** (P1.5s: the default view at power-on and in a new project;
   the view you used last is kept).
-- **HOME** always brings you back to the view you are using (PIANO ROLL, STEPS or EDIT), from anywhere, in one press:
-  it closes F3, a settings menu or the step latch and lands on the view at the same time. It never changes the view.
+- **HOME** (2026-11-10, the owner): **from any other page** (the sound editor, the effects, the mixer, MIDI FX,
+  TOOLS, the keyboard page, F3, a settings menu, the step latch, OVERVIEW opened by SEL ..) **the first click brings
+  you back to the Home view you were on**, in one press. **On the Home view, a click goes to the next Home view**:
+  PIANO ROLL, STEPS, EDIT, GEEK OUT, OVERVIEW, then the PIANO ROLL again (SHIFT + HOME is no longer needed). **Hold
+  HOME** (half a second) for **the global settings**, from anywhere (below). With the global settings' **LOCK** on,
+  HOME clicks never cycle: HOME always brings you to the Home view you chose there.
+- **The white keys' steps / keys** (a B11 click, below) is **one switch for every page**: changing pages, Home views,
+  HOME clicks and opening the editors all leave it as it is; only a B11 click turns it (not kept across power-off).
 - **Main pages and pop-ups (0.9.6).** The main pages are the step view (PIANO ROLL, STEPS, EDIT), the **mixer**
   (ENV, both pages), the **effects** (FX), the **sound editor** (EDIT) and the **MIDI FX** screen (ARP). **F1 never
   leaves them**: they close with **HOME** or their own key (EDIT, ARP; ENV and FX turn their pages), or by opening
-  another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SEL tapped),
-  the record settings (SHIFT + REC), the global settings (SHIFT + SEL), the project pages (SHIFT + SAVE), the browser
+  another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SHIFT + SEL),
+  the record settings (SHIFT + REC), the global settings (HOME held), the project pages (SHIFT + SAVE), the browser
   (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
-- **SHIFT + HOME** cycles **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT**, **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE, TRACKS) and **OVERVIEW** (below); **HOME** comes back. HOME keeps the view: whatever page you come back from, the step view is the one you chose, and GEEK OUT returns on its last page. STEPS shows all eight
+  (2026-11-10: the track settings are SHIFT + SEL, the global settings HOME held.)
+- **HOME clicks** cycle **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT**, **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE, TRACKS) and **OVERVIEW** (below). Whatever page you come back from, the step view is the one you were on, and GEEK OUT returns on its last page. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
@@ -63,18 +70,25 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   a red marker hops along the steps (on a folded row, a red tick under the step) and each step's fill flashes white
   as it plays; only selected or held steps get a white outline. SELECT changes the page (the rows fold and
   unfold). The step cursor (ALGORITHM, below) moves along the page you edit.
-- **OVERVIEW** (SHIFT + HOME from GEEK OUT) shows all six tracks at once: a row a track with its kind's icon, the page
+- **OVERVIEW** (**SEL tapped**, at once from anywhere; or a HOME click from GEEK OUT) shows all six tracks at once: a row a track with its kind's icon, the page
   you edit as 16 cells in groups of four, each step's fill as tall as its velocity in the track's colour (a ghost: an
   outline), the pattern's name and the page dots on top. Playing, a red marker sits over the playing column and each
   track's playing step lights white; every track follows its own speed and loop, and a row shows its playhead only
   while that track is on this page. The selected track's icon is boxed white, a soloed one yellow; a muted track (or
   one silenced by another's solo) goes grey with a line through it. The black keys work as in the mixer: **B1..B6**
-  tapped selects the track, held mutes / unmutes it, double-tapped solos it, **a track key held + B11** clears every
-  mute and solo (B11 alone is the hold key here too, below). The
-  white keys are the selected track's steps, as in STEPS (tap makes / removes, hold edits it, with the held step's
-  screen); SELECT turns the page and the knobs work as in STEPS with nothing held. The hold modes (B1..B10 in the
-  other views) are not on the black keys here: LFO held + a black key still picks one.
-- **EDIT** (SHIFT + HOME from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold
+  tapped selects the track, held mutes / unmutes it, double-tapped solos it; **B9** clears every mute and solo (lit
+  while there is one to clear). **B11** is the hold key here exactly as on every page (held: the pages over OVERVIEW,
+  B1..B8 the pages, the white keys select steps of the selected track with the step lock; a click: the white keys
+  steps / keys; B11 + OCT− leaves the lock, B11 + OCT+ resets the selection's value). The white keys are the selected
+  track's steps, as in STEPS (tap makes / removes, hold edits it, with the held step's screen; selected steps stay on
+  OVERVIEW, outlined white). **SEL tapped again** (or HOME) goes back to the view it came from.
+  **The knobs with nothing held or selected** (2026-11-10): **KNOB 1** the selected track's **rate** (its speed,
+  slowest to fastest), **KNOB 2** its **volume** (the mixer's LEVEL), **KNOB 3 / KNOB 4** the **start / end of its
+  loop on the page shown** (as F3's KNOB 3 / 4); each turn shows its value in a band over the top. **Steps outside a
+  track's start..end are drawn dimmed** on every row. SELECT turns the page, ALGORITHM the step cursor, PRESETS the
+  preset, as in every view. With a step held or selected the knobs work on that step as in STEPS. The hold modes
+  (B1..B10 in the other views) are not on the black keys here: LFO held + a black key still picks one.
+- **EDIT** (a HOME click from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold
   mode's drawing above it at full size, its value large in the top line: the step you hold, select or point at with
   the cursor, or the track's default when nothing is held (a mode key held: its default, "B11 RESET" small top
   right). Every edit moves both at once (the cell's fill rises as the value changes); no knob pop-up covers it.
@@ -118,8 +132,8 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 - In the PIANO ROLL the small dots over the columns mark the beats (steps 1, 5, 9, 13; the first a little brighter).
 - **FX held + ALGORITHM** chooses the track: the track's number big in its colour with its name, the six below.
 - After two minutes untouched with nothing playing, it goes back to the FIZZ screen.
-- **PLAY** tapped plays and stops (on the release: about a tenth of a second after the press). **Hold PLAY** to open
-  the **F3** menu (the same as both OCT keys).
+- **PLAY** tapped plays and stops (on the release: about a tenth of a second after the press). **Hold PLAY** (or
+  **SHIFT + PLAY**) to open the **F3** menu (the same as both OCT keys), from the keyboard page too (2026-11-10).
 
 ## How do I add and remove steps?
 
@@ -291,12 +305,18 @@ EDIT, GEEK OUT, OVERVIEW), the keyboard page, the sound editor, the effects, the
   (SENDS' foot), the mixer and TOOLS (along the foot), the MIDI FX screen (its KEYS / STEPS), and **on the keyboard
   page the other way round**: its white keys become the steps (a tap makes / removes, hold one and play black keys
   into it; the step row shows), the screen's keyboard stays. With the keys on, F1 / F2 are the octave and LFO the
-  keys' HOLD, as in the editor. **HOME** gives the steps back (SHIFT + HOME's next view keeps the keys).
+  keys' HOLD, as in the editor. **The steps / keys switch is global** (2026-11-10): every page, Home view and HOME
+  click keeps it; only a B11 click turns it (the keyboard page has its own: it always opens on its keys).
+- **The orange keys write into selected steps** (2026-11-10): with steps selected (B11 + white keys, ALGORITHM's
+  cursor, the LFO latch), the orange keys light **the notes of the first selected step** (the other keys go dark),
+  and playing them writes their notes into the selected steps, as on the keyboard page: keys held together are one
+  chord replacing the steps' notes, an empty step becomes a note step, one undo per chord, heard as played; armed
+  recording comes first. The same in the sound editor, the effects, the mixer and TOOLS.
 - **The step lock on, B11 is still the hold key** (it no longer resets the selection's values: B11 + F2 does).
 - A hold that did something (a page, a step, a knob, F1 / F2) is never also a click.
 - **Where B11 keeps another job**: a step **physically held** + B11 resets that step's value (in the sound editor: its
   locks on the page); a mode key held + B11 resets the track's default; F1 + B11 is undo; SHIFT + B11 clears the
-  track; SEL held + B11 and, on the mixer and OVERVIEW, **a track key held + B11** clear every mute and solo; menus,
+  track; SEL held + B11 and, on the mixer, **a track key held + B11** clear every mute and solo (OVERVIEW: **B9**); menus,
   the browser and the typewriter keep theirs. **ALGORITHM** is unchanged (one step of the page shown; fully left LIVE).
 - What moved for it: the MIDI FX screen's **remove** is **B9** (twice); TOOLS' scope is **B7** and HUMANIZE /
   QUANTIZE share **B6** (below); **REC** no longer switches the keys: it opens the keyboard page (below).
@@ -372,8 +392,8 @@ A step has up to **six notes**.
 
 - A track has 8 pages of 16 steps. **SELECT** chooses the page you edit (F1 + B1..B8 too, and B11 + B1..B8:
   2026-11-10, B11 held does everything below that F1 + B1..B8 does).
-- **Page follow** (on: the page you see follows the playhead) is on the track settings' second page (SEL tapped
-  twice, KNOB 3) and the global settings (SHIFT + SEL, KNOB 1). (ENV is MIX now: PAGE + W is gone.)
+- **Page follow** (on: the page you see follows the playhead) is on the track settings' second page (SHIFT +
+  SEL twice, KNOB 3) and the global settings (HOME held, KNOB 1). (ENV is MIX now: PAGE + W is gone.)
 - Hold **F1** to see the pages:
   - **F1 + tap B1..B8**: edit that page.
   - **F1 + double-tap B1..B8** (the second tap starting within 0.2 s of the first): loop that page alone and edit it.
@@ -445,10 +465,10 @@ Undo and redo of everything (P1.5c):
 - The old tracks screen of eight clocks is gone: a track's length and speed are F3's, its voice limit and swing the
   track settings', mutes SEL's.
 
-## How do I change a track's settings? (SEL tapped)
+## How do I change a track's settings? (SHIFT + SEL)
 
-- **Tap SEL**: the selected track's settings in this pattern (its number, kind and name in its colour at the top).
-  **SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B6** switch to another track's.
+- **SHIFT + SEL** (2026-11-10; SEL tapped opens OVERVIEW now): the selected track's settings in this pattern (its
+  number, kind and name in its colour at the top). **SHIFT + SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B6** switch to another track's.
 - Page 1: **KNOB 1 MODE** **GLOBAL** (the track follows the project's global key; **a new track does**, the global
   key starts CHROMATIC C) or **LOCAL** (its own key, starting as a copy of the global one; back to GLOBAL its own is
   kept for the next switch), **KNOB 2 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 3 ROOT**:
@@ -591,9 +611,16 @@ A track's speed is a **note value** and a **type**, each kept when you change th
 
 ## SHIFT's keys (P1.5c)
 
-Hold **SHIFT**: only its shortcut keys light (the white keys go dark), and SHIFT's map draws the black keys under its
-list, each with its picture. P1.5z: they work **in the sound editor too** (SHIFT shows no map there: only the
-shortcuts act; SHIFT + a knob stays the editor's fine step).
+Hold **SHIFT** (GLO): **the same screen, lights and shortcuts on every page** (2026-11-10: the step view, the keyboard
+page, the sound editor, the mixer, the effects, MIDI FX, TOOLS, the menus; not the browser, SAVE PRESET, the name
+editor and the projects, where SHIFT is their tags and signs). Only its shortcut keys light (the white keys go dark
+and do nothing; on the keyboard page they no longer play). **The SHIFT screen** (the owner's take A2): **the track
+first**, its number in a box of its colour, its kind and its name big, the six tracks as small boxes under the
+yellow **S** (SELECT turns them while SHIFT is held: the band changes at once); then six tiles: **P** the root and
+**A** the scale (the knobs, round badges), **PLAY** the tempo and swing (**SHIFT + PLAY** opens F3), **F1** undo and
+**F2** redo (their arrows dim with nothing there), **REC** the record settings' MODE (LIVE / STEP), **SEL** the track
+settings (the track's box with a gear); the black keys' shortcuts at the foot. (Before, the keyboard page showed only
+two rows and its black keys kept playing notes; the sound editor showed nothing.)
 
 | key | does |
 | --- | --- |
@@ -607,7 +634,11 @@ shortcuts act; SHIFT + a knob stays the editor's fine step).
 | **B9** | **double the track**: its looped pages copied after themselves, the loop twice as long ("FULL": no room) |
 | **B11** | **clear the track**: press twice within two seconds ("CLEAR?", B11 blinks; then "CLEARED"): its steps and locks, and its pages reset (page 1 only, each 16 steps); its sound and speed stay |
 | **F1 / F2** | **undo / redo** |
-| **SELECT** | **the track** (P1.5z): a track a detent, round 1..6, the big track picture (as FX + ALGORITHM). In every view, the sound editor (it shows the new track's sound), the browser (the preview is put back first, then you browse the new track), the mix and the effects; not while typing a name (there SELECT turns the letter). It was the keyboard's swing: the swing is F3 + ALGORITHM |
+| **PLAY** | **F3** (as PLAY held) |
+| **SEL** | the **track settings** (again: their next page) |
+| **REC** | the **record settings** |
+| **ALGORITHM / PRESETS** | the track's **scale / root** (a finger on a step: its strum / ramp) |
+| **SELECT** | **the track** (P1.5z): a track a detent, round 1..6; the SHIFT screen's band turns with it (the big track picture only once SHIFT did something else). In every view, the sound editor (it shows the new track's sound), the browser (the preview is put back first, then you browse the new track), the mix and the effects; not while typing a name (there SELECT turns the letter). It was the keyboard's swing: the swing is F3 + ALGORITHM |
 
 - The snapshot and the copied pattern stay until the unit is switched off; they are not saved with the project. One
   snapshot (the last stored), from whichever pattern; recalling puts it on the pattern you are on.
@@ -1050,20 +1081,25 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
   **project's global key** (every following track plays it); the picture says **GLOBAL** under the name.
 - This is temporary until the track settings page exists.
 
-## The global settings (SHIFT + SEL)
+## The global settings (HOME held)
 
-They stay open (OCT− or HOME back). For now:
+**Hold HOME** (half a second, from anywhere; 2026-11-10: they were SHIFT + SEL). They stay open (OCT− or HOME back);
+SELECT turns the pages (the dots at the top):
 
-- **KNOB 1 PAGE FOLLOW**: on / off (the same as on the track settings' second page).
+- Page 1: **KNOB 1 PAGE FOLLOW** on / off (the same as on the track settings' second page), **KNOB 2 BOOST**,
+  **KNOB 3 CLOCK OUT**, **KNOB 4 CC OUT**.
+- Page 2, **HOME**: **KNOB 1 HOME VIEW** chooses the Home view (PIANO ROLL, STEPS, EDIT, GEEK OUT, OVERVIEW; the
+  five drawn small, the chosen one lit), **KNOB 2 LOCK** on / off: locked, HOME clicks no longer cycle the views,
+  HOME always brings you back to that view (a padlock under it). Saved with the other settings.
+- Page 3 (the Bluetooth package): **BLUETOOTH** on / off and its state.
 
 ## The maps
 
 - Holding **F1**, **F2**, **SEL** or **SEQ**, or opening **F3**, shows its map: the black keys drawn where they are
   on the panel, each with an icon or a number (a page, a track, clear, copy, undo, a note value), lit by its state.
   No sentences: what each does is in this guide.
-- Holding **SHIFT** alone shows the controls SHIFT changes here (a knob, REC, F3, SEQ and a step, HOME, SEL), each
-  with its job's icon and its value now (the scale, the root, the swing, the next view, the record MODE; SEL
-  the settings), and under them the black keys with SHIFT's shortcuts (P1.5c).
+- Holding **SHIFT** alone shows the SHIFT screen (above: the track band, the six tiles, the black keys' shortcuts),
+  the same on every page.
 - A page change in the PIANO ROLL with page follow off: a crossed arrow at the top right (was FOLLOW OFF). The small
   dots over the columns mark the beats. The PIANO ROLL's top line no longer shows the tempo (turn it, or open F3).
 

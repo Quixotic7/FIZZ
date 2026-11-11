@@ -648,17 +648,20 @@ typedef struct {
 } ui_octave_t;
 void ui_octave_draw(const ui_octave_t *v);
 
-/* ---- SHIFT held (P1.3v: visual): a row per control SHIFT changes here: the control, the job's icon, its value now */
-enum { UI_SC_SELECT, UI_SC_ALGO, UI_SC_PRESETS, UI_SC_REC, UI_SC_F3_ALGO, UI_SC_SEQ_W,
-       UI_SC_SEL, UI_SC_HOME,          /* (P1.3y: SEL's button, HOME's) */
-       UI_SC_ARP };                    /* (P1.6d: ARP's: FILL) */
+/* ---- SHIFT held (2026-11-10, the owner's take A2 of mockups/fizz-shift.html; the same over every page): the track
+ * first (its number in a box of its colour, its kind, its name big in the kind's colour; the six tracks under SELECT's
+ * badge, the selected filled), then six tiles: P the root, A the scale (knobs: round badges); PLAY (F3) the tempo and
+ * the swing; F1 undo, F2 redo; REC the record settings' MODE; SEL the track settings (buttons: boxes with their printed
+ * names); the black keys' shortcuts at the foot */
 typedef struct {
-    int n;
-    int ctl[9];                         /* UI_SC_* */
-    int icon[9];                        /* UI_IC_*: what it does */
-    const char *val[9];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
-    int keys;                           /* P1.5c: the step view: its black-key shortcuts drawn under the rows .. */
-    int snap_ok, pclip_ok, metro, armed;   /* .. a snapshot to recall, a pattern to paste, the click on, B11 armed */
+    int track;                          /* 1..6, the selected */
+    int kind;                           /* its kind (-1 none) */
+    const char *name;                   /* its name */
+    const char *root, *scale;           /* "D", "DORIAN" */
+    int bpm, swing, ext;                /* the tempo, the swing %, an outside clock's tempo */
+    int rec_step;                       /* REC's MODE: STEP (else LIVE) */
+    int can_undo, can_redo;
+    int snap_ok, pclip_ok, metro, armed;   /* the keys: a snapshot to recall, a pattern to paste, the click on, B11 armed */
     int follow;                         /* .. P1.5z: page follow on (B8's glyph lit) */
 } ui_shift_t;
 void ui_shift_draw(const ui_shift_t *v);
@@ -689,9 +692,11 @@ typedef struct {
     int mout;                           /* .. FIZZ MIDI (c): MIDI OUT (0 OFF, 1..16) */
     int engine;                         /* .. (e): ENGINE, 0 FM TONE, 1 FM+MIDI (2026-11-10), 2 MIDI */
     int clk_out, cc_out;                /* SETTINGS: FIZZ MIDI (c): CLOCK OUT, CC OUT */
+    int set_page;                       /* SETTINGS: the page (2026-11-10: 1 HOME; the Bluetooth package: 2 BLUETOOTH) */
+    int home_view, home_lock;           /* .. HOME: the Home view (0 PIANO ROLL, 1 STEPS, 2 EDIT, 3 GEEK OUT, 4 OVERVIEW),
+                                         * LOCK */
 #if QD_PKG_BLE
-    int set_page, ble_on, ble_st;       /* SETTINGS (the Bluetooth package): the page (1: BLUETOOTH ON / OFF, its state:
-                                         * 0 OFF, 1 WAITING, 2 CONNECTED) */
+    int ble_on, ble_st;                 /* .. BLUETOOTH ON / OFF, its state: 0 OFF, 1 WAITING, 2 CONNECTED */
 #endif
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;

@@ -25,8 +25,9 @@
  *                     the tracks (lit: selected, dark: muted), B11 CLEAR (bright while a mute or solo is set)
  *   SEQ · PATTERNS    (ui_patterns_draw) the queued pattern big (else the playing one) with PLAY / STOP, a line
  *                     emptying to the change, the bank's sixteen as dots, the banks A..D (B1..B4), the launch mode
- *   SHIFT             a row per control SHIFT changes here: the control (a knob's badge, REC, F3, SEQ + a key), an
- *                     arrow, the job's icon and its value now (the scale, the root, the swing) */
+ *   SHIFT             (2026-11-10, take A2) the same over every page: the track band (its number boxed in its colour,
+ *                     its kind, its name big; the six under S), six tiles (P root, A scale, PLAY tempo / swing, F1
+ *                     undo, F2 redo, REC's MODE, SEL the track settings), the black keys' shortcuts at the foot */
 #include <math.h>
 #include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <string.h>
@@ -396,32 +397,34 @@ void ui_patterns_draw(const ui_patterns_t *v)
 }
 
 /* ---------------------------------------------------------------- SHIFT */
-/* the control as on the panel: a knob's badge (S A P, as the knob band's), REC's red button, F3 (the two OCT keys), SEQ
- * with a white key */
-static void control(int c, float cx, float cy)
+/* 2026-11-10 (the owner's take A2, mockups/fizz-shift.html takeA2): only the knobs are circles (S A P badges); the
+ * buttons are boxes with their printed names (F1, F2, SEL), PLAY a box with its triangle, REC a box with its red dot.
+ * Its fixed parts as data (a call each is the bigger code): {kind, x, y, w, h, colour}; kinds: 0 a tile (30 high), 1 a
+ * button's box, 2 a filled bar, 3 a filled dot (radius w / 2), 4 the track's number box (filled), 5 a key (outlined) */
+static const uint8_t SH_PRIM[][6] = {
+    {0, 8, 76, 110, 0, 3}, {0, 122, 76, 110, 0, 3}, {0, 8, 112, 110, 0, 3}, {0, 122, 112, 53, 0, 3},
+    {0, 179, 112, 53, 0, 3}, {0, 8, 148, 110, 0, 3}, {0, 122, 148, 110, 0, 3},
+    {4, 8, 8, 34, 34, 2},                                                 /* the track's number box */
+    {3, 152, 52, 17, 0, 4}, {3, 22, 91, 17, 0, 0}, {3, 136, 91, 17, 0, 0},   /* S, P, A */
+    {5, 36, 84, 5, 14, 0}, {5, 41, 84, 5, 14, 0}, {5, 47, 84, 5, 14, 0},       /* P: the root, three keys .. */
+    {2, 40, 84, 3, 8, 0}, {2, 45, 84, 3, 8, 0},                                /* .. two black */
+    {2, 148, 95, 3, 4, 0}, {2, 152, 92, 3, 7, 0}, {2, 157, 90, 3, 9, 0}, {2, 161, 87, 3, 12, 0},   /* A: the scale */
+    {2, 166, 85, 3, 12, 0},
+    {1, 13, 119, 22, 16, 0},                                              /* PLAY's box */
+    {1, 13, 155, 22, 16, 1}, {3, 24, 163, 7, 0, 1},                       /* REC's box, its dot */
+    {1, 163, 154, 16, 16, 2},                                             /* SEL's tile: the track's box */
+};
+static void sh_button(const char *nm, float x, float y, qd_rgb col)
 {
-    static const char *const BADGE[3] = {"S", "A", "P"};
-    if (c >= UI_SC_SELECT && c <= UI_SC_PRESETS) {
-        const qd_rgb bc = c == UI_SC_SELECT ? UI_KSEL : UI_K3;
-        ui_O(cx, cy, 10.f, QD_NONE, 1.f, bc);
-        ui_T(BADGE[c - UI_SC_SELECT], cx, cy + 4.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
-    } else if (c == UI_SC_REC) {
-        ui_O(cx, cy, 10.f, UI_RED, 1.3f, QD_NONE);
-        ui_O(cx, cy, 4.5f, QD_NONE, 1.f, UI_RED);
-    } else if (c == UI_SC_F3_ALGO) {                    /* the two OCT keys, then ALGORITHM's badge */
-        ui_RR(cx - 22.f, cy - 6.f, 9.f, 12.f, 2.f, UI_K3, 1.2f, QD_NONE);
-        ui_RR(cx - 11.f, cy - 6.f, 9.f, 12.f, 2.f, UI_K3, 1.2f, QD_NONE);
-        ui_O(cx + 10.f, cy, 10.f, QD_NONE, 1.f, UI_K3);
-        ui_T("A", cx + 10.f, cy + 4.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
-    } else if (c == UI_SC_SEQ_W) {                      /* SEQ's button, then a white key */
-        ui_RR(cx - 20.f, cy - 6.f, 18.f, 12.f, 3.f, UI_K3, 1.2f, QD_NONE);
-        ui_icon(UI_IC_KEY, cx + 8.f, cy, 1.f, UI_K3);
-    } else if (c == UI_SC_SEL || c == UI_SC_HOME || c == UI_SC_ARP) {   /* P1.3y: a button with its printed name */
-        const char *nm = c == UI_SC_SEL ? "SEL" : c == UI_SC_ARP ? "ARP" : "HOME";
-        const float w = ui_TW(nm, 12.f, 700, 0.5f) + 10.f;
-        ui_RR(cx - w / 2.f, cy - 9.f, w, 18.f, 4.f, UI_K3, 1.2f, QD_NONE);
-        ui_T(nm, cx, cy + 4.5f, 12.f, 700, 0.5f, UI_K3, QD_CENTER);
-    }
+    const float w = ui_TW(nm, 12.f, 700, 0.f) + 8.f;
+    ui_RR(x - w / 2.f, y - 8.f, w, 16.f, 3.5f, col, 1.2f, QD_NONE);
+    ui_T(nm, x, y + 4.3f, 12.f, 700, 0.f, col, QD_CENTER);
+}
+static void sh_val(const char *val, float right, float y, float room, float size, qd_rgb col)   /* right-aligned, fitted */
+{
+    const float w = ui_TW(val, size, 400, 0.f);
+    float sz = w > room ? size * room / w : size;
+    ui_T(val, right, y, sz < 12.f ? 12.f : sz, 400, 0.f, col, QD_RIGHT);
 }
 
 /* P1.5c: SHIFT's black-key shortcuts, the keys drawn where they are, each its glyph (none: dark) */
@@ -430,10 +433,10 @@ static void shift_keys(const ui_shift_t *v)
     static const uint8_t SK[11] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1};   /* (ctl_shift.c QD_SHIFT_KEYS; P1.5z: B8) */
     int i;
     for (i = 0; i < 11; i++) {
-        const float x = 10.f + (float)i * 20.4f, cx = x + 9.f, cy = 210.f;
+        const float x = 10.f + (float)i * 20.4f, cx = x + 9.f, cy = 211.f;   /* (2026-11-10: 38 px from 192) */
         const qd_rgb c = !SK[i] ? UI_G3 : (i == 2 && !v->snap_ok) || (i == 4 && !v->pclip_ok) ? UI_G2
-                       : i == 10 && v->armed ? UI_K4 : i == 6 && v->metro ? UI_K2 : i == 7 && v->follow ? UI_K2 : UI_K3;
-        ui_RR(x, 190.f, 18.f, 40.f, 4.f, c, SK[i] ? 1.4f : 1.f, QD_NONE);
+                       : i == 10 ? UI_K4 : i == 6 && v->metro ? UI_K2 : i == 7 && v->follow ? UI_K2 : UI_K3;
+        ui_RR(x, 192.f, 18.f, 38.f, 4.f, c, !SK[i] ? 1.f : i == 10 && v->armed ? 2.4f : 1.4f, QD_NONE);
         switch (i) {
         case 0:                                         /* the snapshot stored: a frame, its shutter, filled */
             ui_RR(cx - 6.f, cy - 4.f, 12.f, 9.f, 2.f, c, 1.2f, QD_NONE);
@@ -470,28 +473,72 @@ static void shift_keys(const ui_shift_t *v)
 
 void ui_shift_draw(const ui_shift_t *v)
 {
-    const int n = v->n < 0 ? 0 : v->n > 9 ? 9 : v->n;
-    const float sp = v->keys ? (n > 1 ? 136.f / (float)(n - 1) : 0.f)   /* (P1.5c: the keys below: the rows tighter) */
-                   : n > 5 ? 182.f / (float)(n - 1 > 0 ? n - 1 : 1) : 40.f;
-    const float y0 = v->keys ? 40.f : n > 5 ? 44.f : 58.f;
-    const float big = v->keys ? 15.f : n > 5 ? 18.f : 20.f;
-    int i;
-    ui_head("SHIFT", 0, 0, UI_K3, UI_G1);
-    for (i = 0; i < n; i++) {
-        const float y = y0 + (float)i * sp;
-        const float a[6] = {78.f, y - 4.f, 84.f, y, 78.f, y + 4.f};
-        control(v->ctl[i], 34.f, y);
-        line2(64.f, y, 84.f, y, UI_G2, 1.2f);
-        ui_P(a, 3, UI_G2, 1.2f, 0, QD_NONE);
-        ui_icon(v->icon[i], 106.f, y, 1.4f, UI_K3);
-        if (v->val[i] && v->val[i][0]) {                /* its value now, as big as fits */
-            const float w = ui_TW(v->val[i], big, 300, 0.f);
-            const float sz = w > 104.f ? big * 104.f / w : big;
-            ui_T(v->val[i], 128.f, y + 7.f, sz < 12.f ? 12.f : sz, sz < 16.f ? 500 : 300, 0.f, UI_K3, QD_LEFT);
+    static const char *const BADGE[3] = {"S", "P", "A"};
+    const int t = v->track < 1 ? 0 : (v->track - 1) % UI_NTRACK;
+    const qd_rgb tc = UI_TRACK_PAL[t], kc = v->kind >= 0 && v->kind < 7 ? UI_PK_COL[v->kind] : UI_K3;
+    const qd_rgb COL[5] = {UI_K3, UI_RED, tc, UI_G3, UI_KSEL};
+    const char *nm = v->name ? v->name : "";
+    char n[12], sw[8];
+    float nw, x;
+    size_t i;
+    const int lsc = ui_TW(v->scale ? v->scale : "", 12.f, 400, 0.f) > 52.f;   /* (a long scale name: no staircase) */
+    qd_fill_rect(0.f, 0.f, (float)QD_W, (float)QD_H, UI_BG);
+    for (i = 0; i < sizeof SH_PRIM / sizeof SH_PRIM[0]; i++) {
+        const uint8_t *p = SH_PRIM[i];
+        if (lsc && i >= 16 && i <= 20)
+            continue;
+        const float px = p[1], py = p[2], pw = p[3], ph = p[4];
+        const qd_rgb c = COL[p[5]];
+        switch (p[0]) {
+        case 0: ui_RR(px, py, pw, 30.f, 6.f, c, 1.2f, QD_NONE); break;
+        case 1: ui_RR(px, py, pw, ph, 3.5f, c, 1.3f, QD_NONE); break;
+        case 2: ui_RR(px, py, pw, ph, 0.8f, QD_NONE, 1.f, c); break;
+        case 3: ui_O(px, py, pw / 2.f, QD_NONE, 1.f, c); break;
+        case 4: ui_RR(px, py, pw, ph, 7.f, QD_NONE, 1.f, c); break;
+        default: ui_RR(px, py, pw, ph, 1.2f, c, 1.2f, QD_NONE); break;
         }
     }
-    if (v->keys)
-        shift_keys(v);
+    for (i = 0; i < 3; i++)                             /* the knobs' letters */
+        ui_T(BADGE[i], SH_PRIM[8 + i][1], SH_PRIM[8 + i][2] + 4.3f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+    /* the track band: its number, its kind, its name big in the kind's colour; SELECT's six, the selected filled */
+    ui_T(ui_itoa(n, t + 1), 25.f, 33.f, 24.f, 700, 0.f, UI_BG, QD_CENTER);
+    x = 50.f;
+    if (v->kind >= 0) {
+        ui_kind_icon(v->kind, 58.f, 25.f, 1.3f, kc);
+        x = 74.f;
+    }
+    nw = ui_TW(nm, 26.f, 300, 0.f);
+    ui_T(nm, x, 35.f, nw > 232.f - x ? 26.f * (232.f - x) / nw : 26.f, 300, 0.f, kc, QD_LEFT);
+    for (i = 0; i < UI_NTRACK; i++)
+        ui_RR(166.f + (float)i * 11.3f, 45.f, 9.f, 14.f, 2.f, (int)i == t ? UI_TRACK_PAL[i] : UI_G2, 1.1f,
+              (int)i == t ? UI_TRACK_PAL[i] : QD_NONE);
+    line2(8.f, 68.f, 232.f, 68.f, UI_G3, 1.f);
+    /* the values: P the root, A the scale; PLAY (F3) the tempo, the swing; REC's MODE */
+    sh_val(v->root ? v->root : "", 110.f, 97.f, 50.f, 16.f, UI_K3);
+    sh_val(v->scale ? v->scale : "", 224.f, 97.f, lsc ? 76.f : 52.f, 16.f, UI_K3);
+    {
+        const float tri[6] = {21.f, 122.5f, 28.5f, 127.f, 21.f, 131.5f};
+        ui_P(tri, 3, UI_K3, 1.f, 1, UI_K3);
+    }
+    sh_val(ui_itoa(n, v->bpm), 64.f, 133.f, 26.f, 15.f, v->ext ? UI_G1 : UI_K3);
+    ui_icon(UI_IC_SWING, 75.f, 127.f, 1.f, UI_K3);
+    sw[0] = 0;
+    cat(cat(sw, ui_itoa(n, v->swing)), "%");
+    sh_val(sw, 112.f, 133.f, 30.f, 13.f, UI_K3);
+    ui_icon(UI_IC_GEAR, 50.f, 163.f, 1.15f, UI_RED);
+    sh_val(v->rec_step ? "STEP" : "LIVE", 110.f, 169.f, 52.f, 16.f, UI_RED);
+    /* F1 undo, F2 redo: their arrows (dim with nothing there) */
+    for (i = 0; i < 2; i++) {
+        sh_button(i ? "F2" : "F1", 137.f + (float)i * 57.f, 127.f, UI_K3);
+        ui_icon(i ? UI_IC_RIGHT : UI_IC_LEFT, 160.f + (float)i * 57.f, 127.f, 1.2f,
+                (i ? v->can_redo : v->can_undo) ? UI_K3 : UI_G2);
+    }
+    /* SEL: the track settings: the track's box (its number) with a small gear */
+    sh_button("SEL", 140.f, 163.f, tc);
+    ui_T(ui_itoa(n, t + 1), 171.f, 166.5f, 12.f, 700, 0.f, tc, QD_CENTER);
+    ui_O(179.f, 169.f, 5.5f, QD_NONE, 1.f, UI_BG);
+    ui_icon(UI_IC_GEAR, 179.f, 169.f, 0.75f, tc);
+    shift_keys(v);
 }
 
 /* ---------------------------------------------------------------- P1.3y: the settings menus */
@@ -715,13 +762,62 @@ static __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /* (noinli
 }
 #endif
 
+/* 2026-11-10 (owner): SETTINGS' page 2, HOME, on the track settings' grid (TRK_Y: four rows 53.25 px apart, the value
+ * 26 px at the right): KNOB 1 HOME VIEW (its name), KNOB 2 LOCK (ON / OFF, a padlock shut or open); under them the five
+ * Home views as five little screens in HOME's order, the chosen one lit in KNOB 1's colour; unlocked an arrow along
+ * them (HOME clicks go round), locked the padlock over the chosen one */
+static void padlock(float cx, float cy, int shut, qd_rgb col)   /* its shackle (open: lifted), its body */
+{
+    ui_RR(cx - 4.f, cy - (shut ? 6.f : 10.f), 8.f, 10.f, 4.f, col, 1.8f, QD_NONE);
+    ui_RR(cx - 6.5f, cy - 1.f, 13.f, 10.f, 2.f, QD_NONE, 1.f, col);
+}
+static __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /* (noinline: the Bluetooth package's second
+                                                         * blob, as menu_set2) */
+{
+    static const char *const VN[5] = {"PIANO ROLL", "STEPS", "EDIT", "GEEK OUT", "OVERVIEW"};
+    const int hv = v->home_view < 0 || v->home_view > 4 ? 0 : v->home_view;
+    int k, i;
+    for (k = 0; k < 2; k++) {
+        const float y = 40.f + (float)k * 53.25f, vy = y + 30.f;
+        const char *val = k == 0 ? VN[hv] : v->home_lock ? "ON" : "OFF";
+        const qd_rgb col = k == 0 || v->home_lock ? KCOL[k] : UI_G2;
+        const float w = ui_TW(val, 26.f, 300, 0.f), sz = w > 150.f ? 26.f * 150.f / w : 26.f;
+        menu_row_sz(k, y, k == 0 ? "HOME VIEW" : "LOCK", 0, 0.f);
+        ui_T(val, 232.f, vy, sz, 300, 0.f, col, QD_RIGHT);
+        if (k == 1)
+            padlock(232.f - (w > 150.f ? 150.f : w) - 18.f, vy - 9.f, v->home_lock, col);
+    }
+    for (k = 0; k < 5; k++) {                           /* the five views, small: a few bars each (x, y, w, h) */
+        static const uint8_t TH[5][6][4] = {
+            {{5, 24, 7, 4}, {13, 18, 7, 4}, {21, 26, 7, 4}, {29, 12, 6, 4}},                  /* PIANO ROLL: notes */
+            {{5, 6, 30, 4}, {5, 13, 30, 12}, {5, 28, 30, 4}},                                 /* STEPS: a row open */
+            {{11, 5, 18, 18}, {5, 29, 30, 6}},                                                /* EDIT: the picture, the row */
+            {{6, 26, 5, 8}, {14, 20, 5, 14}, {22, 14, 5, 20}, {30, 8, 5, 26}},                /* GEEK OUT: meters */
+            {{6, 5, 28, 3}, {6, 10, 28, 3}, {6, 15, 28, 3}, {6, 20, 28, 3}, {6, 25, 28, 3}, {6, 30, 28, 3}},   /* OVERVIEW */
+        };
+        const float x = 12.f + (float)k * 44.f, y = 160.f;
+        const qd_rgb c = k == hv ? KCOL[0] : UI_G2;
+        ui_RR(x, y, 40.f, 40.f, 5.f, c, k == hv ? 2.f : 1.2f, QD_NONE);
+        for (i = 0; i < 6 && TH[k][i][2]; i++)
+            ui_RR(x + TH[k][i][0], y + TH[k][i][1], TH[k][i][2], TH[k][i][3], 1.f, QD_NONE, 1.f, c);
+    }
+    if (v->home_lock)                                   /* locked: the padlock under the chosen one */
+        padlock(32.f + (float)hv * 44.f, 214.f, 1, KCOL[1]);
+    else                                                /* HOME clicks go round */
+        ui_icon(UI_IC_RIGHT, 120.f, 216.f, 2.f, UI_G1);
+}
+
 static void menu_set(const ui_menu_t *v)
 {
     int k;
     menu_head("SETTINGS");
-#if QD_PKG_BLE
-    for (k = 0; k < 2; k++)                             /* the pages' dots, where the track settings' are */
+    for (k = 0; k < (QD_PKG_BLE ? 3 : 2); k++)          /* the pages' dots, where the track settings' are */
         ui_O(170.f + (float)k * 9.f, 14.f, 2.6f, k == v->set_page ? UI_K3 : UI_G2, 1.f, k == v->set_page ? UI_K3 : QD_NONE);
+    if (v->set_page == 1) {
+        menu_home(v);
+        return;
+    }
+#if QD_PKG_BLE
     if (v->set_page) {
         menu_set2(v);
         return;

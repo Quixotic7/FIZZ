@@ -43,12 +43,13 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
     const qd_ui_t *u = &a->ui;
     const int keys = u->mode == QD_MODE_KEYS;
     lb_set(o, LB_BTN(QD_B_TRACKS), "EFFECTS");
-    lb_set(o, LB_BTN(QD_B_PATTERN), "TRACK SET");
+    lb_set(o, LB_BTN(QD_B_PATTERN), "OVERVIEW");     /* (2026-11-10: SEL tapped; SHIFT + SEL the track settings) */
     lb_set(o, LB_BTN(QD_B_PAGE), "MIX");
     lb_set(o, LB_BTN(QD_B_MUTE), !u->slatch ? "LATCH" : u->lmode == QD_LMODE_MODES ? "MODES" : "VALUES");
     lb_set(o, LB_BTN(QD_B_SOUND), "EDIT");
     lb_set(o, LB_BTN(QD_B_FUNC), "SHIFT");
-    lb_set(o, LB_BTN(QD_B_HOME), "HOME");
+    lb_set(o, LB_BTN(QD_B_HOME), u->mode == QD_MODE_STEP && !u->latch && !u->slatch && u->ov_back < 0 &&
+                                     !u->home_lock ? "NEXT VIEW" : "HOME");   /* (2026-11-10: clicks the views) */
     lb_set(o, LB_BTN(QD_B_SAVE), "SAVE");
     lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (a tap the MIDI FX screen; held or SHIFT + ARP the MIDI FX on / off) */
     lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");          /* (held; T1b: tapped TOOLS) */
@@ -243,54 +244,32 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_BTN(QD_B_FUNC), "TAGS");
         return;
     }
-    if (shift && step && (!u->latch || u->latch == QD_LATCH_F3 || u->latch == QD_LATCH_SND ||
-                          u->latch == QD_LATCH_MFX)) {   /* SHIFT's (P1.6c: the MIDI FX screen's too) */
+    if (shift && qd_ctl_shift_page(a)) {                /* SHIFT's (2026-11-10: the same on every page, the keyboard
+                                                         * page too) */
         static const char *const SK[11] = {"SNAP SAVE", "", "RECALL", "COPY PTN", "PASTE", "TAP", "CLICK", "FOLLOW",
                                            "DOUBLE", "", "CLEAR TRK"};
+        const int finger = u->wk_down || (u->nheld && !u->slatch);
         for (i = 0; i < 11; i++)
             lb_set(o, LB_B(i), QD_SHIFT_KEYS[i] ? SK[i] : "");
         for (i = 0; i < 16; i++)
-            lb_set(o, LB_W(i), "");
+            lb_set(o, LB_W(i), u->latch == QD_LATCH_MFX && qd_mfx_lane_page(a) ? "RANDOM" : "");   /* (P1.6c: the MIDI
+                                                         * FX screen: a lane's W a random value) */
         for (k = QD_K_SELECT; k <= QD_K_4; k++)
-            lb_set(o, LB_KNOB(k), "");
+            lb_set(o, LB_KNOB(k), k >= QD_K_1 && (step || finger) ? "FINE" : "");
         lb_set(o, LB_KNOB(QD_K_SELECT), "TRACK");
-        lb_set(o, LB_BTN(QD_B_SAVE), "PROJECT");      /* (T1b: SHIFT + SAVE) */
-        if (u->latch == QD_LATCH_MFX) {                 /* (P1.6c: the MIDI FX screen: a lane's W a random value) */
-            if (qd_mfx_lane_page(a))
-                for (i = 0; i < 16; i++)
-                    lb_set(o, LB_W(i), "RANDOM");
-        } else if (u->latch == QD_LATCH_SND && !qd_snd_keys(a)) {   /* (the editor: SHIFT + a knob the finest step) */
-            for (k = QD_K_ALGO; k <= QD_K_4; k++)
-                if (k != QD_K_PRESETS)
-                    lb_set(o, LB_KNOB(k), "FINE");
-        } else if (u->nheld) {
-            lb_set(o, LB_KNOB(QD_K_ALGO), u->hmode == UI_F_RATCH ? "RAMP" : "STRUM");
-        } else {
-            lb_set(o, LB_KNOB(QD_K_ALGO), "SCALE");
-            lb_set(o, LB_KNOB(QD_K_PRESETS), "ROOT");
-            for (k = QD_K_1; k <= QD_K_4; k++)
-                lb_set(o, LB_KNOB(k), "FINE");
-        }
+        lb_set(o, LB_KNOB(QD_K_ALGO), !finger ? "SCALE" : u->hmode == UI_F_RATCH ? "RAMP" : "STRUM");
+        lb_set(o, LB_KNOB(QD_K_PRESETS), finger ? "" : "ROOT");
         memset(o->s[QD_LBL_BTN0], 0, (size_t)QD_NBTN * QD_LBL_LEN);
         lb_set(o, LB_BTN(QD_B_FUNC), "SHIFT");
         lb_set(o, LB_BTN(QD_B_OCTDN), "UNDO");
         lb_set(o, LB_BTN(QD_B_OCTUP), "REDO");
-        lb_set(o, LB_BTN(QD_B_HOME), "VIEW");
+        lb_set(o, LB_BTN(QD_B_PLAY), "F3");             /* (2026-11-10: SHIFT + PLAY, as PLAY held) */
         lb_set(o, LB_BTN(QD_B_REC), "REC SET");
-        lb_set(o, LB_BTN(QD_B_PATTERN), "SETTINGS");
+        lb_set(o, LB_BTN(QD_B_PATTERN), "TRACK SET");   /* (2026-11-10: SHIFT + SEL the track settings) */
+        lb_set(o, LB_BTN(QD_B_SAVE), "PROJECT");        /* (T1b: SHIFT + SAVE) */
         lb_set(o, LB_BTN(QD_B_MIX), "AT ONCE");
         lb_set(o, LB_BTN(QD_B_KEYS), "MFX ON/OFF");    /* (2026-10-25: SHIFT + ARP the MIDI FX bypass ..) */
         lb_set(o, LB_BTN(QD_B_TRACKS), "FILL");        /* (.. SHIFT + FX held FILL) */
-        return;
-    }
-    if (shift && u->mode == QD_MODE_KEYS) {             /* the keyboard, SHIFT: the scale, the root, the track */
-        lb_set(o, LB_KNOB(QD_K_SELECT), "TRACK");
-        lb_set(o, LB_KNOB(QD_K_ALGO), "SCALE");
-        lb_set(o, LB_KNOB(QD_K_PRESETS), "ROOT");
-        lb_set(o, LB_BTN(QD_B_REC), "REC SET");
-        lb_set(o, LB_BTN(QD_B_OCTDN), "UNDO");
-        lb_set(o, LB_BTN(QD_B_OCTUP), "REDO");
-        lb_notes(a, o, 0);
         return;
     }
     if (qd_ctl_b11(a)) {                                /* 2026-11-10: B11 held, every page: the pages, the W keys
@@ -308,20 +287,20 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
     if (QD_MENU_UP(u)) {              /* the settings menus */
         static const char *const REC[4] = {"MODE", "QUANTIZE", "TAKE", "EDIT KEYS"};
         static const char *const SET[4] = {"FOLLOW", "BOOST", "CLOCK OUT", "CC OUT"};
+        static const char *const SETH[4] = {"HOME VIEW", "LOCK", "", ""};   /* (2026-11-10: SETTINGS' page 2) */
         static const char *const TRK[3][4] = {{"MODE", "SCALE", "ROOT", "MIDI CH"},
                                               {"VOICES", "SWING", "FOLLOW", "MIDI FX"},
                                               {"KIND", "NAME", "ENGINE", "MIDI OUT"}};   /* (P1.6d: page 3; FIZZ MIDI
                                                          * (c): MIDI OUT) */
         static const char *const REC2[4] = {"AUTOMATION", "", "", ""};   /* P1.6d: the record settings' page 2 */
 #if QD_PKG_BLE
-        static const char *const SET2[4] = {"BLUETOOTH", "STATUS", "", ""};   /* (the Bluetooth package's page 2) */
-        const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC)
-                             : u->latch == QD_LATCH_SET ? (u->set_page ? SET2 : SET)
-                             : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];
+        static const char *const SET2[4] = {"BLUETOOTH", "STATUS", "", ""};   /* (the Bluetooth package's page 3) */
 #else
-        const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC) : u->latch == QD_LATCH_SET ? SET
-                             : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];
+        const char *const *SET2 = SET;
 #endif
+        const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC)
+                             : u->latch == QD_LATCH_SET ? (u->set_page == 1 ? SETH : u->set_page ? SET2 : SET)
+                             : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), r[k]);
         if (u->latch == QD_LATCH_TRK) {
@@ -332,10 +311,8 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         }
         if (u->latch == QD_LATCH_REC)
             lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
-#if QD_PKG_BLE
-        if (u->latch == QD_LATCH_SET)                   /* (the Bluetooth package: SETTINGS' two pages) */
+        if (u->latch == QD_LATCH_SET)                   /* (SETTINGS' pages: 2026-11-10 HOME; BLUETOOTH) */
             lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
-#endif
         lb_set(o, LB_BTN(QD_B_OCTDN), "BACK");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
@@ -545,6 +522,23 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     lb_modes(a, o);                                     /* nothing held: the black keys the hold modes */
+    if (QD_OV_ON(a) && !u->latch && !qd_ctl_latch_modes(a)) {   /* 2026-11-10: OVERVIEW: the tracks, B9 the mutes and
+                                                         * solos off; KNOB 1..4 the track's rate, volume, start, end */
+        static const char *const OVK[4] = {"RATE", "VOLUME", "START", "END"};
+        for (i = 0; i < 10; i++)
+            lb_set(o, LB_B(i), "");
+        for (i = 0; i < QD_NTRACK; i++)
+            lb_setn(o, LB_B(i), "TRACK ", i + 1);
+        lb_set(o, LB_B(8), "CLEAR M/S");
+        for (k = 0; k < 4; k++)
+            lb_set(o, LB_KNOB(QD_K_1 + k), OVK[k]);
+        lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
+        lb_set(o, LB_KNOB(QD_K_ALGO), "STEP");
+        lb_set(o, LB_KNOB(QD_K_PRESETS), "PRESETS");
+        if (qd_snd_keys(a))                             /* (a B11 click's keys) */
+            lb_notes(a, o, !a->proj.rec_ekeys);
+        return;
+    }
     if (qd_snd_keys(a))                                 /* 2026-11-10: a B11 click's keys */
         lb_notes(a, o, !a->proj.rec_ekeys);
     lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");

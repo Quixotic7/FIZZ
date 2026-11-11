@@ -488,9 +488,11 @@ int qd_rec_knob(qd_app_t *a, int knob, int d)
 void qd_rec_midi_note(qd_app_t *a, int note, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
-    const int keys = u->mode == QD_MODE_KEYS && (u->nheld || u->wk_pending) && !u->rec && !u->latch;   /* (a step
-                                                         * held there too: its W keys the steps, a B11 click) */
-    if (keys || (u->mode == QD_MODE_STEP && (u->nheld || u->wk_pending))) {
+    const int keys = (u->nheld || u->wk_pending) && !u->rec && ((u->mode == QD_MODE_KEYS && !u->latch) ||
+                                                                 qd_snd_keys(a));   /* (a step held there too: its W
+                                                         * keys the steps, a B11 click; 2026-11-10: a B11 click's keys
+                                                         * on the other pages, armed recording first) */
+    if (keys || (u->mode == QD_MODE_STEP && (u->nheld || u->wk_pending) && !(qd_snd_keys(a) && u->rec))) {
         qd_step_promote_all(a);
         if (down) {
             if (!u->midi_n) {

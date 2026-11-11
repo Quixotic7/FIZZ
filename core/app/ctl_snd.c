@@ -419,6 +419,12 @@ int qd_keys_on(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS || qd_snd_
 
 /* P1.5b: the editor's SCALE keys: W1 the root at the keyboard's octave (octave 3 + the shift: C3 = 48), then each
  * degree of the track's scale upwards (chromatic: a semitone each) */
+/* 2026-11-10: the note a key plays with a B11 click's keys on (SCALE: a W key the scale's; FULL, a black key: the
+ * keyboard's) */
+int qd_snd_key_note(const qd_app_t *a, int key)
+{
+    return a->proj.rec_ekeys || qd_ctl_white(key) < 0 ? qd_rec_key_note(a, key) : qd_snd_scale_note(a, qd_ctl_white(key));
+}
 int qd_snd_scale_note(const qd_app_t *a, int w)
 {
     int sc, rt;
@@ -465,10 +471,7 @@ void qd_snd_button(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     if (qd_snd_open(a)) {
-        const int keys = u->ekeys;
-        qd_latch_close(a);
-        if (keys)
-            qd_ctl_set_mode(a, QD_MODE_KEYS);
+        qd_latch_close(a);                              /* (2026-11-10: the keys stay as they are, a global flag) */
         return;
     }
     qd_latch_open(a, QD_LATCH_SND);

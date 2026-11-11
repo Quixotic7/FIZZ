@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
-# 2026-11-10: OVERVIEW (the fifth view, mockups/fizz-overview.html take A) on the unit's build: SHIFT + HOME from EDIT
+# 2026-11-10: OVERVIEW (the fifth view, mockups/fizz-overview.html take A) on the unit's build: HOME clicks from EDIT
 # past GEEK OUT; the demo's A02 playing, B2 tapped selects the bass, B4 held mutes track 4, W1 makes / removes a step
-# of the selected track, SELECT turns the page; HOME keeps the view, SHIFT + HOME goes on to the PIANO ROLL.
+# of the selected track, SELECT turns the page; a HOME click goes on to the PIANO ROLL (the owner, later that day:
+# HOME clicks cycle the views; SHIFT + HOME no more).
 #   firmware/build.py --host, then
 #   firmware/app/build/host/fizz_host firmware/app/tests/overview.txt firmware/app/build/overview
 expect fz_up 1
@@ -16,15 +17,14 @@ release SEQ
 wait 300
 expect fz_pattern 1
 expect fz_tools 0
-# SHIFT + HOME: EDIT -> GEEK OUT (METERS) -> OVERVIEW
-press GLO
+# the patterns' map latched (a SEQ hold): HOME's first click closes it; then EDIT -> GEEK OUT (METERS) -> OVERVIEW
 tap HOME
-release GLO
+wait 100
+expect fz_view 2
+tap HOME
 wait 100
 expect fz_view 3
-press GLO
 tap HOME
-release GLO
 wait 300
 expect fz_view 8
 shot overview-stopped.png
@@ -60,13 +60,8 @@ expect fz_view 8
 shot overview-playing-a02.png
 wait 333
 shot overview-playing-a02-b.png
-# HOME keeps the view
+# HOME: the next view, the PIANO ROLL
 tap HOME
-wait 100
-expect fz_view 8
-press GLO
-tap HOME
-release GLO
 wait 100
 expect fz_view 0
 expect fz_lcd_stale 0

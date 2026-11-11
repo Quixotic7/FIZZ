@@ -143,7 +143,18 @@
  * scale, qd_snd_keys on HOME, the editor, the effects, the mix, TOOLS; the MIDI FX screen its KEYS mode; the
  * keyboard page ksteps: its W keys the steps), never the lock. REC tapped: the keyboard page from anywhere, there it
  * arms (rec_arm); the keyboard's SELECT the page; F3's SELECT the page, PRESETS the tempo. TOOLS: B6 HUMANIZE /
- * QUANTIZE, B7 the scope; MIDI FX: B9 removes. */
+ * QUANTIZE, B7 the scope; MIDI FX: B9 removes.
+ * 2026-11-10 (the owner's third pass; supersedes the HOME, SEL and SHIFT lines above): SEL TAPPED opens OVERVIEW at
+ * once (ov_back: the view it came from; SEL again or HOME's first click go back); SHIFT + SEL the track settings;
+ * HOME: from another page (home_away) its press comes back, on the Home view a click (at the release) the next view
+ * (qd_ctl_next_view); HOME held QD_HOME_HOLD_MS the global settings (QD_LATCH_SET), page 2 HOME: KNOB 1 the Home view,
+ * KNOB 2 LOCK (home_lock, saved: no cycling). OVERVIEW, nothing held (when_ov): KNOB 1..4 the track's rate, volume,
+ * start, end (qd_ctl_ov_knob, QD_TK_OVKNOB's band); B9 every mute and solo off; B11 the hold key there too. SHIFT
+ * (qd_ctl_shift_page): the same shortcuts, screen and LEDs on every page but the library's (SHIFT + ALGORITHM /
+ * PRESETS the scale / root everywhere, SHIFT + PLAY F3, the W keys nothing where they play). The W keys' steps / keys
+ * (ekeys) one global flag: only a B11 click turns it (the keyboard page's ksteps its own, reset on entry); with steps
+ * selected the orange keys write chords into them (qd_rec_midi_note) and light the first one's notes
+ * (qd_keys_step_leds; the keyboard page alike); PLAY held opens F3 from the keyboard page too. */
 #pragma once
 #include <stdint.h>
 
@@ -177,6 +188,8 @@ struct qd_app;
 #define QD_SEQ_HOLD_MS 400u            /* SEQ + W held this long: the pattern at once (a tap: queued) */
 #define QD_CLEAR_HOLD_MS 600u          /* F1 + B9 held this long: the track cleared (a tap: the page) */
 #define QD_PLAY_HOLD_MS 400u           /* P1.3x: PLAY held this long: F3 (a tap plays / stops on its release) */
+#define QD_HOME_HOLD_MS 500u           /* 2026-11-10 (owner): HOME held this long: the global settings (a click: the
+                                        * Home view, the next one) */
 #define QD_REC_HOLD_MS 400u            /* P1.3x: REC held this long: live recording armed (a tap: the keyboard) */
 #define QD_PREVIEW_MS 300u             /* a note turned on a knob sounds this long */
 #define QD_OCT_SLIDE_MS 350u           /* the octave takeover's keyboard slides this long */
@@ -198,7 +211,7 @@ enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT,     /* P1.3e: the sequencer's 
 #define QD_VIEW_GEEK(v) ((v) >= QD_VIEW_METERS && (v) <= QD_VIEW_TRACKS)
 #define QD_VIEW_ROWS(v) ((v) == QD_VIEW_STEPS || (v) == QD_VIEW_EDIT)   /* P1.3r: the views drawing the pages' rows */
 #define QD_VIEW_NOPICK(v) (QD_VIEW_ROWS(v) || (v) == QD_VIEW_OVERVIEW)   /* .. and OVERVIEW: SELECT's page, no picker */
-/* 2026-11-10: OVERVIEW on screen's keys: B1..B6 the tracks as the mix's (tap, hold, double tap), B11 mutes and solos
+/* 2026-11-10: OVERVIEW on screen's keys: B1..B6 the tracks as the mix's (tap, hold, double tap), B9 mutes and solos
  * off; the W keys the selected track's steps as STEPS' */
 #define QD_OV_ON(a) ((a)->ui.mode == QD_MODE_STEP && (a)->ui.view == QD_VIEW_OVERVIEW)
 /* the hold modes (B1..B10): UI_F_* (ui.h) */
@@ -217,6 +230,8 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_ARP_HOLD_MS 400u            /* P1.6d: ARP held this long (T1b: the arp on / off; a tap: the MIDI FX screen) */
 #define QD_TOOL_POP_MS 800u            /* T1: a tool's name pops up this long (its last 300 ms a fade) */
 #define QD_TK_MFX_STEP 110             /* P1.6c: a held step's MIDI FX (TRIG's KNOB 2, B4..B10) */
+#define QD_TK_OVKNOB 111               /* 2026-11-10: OVERVIEW's KNOB 1..4 (rate, volume, start, end): the band over its
+                                        * head (tk_knob 0..3) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
 #define QD_B11_CLICK_MS 300u           /* 2026-11-10 (owner): B11 pressed and let go within this, nothing done: a click */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes
@@ -406,6 +421,11 @@ typedef struct {
     int view;                          /* P1.3e: the sequencer's view (QD_VIEW_*): kept for the session */
     uint8_t geek;                      /* the Geek Out page last shown (0: METERS ..): SHIFT + HOME from EDIT goes there */
     int home_woke;                     /* (the HOME press that woke the unit: it switches nothing) */
+    uint32_t home_ms;                  /* 2026-11-10 (owner): HOME went down (held QD_HOME_HOLD_MS: the global settings) .. */
+    uint8_t home_used;                 /* .. its press did its job already (a page left, a hold): no click at the release */
+    uint8_t home_lock;                 /* .. the global settings' LOCK: HOME always the Home view (no cycling), saved */
+    int8_t ov_back;                    /* .. SEL tapped opened OVERVIEW from this view (-1 none): HOME's first click, SEL
+                                        * again, go back there */
     uint32_t touch_ms;                 /* the last input (the idle screen's clock) */
     /* the step view */
     int hmode;                         /* the hold mode, UI_F_* (NOTE at power-on) */
@@ -416,8 +436,9 @@ typedef struct {
     int boost;                         /* 2026-10-26 (the owner: the engine clipped): SETTINGS' BOOST: the tracks at their
                                         * old level (+6 dB); off (the default): 6 dB under it, the engine's headroom */
     uint8_t clk_out, cc_out;           /* FIZZ MIDI (c): SETTINGS' CLOCK OUT and CC OUT (on at power-on) */
+    uint8_t set_page;                  /* SETTINGS' page, SELECT (2026-11-10: 0, 1 HOME; the Bluetooth package: 2
+                                        * BLUETOOTH) */
 #if QD_PKG_BLE
-    uint8_t set_page;                  /* 2026-10-27, the Bluetooth package: SETTINGS' page (0, 1: BLUETOOTH), SELECT */
     uint8_t ble_off;                   /* .. its BLUETOOTH OFF (0, ON: power-on, an older record; app.h qd_app_ble_on) .. */
     uint8_t ble_st;                    /* .. the radio's state as the port says (qd_app_ble_state: 0 off, 1 waiting,
                                         * 2 connected), shown only */
@@ -765,8 +786,11 @@ void qd_side_clear(struct qd_app *a);                     /* ENGINE's sides forg
 int qd_snd_keys(const struct qd_app *a);        /* P1.5b: the editor open with the keyboard on (2026-10-26: or the
                                                  * effects' SENDS page: REC turns it on there too) */
 int qd_snd_scale_note(const struct qd_app *a, int w);   /* .. SCALE: W w's note (the scale's degree w from the root) */
+int qd_snd_key_note(const struct qd_app *a, int key);   /* .. 2026-11-10: a key's note with a B11 click's keys on */
 int qd_keys_on(const struct qd_app *a);         /* P1.5b: the keyboard (the keyboard mode, or the editor's) */
 void qd_keys_leds(const struct qd_app *a, uint8_t *key);   /* P1.5b: the keys lit by the scale (27 levels) */
+void qd_keys_step_leds(const struct qd_app *a, uint8_t *key, int page);   /* 2026-11-10: a selected step's notes
+                                                 * alone on the keys (page: the keyboard page's, else the orange keys) */
 void qd_snd_button(struct qd_app *a);           /* EDIT: open / close */
 void qd_snd_black(struct qd_app *a, int b);
 void qd_snd_black_up(struct qd_app *a, int b);  /* P1.5c: B10 let go (the bottle: released early, nothing) */     /* B1..B5 the groups (again: the next page), B11 the page's locks */
@@ -863,7 +887,11 @@ void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
 void qd_panel_black(struct qd_app *a, int b, int down);
 void qd_mix_ms(struct qd_app *a);       /* the mix's black keys held: the mute */
 void qd_mix_black(struct qd_app *a, int b, int down);   /* the mix's B1..B6, B11 (2026-11-10: OVERVIEW's too) */
-int qd_ctl_next_view(const struct qd_app *a);   /* SHIFT + HOME's next view (QD_VIEW_*) */
+int qd_ctl_next_view(const struct qd_app *a);   /* HOME's next view (QD_VIEW_*; 2026-11-10: HOME clicks cycle) */
+int qd_ctl_shift_page(const struct qd_app *a);  /* 2026-11-10: SHIFT's shortcuts, screen and LEDs work here (every
+                                                 * page but the browser, SAVE, the name editor, the projects) */
+int qd_ctl_view_family(int view);   /* 0 PIANO ROLL, 1 STEPS, 2 EDIT, 3 GEEK OUT, 4 OVERVIEW */
+int qd_ctl_ov_knob(struct qd_app *a, int knob, int d);   /* OVERVIEW, nothing held: KNOB 1..4 rate, volume, start, end */
 int qd_fx_open(const struct qd_app *a);           /* 2026-10-26: the effects open (REC: its keyboard, ekeys) .. */
 int qd_fx_sends_open(const struct qd_app *a);     /* .. on SENDS (the page with the steps' row) */
 int qd_fx_sends_follows(const struct qd_app *a);  /* 2026-10-26: the sends shown follow the step just heard (-1: not) */
@@ -919,6 +947,7 @@ int qd_type_button(struct qd_app *a, int button, int down);   /* F1 delete (SHIF
 void qd_type_trimmed(const struct qd_app *a, char *out);   /* the name, spaces trimmed (QD_SOUND_NAME bytes) */
 void qd_type_leds(const struct qd_app *a, uint8_t *key);
 void qd_ctl_set_mode(struct qd_app *a, int mode);
+void qd_ctl_set_view(struct qd_app *a, int view);   /* 2026-11-10: the view (HOME's cycle, the global settings' HOME) */
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
 int qd_ctl_knob_job(int mode, int knob);
 /* P1.5b: knob acceleration. A detent's step grows with the spin: detents closer than QD_ACC_SLOW_MS move further, up

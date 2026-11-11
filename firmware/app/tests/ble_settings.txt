@@ -1,17 +1,20 @@
 # SPDX-License-Identifier: MPL-2.0
-# The Bluetooth package (firmware/build.py --ble --host: fizz-ble_host): SETTINGS page 2 (GLO + SEL, then SELECT):
+# The Bluetooth package (firmware/build.py --ble --host: fizz-ble_host): SETTINGS page 3 (HOME held, then SELECT twice;
+# 2026-11-10: page 2 is HOME):
 # BLUETOOTH ON / OFF and the radio's state, read-only. OFF switches the radio off (app.c fz_ble_look:
 # plat_ble_enable), ON on again; the state follows a computer connecting. Shots of the page for the owner.
 #   firmware/app/build/host/fizz-ble_host firmware/app/tests/ble_settings.txt OUT
 expect fz_up 1
 wait 1500
 expect ble 2
-press GLO
-tap SEL
-release GLO
+tap HOME
+wait 300
+press HOME
+wait 700
+release HOME
 wait 300
 shot settings-p1.png
-turn SELECT 1
+turn SELECT 2
 wait 300
 shot settings-p2-waiting.png
 ble connect
@@ -27,6 +30,6 @@ turn K1 1
 wait 1500
 expect ble 2
 shot settings-p2-on.png
-turn SELECT -1
+turn SELECT -2
 wait 300
 shot settings-p1-again.png

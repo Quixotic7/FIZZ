@@ -552,48 +552,27 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
 
 static __attribute__((noinline)) void fill_shift(const qd_app_t *a, ui_shift_t *v)
 {
-    static char scale[24], root[4], swing[8], trk[4];
     const qd_ui_t *u = &a->ui;
     const qd_pattern_t *P = qd_ctl_cpat(a);
-    char n[12];
     int sc, rt;
-    memset(v, 0, sizeof *v);
+    memset(v, 0, sizeof *v);                            /* (2026-11-10: the same on every page) */
     qd_track_key(&a->proj, P, a->sel, &sc, &rt);
-    scale[0] = root[0] = swing[0] = 0;
-    if (sc != QD_SCALE_CHROMATIC)
-        cat(cat(scale, qd_pc_name(rt)), " ");
-    cat(scale, qd_scale_name(sc));
-    cat(root, qd_pc_name(rt));
-    cat(cat(swing, ui_itoa(n, P->swing)), "%");
-    ui_itoa(trk, a->sel + 1);
-#define ROW(c, i, w) (v->ctl[v->n] = (c), v->icon[v->n] = (i), v->val[v->n++] = (w))
-    if (u->mode == QD_MODE_KEYS) {                      /* P1.3v: the controls, their jobs' icons, the values now */
-        ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* P1.3y: the record settings */
-        ROW(UI_SC_SELECT, UI_IC_TRACK, trk);            /* P1.5z: the track (the swing: F3 + ALGORITHM) */
-    } else if (u->mode == QD_MODE_STEP && u->nheld) {
-        ROW(UI_SC_ALGO, u->hmode == UI_F_RATCH ? UI_IC_RAMP : UI_IC_STRUM, 0);
-    } else {
-        static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT", "METERS", "NUMBERS", "VOICES", "SCOPE",
-                                                    "TRACKS", "OVERVIEW"};
-        ROW(UI_SC_SELECT, UI_IC_TRACK, trk);            /* P1.5z: the track */
-        ROW(UI_SC_ALGO, UI_IC_SCALE, scale);
-        ROW(UI_SC_PRESETS, UI_IC_KEY, root);
-        ROW(UI_SC_F3_ALGO, UI_IC_SWING, swing);
-        ROW(UI_SC_SEQ_W, UI_IC_NOW, 0);
-        ROW(UI_SC_HOME, UI_IC_VIEWS, VIEW[qd_ctl_next_view(a)]);   /* P1.3y: the next view */
-        ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* .. the record settings */
-        ROW(UI_SC_SEL, UI_IC_GEAR, 0);                  /* .. the global settings */
-        ROW(UI_SC_ARP, UI_IC_NONE, "FILL");             /* P1.6d: SHIFT + ARP held: FILL */
-    }
-    if (u->mode == QD_MODE_STEP && (!u->latch || u->latch == QD_LATCH_F3)) {   /* P1.5c: the black keys' shortcuts */
-        v->keys = 1;
-        v->follow = u->follow;
-        v->snap_ok = a->undo.snap_ok;
-        v->pclip_ok = a->undo.pclip_ok;
-        v->metro = a->metro;
-        v->armed = u->clr_armed && a->ms - u->clr_ms < 2000u;
-    }
-#undef ROW
+    v->track = a->sel + 1;
+    v->kind = ui_track_kind(v->track);
+    v->name = a->model.t[a->sel].name;
+    v->root = qd_pc_name(rt);
+    v->scale = qd_scale_name(sc);
+    v->bpm = a->bpm;
+    v->swing = P->swing;
+    v->ext = qd_seq_ext_running(&a->seq);
+    v->rec_step = a->proj.rec_mode;
+    v->can_undo = qd_undo_count(a, -1) > 0;
+    v->can_redo = qd_undo_count(a, 1) > 0;
+    v->follow = u->follow;                              /* (P1.5c: the black keys' shortcuts) */
+    v->snap_ok = a->undo.snap_ok;
+    v->pclip_ok = a->undo.pclip_ok;
+    v->metro = a->metro;
+    v->armed = u->clr_armed && a->ms - u->clr_ms < 2000u;
 }
 
 /* ---------------------------------------------------------------- the takeovers --- */
@@ -819,6 +798,7 @@ void qd_view_kst(const qd_app_t *a, uint8_t *kst, int full)
     int i;
     memset(lv, 0, sizeof lv);
     qd_keys_leds(a, lv);
+    qd_keys_step_leds(a, lv, a->ui.mode == QD_MODE_KEYS);   /* (2026-11-10: a selected step's notes, alone) */
     for (i = 0; i < (full ? QD_NKEY : 16); i++) {
         const uint8_t l = lv[full ? i : QD_WHITE_KEY[i]];
         kst[i] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_ROOT ? 2 : l == QD_LED_SCALE ? 1 : 0);
@@ -1271,6 +1251,26 @@ static void overlay_begin(float al)
 
 /* P1.3d: the knob band's words: the knob, the context, the value's name and the value (the held steps' first, or
  * the track's default) */
+/* 2026-11-10: OVERVIEW's KNOB 1..4 (rate, volume, start, end of the page shown): the selected track's, its value big in
+ * the knob's colour */
+static __attribute__((noinline)) void fill_ovband(const qd_app_t *a, ui_band_t *v)   /* (noinline: the Bluetooth
+                                                         * package's second blob, build.py BLE_X2_FN) */
+{
+    static const char *const NM[4] = {"RATE", "VOLUME", "START", "END"};
+    const qd_ui_t *u = &a->ui;
+    const qd_tset_t *ts = &qd_ctl_cpat(a)->trk[a->sel];
+    const int k = u->tk_knob & 3, pg = u->page[a->sel];
+    memset(v, 0, sizeof *v);
+    v->knob = QD_K_1 + k;
+    v->col = UI_K[k];
+    v->ctx = a->model.t[a->sel].name;
+    v->name = NM[k];
+    if (k == 0)
+        cat(v->val, qd_rate_name(qd_tset_rate(ts)));
+    else
+        ui_itoa(v->val, k == 1 ? a->model.t[a->sel].mix.level : (k == 2 ? ts->pstart[pg] : ts->pend[pg]) + 1);
+}
+
 static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
 {
     static const char *const MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
@@ -1427,6 +1427,9 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_SEQ;
     if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
         return QD_SCR_SEL;
+    if (qd_ctl_shift(a) && !u->shift_used && qd_ctl_shift_page(a))
+        return QD_SCR_SHIFT;                            /* 2026-11-10 (owner): SHIFT held alone, the same screen over
+                                                         * every page (the keyboard, the sound editor ..) */
     if (QD_MENU_UP(u))
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
     if (qd_ctl_b11(a) && qd_ctl_layer_shown(a) == QD_LAYER_F1)
@@ -1459,27 +1462,25 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_FX;                               /* P1.4b: the effects */
     switch (u->mode) {
     case QD_MODE_KEYS:
-        return qd_ctl_shift(a) && !u->shift_used ? QD_SCR_SHIFT : QD_SCR_KEYS;
+        return QD_SCR_KEYS;
     case QD_MODE_STEP:
         if (u->view == QD_VIEW_EDIT) {                  /* P1.3r: EDIT keeps holding, latching, a mode key in it;
                                                          * the layer maps and SHIFT's take the screen as anywhere */
             if (qd_ctl_layer_shown(a) != QD_LAYER_NONE)
                 return QD_SCR_LAYER;
-            if (qd_ctl_shift(a) && !u->shift_used)
-                return QD_SCR_SHIFT;
             return QD_SCR_EDIT;
         }
         if (u->slatch && qd_ctl_layer_shown(a) != QD_LAYER_NONE)   /* P1.5m: the latch's selection, an F layer: its map */
             return QD_SCR_LAYER;
-        if (u->nheld && !u->scursor)                    /* (the step cursor keeps the screen, P1.3q, in every view
-                                                         * since P1.3y) */
-            return QD_SCR_HELD;
+        if (u->nheld && !u->scursor &&                  /* (the step cursor keeps the screen, P1.3q, in every view
+                                                         * since P1.3y; .. */
+            !(u->view == QD_VIEW_OVERVIEW && u->slatch && !u->wk_down && !u->wk_pending))
+            return QD_SCR_HELD;                         /* .. 2026-11-10: OVERVIEW keeps it with the latch's selection,
+                                                         * outlined, as the other pages do) */
         if (qd_ctl_mkey_shown(a))                       /* P1.3e: a mode key held: the track's default */
             return QD_SCR_DEFAULT;
         if (qd_ctl_layer_shown(a) != QD_LAYER_NONE)
             return QD_SCR_LAYER;
-        if (qd_ctl_shift(a) && !u->shift_used)
-            return QD_SCR_SHIFT;
         return QD_VIEW_GEEK(u->view) ? QD_SCR_GEEK      /* (P2.11: a Geek Out page in the lane's place) */
                : u->view == QD_VIEW_OVERVIEW ? QD_SCR_OV   /* (2026-11-10) */
                                              : QD_SCR_LANE;
@@ -2038,8 +2039,10 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->follow = u->follow;
     v->boost = u->boost;
     v->clk_out = u->clk_out, v->cc_out = u->cc_out;     /* (FIZZ MIDI (c)) */
+    v->set_page = u->set_page;
+    v->home_view = qd_ctl_view_family(u->ov_back >= 0 ? u->ov_back : u->view), v->home_lock = u->home_lock;
 #if QD_PKG_BLE
-    v->set_page = u->set_page, v->ble_on = !u->ble_off, v->ble_st = u->ble_st;   /* (the Bluetooth package's page 2) */
+    v->ble_on = !u->ble_off, v->ble_st = u->ble_st;     /* (the Bluetooth package's page 3) */
 #endif
     v->t = secs(a->ms);
     if (v->kind == UI_MENU_TRK) {                      /* P1.4b: the track settings of the selected track */
@@ -2590,13 +2593,17 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
             ui_tools_pop(u->tk_knob, u->tk_step, u->tl.tool, u->tl.scope, u->page[a->sel]);
             qd_restore();
         }
-    } else if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */
+    } else if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_OVKNOB) {   /* P1.3d: a held step's knob: the band over its
+                                                         * screen (2026-11-10: OVERVIEW's knobs, over its head) */
         const uint32_t d = a->ms - u->tk_ms;
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
-        if (band_up(a) && al > 0.f) {
+        if ((u->tk == QD_TK_OVKNOB ? scr == QD_SCR_OV : band_up(a)) && al > 0.f) {
             qd_save();
             qd_alpha(al);
-            fill_band(a, &bv, 0);
+            if (u->tk == QD_TK_OVKNOB)
+                fill_ovband(a, &bv);
+            else
+                fill_band(a, &bv, 0);
             ui_band_draw(&bv);
             qd_restore();
         }

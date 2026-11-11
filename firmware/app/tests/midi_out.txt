@@ -7,8 +7,10 @@
 expect fz_up 1
 tap HOME
 wait 300
-# track settings page 3: MIDI OUT 3
+# track settings page 3: MIDI OUT 3 (2026-11-10: SHIFT + SEL)
+press GLO
 tap SEL
+release GLO
 wait 100
 turn SELECT 2
 wait 100

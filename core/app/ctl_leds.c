@@ -284,20 +284,34 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     }
 }
 
+/* 2026-11-10 (owner): the keys (the keyboard page's, a B11 click's orange keys on every other page) with a step
+ * selected (or held; the first one): only its notes and the keys sounding lit, the rest off (the scale's levels went
+ * on under it: "extra white keys") */
+void qd_keys_step_leds(const qd_app_t *a, uint8_t *key, int page)
+{
+    const qd_ui_t *u = &a->ui;
+    qd_rstep_t r;
+    int i, k;
+    if (!u->nheld || u->rec)
+        return;
+    qd_step_resolve(qd_ctl_cpat(a), a->sel, u->held[0], &r);
+    for (i = 0; i < QD_NKEY; i++) {
+        const int n = page ? qd_rec_key_note(a, i) : qd_snd_key_note(a, i);
+        if (!page && !a->proj.rec_ekeys && qd_ctl_white(i) < 0)
+            continue;                                   /* (SCALE: the black keys the page's own) */
+        if (key[i] != QD_LED_LIT)
+            key[i] = QD_LED_OFF;
+        for (k = 0; k < r.nn && r.on; k++)
+            if (r.notes[k] == n)
+                key[i] = QD_LED_LIT;
+    }
+}
+
 static void leds_keys(const qd_app_t *a, qd_leds_t *out)
 {
     const qd_ui_t *u = &a->ui;
     qd_keys_leds(a, out->key);                          /* P1.5b: the scale (roots 75 %, its notes 40 %, sounding full) */
-    if (u->nheld && !u->rec) {                          /* 2026-11-10 (owner): a selected (or held) step: its notes lit
-                                                         * (the first one's) */
-        qd_rstep_t r;
-        int i, k;
-        qd_step_resolve(qd_ctl_cpat(a), a->sel, u->held[0], &r);
-        for (i = 0; i < QD_NKEY; i++)
-            for (k = 0; k < r.nn && r.on; k++)
-                if (r.notes[k] == qd_rec_key_note(a, i))
-                    out->key[i] = QD_LED_LIT;
-    }
+    qd_keys_step_leds(a, out->key, 1);                    /* 2026-11-10 (owner): a selected step: its notes lit, alone */
     if (u->ksteps)                                      /* .. a B11 click: its W keys the steps */
         leds_whites(a, out);
     if (qd_rec_stepping(a)) {                           /* step recording: the cursor's place blinks */
@@ -364,16 +378,16 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                          * W keys; FULL every key) */
         memset(k, 0, sizeof k);
         qd_keys_leds(a, k);
+        qd_keys_step_leds(a, k, 0);                       /* (2026-11-10: a selected step's notes, as the keyboard's) */
         for (i = 0; i < QD_NKEY; i++)
             if (qd_ctl_white(i) >= 0 || a->proj.rec_ekeys)
                 out->key[i] = k[i];
     }
     if (qd_ctl_b11_free(a) && !qd_ctl_b11(a))        /* 2026-11-10: B11 the hold key: dim with the step lock on */
         out->key[QD_BLACK_KEY[10]] = u->slatch ? QD_LED_DIM : QD_LED_FAINT;
-    if (held(a, QD_B_FUNC) && u->mode == QD_MODE_STEP &&
-        (!u->latch || u->latch == QD_LATCH_F3 || u->latch == QD_LATCH_SND))
-        qd_shift_leds(a, out->key);                     /* P1.5c: SHIFT held: only its shortcuts lit (P1.5z: the editor
-                                                         * too) */
+    if (qd_ctl_shift(a) && qd_ctl_shift_page(a))
+        qd_shift_leds(a, out->key);                     /* P1.5c: SHIFT held: only its shortcuts lit (2026-11-10: on
+                                                         * every page, the keyboard page too) */
     if (held(a, QD_B_TRACKS)) {                         /* TRACKS held: the selected track's white key dim */
         const int k = QD_WHITE_KEY[a->sel];
         if (out->key[k] < QD_LED_DIM)

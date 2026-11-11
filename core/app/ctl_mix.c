@@ -105,7 +105,6 @@ void qd_fx_button(qd_app_t *a)
     }
     panel_open(a, QD_LATCH_FX);                         /* (2026-10-26, the owner: on the page it was left on; P1.5b
                                                          * opened it on SENDS) */
-    a->ui.ekeys = 0;                                    /* (2026-10-26: on the steps; REC the keyboard) */
 }
 int qd_fx_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX; }
 int qd_fx_sends_open(const qd_app_t *a)
@@ -431,7 +430,8 @@ void qd_panel_leds(const qd_app_t *a, uint8_t *black)
         for (i = 0; i < QD_NTRACK; i++)
             black[i] = (a->seq.solo >> i) & 1 ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
                      : (a->seq.mute >> i) & 1 ? QD_LED_DIM : i == a->sel ? QD_LED_LIT : QD_LED_MID;
-        black[10] = a->seq.mute || a->seq.solo ? QD_LED_LIT : QD_LED_OFF;
+        black[u->latch == QD_LATCH_MIX ? 10 : 8] = a->seq.mute || a->seq.solo ? QD_LED_LIT : QD_LED_OFF;   /* (the mix:
+                                                         * a track key + B11; OVERVIEW: B9, lit with something to clear) */
         return;
     }
     for (i = 0; i < QD_NTRACK; i++)

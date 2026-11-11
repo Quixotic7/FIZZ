@@ -27,7 +27,7 @@
 
 static void f3_close(qd_app_t *a) { a->ui.f3_anchor = -1; }
 static void br_closed(qd_app_t *a);                     /* (ctl_presets.c) */
-static void snd_close(qd_app_t *a) { a->ui.ekeys = 0, a->ui.snd_lk = 0; }   /* (P1.5b: the editor's keyboard ends with it) */
+static void snd_close(qd_app_t *a) { a->ui.snd_lk = 0; }   /* (2026-11-10: the keys flag, ekeys, global: kept) */
 static void mf_closed(qd_app_t *a);                     /* (ctl_mfx.c) */
 static void tl_revert(qd_app_t *a);                     /* (ctl_tools.c) */
 static void tl_confirm(qd_app_t *a);

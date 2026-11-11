@@ -859,10 +859,13 @@ static void t_tracks(void)
     for (k = 0; k < A.pool.nvoice; k++)
         n1 += A.pool.v[k].track == 0 && qd_pool_sounding(&A.pool, k) && A.pool.v[k].q.gate;
     CHECK(n1 == 0, "the muted track plays nothing (%d held)", n1);
+    qd_app_button(&A, QD_B_FUNC, 1);                    /* (2026-11-10: SHIFT + SEL; SEL tapped is OVERVIEW) */
     tap_button(QD_B_PATTERN);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10, 0);
     qd_app_leds(&A, &l);
     CHECK(A.ui.latch == QD_LATCH_TRK && qd_view_screen(&A) == QD_SCR_MENU && l.button[QD_B_PATTERN] == QD_LED_LIT,
-          "SEL tapped: the track settings (SEL lit)");
+          "SHIFT + SEL: the track settings (SEL lit)");
     tap_button(QD_B_HOME);
     CHECK(!A.ui.latch && A.ui.mode == QD_MODE_STEP, "HOME: back to the step view");
     qd_app_button(&A, QD_B_TRACKS, 1);

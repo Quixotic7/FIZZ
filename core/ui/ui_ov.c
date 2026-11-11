@@ -42,13 +42,16 @@ void ui_ov_draw(const ui_ov_t *v)
         ui_kind_icon(k, 16.f, y + OV_H / 2.f, 1.4f, col);   /* (no kind: nothing) */
         for (i = 0; i < 16; i++) {
             const float x = ov_cx(i);
-            const int vel = v->vel[t][i], lock = (v->lock[t] >> i) & 1;
-            if ((v->out[t] >> i) & 1)                   /* outside the page's range: nothing */
-                continue;
-            ui_RR(x, y, OV_W, OV_H, 3.f, QD_NONE, 1.f, UI_G3);
+            const int vel = v->vel[t][i], lock = (v->lock[t] >> i) & 1, out = (v->out[t] >> i) & 1;
+            if (out) {                                  /* outside the page's start..end: dimmed (2026-11-10, owner:
+                                                         * the loop's active steps at a glance; KNOB 3 / 4 move it) */
+                qd_save();
+                qd_alpha(mute ? 0.15f : 0.28f);
+            }
+            ui_RR(x, y, OV_W, OV_H, 3.f, QD_NONE, 1.f, out ? UI_G2 : UI_G3);
             if (vel) {                                  /* a fill as tall as the velocity (a ghost: an outline) */
                 const float h = lock ? OV_H : (float)vel / 127.f * OV_H < 4.f ? 4.f : (float)vel / 127.f * OV_H;
-                const int hot = i == v->play[t] && !mute && !lock;
+                const int hot = i == v->play[t] && !mute && !lock && !out;
                 if (hot) {                              /* playing: white, glowing */
                     qd_save();
                     qd_alpha(0.28f);
@@ -58,6 +61,8 @@ void ui_ov_draw(const ui_ov_t *v)
                 ui_RR(x, y + OV_H - h, OV_W, h, 3.f, lock ? col : QD_NONE, 1.2f,
                       lock ? QD_NONE : hot ? 0xffffffu : col);
             }
+            if (out)
+                qd_restore();
             if (t == v->sel && ((v->held >> i) & 1))    /* held / selected: outlined white */
                 ui_RR(x - 2.f, y - 2.f, OV_W + 4.f, OV_H + 4.f, 4.5f, UI_K3, 1.3f, QD_NONE);
         }

@@ -55,7 +55,7 @@
       <dl>
         <dt>F1 / F2</dt><dd>OCT− / OCT+</dd>
         <dt>F3</dt><dd>OCT− and OCT+ together (or hold PLAY): tempo, speed, the page's start and end</dd>
-        <dt>SHIFT</dt><dd>GLO (the panel here shows FIZZ's names: TRACKS is SEL, MIX is ENV, LATCH is LFO, SOUNDS is SAVE, MIDI FX is ARP (its printed FILL is SHIFT + FX held), PATTERNS is SEQ (tapped: TOOLS)); SHIFT + SAVE: the project</dd>
+        <dt>SHIFT</dt><dd>GLO (the panel here shows FIZZ's names: OVERVIEW is SEL, MIX is ENV, LATCH is LFO, SOUNDS is SAVE, MIDI FX is ARP (its printed FILL is SHIFT + FX held), PATTERNS is SEQ (tapped: TOOLS)); SHIFT + SAVE: the project. Holding SHIFT shows the same screen on every page: the track first, then the root, the scale, PLAY (SHIFT + PLAY: F3) with the tempo and swing, F1 undo, F2 redo, REC's mode, SEL the track settings, and the black keys' shortcuts</dd>
         <dt>W1 … W16</dt><dd>the white keys: the 16 steps of the page</dd>
         <dt>B1 … B11</dt><dd>the black keys, left to right</dd>
         <dt>held</dt><dd>down for 400 ms (a white key: 250 ms); shorter is a tap</dd>
@@ -69,7 +69,8 @@
       <li><b>Tap a white key</b>: that step plays the track's note. Tap it again to remove it.</li>
       <li>A new step plays the <b>track's defaults</b> (its notes, velocity, length…). Change a default and every step still using it follows.</li>
       <li><b>SELECT</b> turns the page: a track has 8 pages of 16 steps.</li>
-      <li><b>HOME</b> always brings you back here, from anywhere. <b>SHIFT + HOME</b> cycles PIANO ROLL, STEPS, EDIT and GEEK OUT (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE); <b>HOME</b> comes back. HOME keeps the view: you always return to the one you chose, GEEK OUT on its last page.</li>
+      <li><b>HOME</b> brings you back here from any other page with one click; <b>on the step view, HOME clicks cycle</b> PIANO ROLL, STEPS, EDIT, GEEK OUT (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE, TRACKS) and OVERVIEW. <b>Hold HOME</b> for the settings; their page 2, HOME, picks the Home view and can <b>LOCK</b> it (then HOME always goes there and never cycles).</li>
+      <li><b>Tap SEL</b>: <b>OVERVIEW</b>, all six tracks' steps on the page (SEL again or HOME goes back). B1 … B6 select, mute (hold), solo (double tap); <b>B9</b> clears every mute and solo. With nothing selected <b>KNOB 1</b> is the track's rate, <b>KNOB 2</b> its volume, <b>KNOB 3 / 4</b> the start and end of its loop on the page (the steps outside dimmed).</li>
       <li>Colours tell you what a step plays: <span class="sw" style="--s:#FFF0D2">warm white</span> its own notes, <span class="sw" style="--s:#63C4D6">cyan</span> the track's, <span class="sw" style="--s:#A57CFF">violet</span> a lock with no note. While playing, a red marker walks the steps.</li>
     </ul>
   </section>
@@ -104,7 +105,7 @@
     </div>
     <ul>
       <li>The knobs <b>accelerate</b>: slowly one step a click, spun much faster. <b>SHIFT + a knob</b> is the finest step (but <b>SHIFT + SELECT</b> is the track, below).</li>
-      <li><b>SHIFT + SELECT</b> changes the track, in every view (the big track picture). <b>SHIFT + B6</b> taps the tempo (the TAP screen: the BPM, the taps as dots, and a breakdancing gorilla that jumps to its next pose on every tap and grooves on the beat; past 180 BPM it goes wild), <b>SHIFT + B8</b> turns page follow on or off. SHIFT's black-key shortcuts work in the sound editor too.</li>
+      <li><b>SHIFT + SELECT</b> changes the track, in every view (the SHIFT screen's track band turns with it). <b>SHIFT + B6</b> taps the tempo (the TAP screen: the BPM, the taps as dots, and a breakdancing gorilla that jumps to its next pose on every tap and grooves on the beat; past 180 BPM it goes wild), <b>SHIFT + B8</b> turns page follow on or off. SHIFT's black-key shortcuts, its screen and its lights are the same on every page, the keyboard page and the sound editor included.</li>
       <li>Every knob turn shows its name and value in a band at the top of the screen.</li>
     </ul>
   </section>
@@ -120,7 +121,7 @@
       <li><b>Hold an LFO key (B6 … B8) and turn any knob</b> to send that LFO to the value; turning sets the depth.</li>
       <li><b>Hold B1 and turn any knob</b> to put a modulation source on the value: W1 … W8 choose it while B1 is held (VEL, KEY, MW, AT, PB, BR, RAND, F ENV); turning sets the depth. B1's <b>MOD</b> page shows the eight slots (ALGORITHM picks one). MW, AT, PB and BR come from MIDI on the track's channel.</li>
       <li><b>Hold B9</b> a second: the dice shake, then roll for this page's values (let go early: nothing); <b>hold B10</b> until the cork pops for a whole new sound. <b>SHIFT + F1</b> undoes it.</li>
-      <li>A <b>B11 click</b> in the editor turns its keyboard on, to play while you tweak (again: the steps).</li>
+      <li>A <b>B11 click</b> turns the white keys into the orange keys, to play while you tweak (again: the steps); the switch is the same on every page and stays as you set it. With steps selected the orange keys light the first one's notes, and a chord you play is written into them.</li>
       <li><b>Portamento</b> (B1, PORT): OFF, ON (every note glides from the last) or LEGATO (only into a held note); TIME, and SLOPE (TIME: the same time for any leap; RATE: the same speed). Chords glide note by note. Lock PORT ON on a step of a MONO track for a 303 slide.</li>
       <li><b>The filter machines</b> (B4, FILTER: ALGORITHM is the MACHINE; or <b>hold B4</b> for the six as a popup: a knob or B1 … B6 picks one): MULTI (TYPE morphs LP to BP to HP), LOWPASS 4, LEGACY (LP12 / HP12 / OFF), COMB- and COMB+ (FREQ the pitch, FDBK the ring, LPF its brightness), EQ (a bell: GAIN and Q). BASE's ROUTE puts the base-width before or after the filter.</li>
       <li><b>CRUSH</b> (B5): BITS (16 down to 1), SRR (the sample rate divided, up to 64 times) and ROUTE, after or before the filter: the Digitone II's bit and sample-rate reduction, in the sound.</li>
@@ -136,7 +137,7 @@
       <li><b>Hold SEQ (PATTERNS)</b>: the patterns, and they stay open when you let go (SEQ lit; tap SEQ or HOME to close). B1 … B4 the bank, W the pattern (it comes in at the end of the playing one).</li>
       <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the page, PRESETS the tempo, ALGORITHM the swing (the tap-tempo ape dances to it), B1 … B7 the track's note value. OCT− closes it.</li>
       <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter). In the mixer, tap a black key to select its track, hold it to mute, double-tap it to solo (a track key held + B11 clears them; B11 alone is the hold key); SELECT turns the page, ALGORITHM the track, PRESETS mutes (left) or unmutes (right). Hold a step there and turn: its level, pan and sends become locks of that step (F2 + the knob clears one). The magenta frame and the count in the corner say steps are held or selected; the locked fader or bar gets a chip. A latch selection from the step view is let go there: select steps in the mixer itself. HOME closes them. On FX's last page, <b>ROUTING</b>, KNOB 1 picks PARALLEL (the sends into three buses, as always) or CHAIN (one path through CHORUS, DELAY, REVERB and the FILTER in the order drawn; KNOB 2 … 4 the amounts); hold a block's page key (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER) and turn KNOB 1 to move it.</li>
-      <li><b>Tap SEL</b>: the track's settings: <b>MODE</b> GLOBAL / LOCAL (GLOBAL: SCALE and ROOT set the project's global key, which new tracks follow; LOCAL: only this track's), <b>SCALE</b>, <b>ROOT</b>, <b>MIDI CH</b>; the white keys are its steps; page 3 gives it a <b>KIND</b> (its icon everywhere its name shows) and a <b>NAME</b> typed on the keybed.</li>
+      <li><b>SHIFT + SEL</b>: the track's settings: <b>MODE</b> GLOBAL / LOCAL (GLOBAL: SCALE and ROOT set the project's global key, which new tracks follow; LOCAL: only this track's), <b>SCALE</b>, <b>ROOT</b>, <b>MIDI CH</b>; the white keys are its steps; page 3 gives it a <b>KIND</b> (its icon everywhere its name shows) and a <b>NAME</b> typed on the keybed.</li>
       <li><b>REC</b> opens the keyboard page, the keybed a keyboard for the track, from F like the keybed (HOME leaves it); there <b>a REC tap records</b>. <b>Recording works in every view:</b> stopped, <b>hold REC</b> to arm it (it blinks); the first note you play (or PLAY) starts it. Playing, hold REC and let go to start recording; a tap of REC stops it. On the keyboard SELECT turns the page. <b>SHIFT + F1 / F2</b> undo and redo.</li>
       <li><b>Chords into steps:</b> on the keyboard, <b>hold B11 + white keys</b> to select steps (B11 + B1 … B8 the page; the pages show while you hold it). Let go: every chord you play is written into the selected steps (outlined), one undo level a chord; the selected step's notes light and show in magenta on the screen's keyboard. ALGORITHM moves the selected step; fully left, LFO or B11 + F1, and the keys just play again. A B11 click makes the white keys the steps there. When REC is armed the recording takes the notes.</li>
       <li><b>Takes</b> (SHIFT + REC, KNOB 3 TAKE): <b>CAPTURE</b>, the default, for quick takes: armed, nothing changes until your first note; then the track is cleared to one page of 16 and the take runs from the top. PLAY or REC ends it, and the track becomes as long as you played. <b>REPLACE</b> (a note replaces the step's) and <b>OVERDUB</b> (it joins them) record into the sequence as it is.</li>
@@ -179,7 +180,7 @@
       <li><b>In, over USB or the TRS jack.</b> Channels <b>1 … 6</b> play tracks 1 … 6 (a track's MIDI CH, track settings page 1, runs 1 … 15). Channel <b>15</b> plays the selected track. Notes play the track; MOD WHEEL, BREATH, aftertouch and pitch bend reach its modulation; the clock and START / STOP drive the transport.</li>
       <li><b>CCs set the sound</b>, the same map for every sound (<a href="midi.html#cc">the CC map</a>): FREQ is 74, RESO 71, the amp envelope 73, 75, 62, 72, and so on. With REC and AUTOMATION on, CCs to the selected track record as locks.</li>
       <li><b>The remote, channel 16:</b> a controller plays the FM-1's panel. Notes 53 … 79 are the keys, CC 20 … 33 the buttons, CC 40 … 46 the encoders (relative), CC 47 … 50 KNOB 1 … 4 for faders (<a href="midi.html#remote">the remote's map</a>).</li>
-      <li><b>Out, over USB:</b> track settings page 3, <b>KNOB 4 MIDI OUT</b> sends a track's notes on a channel. <b>SETTINGS</b> (GLO + SEL): <b>KNOB 3 CLOCK OUT</b> the clock and START / STOP, <b>KNOB 4 CC OUT</b> the knobs' moves as CCs.</li>
+      <li><b>Out, over USB:</b> track settings page 3, <b>KNOB 4 MIDI OUT</b> sends a track's notes on a channel. <b>SETTINGS</b> (HOME held): <b>KNOB 3 CLOCK OUT</b> the clock and START / STOP, <b>KNOB 4 CC OUT</b> the knobs' moves as CCs.</li>
       <li><b>MIDI tracks:</b> track settings page 3, <b>KNOB 3 ENGINE MIDI</b>. The track makes no sound and sequences other gear: EDIT gives seven pages of four CCs, SHIFT + a knob picks a slot's CC number, and holding a step locks a value (<a href="midi.html#tracks">more</a>).</li>
     </ul>
   </section>
@@ -191,7 +192,7 @@
       <li><b>Switching packages erases the FM-1's projects and presets.</b> Back up in the <a href="manager/">Manager</a> first, then RESTORE there after the install. A USB backup onto the Bluetooth package keeps 4 projects and 128 presets: the Manager asks which. The other way nothing is lost.</li>
       <li><b>Connect on a Mac:</b> Audio MIDI Setup, <b>Window → Show MIDI Studio</b>, then the <b>Bluetooth</b> button. The FM-1 shows as <b>FM-1</b> and four characters: press <b>Connect</b> (no pairing code). It then appears to your apps as a MIDI port ending in <b>Bluetooth</b>.</li>
       <li><b>On iPhone and iPad:</b> connect from a MIDI app's Bluetooth settings (most music apps have a "Bluetooth MIDI devices" page).</li>
-      <li><b>On the FM-1:</b> SETTINGS (GLO + SEL), then <b>SELECT</b> for page 2: <b>KNOB 1 BLUETOOTH</b> ON / OFF, and the state beside it: OFF, WAITING (nothing connected) or CONNECTED.</li>
+      <li><b>On the FM-1:</b> SETTINGS (HOME held), then <b>SELECT</b> twice for page 3: <b>KNOB 1 BLUETOOTH</b> ON / OFF, and the state beside it: OFF, WAITING (nothing connected) or CONNECTED.</li>
       <li><b>What works over Bluetooth:</b> all of <a href="midi.html">MIDI</a> (notes, CCs, the remote, clock, MIDI out) and the Manager: BACKUP, LIBRARY, POOL, EDIT, PROJECTS' moves. <b>Needs the USB cable:</b> installing, writing FIZZ's data, RESTORE, and the PROJECTS tab's WRITE. USB audio is always over the cable.</li>
     </ul>
   </section>

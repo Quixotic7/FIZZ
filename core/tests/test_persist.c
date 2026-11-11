@@ -1837,6 +1837,23 @@ int main(void)
           "a restart: project 1 worked on, %d kept, 3 gone", PJ_5 + 1);
     CHECK(!strcmp(LIB(&B, 99)->name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
+    {   /* 2026-11-10: the global settings' HOME page: the LOCK kept (the record's last byte, bit 1); a record from before
+         * it (that byte 1): unlocked, the view as saved */
+        static uint8_t b[QDS_MAXREC];
+        int len;
+        B.ui.home_lock = 1;
+        B.ui.view = QD_VIEW_OVERVIEW;
+        qd_persist_flush(&B);
+        boot(&A);
+        len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
+        CHECK(A.ui.home_lock && A.ui.view == QD_VIEW_OVERVIEW && len > 0 && b[len - 1] == 3,
+              "a restart: the Home view (OVERVIEW) and its LOCK kept (the last byte %d)", len > 0 ? b[len - 1] : -1);
+        b[len - 1] = 1;
+        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+        qd_store_flush(&A.per.prj_st);
+        boot(&B);
+        CHECK(!B.ui.home_lock && B.ui.view == QD_VIEW_OVERVIEW, "a record from before the LOCK: unlocked, the view kept");
+    }
     demo_drums_test();
     pool_browse_test();
     pages_test();

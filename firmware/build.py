@@ -217,13 +217,19 @@ BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # effects screen's model (fill_fx, 1.4 KB: also the Manager's LABELS, view_labels.c), to balance the slot and the blob
 # (2026-11-10, B11 on every page: the SHIFT screen's and the mix's models too, ~1.4 KB, the slot 4 B over without them;
 # ui_rec_keybed gone again: the owner wants the white keybed back)
-BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx", "fill_shift", "fill_mix"]}
+# (2026-11-10, the owner's HOME, SHIFT and OVERVIEW changes: OVERVIEW's knob band's model and its knobs' handler, to
+# balance the slot and the blob)
+BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx", "fill_shift", "fill_mix", "fill_ovband"],
+             "build_units_c_ctl.o": ["qd_ctl_ov_knob"]}
 # (2026-11-10) units compiled at -Oz, not -Os, on the Bluetooth package: the screens' unit (ui_layer.o: the sound
 # editor, MIDI FX, the browser, the typewriter, the tools, Geek Out, OVERVIEW, the layer and SHIFT screens), main-loop
 # drawing logic only (never the audio interrupt, core 1 or under the audio lock; the raster, qd_gfx_fast.o, stays
 # -Os), 7,060 B smaller (ui_mfx_draw 1.8 KB, ui_snd_draw 1.6 KB: -Os's unrolled and inlined copies). FZ_BLE_OZ=a.o,b.o
-# adds units for a measure (FZ_MEASURE=1)
+# adds units for a measure (FZ_MEASURE=1). 2026-11-10 (the SHIFT screen rebuilt, the settings' HOME page, HOME's
+# views, OVERVIEW's knobs: the USB package's slot 48 B over): the screens' unit at -Oz on the USB package too (USB_OZ),
+# as the Bluetooth package has had it
 BLE_OZ = {"build_units_c_ui_layer.o", *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
+USB_OZ = {"build_units_c_ui_layer.o"}
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
@@ -523,7 +529,7 @@ def tc(tool, *args):
                 args = [a if a != "-Os" else "-O2" for a in args]
             if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
                 args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
-            if BLE_PKG and out.name in BLE_OZ:
+            if out.name in (BLE_OZ if BLE_PKG else USB_OZ):
                 args = [a if a != "-Os" else "-Oz" for a in args]
             if out.name in HOT or (BLE_PKG and (out.name in BLE_SLOT or out.name in BLE_X2_FN)):
                 r = _tc(tool, *args)

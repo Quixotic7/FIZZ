@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-10 (owner): SEL tapped OVERVIEW; OVERVIEW's knobs (KNOB 1 rate, 2 volume, 3 / 4 start / end, the steps
+# outside dimmed), B11 there, B9 the mutes and solos off; HOME clicks the Home views, HOME held the global settings with
+# their HOME page; SHIFT + SEL the track settings; the SHIFT screen on HOME, the keyboard page, the sound editor, another
+# track; the orange keys' chords into the selected steps.
+#   firmware/build.py --host, then (mkdir -p firmware/app/build/ov_home first)
+#   firmware/app/build/host/fizz_host firmware/app/tests/ov_home.txt firmware/app/build/ov_home
+expect fz_up 1
+tap HOME
+wait 300
+expect fz_mode 1
+expect fz_view 2
+# A02 (the demo's): SEQ held + W2
+press SEQ
+tapkey w1
+release SEQ
+wait 300
+expect fz_pattern 1
+# SEL tapped: OVERVIEW at once
+tap SEL
+wait 300
+expect fz_view 8
+shot 01-ov-sel.png
+# the knobs: KNOB 1 the rate, KNOB 2 the volume, KNOB 3 / 4 the start / end (the cells outside dimmed)
+turn K1 1
+wait 200
+shot 02-ov-k1-rate.png
+turn K1 -1
+wait 1300
+turn K2 -20
+wait 200
+shot 03-ov-k2-volume.png
+turn K2 20
+wait 1300
+turn K3 4
+wait 200
+shot 04-ov-k3-start.png
+turn K4 -3
+wait 200
+shot 05-ov-k4-end.png
+wait 1300
+shot 06-ov-dimmed.png
+turn K3 -4
+turn K4 3
+wait 1300
+# B11 held: the pages over OVERVIEW; + W2, W5: the selection
+key b10 down
+wait 400
+shot 07-ov-b11-held.png
+tapkey w1
+key w4 down
+key w5 down
+wait 50
+key w4 up
+key w5 up
+key b10 up
+wait 200
+shot 08-ov-b11-selected.png
+# B11 + F1: LIVE
+key b10 down
+wait 50
+tap OCT-
+key b10 up
+wait 200
+# B4 held: track 4 muted; B9 lit; B9 tapped: every mute and solo off
+key b3 down
+wait 600
+key b3 up
+wait 200
+leds
+shot 09-ov-muted-b9-lit.png
+tapkey b8
+wait 200
+leds
+shot 10-ov-b9-cleared.png
+# SEL again: back to EDIT; HOME clicks: GEEK OUT, OVERVIEW, the PIANO ROLL, STEPS
+tap SEL
+wait 200
+expect fz_view 2
+tap HOME
+wait 200
+expect fz_view 3
+tap HOME
+wait 200
+expect fz_view 8
+tap HOME
+wait 200
+expect fz_view 0
+shot 11-home-roll.png
+tap HOME
+wait 200
+expect fz_view 1
+shot 12-home-steps.png
+# HOME held: the global settings; SELECT: page 2 HOME; KNOB 1 OVERVIEW, KNOB 2 LOCK
+press HOME
+wait 700
+release HOME
+wait 200
+shot 13-settings-p1.png
+turn SELECT 1
+wait 200
+shot 14-settings-home.png
+turn K1 3
+turn K2 1
+wait 200
+shot 15-settings-home-locked.png
+turn K2 -1
+turn K1 -3
+wait 200
+tap HOME
+wait 200
+expect fz_view 1
+# SHIFT + SEL: the track settings
+press GLO
+tap SEL
+release GLO
+wait 300
+shot 16-trkset.png
+tap HOME
+wait 200
+# the SHIFT screen: HOME, another track (SHIFT + SELECT), the keyboard page, the sound editor
+press GLO
+wait 300
+shot 17-shift-home.png
+turn SELECT 3
+wait 200
+shot 18-shift-track4.png
+turn SELECT -3
+release GLO
+wait 300
+tap REC
+wait 300
+press GLO
+wait 300
+shot 19-shift-keyboard.png
+release GLO
+wait 300
+tap EDIT
+wait 300
+press GLO
+wait 300
+shot 20-shift-editor.png
+release GLO
+wait 300
+tap EDIT
+wait 300
+# the orange keys (a B11 click), ALGORITHM selects step 1: its notes lit; W1 + W3 played together: its chord
+tapkey b10
+wait 200
+turn ALGO 1
+wait 400
+shot 21-keys-step1.png
+key w0 down
+key w2 down
+wait 100
+key w0 up
+key w2 up
+wait 400
+shot 22-keys-chord.png
+leds
+turn ALGO -5
+wait 200
+tapkey b10
+wait 200
+expect fz_lcd_stale 0

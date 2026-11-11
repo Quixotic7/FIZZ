@@ -6,7 +6,8 @@
  *
  * The records' bytes (version 1; the host's byte order and struct layouts: a Phase 2 format would spell them out):
  *   SET  'G' 2 (1: eight tracks; 2026-10-24), project, pattern, track, reserved (0; was the knob layout), view, page follow, the effects' parameters (QD_NFXP int16),
- *        the latch mode (P1.5b), 1 (P1.5s: the view is the user's; a record without it powers on in EDIT)
+ *        the latch mode (P1.5b), 1 (P1.5s: the view is the user's; a record without it powers on in EDIT; 2026-11-10:
+ *        | 2 the Home view LOCKed, the global settings' HOME page)
  *   HDR  'H' 1, name (QD_PROJ_NAME), demo, global key scale and root, launch, record mode, quantize, overdub, each
  *        track's mix (level, pan, chorus, delay, reverb) and voice limit and reserve
  *   PAT  'P' 2, the step's and the track settings' sizes, master, swing, used, bpm, nlock, the eight track settings,
@@ -602,7 +603,9 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
         memcpy(b + o, &v, 2), o += 2;
     }
     b[o++] = (uint8_t)a->ui.lmode;                      /* P1.5b: the latch mode */
-    b[o++] = 1;                                         /* P1.5s: the view is the user's (EDIT the default since) */
+    b[o++] = (uint8_t)(1 | (a->ui.home_lock ? 2 : 0));   /* P1.5s: the view is the user's (EDIT the default since);
+                                                         * 2026-11-10: bit 1 the Home view LOCKed (an older FIZZ
+                                                         * reads only the length: compatible both ways) */
     return o;
 }
 
@@ -637,6 +640,7 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
         qd_fx_set(QD_FXP_RDRY, 127), qd_fx_set(QD_FXP_RSPARE1, 64), qd_fx_set(QD_FXP_RSPARE2, 64);
     }
     a->ui.lmode = len >= 10u + 2u * nf ? b[9 + 2 * nf] % 2 : QD_LMODE_MODES;
+    a->ui.home_lock = len == 11u + 2u * nf && (b[10 + 2 * nf] & 2u);   /* (2026-11-10: else unlocked) */
     return 1;
 }
 

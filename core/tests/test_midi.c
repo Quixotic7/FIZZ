@@ -115,6 +115,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void trkset(void)                                /* 2026-11-10: SHIFT + SEL, the track settings (SEL tapped:
+                                                         * OVERVIEW) */
+{
+    bdown(QD_B_FUNC);
+    btap(QD_B_PATTERN);
+    bup(QD_B_FUNC);
+    run(10);
+}
 static void turn(int knob, int d)                       /* (one gesture: no acceleration from the turn before) */
 {
     A.ui.knob_ms[knob] = 0;
@@ -341,7 +349,7 @@ static void t_midi_ch(void)
     int i;
     start();
     ts = &PAT()->trk[0];
-    btap(QD_B_PATTERN);
+    trkset();
     for (i = 0; i < 5; i++)
         turn(QD_K_4, 5);
     qd_view_menu(&A, &mv);
@@ -356,7 +364,7 @@ static void t_midi_ch(void)
     run(10);
     CHECK(!sounding_any(), "track 1 on 16: channel 16 does not play it");
     qd_app_midi(&A, 0x8F, 30, 0);
-    btap(QD_B_PATTERN);
+    trkset();
     turn(QD_K_4, -1);
     CHECK(ts->chan == 14, "turned down: 15");
     btap(QD_B_HOME);
@@ -446,7 +454,7 @@ static void t_remote(void)
 /* ================================================================ (c) MIDI OUT */
 static void mout_set(int v)                             /* track settings page 3, KNOB 4 */
 {
-    btap(QD_B_PATTERN);
+    trkset();
     turn(QD_K_SELECT, 2);
     turn(QD_K_4, v - PAT()->trk[A.sel].mout);
     btap(QD_B_HOME);
@@ -465,7 +473,7 @@ static void t_out_notes(void)
     int i, ons;
     start();
     mout_set(3);
-    btap(QD_B_PATTERN);
+    trkset();
     turn(QD_K_SELECT, 2);
     qd_view_menu(&A, &mv);
     CHECK(PAT()->trk[0].mout == 3 && mv.page == 2 && mv.mout == 3, "page 3 KNOB 4: MIDI OUT 3 (%d)", PAT()->trk[0].mout);
@@ -631,7 +639,7 @@ static int ccs_in(int lo, int hi)                       /* CCs lo..hi (any chann
 }
 static void engine_set(int e)                           /* track settings page 3, KNOB 3: 0 FM TONE .. 2 MIDI */
 {
-    btap(QD_B_PATTERN);
+    trkset();
     turn(QD_K_SELECT, 2);
     turn(QD_K_3, -2);
     if (e)
@@ -647,7 +655,7 @@ static void t_mtrack(void)
     int i, v0, v1, a, b, n, voices = 0, ons;
     start();
     orig = PAT()->snd[0];
-    btap(QD_B_PATTERN);
+    trkset();
     turn(QD_K_SELECT, 2);
     turn(QD_K_3, 2);
     qd_view_menu(&A, &mv);
@@ -949,7 +957,7 @@ static void t_fm_midi(void)
     int i, v, lk, own, a, b, n;
     start();
     engine_set(1);
-    btap(QD_B_PATTERN);
+    trkset();
     turn(QD_K_SELECT, 2);
     qd_view_menu(&A, &mv);
     btap(QD_B_HOME);
