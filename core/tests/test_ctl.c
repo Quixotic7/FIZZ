@@ -3696,7 +3696,7 @@ static void g_ble_settings(void)
     turn(QD_K_SELECT, 1);
     btap(QD_B_HOME);
     settings_open();
-    CHECK(A.ui.latch == QD_LATCH_SET && !A.ui.set_page, "opened again: page 1");
+    CHECK(A.ui.latch == QD_LATCH_SET && A.ui.set_page == 1, "opened again: on the page left (2026-11-11, owner)");
     btap(QD_B_HOME);
 }
 #endif
@@ -9600,8 +9600,8 @@ static void g_home_settings(void)
     CHECK(A.ui.view == QD_VIEW_EDIT, "HOME: EDIT again");
     btap(QD_B_SOUND);
     settings_open();
-    CHECK(A.ui.latch == QD_LATCH_SET && !qd_snd_open(&A), "HOME held in the sound editor: the settings");
-    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.latch == QD_LATCH_SET && !qd_snd_open(&A) && A.ui.set_page == 1,
+          "HOME held in the sound editor: the settings, on the page left (HOME's; 2026-11-11)");
     turn(QD_K_2, -1);
     btap(QD_B_HOME);
     btap(QD_B_HOME);
