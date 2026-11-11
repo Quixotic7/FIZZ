@@ -118,7 +118,7 @@ export class SimFizz {
 
   // the unit's own panel (the owner's hands): buttons held by their FM-1 labels (FX SEL ENV LFO EDIT GLO HOME SAVE ARP
   // SEQ PLAY REC OCT- OCT+: FIZZ's FX, TRACKS, MIX, LATCH, EDIT, SHIFT, HOME, SOUNDS, FILL, PATTERNS, PLAY, REC, F1, F2)
-  // and keys (0..26: the panel's key bits) for a moment, then let go; press(label) one button; selectTrack(t) TRACKS + white key t
+  // and keys (0..26: the panel's key bits) for a moment, then let go; press(label) one button; selectTrack(t) on OVERVIEW (SEL, its track key, SEL)
   panel(buttons = [], keys = [], ms = 40) {
     if (!this.engine) return;
     const t = this.engine.info().panelTable;
@@ -129,7 +129,11 @@ export class SimFizz {
     this.run(ms);
   }
   press(label) { this.panel([label]); this.panel([]); }
-  selectTrack(t) { this.panel(["SEL"]); this.panel(["SEL"], [[1, 3, 5, 8, 10, 13][t]]); this.panel(["SEL"]); this.panel([]); }   // (white keys 1..6's bits)
+  selectTrack(t) {   // SEL tapped: OVERVIEW, its track key B1..B6 tapped (the black keys' bits), SEL again: back
+    this.press("SEL"); this.panel([], [], 300);
+    this.panel([], [[1, 3, 5, 8, 10, 13][t]]); this.panel([], [], 400);
+    this.press("SEL"); this.panel([], [], 300);
+  }
 
   // ---- inbound: one frame held (sysex_byte: sx_collect = !sx_ready), taken by the main loop's next pass
   rx(d) {
