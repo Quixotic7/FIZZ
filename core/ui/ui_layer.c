@@ -688,7 +688,7 @@ static __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /* (noinli
     const int st = v->ble_st < 0 || v->ble_st > 2 ? 0 : v->ble_st;
     int k;
     for (k = 0; k < 2; k++) {
-        const float y = 42.f + (float)k * 51.f, vy = y + 31.5f;
+        const float y = 40.f + (float)k * 53.25f, vy = y + 30.f;   /* (the track settings' grid, TRK_Y) */
         const char *val = k == 0 ? (v->ble_on ? "ON" : "OFF") : ST[st];
         const qd_rgb col = (k == 0 ? v->ble_on : st) ? KCOL[k] : UI_G2;
         const float w = ui_TW(val, 26.f, 300, 0.f), sz = w > 150.f ? 26.f * 150.f / w : 26.f;
@@ -772,6 +772,8 @@ static void din5(float x, float y, float r, qd_rgb col)
     for (i = 0; i < 5; i++)
         ui_O(x + PX[i] * r * 0.55f, y + PY[i] * r * 0.55f + 1.f, 1.3f, QD_NONE, 1.f, col);
 }
+#define TRK_Y(k) (40.f + (float)(k) * 53.25f)   /* 2026-11-10 (owner): the four rows split the space under the head evenly,
+                                                  * at the same height on every page */
 static void menu_trk(const ui_menu_t *v)
 {
     const qd_rgb tc = UI_TRACK_PAL[(v->track - 1) & 7];
@@ -788,24 +790,24 @@ static void menu_trk(const ui_menu_t *v)
     line2(8.f, 27.f, 232.f, 27.f, UI_G3, 1.f);
     if (!v->page) {
         const float pw = ui_TW("PHRYGIAN", 30.f, 300, 0.f);   /* (every scale name at PHRYGIAN's size) */
-        menu_row(0, 34.f, "MODE", v->follow_key ? "GLOBAL" : "LOCAL");
-        menu_row_sz(1, 78.f, "SCALE", v->scale, pw > 110.f ? 30.f * 110.f / pw : 30.f);
+        menu_row(0, TRK_Y(0), "MODE", v->follow_key ? "GLOBAL" : "LOCAL");
+        menu_row_sz(1, TRK_Y(1), "SCALE", v->scale, pw > 110.f ? 30.f * 110.f / pw : 30.f);
         for (k = 0; k < 12; k++) {                      /* C .. B: the scale's notes, under its name */
-            const float x = 133.f + (float)k * 9.f, y = 120.f;
+            const float x = 133.f + (float)k * 9.f, y = TRK_Y(1) + 41.f;
             const int in = (v->scale_mask >> k) & 1;
             ui_O(x, y, 3.f, in ? UI_K2 : UI_G3, 1.f, in ? UI_K2 : QD_NONE);
             if (k == v->root_pc)
                 ui_O(x, y, 5.5f, UI_K3, 1.3f, QD_NONE);
         }
-        menu_row(2, 134.f, "ROOT", v->root);
-        menu_row(3, 186.f, "MIDI CH", ui_itoa(n, v->chan));
+        menu_row(2, TRK_Y(2), "ROOT", v->root);
+        menu_row(3, TRK_Y(3), "MIDI CH", ui_itoa(n, v->chan));
     } else if (v->page == 2) {                          /* P1.6d: KIND, NAME; FIZZ MIDI (c, mockups/fizz-midi-track.html
                                                          * screens 1..3): four rows as page 1's, ENGINE (FM TONE, its four
                                                          * operators; (e) MIDI, a DIN socket), MIDI OUT (a DIN socket and
                                                          * an arrow, the channel; OFF grey) */
         static const char *const TL[4] = {"KIND", "NAME", "ENGINE", "MIDI OUT"};
         for (k = 0; k < 4; k++) {
-            const float y = 42.f + (float)k * 51.f, vy = y + 31.5f;
+            const float y = TRK_Y(k), vy = y + 30.f;
             const char *val = k == 0 ? (v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE") : k == 1 ? (v->tname ? v->tname : "")
                             : k == 2 ? (v->engine == 2 ? "MIDI" : v->engine ? "FM+MIDI" : "FM TONE")
                             : v->mout ? ui_itoa(n, v->mout) : "OFF";
@@ -842,24 +844,21 @@ static void menu_trk(const ui_menu_t *v)
             }
         }
     } else {
-        menu_row(0, 44.f, "VOICES", ui_itoa(n, v->limit));
+        menu_row(0, TRK_Y(0), "VOICES", ui_itoa(n, v->limit));
         for (k = 0; k < 16; k++)                        /* the limit lit, the voices sounding white */
-            ui_O(38.f + (float)k * 7.f, 72.f, 2.4f, QD_NONE, 1.f,
+            ui_O(38.f + (float)k * 7.f, TRK_Y(0) + 28.f, 2.4f, QD_NONE, 1.f,
                  k < v->voices_now ? UI_K3 : k < v->limit ? UI_K1 : UI_G3);
-        menu_row(1, 98.f, "SWING", v->swing ? "ON" : "OFF");
-        ui_icon(UI_IC_SWING, 46.f, 126.f, 1.4f, v->swing ? UI_K2 : UI_G2);
-        menu_row(2, 152.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
-        menu_row(3, 198.f, "MIDI FX", v->mfx ? 0 : "OFF");   /* P1.6c: the track's group, a hexagon */
+        menu_row(1, TRK_Y(1), "SWING", v->swing ? "ON" : "OFF");
+        ui_icon(UI_IC_SWING, 46.f, TRK_Y(1) + 28.f, 1.4f, v->swing ? UI_K2 : UI_G2);
+        menu_row(2, TRK_Y(2), "PAGE FOLLOW", v->follow ? "ON" : "OFF");
+        menu_row(3, TRK_Y(3), "MIDI FX", v->mfx ? 0 : "OFF");   /* P1.6c: the track's group, a hexagon */
         if (v->mfx)
-            ui_mfx_hex(214.f, 220.f, 13.f, v->mfx, KCOL[3], 1.6f, 0);
+            ui_mfx_hex(214.f, TRK_Y(3) + 22.f, 13.f, v->mfx, KCOL[3], 1.6f, 0);
         else
-            ui_mfx_hex(46.f, 222.f, 9.f, 0, UI_G2, 1.2f, 1);
+            ui_mfx_hex(46.f, TRK_Y(3) + 24.f, 9.f, 0, UI_G2, 1.2f, 1);
     }
-    if (v->last >= 0 && v->last < 4) {                  /* the row turned last: its badge ringed */
-        static const float Y0[3][4] = {{34.f, 78.f, 134.f, 186.f}, {44.f, 98.f, 152.f, 198.f},
-                                       {42.f, 93.f, 144.f, 195.f}};
-        ui_O(18.f, Y0[v->page < 0 || v->page > 2 ? 0 : v->page][v->last], 12.f, KCOL[v->last], 1.2f, QD_NONE);
-    }
+    if (v->last >= 0 && v->last < 4)                    /* the row turned last: its badge ringed */
+        ui_O(18.f, TRK_Y(v->last), 12.f, KCOL[v->last], 1.2f, QD_NONE);
 }
 
 void ui_menu_draw(const ui_menu_t *v)

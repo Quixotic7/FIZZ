@@ -1026,10 +1026,10 @@ static void mf_trlane(const ui_mfx_t *v)
 }
 
 /* ALGORITHM: the routing map (2026-11-10, mockups/fizz-overview.html mfxMap): the six tracks' icons on the left, the
- * five groups' hexagons with their eight slots on the right, OFF below; a curve from each track to its group in its
+ * five groups' hexagons with their eight slots on the right, OFF on top (2026-11-10: the first choice first); a curve from each track to its group in its
  * kind's colour (the selected one thick, gliding to where ALGORITHM puts it, the place it left dashed while it
  * glides); a track on OFF a stub, its icon grey; a group no track is on grey */
-static float mg_y(float p) { return p < 1.f ? mf_lerp(224.f, 50.f, p) : 12.f + p * 38.f; }   /* (0 OFF, 1..5) */
+static float mg_y(float p) { return 46.f + p * 35.5f; }   /* (0 OFF on top, 1..5 below it) */
 static void mg_wire(float y0, float p, qd_rgb c, float lw, float a, int dash)
 {
     const float ey = mg_y(p), ex = p < 1.f ? 136.f : 138.f;
@@ -1061,7 +1061,7 @@ static void mf_gsel(const ui_mfx_t *v)
                   ty && v->gtype[g - 1][k] & 0x80 ? 0.3f : 1.f, 0);
         }
     }
-    ui_T("OFF", 150.f, 228.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
+    ui_T("OFF", 150.f, 50.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
     for (i = 1; i <= UI_NTRACK; i++) {                  /* (the selected last: on top) */
         const int t = (sel + i) % UI_NTRACK, kd = ui_track_kind(t + 1), s = t == sel;
         const float y = 50.f + (float)t * 32.5f, p = s ? v->gsel_pos : (float)v->tgrp[t];
