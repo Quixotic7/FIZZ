@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.15 (2026-11-11)
+
 B11 as a second shift key, a new OVERVIEW of all six tracks, a new SHIFT screen, and chords into steps from every page.
 
 - **OVERVIEW, a new view** (**SEL tapped**, at once from anywhere; SEL is lit while it is open): all six tracks' steps on the page at once, each with its own playhead; B1..B6 select, mute (hold) and solo (double tap) tracks as in the mixer, **B9 clears every mute and solo** (lit when there is one), the white keys edit the selected track's steps. **Its knobs with nothing selected: KNOB 1 the track's rate, KNOB 2 its volume, KNOB 3 / 4 the start and end of its loop on the page**, each value shown in a band at the top; the steps outside a track's start..end still show, grey and dim, and a page outside the selected track's loop is greyed and crossed out. B11 works there as on every page; holding a track key + B11 clears every mute and solo, as in the mixer. SEL again or HOME goes back.

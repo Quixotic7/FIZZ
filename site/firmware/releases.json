@@ -1,7 +1,59 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.14",
+  "latest": "0.12.0-beta.15",
   "releases": [
+    {
+      "version": "0.12.0-beta.15",
+      "date": "2026-11-11",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "28bac7f74e6e2ff31176a848e2741e9543e0f77e",
+      "fm1base": "934e40d846d84e76e9c428d37b74bccb6192c823",
+      "notes": "B11 as a second shift key, a new OVERVIEW of all six tracks, a new SHIFT screen, and chords into steps from every page.\n\n- **OVERVIEW, a new view** (**SEL tapped**, at once from anywhere; SEL is lit while it is open): all six tracks' steps on the page at once, each with its own playhead; B1..B6 select, mute (hold) and solo (double tap) tracks as in the mixer, **B9 clears every mute and solo** (lit when there is one), the white keys edit the selected track's steps. **Its knobs with nothing selected: KNOB 1 the track's rate, KNOB 2 its volume, KNOB 3 / 4 the start and end of its loop on the page**, each value shown in a band at the top; the steps outside a track's start..end still show, grey and dim, and a page outside the selected track's loop is greyed and crossed out. B11 works there as on every page; holding a track key + B11 clears every mute and solo, as in the mixer. SEL again or HOME goes back.\n- **OVERVIEW's black keys say what they do.** With step entry off (OVERVIEW opened, ALGORITHM fully left, LFO off, B11 + OCT\u2212) they pick the **tracks**, and the track icons light up as a row of keys. With step entry on (LFO, ALGORITHM, B11 + white keys) they are **always the hold modes** (NOTE, VEL ..) whatever LFO's VALUES / MODES setting: the icons go quiet, the mode's name shows at the top, and each change of mode flashes a band with the ten keys and the mode's name. A finger on a step makes them that step's values, as everywhere. **A muted track shows an M, a soloed one an S** in place of its icon.\n- **HOME clicks cycle the views** (PIANO ROLL, STEPS, EDIT, GEEK OUT; no SHIFT needed). From any other page the first click brings you back to the view you were on. **Hold HOME for the global settings** (they were SHIFT + SEL), with a new page **HOME**: choose the Home view and **LOCK** it (then HOME always goes there and never cycles).\n- **Hold SEL (or SHIFT + SEL) for the track settings** (SEL tapped is OVERVIEW now; the mute and solo map that held SEL showed is gone: mute and solo on the mixer or OVERVIEW). **The track settings and the global settings open on the page you left.** **SHIFT + PLAY opens F3**, as holding PLAY does; **holding PLAY on the keyboard page opens F3** too.\n- **A new SHIFT screen, the same on every page** (the keyboard page and the sound editor included): the selected track first (its number in its colour, its kind and name big, the six tracks under SELECT, which turns them while you hold SHIFT), then the root (P) and scale (A), PLAY with the tempo and swing, F1 undo and F2 redo, REC's record MODE, SEL the track settings, and SHIFT's black-key shortcuts at the foot. SHIFT's shortcuts and lights now work on the keyboard page too (its keys no longer play while SHIFT is held).\n- **The orange keys write chords into selected steps** on every page that has them (HOME, the sound editor, the effects, the mixer, TOOLS), as on the keyboard page: select steps (B11 + white keys, ALGORITHM, the latch), play keys together, and that chord replaces the steps' notes (an empty step becomes a note step; one undo per chord). The orange keys light the selected step's notes.\n- **The steps / keys switch is the same on every page** and stays as you set it: changing pages, views or pressing HOME no longer switches the white keys back to the steps. Only a B11 click turns it.\n- **The orange keys.** When the white keys play notes (a B11 click, below) they are drawn as boxy orange keys with a keyboard sign, the scale's roots filled and the keys you play lit, so they never look like the steps: along the foot on HOME, the mixer, SENDS and TOOLS, under the top in the sound editor.\n- **Paste after changing pages.** A step cut or copied stays in F2's hand when you let go: change page, hold F2 and tap an empty step to paste it. F1's first step still always copies.\n- **ENGINE keeps the other sound.** Switching a track from FM TONE to MIDI and back gives it its own FM TONE sound again (not INIT), and MIDI \u2192 FM TONE \u2192 MIDI its MIDI sound, until the FM-1 is switched off or a project is loaded.\n- **A third ENGINE: FM+MIDI.** The track plays its FM TONE sound and sends its sound editor's moves as CCs on its MIDI OUT channel: knob turns at once, p-locks as their steps play (back to the track's value after), REC + AUTOMATION turns too.\n- **MIDI FX routing map.** Turning ALGORITHM on the MIDI FX screen now shows every track wired to its group, each group's eight slots beside it; the selected track's wire moves as you turn.\n- **New mode keys.** B8 is FUNC, B9 is TRIG and SLIDE together (from another mode it opens the one you used last; tapped again it switches to the other), B10 is SOUND. SLIDE's B1 OFF, B2 ON, B3 LEGATO stay; the old \"B10 again\" cycle is gone. Holding B10 (SOUND) + B11 now resets the track's sound to its starting one.\n- **B11, a second shift key** (as in Elasticat), **the same on every page where steps can be locked**: the step view, the keyboard page, the sound editor, the effects, the mixer, MIDI FX and TOOLS. **Hold B11**: the pages and their steps over the page (gone the moment you let go); + B1..B8 the pages (as F1 + B1..B8: tap, double tap, hold); + white keys select steps (keys pressed together are one selection, the next press after all are up starts a new one) and turn the step lock on, so the page's knobs lock onto them; **+ F1** leaves the step lock (LIVE); **+ F2** puts the selected steps' value for the current mode back to the track's (in the sound editor, the mixer and the effects: their locks of the page's parameters; MIDI FX: the track's group). **A quick click of B11** switches the white keys between the steps and the orange keys, everywhere alike (it no longer turns the step lock on). With the step lock on B11 stays the hold key. GLO stays SHIFT; B11 keeps its jobs with a step or a mode key held, after F1 (undo), with SHIFT (clear), and with a track key held on the mixer (every mute and solo off, on OVERVIEW too, where B9 does it as well).\n- **REC opens the keyboard page** from everywhere; **a REC tap on the keyboard page records** (as holding REC does: the record settings' MODE and TAKE). HOME leaves the keyboard page. The steps / keys switch is B11's click now.\n- **Play chords into steps from the keyboard.** On the keyboard page B11 is the hold key too (it no longer plays F#5): hold B11 + white keys to select steps (the pages show while you hold it), let go, and every chord you play is written into the selected steps (outlined over the sound's name), one undo level a chord. **The selected step's notes show**: their keys light and the screen's keyboard fills them in magenta, as ALGORITHM moves through the steps too. ALGORITHM moves the selected step; fully left, LFO or B11 + F1 is LIVE again: the keys just play. A B11 click makes the white keys the steps there (the keyboard stays on the screen). **SELECT** turns the page (no longer the tempo). The keyboard is drawn white again. Recording still takes the notes when REC is armed.\n- **F3: SELECT turns the page, PRESETS the tempo** (it was SELECT); ALGORITHM is still the swing.\n- **TOOLS: B6 is HUMANIZE and QUANTIZE** (again: the other), **B7 the scope** (it was B11; ALGORITHM still turns it), so B11 is the hold key there too. **MIDI FX: B9 removes** a slot's effect (twice; it was B11).\n- **ALGORITHM selects the page's steps only.** The step cursor now stays on the page you edit (steps 1..16; SELECT turns the page), and turned fully left past step 1 it lets go: nothing selected, the knobs edit the track.\n- **Clear a track with F2 + B9, twice** (B9 blinks after the first press, CLEAR? shows; the second press clears, like SHIFT + B11). Holding F1 + B9 no longer clears.\n- **PLAY closes F3.** With F3 open (PLAY held), a PLAY tap closes it without starting or stopping.\n- **The keyboard page's lights with a step selected**: the scale stays dim and the step's notes blink; each key lights for its own note only (F# no longer lights G too).\n- **Fixed: GEEK OUT's scope page** could run out of drawing memory and drop its picture.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI and USB audio",
+          "fwsc": {
+            "path": "0.12.0-beta.15/fizz.fwsc",
+            "bytes": 1042099,
+            "sha256": "c3ed93816011e8373446d5c4242667590c2d429099a839e07392ad68b554aa20"
+          },
+          "data": {
+            "path": "0.12.0-beta.15/fizz-xdata.bin",
+            "bytes": 91896,
+            "sha256": "65ebd78fab61539b02a5be3aa6e589fc55fff7d6b74b7f4c72045a3ed7b5ff6a",
+            "crc32": 1133267948
+          }
+        },
+        {
+          "name": "fizz-ble",
+          "kind": "ble",
+          "label": "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+          "projects": 4,
+          "presets": 128,
+          "fwsc": {
+            "path": "0.12.0-beta.15/fizz-ble.fwsc",
+            "bytes": 1042154,
+            "sha256": "56b3f1cf57eacb24177c338d5ee7066d7c2c6352973e8273f669e1a2073f156d"
+          },
+          "data": {
+            "path": "0.12.0-beta.15/fizz-ble-xdata.bin",
+            "bytes": 85824,
+            "sha256": "cdcab57780345d1c662b7bb494ad81c4e11520f483178d2d0f29b0fc8ef677a7",
+            "crc32": 3436185409,
+            "at": 946176
+          },
+          "data2": {
+            "path": "0.12.0-beta.15/fizz-ble-xdata2.bin",
+            "bytes": 98212,
+            "sha256": "f7f691d06a814882cb2589083110a0e921c644ad7dbb37483f2a3d433f9d82fe",
+            "crc32": 88280316,
+            "at": 618496
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.14",
       "date": "2026-11-08",
