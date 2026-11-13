@@ -1534,20 +1534,24 @@ try {
   const kHid = await evaluate("document.getElementById('keys').hidden");
   await click("#t-library");
   check(kOn.shown && kOn.lit && kOff && kHid && /play/i.test(kOn.text) && /OCTAVE · [A-G]#?-?\d/.test(kOn.oct), `the keys' strip: G lit while held ("${kOn.text}", ${kOn.oct}); hidden on BACKUP`);
-  // USED BY: a MY preset on track 2 of the open pattern, read from the store PROJECTS would show (here: the sim's flash)
+  // USED BY: a MY preset on track 1 of the open pattern, read from the store PROJECTS would show (here: the sim's flash).
+  // (The demo's A01 has steps on track 1 only, each locked to a pool sound: four locks cleared, those steps play it)
   await evaluate(`(async () => { const { storeSound } = await import('../js/fizz_sysex.js'); const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = 3;
-    window.__sim.engine.midiIn(storeSound({ name: 'USED ONE', blob: b, tags: 4, track: 1 })); })()`);
+    window.__sim.engine.midiIn(storeSound({ name: 'USED ONE', blob: b, tags: 4, track: 0 })); })()`);
   await sleep(2600);
   await click("#refresh");
   await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'USED ONE') && !__mgr.S.refreshing");
   await idle();
   await evaluate(`(async () => { const P = await import('./projects.js'); const img = window.__sim.engine.flash().bytes.slice();
-    __mgr.projtab.state.base = { model: P.modelOf(img), image: img, written: null }; })()`);
+    const m = P.modelOf(img), pb = m.prj.get(P.rkey(P.RK.PAT, 0, 0)).slice(), pw = P.walkPat(pb);
+    for (let i = 0; i < 4; i++) pb[pw.soundAt[i]] = 0;
+    m.prj.set(P.rkey(P.RK.PAT, 0, 0), pb);
+    __mgr.projtab.state.base = { model: m, image: img, written: null }; })()`);
   const usedSlot = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.name === 'USED ONE').slot");
   await click(MINE(usedSlot));
   await waitFor("document.querySelector('#l-users .ub')", 5000);
   const ub = await evaluate("({ rows: [...document.querySelectorAll('#l-users .ub')].map((e) => e.querySelector('.ubt').textContent), cells: document.querySelectorAll('#l-users .ub:first-child .steps i').length, lit: document.querySelectorAll('#l-users .ub:first-child .steps i.p').length })");
-  check(ub.rows.length >= 1 && /track 2/.test(ub.rows[0]) && ub.cells === 16 && ub.lit > 0, `USED BY: ${ub.rows.join("; ")}: 16 steps, ${ub.lit} lit`);
+  check(ub.rows.length >= 1 && /track 1/.test(ub.rows[0]) && ub.cells === 16 && ub.lit > 0, `USED BY: ${ub.rows.join("; ")}: 16 steps, ${ub.lit} lit`);
   await shot("manager-neon-usedby.png");
   // SELECT: shift a range, cmd / ctrl one off; EXPORT the two, TAG, + POOL, − POOL
   const mclick = (sel, o) => evaluate(`document.querySelector(${JSON.stringify(sel)}).dispatchEvent(new MouseEvent('click', { bubbles: true, ...${JSON.stringify(o)} }))`);
