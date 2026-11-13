@@ -390,7 +390,7 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         uint8_t *k = &out->key[QD_BLACK_KEY[(u->pflash - 1) & 7]];
         *k = *k == QD_LED_LIT && a->ms - u->pflash_ms < QD_PFLASH_MS / 3u ? QD_LED_OFF : QD_LED_LIT;
     }
-    if (u->wflash && a->ms - u->wflash_ms < QD_PFLASH_MS && qd_snd_keys(a)) {   /* 2026-11-13 (owner): ALGORITHM's step:
+    if (u->wflash && a->ms - u->wflash_ms < QD_PFLASH_MS && (qd_snd_keys(a) || u->mode == QD_MODE_KEYS)) {   /* 2026-11-13 (owner): ALGORITHM's step:
                                                          * its W key flashes once, as a page's */
         uint8_t *k = &out->key[QD_WHITE_KEY[(u->wflash - 1) & 15]];
         *k = *k == QD_LED_LIT && a->ms - u->wflash_ms < QD_PFLASH_MS / 3u ? QD_LED_OFF : QD_LED_LIT;

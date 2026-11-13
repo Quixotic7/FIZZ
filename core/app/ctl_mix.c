@@ -361,11 +361,9 @@ int qd_fx_knob(qd_app_t *a, int knob, int d)
         u->menu_knob = -1;
         return 1;
     }
-    if (knob == QD_K_ALGO && pg->fx == QD_FXG_ROUTE && !u->fx_bheld) {   /* ROUTING: ALGORITHM the track's DRY / WET
-                                                         * (the owner, 2026-10-26; KNOB 2 too) */
-        qd_mix_track_t *mt = &a->model.t[a->sel].mix;
-        mt->dry = (uint8_t)cl(mt->dry + qd_ctl_acc(a, d, 128), 0, 127);
-        u->menu_knob = 1;
+    if (knob == QD_K_ALGO && !u->fx_bheld) {            /* 2026-11-13 (owner): ALGORITHM the step cursor, as on the
+                                                         * Home views (fully left: LIVE; ROUTING's DRY / WET is KNOB 2) */
+        qd_step_cursor(a, d);
         return 1;
     }
     if (knob < QD_K_1)

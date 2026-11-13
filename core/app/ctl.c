@@ -1011,9 +1011,11 @@ static void latch_toggle(qd_app_t *a)
                                                          * editor takes it: the selection's turns are its p-locks;
                                                          * P1.6h: so do the mix, the effects, the MIDI FX screen) */
     qd_step_latch(a, !a->ui.slatch);
-    if (a->ui.slatch && (a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_FX))
+    if (a->ui.slatch && a->ui.latch == QD_LATCH_MIX)  /* (2026-11-13: the effects now as the step views, below) */
         qd_step_release_all(a);
-    else if (a->ui.slatch && !a->ui.latch)              /* 2026-11-13 (owner): the step views: the last selection back */
+    else if (a->ui.slatch && (!a->ui.latch || a->ui.latch == QD_LATCH_FX || a->ui.latch == QD_LATCH_SND))   /* 2026-11-13
+                                                         * (owner): the step views, the effects, the sound editor: the
+                                                         * last selection back */
         qd_step_latch_restore(a);                         /* (P1.6h: there it starts empty: the knobs the track's until
                                                          * W keys select) */
 }
@@ -1475,7 +1477,8 @@ static void b_lfo(qd_app_t *a, int down)
         qd_step_latch(a, 0);                            /* 2026-11-10 (owner): the keyboard's selection: off, LIVE */
         return;
     }
-    if (!a->ui.lfo_used && qd_keys_on(a) && !(a->ui.mode == QD_MODE_STEP && !a->ui.latch)) {   /* 2026-10-26 (the owner):
+    if (!a->ui.lfo_used && qd_keys_on(a) &&
+        !(a->ui.mode == QD_MODE_STEP && (!a->ui.latch || a->ui.latch == QD_LATCH_FX || a->ui.latch == QD_LATCH_SND))) {   /* 2026-10-26 (the owner):
                                                          * the live keys' HOLD on / off (2026-11-13: not on the step
                                                          * views: there LFO is the lock, as with the steps; the
                                                          * keyboard, the editor's and the effects' keys too) */

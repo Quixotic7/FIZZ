@@ -4541,12 +4541,19 @@ static void g_p15b_fx(void)
     CHECK(qd_fx_get(QD_FXP_RMODE) == 1, "KNOB 1: CHAIN");
     turn(QD_K_2, 3);
     CHECK(A.model.t[2].mix.dry == 67 && A.model.t[0].mix.dry == 64, "KNOB 2 +3: track 3's DRY 67 (per track)");
-    turn(QD_K_ALGO, -10);
-    CHECK(A.model.t[2].mix.dry == 57, "ALGORITHM -10: DRY 57 (the owner: the track's dry / wet)");
-    turn(QD_K_2, -7);
-    CHECK(A.model.t[2].mix.dry == 50, "KNOB 2 -7: DRY 50 too");
-    turn(QD_K_ALGO, 14);
+    turn(QD_K_2, -17);
+    CHECK(A.model.t[2].mix.dry == 50, "KNOB 2 -17: DRY 50");
+    turn(QD_K_2, 14);
     CHECK(A.model.t[2].mix.dry == 64, "back to the middle");
+    turn(QD_K_ALGO, 3);
+    CHECK(A.model.t[2].mix.dry == 64 && A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] % 16 == 2,
+          "2026-11-13 (owner): ALGORITHM the step cursor, as on the Home views (step 3), DRY untouched");
+    btap(LFO);
+    CHECK(!A.ui.slatch && !A.ui.nheld, ".. LFO: unlocked, LIVE");
+    btap(LFO);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] % 16 == 2, ".. LFO again: step 3 back");
+    turn(QD_K_ALGO, -5);
+    CHECK(!A.ui.slatch && !A.ui.nheld, ".. ALGORITHM fully left: LIVE");
     kdown(BK(B3));
     run(50);
     CHECK(A.ui.fx_bheld == 3 && leds().key[BK(B3)] == QD_LED_LIT, "B3 (DELAY's page key) held: its block lifts, the key lit");
@@ -10248,6 +10255,20 @@ static void g_kb_round3(void)
     bdown(SHIFT), run(30), bup(SHIFT), run(10);
     btap(QD_B_OCTDN);                                   /* (SHIFT + F1: undo) */
     CHECK(!qd_ctl_shift(&A), "stuck SHIFT: a button (F1, its undo) ends it");
+    btap(QD_B_SOUND);                                   /* the sound editor, the keys on: LFO the lock (no HOLD) */
+    if (!qd_snd_keys(&A))
+        black(B11);
+    btap(LFO);
+    ok = qd_snd_open(&A) && qd_snd_keys(&A) && A.ui.slatch && A.ui.nheld == 1 && !A.ui.khold;
+    btap(LFO);
+    CHECK(ok && !A.ui.slatch && !A.ui.nheld && !A.ui.khold, "the sound editor, its keys on: LFO locks (a step back), "
+          "LFO again unlocks (no HOLD)");
+    btap(QD_B_HOME);
+    btap(QD_B_REC);                                     /* the keyboard page: ALGORITHM's step flashes its W key */
+    turn(QD_K_ALGO, 2);
+    run(20);
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.wflash == 2 && A.ui.nheld == 1, "the keyboard page: ALGORITHM to step 2, W2 "
+          "flashes");
 }
 
 int main(void)
