@@ -283,6 +283,7 @@ try {
   await waitFor("FIZZ.labels.knobs[0].firstChild.textContent === 'TRACK'", 3000);
   const r1 = await real();
   await shot("labels-fizz-shift.png");
+  await sleep(400);                                  // (held, not clicked: a click would stick SHIFT, 2026-11-13)
   await evaluate("FIZZ.controls.holdBtn(5, 4, false)");
   await waitFor(`FIZZ.labels.knobs[0].firstChild.textContent === ${JSON.stringify(r0.sel)}`, 3000);
   check(r0.w1 === "STEP 1" && r0.b1 === "NOTE" && r1.sel === "TRACK" && r1.b8 === "FOLLOW" && r1.f1 === "UNDO",

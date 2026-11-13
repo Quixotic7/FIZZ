@@ -9,6 +9,19 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+The step keyboard: the white keys play each hold mode's values, and a lot of step-entry polish.
+
+- **The step keyboard** (a B11 click turns the white keys into keys; B11 breathes while it is on). In each hold mode the sixteen white keys are that mode's values, and each press plays the step with it: **VEL** 8 .. 127, **LEN** 1/8 .. 32 steps and INF (the step plays at that length), **MICRO** with W8 on the grid (always a little brighter), **RATCHET** x1 .. x8 then x1 .. x8 rising, **CHANCE** 6 .. 100 %, **COND** A on W1..W8 and B on W9..W16 (1:1 .. 8:8), **TRIG, SLIDE, FUNC** their black keys' values on W1..W10, and **SOUND**: W1..W10 the bank's ten sounds, W11..W16 the pads' velocity (20 .. 127, kept for every sound you play), F1 / F2 clicked change the bank. The key LEDs show the step's value as you move through the steps.
+- **With a step selected** the screen shows the page's 16 steps where the heading was (the mode's value stays top right), and the lock's frame goes round the keys too. **Held keys + B11** put that value back to the track's.
+- **LIVE (nothing selected)**: the screen shows the value of the key you hold, a second after you let go. **Held keys + B11** make it the track's own (NOTE: the held notes become the track's notes; a band says so). Playing, the key LEDs follow the step that plays.
+- **LIVE while playing**: in VEL, LEN, MICRO, RATCHET, CHANCE and COND, holding a white key overrides that value on every step the track plays while you hold it. With REC on it is written into every step it passes (an empty step becomes a ghost step, no trig and no notes). SOUND keys record their sound and velocity at the playhead: finger drumming.
+- **Hear the value you set.** Stopped, changing a value on the selected steps plays the step once; ratchets play their hits.
+- **LFO is the lock on the step pages, the effects and the sound editor**, with the step keyboard on too: off goes LIVE, on brings back the selection you had (the first time: step 1). **ALGORITHM selects steps in the effects too** (fully left: LIVE; ROUTING's DRY / WET is KNOB 2). ALGORITHM's step flashes its white key; turning SELECT to another page flashes that page's black key, everywhere.
+- **F1 / F2 on the step keyboard**: a quick click changes the octave (SOUND: the bank), held they are F1's and F2's step functions, with the white keys as steps. Their screens, and B11's pages screen, show the page's steps along the foot.
+- **Recording**: armed while stopped it is always a CAPTURE; armed while playing it is the record settings' TAKE, **OVERDUB** (the default) or **REPLACE**.
+- **SHIFT sticks**: a quick click keeps it on (click again to end it); a hold never sticks, and any button ends it after its shortcut.
+- **OVERVIEW**: the orange keys no longer cover the tracks, and the selected track's row is tinted in its colour.
+
 ## 0.12.0-beta.15 (2026-11-11)
 
 B11 as a second shift key, a new OVERVIEW of all six tracks, a new SHIFT screen, and chords into steps from every page.
