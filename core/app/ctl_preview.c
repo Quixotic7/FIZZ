@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "app.h"
+#include "ui.h"
 
 int qd_ctl_previewing(const qd_app_t *a)
 {
@@ -122,6 +123,15 @@ static void mark_grp(qd_app_t *a, int s)                /* (P1.6e: through a gro
         a->ui.pvs_grp = a->sel + 1;
 }
 
+/* a length (QD_LEN_*) in ms on the selected track: its rate at the tempo (INF: 2 s; 20 ms .. 4 s) */
+uint32_t qd_ctl_len_ms(const qd_app_t *a, int len)
+{
+    const int bpm = qd_seq_bpm(&a->seq), e = qd_len_eighths(len);
+    const float ms = (float)qd_rate_ticks(qd_tset_rate(&qd_ctl_cpat(a)->trk[a->sel])) / (float)QD_TPS * 15000.f /
+                     (float)(bpm > 0 ? bpm : 120) * (float)e / 8.f;
+    return e < 0 ? 2000u : ms < 20.f ? 20u : ms > 4000.f ? 4000u : (uint32_t)ms;
+}
+
 /* step s struck as a new entry (until: 0 a finger's, else the ms it ends); its ratchet's hits timed */
 static void strike(qd_app_t *a, int s, uint32_t until)
 {
@@ -148,6 +158,8 @@ static void strike(qd_app_t *a, int s, uint32_t until)
         if (until)
             until = a->ms + (uint32_t)(hits - 1) * u->pvs_gap[j] + QD_PREVIEW_MS;
     }
+    if (until && u->hmode == UI_F_LEN)                  /* (2026-11-13, owner: on LEN the step at its length) */
+        until = a->ms + qd_ctl_len_ms(a, r.len) + (uint32_t)(hits - 1) * u->pvs_gap[j];
     u->pvs_until[j] = until ? until | 1u : 0;
     u->pvs_nn[j] = (uint8_t)qd_player_preview(&a->player, a->seq.cur, a->sel, s, u->pvs_note[j]);
     mark_grp(a, s);
@@ -209,6 +221,7 @@ void qd_ctl_preview_sync(qd_app_t *a)
     qd_ui_t *u = &a->ui;
     const int on = qd_ctl_previewing(a);
     int i, j;
+    qd_mk_tick(a);                                      /* (2026-11-13: LEN's keys end at the length) */
     for (i = u->pvs_n - 1; i >= 0; i--) {               /* gone, or changed: released */
         int keep = on && u->pvs_track[i] == a->sel && is_held(u, u->pvs_step[i]);
         if (keep && u->pvs_until[i] && fingered(a, u->pvs_step[i]))

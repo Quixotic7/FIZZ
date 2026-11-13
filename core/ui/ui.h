@@ -570,6 +570,8 @@ int qd_view_edit_follows(const struct qd_app *a);   /* P1.5q: EDIT shows the ste
 typedef struct {
     int layer;                          /* 1 F1, 2 F2, 3 F3 */
     int b11;                            /* 2026-11-10: F1's pages for B11 held (its head; no clear, copy, undo) */
+    uint16_t b11_sel;                   /* 2026-11-13: .. the page edited's selected steps (its row at the foot) */
+    int b11_play;                       /* .. its playhead there (-1 none) */
     int track;                          /* 1..8 */
     const char *name;                   /* the track's */
     float t;                            /* seconds (the blinks) */

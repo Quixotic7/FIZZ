@@ -113,8 +113,13 @@ static void f1(const ui_layer_t *v)
         k[p].col = v->page_copied >= 0 ? UI_K2 : (v->loop >> p) & 1 ? UI_K3 : UI_G1;
         k[p].lit = p == v->page && v->page_copied < 0;
     }
-    if (v->b11) {                                       /* 2026-11-10: B11 held: the pages only */
-        ui_keymap(k, KM_Y, KM_H);
+    if (v->b11) {                                       /* 2026-11-10: B11 held: the pages only; 2026-11-13 (owner): the
+                                                         * page edited's steps at the foot, as the step keyboard's row
+                                                         * (no key numbers) */
+        uint16_t trig = 0;
+        for (i = 0; i < 16; i++)
+            trig |= (uint16_t)((v->trig[v->page & 7][i] != 0) << i);
+        ui_page_row(KM_Y + 6.f, trig, v->b11_sel, -1, v->b11_play);
         return;
     }
     /* the W keys' step copy: a white key and COPY, or PASTE (green) once a step is copied */

@@ -204,7 +204,7 @@ void qd_project_init(qd_project_t *pr)
     pr->launch = 0;                                     /* (QD_LAUNCH_END) */
     pr->rec_mode = 0;                                   /* P1.3y: LIVE, as played (0 %), CAPTURE */
     pr->rec_quant = 0;
-    pr->rec_dub = QD_TAKE_CAPTURE;
+    pr->rec_dub = QD_TAKE_OVERDUB;                     /* (2026-11-13: CAPTURE is the stopped arm's, always) */
     pr->rec_ekeys = 0;                                  /* P1.5b: the editor's keyboard: SCALE */
     memset(pr->mfx, 0, sizeof pr->mfx);                 /* P1.6c: the MIDI FX groups empty */
     pr->rec_auto = 1;                                   /* P1.6d: AUTOMATION ON (live recording's knobs, as before) */

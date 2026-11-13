@@ -222,8 +222,8 @@ BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-11, OVERVIEW's black keys: the tracks' sweep, the mode's band, M / S in ui_ov.c: the second blob 1,020 B
 # over: the SHIFT screen's, the mix's and OVERVIEW's band models (fill_shift, fill_mix, fill_ovband) back in the slot,
 # which ui_held.o and ui_turn.o at -Oz made room for, below)
-BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"],
-             "build_units_c_ctl.o": ["qd_ctl_ov_knob"]}
+BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"]}   # (2026-11-13: qd_ctl_ov_knob back in the slot: the
+                                                         # blob 28 B over with view.o at -Oz)
 # (2026-11-10) units compiled at -Oz, not -Os, on the Bluetooth package: the screens' unit (ui_layer.o: the sound
 # editor, MIDI FX, the browser, the typewriter, the tools, Geek Out, OVERVIEW, the layer and SHIFT screens), main-loop
 # drawing logic only (never the audio interrupt, core 1 or under the audio lock; the raster, qd_gfx_fast.o, stays
@@ -239,8 +239,9 @@ BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"],
 BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_ui_turn.o",
           "build_units_c_ui_idle.o", "build_units_c_ui_kit.o",
           "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
+          "build_units_c_view.o",   # (2026-11-13, the step keyboard's second round: 1,040 B over; the views' models)
           *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
-USB_OZ = {"build_units_c_ui_layer.o"}
+USB_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o"}   # (2026-11-13: + the held screens: 224 B over)
 # (2026-11-12, the orange keys' modes: the single-core package's slot 2,476 B over, 1,508 free before: ui_idle.o and
 # ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
 SINGLE_OZ = USB_OZ | {"build_units_c_ui_idle.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)

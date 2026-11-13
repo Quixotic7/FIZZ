@@ -226,6 +226,22 @@ void qd_step_cursor(qd_app_t *a, int d)
     qd_ctl_preview_once(a, s);                          /* P1.5s: the step it moved to, once */
 }
 
+/* 2026-11-13 (owner): LFO on a step view, the lock on: the selection it last let go back (its page shown), the first time
+ * step 1 of the page shown */
+void qd_step_latch_restore(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int i;
+    if (!u->lsel_mask) {
+        held_add(a, u->page[a->sel] * QD_PAGE, -1);
+        return;
+    }
+    qd_ctl_set_page(a, u->lsel_pg);
+    for (i = 0; i < QD_PAGE; i++)
+        if ((u->lsel_mask >> i) & 1u)
+            held_add(a, u->lsel_pg * QD_PAGE + i, -1);
+}
+
 void qd_step_cursor_page(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
@@ -241,6 +257,16 @@ void qd_step_cursor_page(qd_app_t *a)
 
 void qd_step_latch(qd_app_t *a, int on)                 /* (2026-10-26, the owner: it starts EMPTY; the cursor seeds it) */
 {
+    qd_ui_t *u = &a->ui;
+    int i;
+    if (u->slatch && u->nheld) {                        /* 2026-11-13 (owner): the selection let go is kept (its first
+                                                         * step's page) for LFO to bring back */
+        u->lsel_pg = (uint8_t)(u->held[0] / QD_PAGE);
+        u->lsel_mask = 0;
+        for (i = 0; i < u->nheld; i++)
+            if (u->held[i] / QD_PAGE == u->lsel_pg)
+                u->lsel_mask |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+    }
     qd_step_release_all(a);
     a->ui.slatch = on != 0;
     a->ui.scursor = 0;

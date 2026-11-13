@@ -477,6 +477,8 @@ typedef struct {
     int mkey_used;                     /* .. a knob or B11 used it (its picture at once) */                    /* the first step held was empty when it was held */
     /* P1.3d: the step latch (LFO): the held steps are a selection that stays (held_key -1); a W selects */
     int slatch;
+    uint16_t lsel_mask;                /* 2026-11-13 (owner): the selection the lock last let go (a page's steps; 0 none) .. */
+    uint8_t lsel_pg;                   /* .. its page: LFO on the step views brings it back (none yet: step 1) */
     int scursor;                       /* P1.3q: the latch's selection is PRESETS' cursor (STEPS): the STEPS view stays */
     int dt_w, dt_double;               /* P1.6d: the latch's last tap (its W + 1; 0 none), the gesture a double tap .. */
     uint32_t dt_ms;                    /* .. its release */
@@ -585,6 +587,10 @@ typedef struct {
     uint8_t mk_nt[QD_NNOTE], mk_tr;
     uint8_t mk_bm;                     /* .. held keys + B11: the band's mode (the confirmation's QD_CF_BAND, qd_mk_band) */
     uint16_t mk_on, mk_rec;
+    uint8_t mk_svel;                   /* 2026-11-13 (owner): SOUND's pad velocity, W11..W16's last (0: the track's) */
+    uint8_t mk_shw;                    /* .. LIVE: the W key whose value shows (+ 1; 0 none) while held, then a second */
+    uint32_t mk_ms;                    /* .. its last press or release */
+    uint32_t mk_off;                   /* .. LEN: the keys' notes end then (0 none) */
     uint32_t pflash_ms;                /* 2026-11-12 (owner): SELECT turned the page edited: its black key flashes once */
     uint8_t pflash;                    /* .. (the page + 1; 0 none) */
     int mod_slot, mod_src;             /* E4: the MOD page's chosen slot (0..7); hold-to-map's source (QD_MS_*) */
@@ -827,7 +833,11 @@ void qd_keys_step_leds(const struct qd_app *a, uint8_t *key, int page);   /* 202
  *   x1..x8 rising; CHNC 6 % .. 100 %; COND ALWAYS .. !1ST, 1:2 .. 2:4; SOUND the bank's ten sounds, velocity 20 .. 127
  * Keys held + B11 (qd_mk_b11): a selection's value back to the track's; nothing selected, the key's value the track's
  * default (NOTE and the keys that play: the held notes the track's notes); a band says what it is now */
-int qd_mk_on(const struct qd_app *a);           /* the orange keys are the hold mode's values now */
+int qd_step_kb(const struct qd_app *a);         /* 2026-11-13: the step keyboard (a step view, the W keys the keys) */
+int qd_mk_on(const struct qd_app *a);
+int qd_mk_show(const struct qd_app *a, qd_rstep_t *r);   /* 2026-11-13: LIVE, a W held (a second after): its value in r */
+void qd_mk_tick(struct qd_app *a);              /* .. LEN's notes end at the step's length */
+uint32_t qd_ctl_len_ms(const struct qd_app *a, int len);   /* a length's ms on the track (its rate, the tempo; INF 2 s) */           /* the orange keys are the hold mode's values now */
 int qd_mk_val(const struct qd_app *a, int m, int w);   /* W w's value in mode m (RATCH: w, COND: QD_COND_*) */
 void qd_mk_white(struct qd_app *a, int key, int w, int down, int vel);
 int qd_mk_b11(struct qd_app *a);                /* B11 pressed: orange keys held, done (1); else 0 */
@@ -1050,6 +1060,7 @@ void qd_step_job_default(struct qd_app *a, int job, int knob, int d);
  * ramp; SOUND: the track's starting sound), and whether it is there now */
 void qd_step_default_reset(struct qd_app *a, int m);
 int qd_step_default_initial(const struct qd_app *a, int m);
+void qd_step_latch_restore(struct qd_app *a);   /* 2026-11-13: LFO's lock on: the last selection back (else step 1) */
 void qd_step_latch(struct qd_app *a, int on);   /* P1.3d: the step latch (LFO) on / off */
 void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the last step edited, else the page's first) */
 void qd_step_cursor(struct qd_app *a, int d);   /* ALGORITHM: the latch's one selection on the page shown (2026-11-10) */

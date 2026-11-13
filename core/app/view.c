@@ -314,6 +314,7 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
         memset(&on, 0, sizeof on);
         on.flags = QD_SF_ON;
         qd_step_resolve_def(&ts->def, &on, &r);
+        qd_mk_show(a, &r);                              /* (2026-11-13: LIVE, a W key held: its value shown) */
         st = &on;
     } else {
         qd_step_resolve(P, t, s, &r);
@@ -493,6 +494,15 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     memset(v, 0, sizeof *v);
     v->layer = layer;
     v->b11 = layer == QD_LAYER_F1 && qd_ctl_layer(a) == QD_LAYER_NONE;   /* (2026-11-10: B11's pages) */
+    v->b11_play = -1;
+    if (v->b11) {                                       /* (2026-11-13: the page edited's row at the foot) */
+        const int st = a->seq.playing ? qd_seq_track_step(&a->seq, t) : -1;
+        for (i = 0; i < u->nheld; i++)
+            if (u->held[i] / QD_PAGE == u->page[t])
+                v->b11_sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        if (st >= 0 && st / QD_PAGE == u->page[t])
+            v->b11_play = st % QD_PAGE;
+    }
     v->track = t + 1;
     v->name = a->model.t[t].name;
     v->t = secs(a->ms);
