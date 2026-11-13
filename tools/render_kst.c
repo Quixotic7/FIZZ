@@ -183,6 +183,9 @@ int render_kst(const char *out)
         if (s % 4 == 0 || s == 6 || s == 11)
             qd_step_on(p, A.sel, s);
     }
+    ktap(BK(10));                                       /* (2026-11-13: REC from the Home views' steps opens STEPS: B11
+                                                         * for the keys first) */
+    run(300);
     shot("keys", "KEYS: the keyboard page as now (W keys the notes)", 1);
     ktap(BK(10));
     run(300);
@@ -196,7 +199,7 @@ int render_kst(const char *out)
     run(200);
     qd_app_knob(&A, QD_K_ALGO, 5);
     run(300);
-    shot("steps-sel", "STEPS, ALGORITHM: step 5 selected", 1);
+    shot("steps-sel", "STEPS, ALGORITHM: step 5 selected: the held step's frame", 1);
     qd_app_knob(&A, QD_K_ALGO, -9);
     run(100);
     btap(QD_B_PLAY);

@@ -17,6 +17,8 @@ its text becomes the release's notes on the install page and on GitHub.
 - **The sound editor: ALGORITHM selects steps** as on the Home views (fully left: LIVE; LFO the lock). Each page's fifth value is on **PRESETS** now (the filter machine, AMP's mode, the delays, VOICE's priority, MOD's slot); a page without one: PRESETS turns KNOB 1's value. **RATIO**: ALGO on KNOB 1, the ratios C, A, B on KNOB 2..4, MIX on PRESETS.
 - **The keyboard page, B11's STEPS**: the white keys are the steps (the row up top, with the playhead), and the keybed gives way to an orange grid of B1..B10, the keys that play, the scale's roots marked (on their LEDs too).
 - **SAVE in the sound editor with a step selected** saves that step's sound (its sound lock, or the track's, with its locks): a magenta STEP chip says so; KNOB 4 switches between the TRACK's sound and the STEP's. The track's sound stays as it is: program a kit's pieces on steps and save each one out.
+- **B11 is one state everywhere**: the Home views' step selection opens REC's keyboard page in STEPS (white keys the steps, B1..B10 the notes), their step keyboard opens it on the full keyboard, and B11 on the keyboard page changes it for the Home views too. In STEPS, **B1..B10 play the scale from its root** (B1 the root; a 7-note scale: B8 the next one).
+- **One look for a selected step**: the sound editor has no frame for the track's sound and the Home views' step frame for a step; its head is the page's name alone (white for a step) with the page's steps under it; the keys' strip is gone (the keys' LEDs and B11's breath show it). The keyboard page shows the same frame when a step is selected.
 
 ## 0.12.0-beta.17 (2026-11-13)
 

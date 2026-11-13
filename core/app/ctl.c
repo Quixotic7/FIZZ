@@ -347,9 +347,10 @@ static void set_mode(qd_app_t *a, int mode)
         u->slatch = 0;
         qd_step_release_all(a);
     }
-    if (mode == QD_MODE_KEYS)                           /* (2026-11-10: the keyboard page opens on its keys; the other
-                                                         * pages' steps / keys flag, ekeys, is global: kept) */
-        u->ksteps = 0;
+    if (mode == QD_MODE_KEYS)                           /* (2026-11-13, owner: B11's state is one, global: the Home
+                                                         * views' step keyboard (ekeys) the full keyboard here, their
+                                                         * steps the W keys' steps here, B1..B10 the notes) */
+        u->ksteps = (uint8_t)!u->ekeys;
     if (mode != QD_MODE_KEYS && u->khold) {             /* 2026-10-26: out of the live keys: their HOLD ends */
         u->khold = 0;
         qd_app_hold_release(a);
@@ -996,7 +997,7 @@ static void keys_toggle(qd_app_t *a)
         return;
     }
     if (u->mode == QD_MODE_KEYS)
-        u->ksteps ^= 1;                                 /* (the keyboard page: its W keys the steps, the screen's
+        u->ksteps ^= 1, u->ekeys = !u->ksteps;          /* (the keyboard page: its W keys the steps, the screen's
                                                          * keyboard stays) */
     else
         u->ekeys = !u->ekeys;

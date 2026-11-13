@@ -112,6 +112,7 @@ typedef struct {
                                          * keybed gives way to the ten black keys that play, an orange grid (ui_rec_key) */
     uint8_t bst[10];                    /* .. their states (ui_rec_key's: 1 in the scale, 2 a root, +4 sounding) */
     int play;                           /* the playing step on the page (0..15), -1 none */
+    int framed;                         /* 2026-11-13: a step selected (any page): the held step's frame */
     int quantize;                       /* rec 2: quantize is on ("Q" by the badge) */
     int scale;                          /* P1.3b: the track's scale (not chromatic: its name by the octave) */
     const char *scale_name;
@@ -787,6 +788,10 @@ typedef struct ui_snd {
      * OUT channel (0 OFF), SHIFT held and the slot whose CC number it turned (-1) */
     int midi, mch, shift, shift_k;
     int cc[4];
+    /* 2026-11-13 (owner): the page's sixteen steps under the head, as the Home views' (ALGORITHM selects them): the
+     * trigs, the selected, the playing one (-1) */
+    uint16_t row_trig, row_sel;
+    int row_play;
 } ui_snd_t;
 void ui_snd_draw(const ui_snd_t *v);
 

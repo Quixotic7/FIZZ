@@ -837,30 +837,6 @@ static void sd_lfoshape(const ui_snd_t *v)
             ui_O(NOTE[i], 108.f - sd_wave(w, ph) * 50.f, 3.4f, QD_NONE, 1.f, SNDK[1]);
 }
 
-/* P1.5b: the keyboard on: a strip under the head, the keys as they play (SCALE: the 16 W keys, the roots brighter;
- * FULL: the 27 keys as the keybed, the scale's notes lit), a sounding key in the track's colour */
-static void sd_keys_strip(const ui_snd_t *v, qd_rgb tc)
-{
-    static const uint8_t BLK[27] = {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0};
-    int i, w = 0;
-    (void)tc;                                           /* (2026-11-10: the keys are REC's orange, not the track's) */
-    if (v->keys == 1) {
-        for (i = 0; i < 16; i++)                        /* (2026-11-10: orange, boxy keys, a little taller) */
-            ui_rec_key(8.f + (float)i * 14.f, 25.f, 12.f, 10.f, v->kst[i]);
-        return;
-    }
-    for (i = 0; i < 27; i++) {                          /* FULL: the whites a row, the blacks over their gaps */
-        const int st = v->kst[i];
-        if (!BLK[i]) {                                  /* (2026-11-10: orange, boxy) */
-            ui_rec_key(8.f + (float)w * 14.f, 27.f, 12.f, 8.f, st);
-            w++;
-        } else {
-            const float x = 8.f + (float)w * 14.f - 4.5f;
-            ui_RR(x, 24.f, 7.f, 3.f, 0.8f, QD_NONE, 1.f, st & 4 ? UI_REC_KEY : (st & 3) ? UI_REC_KEY : UI_G3);
-        }
-    }
-}
-
 
 /* ---------------------------------------------------------------- P1.5c: randomise's pictures, in FIZZ's neon lines */
 static void sd_glow(const float *p, int n, int close, qd_rgb col, float lw)   /* a line three times: wide faint, the line */
@@ -1065,7 +1041,8 @@ static void sd_midi(const ui_snd_t *v)
     char n[12], head[16];
     float w;
     int k;
-    ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, v->step ? UI_SND_FRAME_STEP : UI_SND_FRAME_TRACK, 3.f, QD_NONE);
+    if (v->step)                                        /* (2026-11-13: as the Home views: a step's frame, none else) */
+        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
     for (k = 0; k < 7; k++)                             /* the seven pages */
         ui_O(12.6f + (float)k * 9.f, 14.f, 2.6f, k == v->ipg ? hc : UI_G2, 1.f, k == v->ipg ? hc : QD_NONE);
     head[0] = 0;
@@ -1124,11 +1101,12 @@ void ui_snd_draw(const ui_snd_t *v)
         sd_midi(v);
         return;
     }
-    /* P1.5d: the frame: dark orange for the track's sound, bright orange for a step's locks */
-    ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, v->step ? UI_SND_FRAME_STEP : UI_SND_FRAME_TRACK, 3.f, QD_NONE);
-    head[0] = 0;
+    /* 2026-11-13 (owner, as the Home views): no frame for the track's sound, the held step's frame for a step's locks;
+     * the head the page's name alone (white for a step), the page's steps under it */
     if (v->step)
-        cat(cat(cat(head, "STEP "), ui_itoa(n, v->step)), " \xc2\xb7 ");
+        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+    head[0] = 0;
+    (void)n;
     cat(head, v->name ? v->name : "");
     x = 10.f;                                           /* P1.5b: the group's pages first (fixed, left), then the name */
     for (k = 0; k < v->npg && v->npg > 1; k++)
@@ -1152,8 +1130,10 @@ void ui_snd_draw(const ui_snd_t *v)
         ui_O(left - 11.f, 15.f, 7.f, QD_NONE, 1.f, SNDK[4]);
         ui_T("P", left - 11.f, 19.f, 12.f, 700, 0.f, UI_BG, QD_CENTER);   /* (2026-11-13: PRESETS' value) */
     }
-    if (v->keys)
-        sd_keys_strip(v, UI_TRACK_COL);
+    if (v->step)                                        /* (2026-11-13, owner: a step selected: the page's steps, as
+                                                         * the Home views'; LIVE none; the keys' strip gone: the keys'
+                                                         * LEDs and B11's breath say the keys are on) */
+        ui_page_row(26.f, v->row_trig, v->row_sel, -1, v->row_play);
     switch (v->draw) {
     case UI_SD_ALGO: sd_algo(v); break;
     case UI_SD_TONE: sd_tone(v); break;

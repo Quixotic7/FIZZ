@@ -51,6 +51,9 @@ static int loop_step(qd_app_t *a, int pos) { return qd_track_loop_step(&PAT(a)->
 int qd_rec_key_note(const qd_app_t *a, int key)
 {
     int sc, rt, n = QD_NOTE0 + key + 12 * a->oct;
+    if (a->ui.mode == QD_MODE_KEYS && a->ui.ksteps && qd_ctl_black(key) >= 0 && qd_ctl_black(key) < 10)
+        return qd_snd_scale_note(a, qd_ctl_black(key));   /* 2026-11-13 (owner): STEPS, B1..B10 the notes: the scale
+                                                         * from its root up (B1 the root; a 7-note scale: B8 the next) */
     qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
     if (sc != QD_SCALE_CHROMATIC)
         n = qd_scale_snap(sc, rt, n);

@@ -89,9 +89,11 @@ static void run(uint32_t n)
         }
     }
 }
+static int keys_compat = 1, rec_from = -1;   /* (the REC shim's, below) */
 static void fresh(void)
 {
     qd_app_init(&A);
+    keys_compat = 1;
     A.ui.view = QD_VIEW_ROLL;   /* (P1.5s: EDIT is the power-on view; made on the PIANO ROLL) */
     A.ui.lmode = QD_LMODE_VALUES;   /* (the scenarios were written for VALUES, the old default; MODES is the default
                                      * since 2026-10-25: g_knob_layouts checks it) */
@@ -112,8 +114,28 @@ enum { M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_FUNC, M
 #define SHIFT QD_B_FUNC
 static void kdown(int k) { qd_app_key(&A, k, 1, 100); }
 static void kup(int k) { qd_app_key(&A, k, 0, 0); }
-static void bdown(int b) { qd_app_button(&A, b, 1); }
-static void bup(int b) { qd_app_button(&A, b, 0); }
+/* 2026-11-13 (owner): B11's state is one: from the Home views' steps (the default) REC opens the keyboard page with its
+ * W keys the steps. The scenarios written before it play the W keys there: keys_compat (on by fresh()) opens it on its
+ * keys for them, as it did; g_b11_global turns it off */
+static void rec_compat(void)
+{
+    if (keys_compat && rec_from >= 0 && rec_from != QD_MODE_KEYS && A.ui.mode == QD_MODE_KEYS)
+        A.ui.ksteps = 0;
+}
+static void bdown(int b)
+{
+    if (b == QD_B_REC)
+        rec_from = A.ui.mode;
+    qd_app_button(&A, b, 1);
+    if (b == QD_B_REC)
+        rec_compat();
+}
+static void bup(int b)
+{
+    qd_app_button(&A, b, 0);
+    if (b == QD_B_REC)
+        rec_compat(), rec_from = -1;
+}
 static void btap(int b)
 {
     bdown(b);
@@ -4834,9 +4856,10 @@ static void g_p15d_frames(void)
     btap(QD_B_HOME);
     shome();
     btap(QD_B_SOUND);
-    CHECK(near_col(edge_px(), UI_SND_FRAME_TRACK), "the editor, the track's sound: dark orange (%06x)", (unsigned)edge_px());
+    CHECK(edge_px() == 0, "the editor, the track's sound: no frame (2026-11-13, as the Home views) (%06x)",
+          (unsigned)edge_px());
     whold(2);
-    CHECK(near_col(edge_px(), UI_SND_FRAME_STEP), "the editor, a step held: bright orange (%06x)", (unsigned)edge_px());
+    CHECK(near_col(edge_px(), UI_STEP_FRAME), "the editor, a step held: the held step's frame (%06x)", (unsigned)edge_px());
     wrel(2);
     btap(QD_B_HOME);
 }
@@ -10225,6 +10248,34 @@ static void g_kb_round2(void)
 /* 2026-11-13 (owner), round 3: F1 / F2 held on the step keyboard: the W keys the steps (their LEDs); B11 breathes with
  * the step keyboard on; ALGORITHM's step flashes its W key; LIVE playing: a VEL key held overrides every step's
  * velocity, recorded into each step passed (an empty one a LOCK step); SHIFT clicked sticks, a button ends it */
+/* 2026-11-13 (owner): B11's state is one across the Home views and the keyboard page (REC): the Home views' steps are
+ * the keyboard page's STEPS (W keys the steps, B1..B10 the scale from its root), their step keyboard its full keys */
+static void g_b11_global(void)
+{
+    int ok, n1, n8;
+    start();
+    keys_compat = 0;
+    btap(QD_B_REC);
+    ok = A.ui.mode == QD_MODE_KEYS && A.ui.ksteps && !A.ui.ekeys;
+    black(B11);
+    ok &= !A.ui.ksteps && A.ui.ekeys;
+    btap(QD_B_HOME);
+    ok &= A.ui.mode == QD_MODE_STEP && qd_snd_keys(&A);
+    btap(QD_B_REC);
+    CHECK(ok && A.ui.mode == QD_MODE_KEYS && !A.ui.ksteps,
+          "REC from the Home views' steps: STEPS; B11 there: the keys, and (HOME) the Home views' step keyboard on; REC: the keys"
+          " (mode %d ksteps %d ekeys %d)", A.ui.mode, A.ui.ksteps, A.ui.ekeys);
+    black(B11);
+    PAT()->trk[0].key_global = 0;
+    PAT()->trk[0].scale = QD_SCALE_MINOR;
+    PAT()->trk[0].root = 9;
+    n1 = qd_rec_key_note(&A, BK(B1));
+    n8 = qd_rec_key_note(&A, BK(B8));
+    CHECK(A.ui.ksteps && n1 % 12 == 9 && n8 == n1 + 12 && qd_rec_key_note(&A, BK(B2)) == n1 + 2 &&
+              qd_rec_key_note(&A, BK(B3)) == n1 + 3,
+          "STEPS in A MINOR: B1 the root (%d), B2 B, B3 C, B8 the next root (%d)", n1, n8);
+}
+
 /* 2026-11-13 (owner): SAVE in the sound editor with a step selected: the step's sound (its locks), KNOB 4 TRACK / STEP;
  * the track's sound kept */
 static void g_save_step(void)
@@ -10515,6 +10566,7 @@ int main(void)
         {"2026-11-13: the step keyboard, round 2: MICRO's W8, LFO, F1 / F2, SOUND's velocity, TRIG, LIVE shown, LEN, B11's row",
          g_kb_round2},
         {"2026-11-13: SAVE a step's sound from the editor", g_save_step},
+        {"2026-11-13: B11 one state: the Home views and the keyboard page", g_b11_global},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
     };

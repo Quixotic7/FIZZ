@@ -245,6 +245,10 @@ BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_
           # (2026-11-13, the editor's knobs, B11's STEPS grid, SAVE's STEP: 992 B over; the controls' main unit and the
           # preview, no drawing: 80 B free. ui_lane.o alone would do, but it draws the Home views' lanes)
           "build_units_c_ctl.o", "build_units_c_ctl_preview.o",
+          "build_units_c_ui_keys.o",   # (2026-11-13, B11 one state, B1..B10 the scale: 16 B over; the keyboard page's
+          # drawing, 192 B smaller)
+          "build_units_c_clip.o", "build_units_c_chord.o",   # (2026-11-13, the editor's step row, the keyboard page's
+          # frame: 80 B over; the clipboard and the notes' and chords' names, main loop only: 64 B free)
           *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
 USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at -Os: -Oz made the EDIT view ~15 ms a frame
           # slower playing (87 vs 72 ms, unit); the cold units at -Oz in their place: the idle screen, the pickers, the
@@ -259,7 +263,8 @@ USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at 
 SINGLE_OZ = USB_OZ | {"build_units_c_ui_held.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)
                       "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
                       "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",   # (round 3)
-                      "build_units_c_ctl_preview.o"}   # (2026-11-13: SAVE's STEP, B11's STEPS grid: 124 B over)
+                      "build_units_c_ctl_preview.o",   # (2026-11-13: SAVE's STEP, B11's STEPS grid: 124 B over)
+                      "build_units_c_ui_keys.o"}   # (.. B11 one state: 12 B over; the keyboard page's drawing)
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)

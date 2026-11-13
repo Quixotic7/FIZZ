@@ -164,4 +164,7 @@ void ui_keys_draw(const ui_keys_t *v)
         ui_icon(UI_IC_REC, 20.f, 220.f, 1.f, UI_RED);  /* (P1.3v: step recording: the red dot, the step number) */
         ui_T(ui_itoa(step, v->cursor), 226.f, 224.f, 12.f, 600, 0.f, UI_K3, QD_RIGHT);
     }
+    if (v->framed)                                      /* 2026-11-13 (owner): a step selected: the held step's frame,
+                                                         * as on the Home views and in the sound editor */
+        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
 }

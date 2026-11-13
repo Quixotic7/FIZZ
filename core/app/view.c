@@ -926,6 +926,7 @@ static void draw_keys(qd_app_t *a)
             if (u->held[i] / QD_PAGE == pg / QD_PAGE)
                 v.sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
         v.ksteps = u->ksteps;
+        v.framed = u->nheld > 0;
         if (u->ksteps)                                  /* (2026-11-13, owner: the black keys that play, by the note
                                                          * each plays (in a scale: snapped): a root marked, held full) */
             for (i = 0; i < 10; i++) {
@@ -1673,6 +1674,17 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     v->draw = pg->draw;
     v->arg = pg->arg;
     v->limit = qd_ctl_cpat(a)->trk[a->sel].limit;      /* (2026-10-26: VOICE's dim unison voices) */
+    {   /* 2026-11-13 (owner): the page's steps under the head (the selection's page, else the page shown) */
+        const qd_pattern_t *P = qd_ctl_cpat(a);
+        const int pg0 = (u->nheld ? u->held[0] / QD_PAGE : u->page[a->sel]) * QD_PAGE;
+        const int ps = a->seq.playing ? qd_seq_track_step(&a->seq, a->sel) : -1;
+        for (i = 0; i < QD_PAGE; i++)
+            v->row_trig |= (uint16_t)(qd_step_is_on(qd_step(P, a->sel, pg0 + i)) << i);
+        for (i = 0; i < u->nheld; i++)
+            if (u->held[i] / QD_PAGE == pg0 / QD_PAGE)
+                v->row_sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        v->row_play = ps >= 0 && ps / QD_PAGE == pg0 / QD_PAGE ? ps % QD_PAGE : -1;
+    }
     for (i = 0; i < QD_SND_NPAGE; i++)
         if (QD_SND_PAGES[i].group == pg->group) {
             if (i == u->snd_page)
@@ -1774,11 +1786,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
             v->outy = (uint8_t)oy;
         }
     }
-    if (qd_snd_keys(a)) {                               /* P1.5b: the keyboard on: its keys' states (as the LEDs) */
-        v->keys = a->proj.rec_ekeys ? 2 : 1;
-        qd_view_kst(a, v->kst, v->keys == 2);
-    }
-    v->last = u->snd_knob;
+    v->last = u->snd_knob;                              /* (2026-11-13: the keys' strip gone: no keys' states) */
     v->t = secs(a->ms);
     v->fpop = u->snd_fpop || (u->snd_fpop_ms && a->ms - u->snd_fpop_ms < QD_FPOP_SHOW_MS &&
                               !strcmp(QD_SND_PAGES[u->snd_page].name, "FILTER"));   /* P1.6d: the machines' popup (P1.6g:

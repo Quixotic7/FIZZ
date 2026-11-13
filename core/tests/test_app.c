@@ -127,10 +127,15 @@ static int vel_of(int track, int note)
 }
 static void tap_button(int b)
 {
+    const int from = A.ui.mode;
     qd_app_button(&A, b, 1);
     run(20, 0);
     qd_app_button(&A, b, 0);
     run(20, 0);
+    if (b == QD_B_REC && from != QD_MODE_KEYS && A.ui.mode == QD_MODE_KEYS)
+        A.ui.ksteps = 0;                                /* (2026-11-13: from the Home views' steps REC opens the
+                                                         * keyboard page's STEPS (B11's one state, test_ctl's
+                                                         * g_b11_global); these scenarios play its keys, as before) */
 }
 
 static void t_keys(void)
