@@ -6,9 +6,12 @@
  *
  *   SHIFT + ARP        the screen, latched: always the selected track's group (SHIFT + SELECT: the next track's)
  *   B1..B8             slot 1..8; the selected one again: its next page
- *   PRESETS            the slot's effect: NONE, then the ten (heard at once; a rolodex while turning)
+ *   B1..B8 held        (2026-11-13, owner) the effects' list: KNOB 1 the slot's effect (NONE, then the ten; heard at
+ *                      once), KNOB 2 moves it along the rail (dropped at the release)
  *   KNOB 1..4, SELECT  the page's values (KNOB 4 CHANCE on page 1); SELECT the page too
- *   ALGORITHM          the track's group: OFF, 1..5 (the screen follows; the five groups as small rails)
+ *   PRESETS            the track's group: OFF, 1..5 (the screen follows; the five groups as small rails); steps held:
+ *                      their MIDI FX
+ *   ALGORITHM          (2026-11-13) the step cursor, as everywhere (fully left: LIVE)
  *   B10                the slot bypassed / playing; B9 its effect removed (twice: the first press arms it; 2026-11-10:
  *                      B11 is the hold key, every page's)
  *   F1 + B n, F2 + B n the slot copied to n / moved to n (the others close up); F1 tapped (its release): closed
@@ -362,17 +365,37 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
         u->mfx_arm = -1;
     if (u->mfx_bheld && !mf_key_down(a, u->mfx_bheld - 1))
         mf_drop(a);                                     /* (P1.6e: its release missed: dropped first) */
-    if (u->mfx_bheld && g && d) {                       /* P1.6d: a slot key held + any knob: that slot along the rail,
-                                                         * a place a detent, the others making room; P1.6e: a preview,
-                                                         * dropped at the key's release */
+    if (u->mfx_bheld && g && d) {                       /* a slot key held (2026-11-13, owner): KNOB 1 its effect (the
+                                                         * list shown), KNOB 2 moves it along the rail (P1.6d: a place a
+                                                         * detent, the others making room; P1.6e: a preview, dropped at
+                                                         * the key's release); the others nothing */
         u->mfx_bused = 1;
-        u->mfx_dprev = u->mfx_dto;
-        u->mfx_dto = mf_clampi(u->mfx_dto + d, 0, QD_MFX_NSLOT - 1);
-        u->mfx_dms = a->ms ? a->ms : 1u;
+        if (knob == QD_K_1 && s) {
+            const int up = u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS;
+            const int ty = mf_clampi(s->type + d, 0, QD_MFX_NTYPE - 1);
+            u->mfx_roll_from = up ? qd_mfx_glide(a, u->mfx_roll_from, u->mfx_roll_to, u->mfx_roll_t0) : s->type * 100;
+            if (ty != s->type)
+                qd_mfx_slot_init(s, ty);
+            u->mfx_roll_to = ty * 100;
+            u->mfx_roll_ms = u->mfx_roll_t0 = a->ms ? a->ms : 1u;
+            u->mfx_page = 0;
+            u->mfx_knob = 0, u->mfx_ms = a->ms ? a->ms : 1u;
+        } else if (knob == QD_K_2) {
+            u->mfx_dprev = u->mfx_dto;
+            u->mfx_dto = mf_clampi(u->mfx_dto + d, 0, QD_MFX_NSLOT - 1);
+            u->mfx_dms = a->ms ? a->ms : 1u;
+            u->mfx_knob = 1, u->mfx_ms = a->ms ? a->ms : 1u;
+        }
         return 1;
     }
-    if (knob == QD_K_ALGO && d) {                       /* P1.6e, STEPS: steps held: their MIDI FX (TRACK, OFF, 1..5),
-                                                         * TRIG's KNOB 2's lock, its picture */
+    if (knob == QD_K_ALGO) {                            /* 2026-11-13 (owner): ALGORITHM the step cursor, as everywhere
+                                                         * (fully left: LIVE) */
+        qd_step_cursor(a, d);
+        return 1;
+    }
+    if (knob == QD_K_PRESETS && d) {                    /* P1.6e, STEPS: steps held: their MIDI FX (TRACK, OFF, 1..5),
+                                                         * TRIG's KNOB 2's lock, its picture (2026-11-13: PRESETS, the
+                                                         * group's knob, ALGORITHM the steps) */
         int s0 = 0;
         if (qd_mfx_steps_held(a, &s0)) {
             qd_pattern_t *p = qd_ctl_pat(a);
@@ -393,8 +416,8 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
         }
     }
     switch (knob) {
-    case QD_K_ALGO: {                                   /* the track's group (the screen follows; P1.6d: the slot
-                                                         * kept, the glide from where it is) */
+    case QD_K_PRESETS: {                                /* the track's group (the screen follows; P1.6d: the slot
+                                                         * kept, the glide from where it is; 2026-11-13: PRESETS) */
         qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];
         const int was = qd_mfx_tgroup(a);
         const int up = u->mfx_gsel_ms && a->ms - u->mfx_gsel_ms < QD_TK_MS;
@@ -404,20 +427,6 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
         u->mfx_gsel_to = (ts->mfx & 0x7f) * 100;
         u->mfx_gsel_ms = u->mfx_gsel_t0 = a->ms ? a->ms : 1u;
         u->mfx_arm = -1;
-        u->mfx_page = 0;
-        return 1;
-    }
-    case QD_K_PRESETS: {                                /* the slot's effect (NONE, then the ten) */
-        int ty;
-        const int up = u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS;
-        if (!s)
-            return 1;
-        u->mfx_roll_from = up ? qd_mfx_glide(a, u->mfx_roll_from, u->mfx_roll_to, u->mfx_roll_t0) : s->type * 100;
-        ty = mf_clampi(s->type + d, 0, QD_MFX_NTYPE - 1);
-        if (ty != s->type)
-            qd_mfx_slot_init(s, ty);
-        u->mfx_roll_to = ty * 100;
-        u->mfx_roll_ms = u->mfx_roll_t0 = a->ms ? a->ms : 1u;
         u->mfx_page = 0;
         return 1;
     }

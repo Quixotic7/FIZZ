@@ -404,7 +404,8 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
     if (qd_mfx_open(a)) {                               /* P1.6c: the MIDI FX screen */
         const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a), ml = qd_ctl_main_layer(a);
         char val[12];
-        lb_set(o, LB_KNOB(QD_K_ALGO), qd_mfx_steps_held(a, 0) ? "STEP MFX" : "GROUP");   /* (P1.6e: STEPS' steps) */
+        lb_set(o, LB_KNOB(QD_K_ALGO), "STEP");          /* (2026-11-13: the step cursor; PRESETS the group) */
+        lb_set(o, LB_KNOB(QD_K_PRESETS), qd_mfx_steps_held(a, 0) ? "STEP MFX" : "GROUP");   /* (P1.6e: STEPS' steps) */
         if (u->mode == QD_MODE_STEP && !lane)
             for (i = 0; i < 16; i++)
                 lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
@@ -420,7 +421,6 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_BTN(QD_B_KEYS), "CLOSE");
         if (!g)
             return;
-        lb_set(o, LB_KNOB(QD_K_PRESETS), "EFFECT");
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         for (i = 0; i < QD_MFX_NSLOT; i++) {
             const int ty = a->proj.mfx[g - 1].slot[i].type;
@@ -436,7 +436,8 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         if (ml == QD_LAYER_F1)
             lb_set(o, LB_B(10), "UNDO");
         for (k = 0; k < 4; k++)
-            lb_set(o, LB_KNOB(QD_K_1 + k), qd_mfx_knob_name(a, k, val));
+            lb_set(o, LB_KNOB(QD_K_1 + k), u->mfx_bheld ? (k == 0 ? "EFFECT" : k == 1 ? "MOVE" : "")
+                                                        : qd_mfx_knob_name(a, k, val));   /* (2026-11-13: a slot held) */
         for (i = 0; i < 16; i++) {
             if (lane)
                 lb_setn(o, LB_W(i), "LANE ", i + 1);

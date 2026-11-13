@@ -222,7 +222,9 @@ BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-11, OVERVIEW's black keys: the tracks' sweep, the mode's band, M / S in ui_ov.c: the second blob 1,020 B
 # over: the SHIFT screen's, the mix's and OVERVIEW's band models (fill_shift, fill_mix, fill_ovband) back in the slot,
 # which ui_held.o and ui_turn.o at -Oz made room for, below)
-BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"]}   # (2026-11-13: qd_ctl_ov_knob back in the slot: the
+BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx", "pr_fill", "fill_shift"]}   # (2026-11-13, the MIDI FX
+                                                         # knobs: 224 B over: the browser's and SHIFT's fills too, the
+                                                         # blob 20 B free; qd_ctl_ov_knob back in the slot: the
                                                          # blob 28 B over with view.o at -Oz)
 # (2026-11-10) units compiled at -Oz, not -Os, on the Bluetooth package: the screens' unit (ui_layer.o: the sound
 # editor, MIDI FX, the browser, the typewriter, the tools, Geek Out, OVERVIEW, the layer and SHIFT screens), main-loop

@@ -19,6 +19,7 @@ its text becomes the release's notes on the install page and on GitHub.
 - **SAVE in the sound editor with a step selected** saves that step's sound (its sound lock, or the track's, with its locks): a magenta STEP chip says so; KNOB 4 switches between the TRACK's sound and the STEP's. The track's sound stays as it is: program a kit's pieces on steps and save each one out.
 - **B11 is one state everywhere**: the Home views' step selection opens REC's keyboard page in STEPS (white keys the steps, B1..B10 the notes), their step keyboard opens it on the full keyboard, and B11 on the keyboard page changes it for the Home views too. In STEPS, **B1..B10 play the scale from its root** (B1 the root; a 7-note scale: B8 the next one).
 - **One look for a selected step**: the sound editor has no frame for the track's sound and the Home views' step frame for a step; its head is the page's name alone (white for a step) with the page's steps under it; the keys' strip is gone (the keys' LEDs and B11's breath show it). The keyboard page shows the same frame when a step is selected.
+- **The MIDI FX screen's knobs, as everywhere**: ALGORITHM selects steps (fully left: LIVE), PRESETS the track's group (with steps selected: their MIDI FX). **Hold a slot's key** for the effects' list: KNOB 1 changes the slot's effect, KNOB 2 moves it along the rail (dropped when you let go); the foot shows EFFECT and MOVE.
 
 ## 0.12.0-beta.17 (2026-11-13)
 

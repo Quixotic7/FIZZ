@@ -938,7 +938,8 @@ typedef struct ui_mfx {
     uint8_t st_note[6];
     int steps_frame;                    /* .. STEPS: steps held (the step's frame) */
     int route_off;                      /* 2026-10-25: the track's routing bypassed (QD_TMFX_OFF): OFF in the head */
-    int roll;                           /* PRESETS turned: the rolodex up .. */
+    int roll;                           /* PRESETS turned: the rolodex up (2026-11-13: a slot held: KNOB 1's) .. */
+    int hold_list;                      /* .. 2026-11-13: a slot held: the list with the foot's EFFECT / MOVE */
     float roll_pos, roll_from;          /* .. at type pos (0 NONE .. 10), coming from */
     int gsel;                           /* ALGORITHM turned: the routing map up (2026-11-10) .. */
     float gsel_pos, gsel_from;          /* .. the selected track's wire at (0 OFF .. 5), the glide's start */

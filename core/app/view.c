@@ -2010,6 +2010,19 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
         }
         if (u->mfx_knob >= 0 && a->ms - u->mfx_ms < 2000u)
             v->last = u->mfx_knob;
+        if (u->mfx_bheld && (u->mfx_bused || a->ms - u->mfx_bms >= QD_TAP_MS)) {   /* 2026-11-13 (owner): a slot held:
+                                                         * the effects' list (KNOB 1 turns it), the foot KNOB 1's
+                                                         * EFFECT and KNOB 2's MOVE (where it goes) */
+            v->roll = v->hold_list = 1;
+            if (!(u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS))
+                v->roll_pos = (float)s->type;
+            memset(v->has, 0, sizeof v->has);
+            v->has[0] = v->has[1] = 1;
+            v->lab[0] = "EFFECT", v->lab[1] = "MOVE";
+            snprintf(v->val[0], sizeof v->val[0], "%s", qd_mfx_type_name(s->type));
+            snprintf(v->val[1], sizeof v->val[1], "%d", u->mfx_dto + 1);
+            v->last = u->mfx_knob == 0 || u->mfx_knob == 1 ? u->mfx_knob : -1;
+        }
         if (s->type == QD_MFX_ARP) {                    /* the arp: its held notes, its walk, where it is */
             static const qd_mfx_srt_t none;             /* (P2.1b: a slot with no state: nothing held) */
             const qd_mfx_srt_t *r = qd_mfx_srt(&a->player.mfx, g - 1, v->sel) ? qd_mfx_srt(&a->player.mfx, g - 1, v->sel) : &none;
