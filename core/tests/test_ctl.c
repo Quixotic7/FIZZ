@@ -2824,7 +2824,10 @@ static void g_step_latch(void)
           "B10: velocity 127 on the selection; steps 3 and 9 not selected, unchanged");
     turn(QD_K_1, -7);
     CHECK(R(0, 0).vel == 120 && R(0, 4).vel == 120 && A.ui.tk == QD_TK_HELDKNOB, "KNOB 1: 120 on both, the band");
-    CHECK(!sounding(60) && A.ui.pvs_n == 0, "P1.5s: an edit on the selection alone: silent");
+    CHECK(A.ui.pvs_n == 1 && A.ui.pvs_until[0] && A.ui.pvs_step[0] == 0,
+          "2026-11-12: an edit on the selection alone: its first step sounds once");
+    run(QD_PREVIEW_MS + 20);
+    CHECK(!sounding(60) && A.ui.pvs_n == 0, ".. then silent");
     for (k = 0; k < 400; k++) {
         run(1);
         on += leds().key[WK(4)] == QD_LED_LIT;
@@ -7480,9 +7483,18 @@ static void g_p15s_preview(void)
     CHECK(sounding(60), "the cursor again (step 5): it sounds at once");
     n = onsets(1500, 60, &still);
     CHECK(n == 0 && !still, ".. once (no restrike, %d)", n);
+    n = (int)A.player.previews;
     turn(QD_K_1, -3);
+    run(5);
+    CHECK(sounding(60) && (int)A.player.previews == n + 1 && R(0, 4).vel == 97 && A.ui.held[0] == 4,
+          "2026-11-12: a knob edit on the selection: heard at once at the new value");
     n = onsets(1000, 60, &still);
-    CHECK(n == 0 && !still && R(0, 4).vel == 97 && A.ui.held[0] == 4, "a knob edit on the selection: no preview (%d)", n);
+    CHECK(n == 0 && !still, ".. once, then silence; not again while it stands (%d)", n);
+    n = (int)A.player.previews;
+    qd_step_set_ratchet(PAT(), 0, 4, 4, 0);             /* a ratchet x4 on it: its four hits in the step's length */
+    run(1500);
+    CHECK((int)A.player.previews == n + 4 && !sounding(60),
+          "a ratchet x4 set on the selection: four hits struck (%d), then silence", (int)A.player.previews - n);
     kdown(WK(4));
     run(400);
     CHECK(sounding(60), "W5 held (the latch on): it sounds while held");

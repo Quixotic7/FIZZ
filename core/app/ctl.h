@@ -702,6 +702,10 @@ typedef struct {
     uint32_t pvs_until[16];            /* P1.5s: a once-preview (the step cursor) ends then; 0: a finger's */
     int pvs_grp;                       /* P1.6e: the preview went through a MIDI FX group on this track (+ 1): at its end
                                         * the group's notes of it end (qd_player_preview_end) */
+    uint32_t pvs_t0[16];               /* when the entry was struck; its ratchet: hits, the next one, ms between */
+    uint8_t pvs_hits[16], pvs_hit[16];
+    uint16_t pvs_gap[16];
+    uint32_t pvl_set, pvl_sig;         /* the latch's selection (its steps; their sounds): a value set on it sounds once */
     qd_tools_t tl;                     /* T1: the track tools (ctl_tools.c) */
 } qd_ui_t;
 

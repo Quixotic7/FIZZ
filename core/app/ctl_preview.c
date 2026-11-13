@@ -21,7 +21,12 @@
  * the sound of the step while holding the step or if you turn the step selection knob"): only a FINGER sounds as
  * above (a W down on the step; with the latch off every held step is one). The step latch's selection alone is silent:
  * it sounds once, QD_PREVIEW_MS, when the step cursor (ALGORITHM) moves it to a step (qd_ctl_preview_once), and never
- * again while it stands or is edited. */
+ * again while it stands or is edited.
+ *
+ * 2026-11-12 (the owner: "when setting values you should be able to hear a preview of the value without needing to
+ * afterwards hold the step"): a value set on the latch's selection (a note, the velocity, a sound, a ratchet ..) sounds
+ * its first step once, as the cursor's move does; selecting steps stays silent. A ratchet's hits are struck again, its
+ * step's length (the track's rate, the tempo) split into them, held or once. */
 #include <string.h>
 
 #include "app.h"
@@ -81,6 +86,10 @@ static void drop(qd_ui_t *u, int i)
         memcpy(u->pvs_note[i], u->pvs_note[i + 1], sizeof u->pvs_note[i]);
         u->pvs_sig[i] = u->pvs_sig[i + 1];
         u->pvs_until[i] = u->pvs_until[i + 1];
+        u->pvs_t0[i] = u->pvs_t0[i + 1];
+        u->pvs_hits[i] = u->pvs_hits[i + 1];
+        u->pvs_hit[i] = u->pvs_hit[i + 1];
+        u->pvs_gap[i] = u->pvs_gap[i + 1];
     }
     u->pvs_n--;
 }
@@ -113,6 +122,88 @@ static void mark_grp(qd_app_t *a, int s)                /* (P1.6e: through a gro
         a->ui.pvs_grp = a->sel + 1;
 }
 
+/* step s struck as a new entry (until: 0 a finger's, else the ms it ends); its ratchet's hits timed */
+static void strike(qd_app_t *a, int s, uint32_t until)
+{
+    qd_ui_t *u = &a->ui;
+    const qd_pattern_t *P = qd_ctl_cpat(a);
+    const int j = u->pvs_n++;
+    qd_rstep_t r;
+    int hits;
+    qd_step_resolve(P, a->sel, s, &r);
+    hits = r.ratch > 1 && r.ratch <= 8 && !qd_step_mfx(P, a->sel, s) ? r.ratch : 1;   /* (not through a group) */
+    u->pvs_step[j] = (int16_t)s;
+    u->pvs_track[j] = (uint8_t)a->sel;
+    u->pvs_sig[j] = sig_of(a, a->sel, s);
+    u->pvs_t0[j] = a->ms;
+    u->pvs_hits[j] = (uint8_t)hits;
+    u->pvs_hit[j] = 1;
+    u->pvs_gap[j] = 0;
+    if (hits > 1) {
+        const int bpm = qd_seq_bpm(&a->seq);
+        const float step_ms = (float)qd_rate_ticks(qd_tset_rate(&P->trk[a->sel])) / (float)QD_TPS * 15000.f /
+                              (float)(bpm > 0 ? bpm : 120);
+        const float g = step_ms / (float)hits;
+        u->pvs_gap[j] = (uint16_t)(g < 10.f ? 10.f : g > 2000.f ? 2000.f : g);
+        if (until)
+            until = a->ms + (uint32_t)(hits - 1) * u->pvs_gap[j] + QD_PREVIEW_MS;
+    }
+    u->pvs_until[j] = until ? until | 1u : 0;
+    u->pvs_nn[j] = (uint8_t)qd_player_preview(&a->player, a->seq.cur, a->sel, s, u->pvs_note[j]);
+    mark_grp(a, s);
+}
+
+/* the ratchets' next hits: released and struck again */
+static void ratchets(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int i;
+    for (i = 0; i < u->pvs_n; i++)
+        if (u->pvs_hit[i] < u->pvs_hits[i] && a->ms - u->pvs_t0[i] >= (uint32_t)u->pvs_hit[i] * u->pvs_gap[i]) {
+            release(a, i);
+            u->pvs_nn[i] = (uint8_t)qd_player_preview(&a->player, a->seq.cur, u->pvs_track[i], u->pvs_step[i],
+                                                      u->pvs_note[i]);
+            u->pvs_hit[i]++;
+        }
+}
+
+/* the latch's selection with no finger on it: a value set on it (its steps the same, a sound changed) sounds its first
+ * step once */
+static void latch_edit(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    uint32_t set = 2166136261u, sig = 2166136261u;
+    int i, s0 = -1;
+    if (!u->slatch || u->nheld <= 0) {
+        u->pvl_set = u->pvl_sig = 0;
+        return;
+    }
+    for (i = 0; i < u->nheld; i++) {
+        const int s = u->held[i];
+        uint32_t x;
+        if (fingered(a, s)) {                           /* (a finger's steps sound already) */
+            u->pvl_set = u->pvl_sig = 0;
+            return;
+        }
+        x = sig_of(a, a->sel, s);
+        set = fnv(set, &s, sizeof s);
+        sig = fnv(sig, &x, sizeof x);
+        if (s0 < 0)
+            s0 = s;
+    }
+    set = fnv(set, &a->sel, sizeof a->sel);
+    if (set == u->pvl_set && sig != u->pvl_sig && s0 >= 0) {
+        for (i = u->pvs_n - 1; i >= 0; i--)
+            if (u->pvs_until[i]) {                      /* (the once-previews: this one replaces them) */
+                release(a, i);
+                drop(u, i);
+            }
+        if (u->pvs_n < 16)
+            strike(a, s0, a->ms + QD_PREVIEW_MS);
+    }
+    u->pvl_set = set, u->pvl_sig = sig;
+}
+
 void qd_ctl_preview_sync(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
@@ -134,8 +225,12 @@ void qd_ctl_preview_sync(qd_app_t *a)
         qd_player_preview_end(&a->player, u->pvs_grp - 1);
         u->pvs_grp = 0;
     }
-    if (!on)
+    if (!on) {
+        u->pvl_set = u->pvl_sig = 0;
         return;
+    }
+    ratchets(a);
+    latch_edit(a);
     for (i = 0; i < u->nheld && u->pvs_n < 16; i++) {   /* held and not sounding: struck */
         const int s = u->held[i];
         int found = 0;
@@ -143,13 +238,7 @@ void qd_ctl_preview_sync(qd_app_t *a)
             found |= u->pvs_step[j] == s;
         if (found || !fingered(a, s))
             continue;                                   /* (P1.5s: the latch's selection alone: silent) */
-        j = u->pvs_n++;
-        u->pvs_until[j] = 0;
-        u->pvs_step[j] = (int16_t)s;
-        u->pvs_track[j] = (uint8_t)a->sel;
-        u->pvs_sig[j] = sig_of(a, a->sel, s);
-        u->pvs_nn[j] = (uint8_t)qd_player_preview(&a->player, a->seq.cur, a->sel, s, u->pvs_note[j]);
-        mark_grp(a, s);
+        strike(a, s, 0);
     }
 }
 
@@ -158,7 +247,7 @@ void qd_ctl_preview_sync(qd_app_t *a)
 void qd_ctl_preview_once(qd_app_t *a, int s)
 {
     qd_ui_t *u = &a->ui;
-    int i, j;
+    int i;
     if (!qd_ctl_previewing(a))
         return;
     for (i = u->pvs_n - 1; i >= 0; i--)
@@ -171,11 +260,5 @@ void qd_ctl_preview_once(qd_app_t *a, int s)
             return;
     if (u->pvs_n >= 16)
         return;
-    j = u->pvs_n++;
-    u->pvs_step[j] = (int16_t)s;
-    u->pvs_track[j] = (uint8_t)a->sel;
-    u->pvs_sig[j] = sig_of(a, a->sel, s);
-    u->pvs_until[j] = (a->ms + QD_PREVIEW_MS) | 1u;
-    u->pvs_nn[j] = (uint8_t)qd_player_preview(&a->player, a->seq.cur, a->sel, s, u->pvs_note[j]);
-    mark_grp(a, s);
+    strike(a, s, a->ms + QD_PREVIEW_MS);
 }
