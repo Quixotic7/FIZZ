@@ -634,6 +634,19 @@ static void resolve_one(qd_seq_t *s, int t)
     }
     step = qd_track_loop_step(&P->trk[t], c->idx);      /* the loop's position -> its page's step (PLAN §8b) */
     qd_step_resolve(P, t, step, &st);                   /* the track's defaults where the step does not override */
+    if (t + 1 == s->ovr_t) {                            /* 2026-11-13: a W key held (the step keyboard, LIVE): its
+                                                         * value for every step that plays */
+        const int v = s->ovr_v;
+        switch (s->ovr_pm) {
+        case QD_PM_VEL: st.vel = v; break;
+        case QD_PM_LEN: st.len = v; break;
+        case QD_PM_MICRO: st.micro = v; break;
+        case QD_PM_RATCH: st.ratch = (v & 7) + 1, st.ramp = v >> 4; break;
+        case QD_PM_CHANCE: st.chance = v; break;
+        case QD_PM_COND: st.cond = v; break;
+        default: break;
+        }
+    }
     c->rg[c->rw] = c->g;                                /* (the playhead: this position from this grid tick) */
     c->ridx[c->rw] = (int16_t)c->idx;
     c->rw = (c->rw + 1) % 4;

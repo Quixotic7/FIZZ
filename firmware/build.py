@@ -240,12 +240,15 @@ BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_
           "build_units_c_ui_idle.o", "build_units_c_ui_kit.o",
           "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
           "build_units_c_view.o",   # (2026-11-13, the step keyboard's second round: 1,040 B over; the views' models)
+          # (2026-11-13, round 3, the owner's OK: the controls' step and keys units: ~2 KB over)
+          "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",
           *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
 USB_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o"}   # (2026-11-13: + the held screens: 224 B over)
 # (2026-11-12, the orange keys' modes: the single-core package's slot 2,476 B over, 1,508 free before: ui_idle.o and
 # ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
 SINGLE_OZ = USB_OZ | {"build_units_c_ui_idle.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)
-                      "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o"}
+                      "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
+                      "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o"}   # (round 3)
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)

@@ -164,6 +164,9 @@ typedef struct {
     int32_t tick_rem;                   /* .. and its remainder */
     int32_t mbpm;                       /* the tempo, milli-BPM (internal clock) */
     int fill;
+    uint8_t ovr_t, ovr_pm;              /* 2026-11-13 (owner): the step keyboard's live override: track + 1 (0 none),
+                                         * its QD_PM_* (VEL .. COND) and value (RATCH: the count - 1, the ramp << 4) */
+    int16_t ovr_v;
     uint8_t mute;                       /* bit t: track t muted (the app's; a pattern's own mute flags too) */
     uint8_t solo;                       /* bit t: track t soloed (any solo: only the soloed tracks sound; a muted one
                                          * stays silent) */

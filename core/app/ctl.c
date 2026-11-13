@@ -37,7 +37,7 @@ int qd_ctl_black(int key)
 }
 
 static int held(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
-int qd_ctl_shift(const qd_app_t *a) { return held(a, QD_B_FUNC); }
+int qd_ctl_shift(const qd_app_t *a) { return held(a, QD_B_FUNC) || a->ui.shift_stick; }
 /* 2026-11-10 (owner: "SHIFT must do the same everywhere"): SHIFT's shortcuts, its screen and its LEDs on every page:
  * the step view (every view, F3 too), the keyboard page, the sound editor, the mix, the effects, MIDI FX, TOOLS, the
  * settings menus; not the browser, SAVE PRESET, the name editor, the projects (SHIFT is their tags, signs) */
@@ -362,7 +362,7 @@ static int touch(qd_app_t *a)
 {
     a->ui.touch_ms = a->ms;
     a->ui.b11_used = 1;                                 /* (2026-11-10: B11 held with something: no click) */
-    if (held(a, QD_B_FUNC))
+    if (qd_ctl_shift(a))
         a->ui.shift_used = 1;
     if (held(a, QD_B_MUTE) && !a->ui.lmode_open)
         a->ui.lfo_used = 1;                             /* (P1.5b: LFO with a knob or a key: no latch-mode screen) */
@@ -1340,8 +1340,18 @@ static void b_page(qd_app_t *a, int down)
 
 static void b_shift(qd_app_t *a, int down)
 {
-    if (down)
-        a->ui.shift_used = 0;
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->shift_unstick = u->shift_stick;
+        u->shift_used = 0;
+        u->shift_ms = a->ms;
+        return;
+    }
+    if (u->shift_unstick & 1u)                          /* 2026-11-13 (owner): stuck: this press ends it */
+        u->shift_stick = 0;
+    else if (!u->shift_used && !(u->shift_unstick & 2u) && a->ms - u->shift_ms < QD_TAP_MS && qd_ctl_shift_page(a))
+        u->shift_stick = 1;                             /* .. a click: SHIFT stays on (a hold never) */
+    u->shift_unstick = 0;
 }
 
 /* HOME (P1.3e, §8b 2.2): first it closes an open latch (F3's menu, the step latch); else, in the sequencer, it
@@ -1905,6 +1915,9 @@ void qd_ctl_button(qd_app_t *a, int button, int down)
     if (qd_type_open(a) && qd_type_button(a, button, down))
         return;                                         /* P1.5u: a name typed: F1, F2, SAVE, HOME, SHIFT + a button */
     BUTTONS[button](a, down);
+    if (!down && button != QD_B_FUNC && a->ui.shift_stick && !held(a, QD_B_FUNC))
+        a->ui.shift_stick = 0;                          /* 2026-11-13 (owner): a stuck SHIFT ends with any button (its
+                                                         * shortcut taken, on its release) */
 }
 
 /* ================================================================ the knobs === */
@@ -2452,6 +2465,8 @@ void qd_ctl_knob(qd_app_t *a, int knob, int d)
         u->knob_dir[knob] = dir;
     }
     touch(a);
+    if (held(a, QD_B_FUNC))
+        u->shift_unstick |= 2u;                         /* (2026-11-13: SHIFT + a knob: no stick on its release) */
     if (knob == QD_K_SELECT)
         u->shift_used = su;                             /* (2026-11-10: SHIFT + SELECT: SHIFT's screen stays up, its
                                                          * band turned: k_shift_track) */

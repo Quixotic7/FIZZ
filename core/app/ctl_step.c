@@ -223,6 +223,8 @@ void qd_step_cursor(qd_app_t *a, int d)
         u->tk = QD_TK_NONE;
     held_add(a, s, -1);
     u->scursor = 1;
+    u->wflash = (uint8_t)(s % QD_PAGE + 1);             /* (2026-11-13: the step keyboard: its W key flashes) */
+    u->wflash_ms = a->ms;
     qd_ctl_preview_once(a, s);                          /* P1.5s: the step it moved to, once */
 }
 

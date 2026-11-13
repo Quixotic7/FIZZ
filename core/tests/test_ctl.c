@@ -9137,6 +9137,7 @@ static void g_p16l_labels(void)
               !strcmp(lab(LBT(QD_B_PATTERN)), "TRACK SET") && labels_clean(),
           "SHIFT held: its shortcuts (B2 none), SELECT TRACK, SCALE, ROOT, UNDO, REDO, PLAY F3, SEL TRACK SET (HOME "
           "none, 2026-11-10); the white keys none");
+    run(QD_TAP_MS);                                     /* (2026-11-13: held, not clicked: no stick) */
     bup(SHIFT);
     run(20);
     whold(2);                                           /* a step held in VEL: the values */
@@ -10180,6 +10181,75 @@ static void g_kb_round2(void)
     CHECK(lv.b11 && lv.b11_sel == (1u << 2), "B11 held: the pages, the page's row with step 3 selected (%04x)", lv.b11_sel);
 }
 
+/* 2026-11-13 (owner), round 3: F1 / F2 held on the step keyboard: the W keys the steps (their LEDs); B11 breathes with
+ * the step keyboard on; ALGORITHM's step flashes its W key; LIVE playing: a VEL key held overrides every step's
+ * velocity, recorded into each step passed (an empty one a LOCK step); SHIFT clicked sticks, a button ends it */
+static void g_kb_round3(void)
+{
+    qd_leds_t l;
+    int ok, b0, b1, s, ghost, n;
+    start();
+    A.ui.lmode = QD_LMODE_MODES;
+    black(B11);
+    mode(M_VEL);
+    l = leds();
+    b0 = l.key[BK(B11)];
+    run(QD_LED_BREATH_MS / 2);
+    b1 = leds().key[BK(B11)];
+    CHECK(qd_snd_keys(&A) && b0 != b1, "the step keyboard on: B11 breathes (%d, %d)", b0, b1);
+    qd_step_on(PAT(), 0, 0);
+    bdown(QD_B_OCTDN);
+    run(QD_TAP_MS + 50);
+    l = leds();
+    ok = qd_ctl_layer(&A) == QD_LAYER_F1;
+    bup(QD_B_OCTDN);
+    run(10);
+    CHECK(ok && l.key[WK(0)] != l.key[WK(11)], "F1 held: the W keys the steps (W1's trig lit %d, W12 %d)", l.key[WK(0)],
+          l.key[WK(11)]);
+    turn(QD_K_ALGO, 4);
+    run(30);
+    ok = A.ui.wflash == 4;
+    l = leds();
+    run(QD_PFLASH_MS + 20);
+    CHECK(ok && A.ui.nheld == 1 && A.ui.held[0] == 3, "ALGORITHM to step 4: W4 flashes once");
+    btap(LFO);                                          /* LIVE */
+    for (s = 0; s < 16; s += 4)
+        qd_step_on(PAT(), 0, s);
+    btap(QD_B_PLAY);
+    run(100);
+    kdown(WK(2));                                       /* VEL 24 held */
+    run(20);
+    CHECK(A.seq.ovr_t == 1 && A.seq.ovr_pm == QD_PM_VEL && A.seq.ovr_v == 24 && !A.ui.mk_nt[0],
+          "LIVE, playing: VEL's W3 held overrides the track's velocity (24), no note struck");
+    kup(WK(2));
+    run(20);
+    CHECK(!A.seq.ovr_t, "let go: the override ends");
+    A.ui.rec = 1;                                       /* recording (as REC latched): the steps passed take it */
+    kdown(WK(15));
+    for (n = 0; n < 1200; n++)
+        run(1);
+    kup(WK(15));
+    run(20);
+    A.ui.rec = 0;
+    for (ghost = 0, ok = 0, s = 0; s < 16; s++) {
+        ok += R(0, s).on && R(0, s).type == QD_TRIG_NOTE && R(0, s).vel == 127;
+        ghost += R(0, s).on && R(0, s).type == QD_TRIG_LOCK && R(0, s).vel == 127;
+    }
+    CHECK(ok >= 2 && ghost >= 2, "REC, W16 held: the trigs passed 127 (%d), the empty steps LOCK steps at 127 (%d)", ok,
+          ghost);
+    btap(QD_B_PLAY);
+    bdown(SHIFT), run(30), bup(SHIFT), run(10);
+    ok = qd_ctl_shift(&A);
+    bdown(SHIFT), run(30), bup(SHIFT), run(10);
+    ok &= !qd_ctl_shift(&A);
+    bdown(SHIFT), run(QD_TAP_MS + 50), bup(SHIFT), run(10);
+    ok &= !qd_ctl_shift(&A);
+    CHECK(ok, "SHIFT: a click sticks, a click again ends it, a hold never sticks");
+    bdown(SHIFT), run(30), bup(SHIFT), run(10);
+    btap(QD_B_OCTDN);                                   /* (SHIFT + F1: undo) */
+    CHECK(!qd_ctl_shift(&A), "stuck SHIFT: a button (F1, its undo) ends it");
+}
+
 int main(void)
 {
     static const struct {
@@ -10337,6 +10407,8 @@ int main(void)
         {"2026-11-12: the orange keys in the hold modes: values, LEDs, + B11, SOUND, REC, the page flash", g_keys_modes},
         {"2026-11-13: the step keyboard, round 2: MICRO's W8, LFO, F1 / F2, SOUND's velocity, TRIG, LIVE shown, LEN, B11's row",
          g_kb_round2},
+        {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
+         g_kb_round3},
     };
     size_t i;
     uint64_t h1, h2;

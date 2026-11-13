@@ -495,11 +495,16 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->layer = layer;
     v->b11 = layer == QD_LAYER_F1 && qd_ctl_layer(a) == QD_LAYER_NONE;   /* (2026-11-10: B11's pages) */
     v->b11_play = -1;
-    if (v->b11) {                                       /* (2026-11-13: the page edited's row at the foot) */
+    {                                                   /* (2026-11-13: B11's, F1's, F2's row of the page edited at the
+                                                         * foot: the selection (F1: its copy's step), the playhead) */
         const int st = a->seq.playing ? qd_seq_track_step(&a->seq, t) : -1;
-        for (i = 0; i < u->nheld; i++)
-            if (u->held[i] / QD_PAGE == u->page[t])
-                v->b11_sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        if (v->b11) {
+            for (i = 0; i < u->nheld; i++)
+                if (u->held[i] / QD_PAGE == u->page[t])
+                    v->b11_sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        } else if (u->f1_copied && u->f1_src >= 0 && u->f1_src / QD_PAGE == u->page[t]) {
+            v->b11_sel = (uint16_t)(1u << (u->f1_src % QD_PAGE));
+        }
         if (st >= 0 && st / QD_PAGE == u->page[t])
             v->b11_play = st % QD_PAGE;
     }
@@ -2584,7 +2589,8 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         draw_idle(a);
         break;
     }
-    if (qd_snd_keys(a) && (scr == QD_SCR_LANE || scr == QD_SCR_EDIT || scr == QD_SCR_OV || scr == QD_SCR_GEEK ||
+    if (qd_snd_keys(a) && (scr == QD_SCR_LANE || scr == QD_SCR_EDIT || scr == QD_SCR_GEEK ||   /* (2026-11-13: not over
+                                                         * OVERVIEW's tracks) */
                            scr == QD_SCR_MIX || scr == QD_SCR_TOOLS)) {
         uint8_t kst[16];                                /* 2026-11-10 (owner): a B11 click's keys along the foot, as
                                                          * SENDS' (the sound editor: its strip) */

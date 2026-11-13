@@ -573,6 +573,11 @@ static void mk_res(const qd_app_t *a, qd_rstep_t *r, int sel)
         qd_step_resolve(P, a->sel, a->ui.held[0], r);
         return;
     }
+    if (sel && a->seq.playing && qd_seq_track_step(&a->seq, a->sel) >= 0) {   /* (2026-11-13: LIVE, playing: the
+                                                         * step playing, as a selected one) */
+        qd_step_resolve(P, a->sel, qd_seq_track_step(&a->seq, a->sel), r);
+        return;
+    }
     memset(&on, 0, sizeof on);
     on.flags = QD_SF_ON;
     qd_step_resolve_def(&P->trk[a->sel].def, &on, r);
@@ -743,6 +748,38 @@ static int rec_step_of(qd_app_t *a, int note)
     return qd_rec_stepping(a) ? loop_step(a, u->cursor) : u->rec_s[note & 127];
 }
 
+/* 2026-11-13 (owner): LIVE, playing, VEL .. COND: a W key held overrides the mode's value of every step the track plays
+ * (seq.ovr_*); recording, each step the playhead enters takes it (an empty one a LOCK step: no trig, no notes) */
+#define MK_OVR(m) ((m) >= UI_F_VEL && (m) <= UI_F_COND)
+static void mk_ovr_write(qd_app_t *a, int s)
+{
+    const int w = a->ui.mk_ovr - 1;
+    if (s < 0)
+        return;
+    if (!qd_step_is_on(qd_step(PAT(a), a->sel, s)))
+        qd_step_set_trig(PAT(a), a->sel, s, QD_TRIG_LOCK);
+    mk_set(a, s, a->ui.hmode, w);
+    a->ui.mk_ovr_s = (int16_t)s;
+}
+static void mk_ovr_set(qd_app_t *a, int w)              /* (w -1: off) */
+{
+    const int m = a->ui.hmode;
+    qd_seq_t *q = &a->seq;
+    qd_rstep_t r;
+    a->ui.mk_ovr = (uint8_t)(w + 1);
+    a->ui.mk_ovr_s = -1;
+    if (w < 0) {
+        q->ovr_t = 0;
+        return;
+    }
+    mk_res(a, &r, 0);
+    q->ovr_v = (int16_t)(m == UI_F_RATCH ? (w & 7) | (w >> 3) << 4 : m == UI_F_COND ? mk_cond(r.cond, w) : qd_mk_val(a, m, w));
+    q->ovr_pm = (uint8_t)m;                             /* (UI_F_VEL .. UI_F_COND are QD_PM_VEL .. QD_PM_COND) */
+    q->ovr_t = (uint8_t)(a->sel + 1);
+    if (a->ui.rec)
+        mk_ovr_write(a, qd_seq_track_step(q, a->sel));
+}
+
 void qd_mk_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
@@ -764,6 +801,18 @@ void qd_mk_white(qd_app_t *a, int key, int w, int down, int vel)
     }
     if (down && m == UI_F_SOUND && w >= 10)
         u->mk_svel = (uint8_t)v;                        /* (SOUND: the pads' velocity from now on) */
+    if (!u->nheld && a->seq.playing && MK_OVR(m)) {     /* LIVE, playing: the override while held (no note struck) */
+        if (down) {
+            mk_ovr_set(a, w);
+        } else if (u->mk_ovr == w + 1) {
+            int k, o = -1;
+            for (k = 0; k < 16; k++)                    /* (another key still held: its value) */
+                if (k != w && ((a->keys_held >> QD_WHITE_KEY[k]) & 1u))
+                    o = k;
+            mk_ovr_set(a, o);
+        }
+        return;
+    }
     if (!down) {
         if (u->mk_rec & bit) {                          /* (a recorded press: its notes end, LEN's value kept) */
             u->mk_rec &= (uint16_t)~bit;
@@ -919,6 +968,21 @@ int qd_mk_show(const qd_app_t *a, qd_rstep_t *r)
 
 void qd_mk_tick(qd_app_t *a)                            /* (LEN: the keys' notes end at the length) */
 {
+    qd_ui_t *u = &a->ui;
+    if (u->mk_ovr) {                                    /* the override: over when the keys, the mode, LIVE or playback
+                                                         * go; recording, the step the playhead entered takes it */
+        int k, held = 0;
+        for (k = 0; k < 16; k++)
+            held |= (int)((a->keys_held >> QD_WHITE_KEY[k]) & 1u);
+        if (!held || !a->seq.playing || !qd_mk_on(a) || u->nheld || !MK_OVR(u->hmode) ||
+            a->seq.ovr_t != a->sel + 1) {
+            mk_ovr_set(a, -1);
+        } else if (u->rec) {
+            const int s = qd_seq_track_step(&a->seq, a->sel);
+            if (s >= 0 && s != u->mk_ovr_s)
+                mk_ovr_write(a, s);
+        }
+    }
     if (a->ui.mk_off && (int32_t)(a->ms - a->ui.mk_off) >= 0) {
         a->ui.mk_off = 0;
         if (!a->ui.mk_rec)

@@ -364,7 +364,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         qd_mfx_leds(a, out->key);
     else if (u->mode == QD_MODE_KEYS)
         leds_keys(a, out);
-    if (qd_snd_keys(a) && !qd_ctl_b11(a) && u->snd_lk != 4 && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN)) {
+    if (qd_snd_keys(a) && !qd_ctl_b11(a) && u->snd_lk != 4 && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN) &&
+        !(qd_step_kb(a) && qd_ctl_layer(a) != QD_LAYER_NONE)) {   /* (2026-11-13: F1 / F2 held: the steps) */
         uint8_t k[QD_NKEY];                             /* 2026-11-10: a B11 click's keys, every page (P1.5b: SCALE the
                                                          * W keys; FULL every key) */
         memset(k, 0, sizeof k);
@@ -378,6 +379,9 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     }
     if (qd_ctl_b11_free(a) && !qd_ctl_b11(a))        /* 2026-11-10: B11 the hold key: dim with the step lock on */
         out->key[QD_BLACK_KEY[10]] = u->slatch ? QD_LED_DIM : QD_LED_FAINT;
+    if (qd_snd_keys(a) && !qd_ctl_b11(a) && u->mode == QD_MODE_STEP)   /* 2026-11-13 (owner): the step keyboard on: B11
+                                                         * breathes */
+        out->key[QD_BLACK_KEY[10]] = qd_led_breath_lo(a->ms);
     if (qd_ctl_shift(a) && qd_ctl_shift_page(a))
         qd_shift_leds(a, out->key);                     /* P1.5c: SHIFT held: only its shortcuts lit (2026-11-10: on
                                                          * every page, the keyboard page too) */
@@ -385,6 +389,11 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                          * black key flashes once (lit already: dark a moment first) */
         uint8_t *k = &out->key[QD_BLACK_KEY[(u->pflash - 1) & 7]];
         *k = *k == QD_LED_LIT && a->ms - u->pflash_ms < QD_PFLASH_MS / 3u ? QD_LED_OFF : QD_LED_LIT;
+    }
+    if (u->wflash && a->ms - u->wflash_ms < QD_PFLASH_MS && qd_snd_keys(a)) {   /* 2026-11-13 (owner): ALGORITHM's step:
+                                                         * its W key flashes once, as a page's */
+        uint8_t *k = &out->key[QD_WHITE_KEY[(u->wflash - 1) & 15]];
+        *k = *k == QD_LED_LIT && a->ms - u->wflash_ms < QD_PFLASH_MS / 3u ? QD_LED_OFF : QD_LED_LIT;
     }
     if (held(a, QD_B_TRACKS)) {                         /* TRACKS held: the selected track's white key dim */
         const int k = QD_WHITE_KEY[a->sel];

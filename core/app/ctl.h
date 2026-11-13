@@ -591,8 +591,13 @@ typedef struct {
     uint8_t mk_shw;                    /* .. LIVE: the W key whose value shows (+ 1; 0 none) while held, then a second */
     uint32_t mk_ms;                    /* .. its last press or release */
     uint32_t mk_off;                   /* .. LEN: the keys' notes end then (0 none) */
+    uint8_t mk_ovr;                    /* .. LIVE, playing: the W key overriding the mode's value (+ 1; seq.ovr_*) .. */
+    int16_t mk_ovr_s;                  /* .. recording: the last step it wrote (-1) */
     uint32_t pflash_ms;                /* 2026-11-12 (owner): SELECT turned the page edited: its black key flashes once */
     uint8_t pflash;                    /* .. (the page + 1; 0 none) */
+    uint8_t wflash;                    /* 2026-11-13 (owner): ALGORITHM moved the step keyboard's step: its W key flashes
+                                        * once (the page's step + 1; 0 none) .. */
+    uint32_t wflash_ms;
     int mod_slot, mod_src;             /* E4: the MOD page's chosen slot (0..7); hold-to-map's source (QD_MS_*) */
     /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
     int mfx_slot, mfx_page;            /* the slot selected, its page */
@@ -684,6 +689,10 @@ typedef struct {
                                         * later) */
     int metro_held, metro_turned;      /* P1.5c: SHIFT + B7 held, a knob turned with it */
     int shift_used;                    /* SHIFT did something while down (its map then stops) */
+    uint8_t shift_stick;               /* 2026-11-13 (owner): SHIFT clicked: it stays on (a click again, or any button's
+                                        * press and release, ends it; a hold never sticks) .. */
+    uint8_t shift_unstick;             /* .. this press began stuck: its release ends it */
+    uint32_t shift_ms;                 /* .. the press's time */
     /* the keyboard (ctl_rec.c) */
     int rec;                           /* recording armed in the keyboard (step recording stopped, live playing) */
     int rec_kind;                      /* P1.3y: QD_REC_STEP (the cursor, playing or not) / QD_REC_LIVE (playing) */

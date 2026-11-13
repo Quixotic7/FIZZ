@@ -61,6 +61,10 @@ void ui_ov_draw(const ui_ov_t *v)
                 qd_restore();
             }
         }
+        if (t == v->sel)                                /* 2026-11-13 (owner): the selected track's row in its colour,
+                                                         * faint, behind its steps */
+            ui_RR(OV_X0 - 3.f, y - 3.f, 239.f - OV_X0, OV_H + 6.f, 5.f, gk_mix(UI_BG, col, 0.45f), 1.f,
+                  gk_mix(UI_BG, col, 0.16f));
         if (t == v->sel || solo)                        /* selected: boxed white; soloed: yellow (the mix's) */
             ui_RR(3.f, y - 1.f, 26.f, OV_H + 2.f, 6.f, solo ? UI_KSEL : UI_K3, 1.6f, QD_NONE);
         qd_save();

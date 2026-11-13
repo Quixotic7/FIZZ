@@ -70,6 +70,15 @@ static void keys_clear(ui_kkey_t k[11])
 }
 
 /* ---------------------------------------------------------------- F1: the pages */
+static void page_row(const ui_layer_t *v)
+{
+    uint16_t trig = 0;
+    int i;
+    for (i = 0; i < 16; i++)
+        trig |= (uint16_t)((v->trig[v->page & 7][i] != 0) << i);
+    ui_page_row(KM_Y + 6.f, trig, v->b11_sel, -1, v->b11_play);
+}
+
 static void f1(const ui_layer_t *v)
 {
     ui_kkey_t k[11];
@@ -113,22 +122,14 @@ static void f1(const ui_layer_t *v)
         k[p].col = v->page_copied >= 0 ? UI_K2 : (v->loop >> p) & 1 ? UI_K3 : UI_G1;
         k[p].lit = p == v->page && v->page_copied < 0;
     }
-    if (v->b11) {                                       /* 2026-11-10: B11 held: the pages only; 2026-11-13 (owner): the
-                                                         * page edited's steps at the foot, as the step keyboard's row
-                                                         * (no key numbers) */
-        uint16_t trig = 0;
-        for (i = 0; i < 16; i++)
-            trig |= (uint16_t)((v->trig[v->page & 7][i] != 0) << i);
-        ui_page_row(KM_Y + 6.f, trig, v->b11_sel, -1, v->b11_play);
+    page_row(v);                                        /* 2026-11-13 (owner): the page edited's steps at the foot, as
+                                                         * B11's and the step keyboard's row */
+    if (v->b11)                                         /* 2026-11-10: B11 held: the pages only (no key numbers) */
         return;
-    }
-    /* the W keys' step copy: a white key and COPY, or PASTE (green) once a step is copied */
-    ui_icon(UI_IC_KEY, 104.f, 178.f, 1.4f, UI_G1);
-    ui_icon(v->f1_copied ? UI_IC_PASTE : UI_IC_COPY, 132.f, 178.f, 1.5f, v->f1_copied ? UI_K2 : UI_G1);
-    k[8].icon = UI_IC_CLEAR, k[8].col = UI_K4;
+    k[8].icon = UI_IC_CLEAR, k[8].col = UI_K4;          /* (the W keys' copy: the row; F1's black keys above it) */
     k[9].icon = UI_IC_COPY, k[9].lit = v->page_copied >= 0;
     k[10].icon = UI_IC_UNDO, k[10].dim = !v->can_undo;
-    ui_keymap(k, KM_Y, KM_H);
+    ui_keymap(k, 164.f, KM_H);
 }
 
 /* ---------------------------------------------------------------- F2: Form's pick-up / drop */
@@ -170,21 +171,13 @@ static float cx16(int i) { return 9.f + (float)i * 13.5f + (float)(i / 4) * 2.f;
 
 static void f2(const ui_layer_t *v)
 {
-    const float top = 34.f, h = 40.f;
     const int next_paste = v->hand_loaded && v->hand;
-    int i;
-    for (i = 0; i < 16; i++) {                          /* the page's steps */
-        const int last = i == v->last_w;
-        const qd_rgb oc = last ? (v->last_act == 1 ? UI_K4 : UI_K2) : UI_G2;
-        ui_RR(cx16(i), top, 12.f, h, 3.f, oc, last ? 1.5f : 1.f, QD_NONE);
-        if (v->page_on[i])
-            ui_O(cx16(i) + 6.f, top + h - 10.f, 2.4f, QD_NONE, 1.f, last ? oc : UI_K3);
-    }
-    if (v->last_w >= 0 && v->last_w < 16)               /* what the last W did, under it */
-        ui_icon(v->last_act == 1 ? UI_IC_CUT : UI_IC_PASTE, cx16(v->last_w) + 6.f, top + h + 14.f, 1.1f,
-                v->last_act == 1 ? UI_K4 : UI_K2);
-    hand_card(v, 40.f, 108.f, 120.f, 72.f);
-    ui_icon(next_paste ? UI_IC_PASTE : UI_IC_CUT, 194.f, 144.f, 2.6f, next_paste ? UI_K2 : UI_K4);   /* the next W */
+    page_row(v);                                        /* 2026-11-13 (owner): the page's steps at the foot (B11's row) */
+    if (v->last_w >= 0 && v->last_w < 16)               /* what the last W did, over its step */
+        ui_icon(v->last_act == 1 ? UI_IC_CUT : UI_IC_PASTE, 19.5f + (float)v->last_w * 13.f +
+                (float)(v->last_w / 4) * 2.7f, KM_Y - 8.f, 1.1f, v->last_act == 1 ? UI_K4 : UI_K2);
+    hand_card(v, 40.f, 60.f, 120.f, 100.f);
+    ui_icon(next_paste ? UI_IC_PASTE : UI_IC_CUT, 194.f, 110.f, 2.6f, next_paste ? UI_K2 : UI_K4);   /* the next W */
 }
 
 /* ---------------------------------------------------------------- F3: the page's range and the rate */
