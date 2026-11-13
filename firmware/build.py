@@ -242,6 +242,9 @@ BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_
           "build_units_c_view.o",   # (2026-11-13, the step keyboard's second round: 1,040 B over; the views' models)
           # (2026-11-13, round 3, the owner's OK: the controls' step and keys units: ~2 KB over)
           "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",
+          # (2026-11-13, the editor's knobs, B11's STEPS grid, SAVE's STEP: 992 B over; the controls' main unit and the
+          # preview, no drawing: 80 B free. ui_lane.o alone would do, but it draws the Home views' lanes)
+          "build_units_c_ctl.o", "build_units_c_ctl_preview.o",
           *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
 USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at -Os: -Oz made the EDIT view ~15 ms a frame
           # slower playing (87 vs 72 ms, unit); the cold units at -Oz in their place: the idle screen, the pickers, the
@@ -255,7 +258,8 @@ USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at 
 # ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
 SINGLE_OZ = USB_OZ | {"build_units_c_ui_held.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)
                       "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
-                      "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o"}   # (round 3)
+                      "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",   # (round 3)
+                      "build_units_c_ctl_preview.o"}   # (2026-11-13: SAVE's STEP, B11's STEPS grid: 124 B over)
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
