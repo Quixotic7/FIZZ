@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.17 (2026-11-13)
+
 A speed fix for beta.16 on the USB package.
 
 - **Fixed: the Home views and the mixer drew about 10 ms slower** on the USB package in beta.16 (STEPS 60 ms a frame instead of 49), so the screen felt laggy while playing. They draw as fast as in beta.15 again.

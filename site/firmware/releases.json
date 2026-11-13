@@ -1,7 +1,59 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.16",
+  "latest": "0.12.0-beta.17",
   "releases": [
+    {
+      "version": "0.12.0-beta.17",
+      "date": "2026-11-13",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "734d6f38675b48056f6b2d48542c969cd5ed0bf6",
+      "fm1base": "934e40d846d84e76e9c428d37b74bccb6192c823",
+      "notes": "A speed fix for beta.16 on the USB package.\n\n- **Fixed: the Home views and the mixer drew about 10 ms slower** on the USB package in beta.16 (STEPS 60 ms a frame instead of 49), so the screen felt laggy while playing. They draw as fast as in beta.15 again.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI and USB audio",
+          "fwsc": {
+            "path": "0.12.0-beta.17/fizz.fwsc",
+            "bytes": 1042099,
+            "sha256": "ba784e47dc1cd2dd91dd73914734b43a272c39bccbb89e5dde1b830a9fca3bbe"
+          },
+          "data": {
+            "path": "0.12.0-beta.17/fizz-xdata.bin",
+            "bytes": 91896,
+            "sha256": "11fbdb50152f1f1fc31108f11468966c7180d4ac28fef53f868716c345dc8de2",
+            "crc32": 3448907069
+          }
+        },
+        {
+          "name": "fizz-ble",
+          "kind": "ble",
+          "label": "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+          "projects": 4,
+          "presets": 128,
+          "fwsc": {
+            "path": "0.12.0-beta.17/fizz-ble.fwsc",
+            "bytes": 1042154,
+            "sha256": "f2f9b9cb68e435374619ac777909ed1569f6961bb530214a3eb9b92478d7278a"
+          },
+          "data": {
+            "path": "0.12.0-beta.17/fizz-ble-xdata.bin",
+            "bytes": 85824,
+            "sha256": "970577093da4183f02af61752eb485d88b5d1af13865f792fd8a9f55275c9f40",
+            "crc32": 3354106122,
+            "at": 946176
+          },
+          "data2": {
+            "path": "0.12.0-beta.17/fizz-ble-xdata2.bin",
+            "bytes": 97976,
+            "sha256": "1da56fb0009a89b610d7015e78220e20efae1bd948d0914383f9fd54dc9cf7b2",
+            "crc32": 1431419498,
+            "at": 618496
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.16",
       "date": "2026-11-13",
