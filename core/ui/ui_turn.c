@@ -9,18 +9,12 @@
  *   HARM   the wave growing harmonics (s23)      FDBK   a spiral winding back into itself (s24)
  *   ALGO   FM TONE's routing: C, A, B1, B2 wired, modulators above their targets, carriers into the speaker
  *   TEMPO / SWING  s16's metronome, the BPM and the swing; swing over 50 % swings the pendulum unequal
- *   RATE   a picker over the pattern's clock and the track's (s25)
- *   LEN    the track's loop (its steps) over the eight pages
- *   LIMIT  the 16-voice pool, the limit outlined, the voices lit
- *   TSWING the track's swing on / off: a small metronome swinging unequal or even
  *   PAGE   (SELECT) the eight pages as rows of sixteen steps: the one edited outlined in the knob's colour with its
  *          trigs in it, the pages in the loop grey and the others dark, each one's start..end as a line under its
  *          row, the playing page's number red; "PAGE 3" big
  *   SCALE  (SHIFT + ALGORITHM) the scale's name big, the scales before and after it small above and below, its notes
  *          on a little one-octave keybed from the root (scale_mask: bit k, k semitones over the root), the root white
  *   ROOT   (SHIFT + PRESETS) the root big, the same: its neighbours, the scale's notes from it on the keybed
- *   TRACK  (P1.3d: ALGORITHM in P-LOCK, nothing held) the eight tracks as rows, the one chosen boxed in P-LOCK's
- *          colour, each with its name and its loop's trigs (up to 32), a muted one grey with an M
  * And (P1.3d) the knob band, ui_band_draw: a turn in a hold mode, over the screen's top (ui.h)
  * Every motion comes from the record (t, beat, beats, the clocks' positions). */
 #include <math.h>
@@ -334,114 +328,6 @@ static void d_algo(const ui_turn_t *v)
     }
 }
 
-/* ---------------------------------------------------------------- TSWING (s16's metronome; TEMPO / SWING: the ape) */
-/* the metronome as s16 draws it, moved so its pendulum's pivot (190, 180) sits at (px, py), at scale s; the pendulum
- * swings once a beat; with swing over 50 the two swings of a pair of beats take swing % and the rest */
-static void metronome(float px, float py, float s, int beats, float beat, int swing)
-{
-    const float sf = (float)(swing < 50 ? 50 : swing > 80 ? 80 : swing) / 100.f;
-    const float pr = ((float)(beats & 1) + beat) / 2.f;
-    float f, side, ang, L = 116.f, tx, ty, wx, wy;
-    if (pr < sf)
-        f = pr / sf, side = -1.f;
-    else
-        f = (pr - sf) / (1.f - sf), side = 1.f;
-    ang = side * cosf(UI_PI * f) * 0.42f;
-    qd_save();
-    qd_translate(px - 190.f * s, py - 180.f * s);
-    qd_scale(s, s);
-    {
-        const float body[8] = {158.f, 220.f, 222.f, 220.f, 204.f, 50.f, 176.f, 50.f};
-        ui_P(body, 4, UI_G1, 1.5f, 1, QD_NONE);
-    }
-    line2(166.f, 190.f, 214.f, 190.f, UI_G2, 1.f);
-    tx = 190.f + sinf(ang) * L, ty = 180.f - cosf(ang) * L;
-    line2(190.f, 180.f, tx, ty, UI_K3, 1.5f);
-    wx = 190.f + sinf(ang) * L * 0.62f, wy = 180.f - cosf(ang) * L * 0.62f;
-    ui_RR(wx - 6.f, wy - 4.f, 12.f, 8.f, 2.f, UI_K3, 1.2f, UI_BG);
-    ui_O(190.f, 180.f, 2.5f, QD_NONE, 1.f, UI_G1);
-    qd_restore();
-}
-
-
-/* ---------------------------------------------------------------- RATE (s25) */
-static void d_rate(const ui_turn_t *v, qd_rgb col)
-{
-    char name[16], n[12];
-    int c, k;
-    name[0] = 0;
-    {
-        const char *a = "TRACK ";
-        int i = 0, j = 0;
-        while (a[i])
-            name[j++] = a[i++];
-        ui_itoa(n, v->track);
-        for (i = 0; n[i]; i++)
-            name[j++] = n[i];
-        name[j] = 0;
-    }
-    for (c = 0; c < 2; c++) {                           /* the pattern's clock, the track's */
-        const float cx = c ? 162.f : 78.f, pos = c ? v->track_pos : v->pat_pos;
-        const qd_rgb cc = c ? col : UI_G2;
-        const float a = -UI_PI / 2.f + pos / 16.f * UI_TAU;
-        ui_O(cx, 92.f, 34.f, cc, 1.5f, QD_NONE);
-        for (k = 0; k < 16; k++) {
-            const float b = -UI_PI / 2.f + (float)k / 16.f * UI_TAU;
-            ui_O(cx + cosf(b) * 34.f, 92.f + sinf(b) * 34.f, 1.3f, QD_NONE, 1.f, cc);
-        }
-        line2(cx, 92.f, cx + cosf(a) * 26.f, 92.f + sinf(a) * 26.f, c ? UI_RED : UI_G1, 1.5f);
-        ui_T(c ? name : "PATTERN", cx, 148.f, 12.f, 600, 0.5f, UI_G1, QD_CENTER);
-    }
-    if (v->prev)
-        ui_T(v->prev, 30.f, 214.f, 16.f, 500, 0.f, UI_G2, QD_CENTER);
-    if (v->next)
-        ui_T(v->next, 210.f, 214.f, 16.f, 500, 0.f, UI_G2, QD_CENTER);
-    ui_T(v->val, 120.f, 222.f, 52.f, 200, 0.f, col, QD_CENTER);
-}
-
-/* ---------------------------------------------------------------- LEN: the track's length over its 8 pages */
-static void d_len(const ui_turn_t *v, qd_rgb col)
-{
-    char n[12];
-    int p;
-    for (p = 0; p < 8; p++) {
-        const float x = 14.f + (float)p * 27.f, y = 64.f, w = 23.f, h = 76.f;
-        const int st = v->value - p * 16, in = st > 0;
-        const float f = (float)(st < 0 ? 0 : st > 16 ? 16 : st) / 16.f;
-        ui_RR(x, y, w, h, 3.f, in ? col : UI_G3, in ? 1.2f : 1.f, QD_NONE);
-        if (in) {                                       /* the steps in it, filled as LEN's held bar is */
-            qd_save();
-            qd_alpha(0.3f);
-            ui_RR(x + 3.f, y + 3.f, (w - 6.f) * f, h - 6.f, 1.5f, QD_NONE, 1.f, col);
-            qd_restore();
-        }
-        ui_T(ui_itoa(n, p + 1), x + w / 2.f, 158.f, 12.f, 600, 0.f, in ? UI_G1 : UI_G2, QD_CENTER);   /* (P1.3v: the
-                                                         * page's number, 12 px; no PAGES word) */
-    }
-}
-
-/* ---------------------------------------------------------------- LIMIT: the 16-voice pool */
-static void d_limit(const ui_turn_t *v, qd_rgb col)
-{
-    char s[24], n[12];
-    int i, k = 0;
-    for (i = 0; i < 16; i++) {
-        const float x = 29.f + (float)(i % 8) * 26.f, y = 76.f + (float)(i / 8) * 34.f;
-        const int lim = i < v->value, use = i < v->voices;
-        ui_O(x, y, 7.f, lim ? col : UI_G3, lim ? 1.5f : 1.2f, use ? (lim ? col : UI_G2) : QD_NONE);
-    }
-    ui_itoa(n, v->voices);
-    for (i = 0; n[i]; i++)
-        s[k++] = n[i];
-    {
-        const char *a = " SOUNDING";
-        for (i = 0; a[i]; i++)
-            s[k++] = a[i];
-    }
-    s[k] = 0;
-    (void)s;                                            /* (P1.3v: the dots say how many sound: no "n SOUNDING") */
-}
-
 /* ---------------------------------------------------------------- PAGE: the eight pages as rows */
 static void d_page(const ui_turn_t *v, qd_rgb col)
 {
@@ -507,38 +393,6 @@ static void d_scale(const ui_turn_t *v, qd_rgb col)
         int b;
         const float x = ui_keyboard_x(kx, kw * 2.f, 48, 48 + root, &b);
         ui_T(NOTE[root], x, ky + kh + 16.f, 12.f, 600, 0.f, UI_K3, QD_CENTER);
-    }
-}
-
-/* ---------------------------------------------------------------- TRACK (P1.3d): the six tracks as rows */
-static void d_track(const ui_turn_t *v, qd_rgb col)
-{
-    static const char *const NUM[UI_NTRACK] = {"1", "2", "3", "4", "5", "6"};
-    int i, k;
-    for (i = 0; i < UI_NTRACK; i++) {                   /* (six: 28 px a row) */
-        const float y = 48.f + (float)i * 28.f;
-        const int sel = i == v->track - 1, mute = (v->tmute >> i) & 1u;
-        const int n = v->tlen[i] > 32 ? 32 : v->tlen[i];
-        const qd_rgb tc = sel ? col : mute ? UI_G2 : UI_G1;
-        if (sel)
-            ui_RR(8.f, y - 13.f, 224.f, 22.f, 5.f, col, 1.2f, QD_NONE);
-        ui_T(NUM[i], 20.f, y + 3.5f, 12.f, 600, 0.f, tc, QD_CENTER);
-        if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind */
-            ui_kind_icon(ui_track_kind(i + 1), 37.f, y - 1.f, 0.85f, sel ? UI_PK_COL[ui_track_kind(i + 1)] : tc);
-        ui_T(v->tname[i] ? v->tname[i] : "", ui_track_kind(i + 1) >= 0 ? 46.f : 32.f, y + 3.5f, 12.f, 600, 0.5f,
-             sel ? UI_K3 : tc, QD_LEFT);
-        if (mute) {                                     /* (P1.3v: muted: an orange cross, was an 8 px M) */
-            const float m[4] = {100.f, y - 6.f, 108.f, y + 2.f}, n[4] = {108.f, y - 6.f, 100.f, y + 2.f};
-            ui_P(m, 2, UI_K4, 1.5f, 0, QD_NONE);
-            ui_P(n, 2, UI_K4, 1.5f, 0, QD_NONE);
-        }
-        for (k = 0; k < n; k++) {                       /* the loop's trigs, up to 32 */
-            const float x = 116.f + (float)k * 3.5f + (float)(k / 4) * 0.5f;
-            if (v->ttrig[i][k])
-                ui_O(x, y - 2.f, 1.3f, QD_NONE, 1.f, sel ? col : tc);
-            else
-                ui_O(x, y - 2.f, 0.6f, QD_NONE, 1.f, UI_G3);
-        }
     }
 }
 
@@ -667,9 +521,6 @@ void ui_turn_draw(const ui_turn_t *v)
     case UI_TK_ALGO: d_algo(v); break;
     case UI_TK_TEMPO:                                   /* (2026-10-25: the TAP ape, ui_ape.c) */
     case UI_TK_SWING: ui_ape_tempo(v, col); val = 0; break;
-    case UI_TK_RATE: d_rate(v, col); val = 0; break;
-    case UI_TK_LEN: d_len(v, col); break;
-    case UI_TK_LIMIT: d_limit(v, col); break;
     case UI_TK_PAGE:
         d_page(v, col);
         if (!val[0]) {
@@ -679,14 +530,8 @@ void ui_turn_draw(const ui_turn_t *v)
         break;
     case UI_TK_SCALE:
     case UI_TK_ROOT: d_scale(v, col); val = 0; break;
-    case UI_TK_TRACK: d_track(v, col); val = 0; break;
     case UI_TK_TRACKBIG: d_trackbig(v); val = 0; break;
     case UI_TK_FOLLOW: d_follow(v, col); break;
-    case UI_TK_TSWING:
-        metronome(120.f, 128.f, 0.62f, v->beats, v->beat, v->value ? (v->swing > 50 ? v->swing : 62) : 50);
-        if (!val[0])
-            val = v->value ? "ON" : "OFF";
-        break;
     default: break;
     }
     if (val)

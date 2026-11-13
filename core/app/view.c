@@ -702,42 +702,6 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         v->v = (float)(P->swing - 50) / 30.f;
         cat(ui_itoa(v->val, P->swing), "%");
         break;
-    case UI_TK_LEN:
-        v->value = qd_track_len(ts);
-        v->v = (float)v->value / (float)QD_NSTEP;
-        ui_itoa(v->val, v->value);
-        break;
-    case UI_TK_RATE: {
-        const int k = qd_ctl_rate_index(qd_tset_rate(ts));
-        const int64_t L = qd_rate_ticks(qd_tset_rate(ts));
-        /* the position in ticks as tq / td: playing, the transport's; stopped, the beats' x 403200 (60000 x 25 / 168) */
-        const int64_t tq = a->seq.playing ? qd_seq_tick(&a->seq) : bq * (QD_BEAT_TICKS / 2400), td = a->seq.playing ? 1 : 25;
-        v->value = qd_tset_rate(ts);
-        v->v = (float)k / (float)(QD_NRATE - 1);
-        strcpy(v->val, qd_rate_name(qd_tset_rate(ts)));
-        v->prev = k > 0 ? qd_rate_name(qd_ctl_rate_at(k - 1)) : 0;
-        v->next = k < QD_NRATE - 1 ? qd_rate_name(qd_ctl_rate_at(k + 1)) : 0;
-        v->rate = qd_ratio_f(QD_TPS, L);
-        v->pat_pos = qd_ratio_f(qd_mod64(tq, (int32_t)(16 * QD_TPS * td)), QD_TPS * td);   /* (mod 16 steps) */
-        {
-            uint32_t r;
-            qd_udivmod64((uint64_t)tq, (uint32_t)(16 * L * td), &r);   /* (mod 16 of the track's steps) */
-            v->track_pos = qd_ratio_f(r, L * td);
-        }
-        break;
-    }
-    case UI_TK_LIMIT:
-        v->value = ts->limit > QD_POOL_LIMIT_MAX ? QD_POOL_LIMIT_MAX : ts->limit;   /* (P2.6: what the pool plays) */
-        v->v = (float)(v->value - 1) / (float)(QD_POOL_LIMIT_MAX - 1);
-        ui_itoa(v->val, v->value);
-        for (i = 0; i < a->pool.nvoice; i++)
-            v->voices += qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == t;
-        break;
-    case UI_TK_TSWING:
-        v->value = ts->swing;
-        v->v = ts->swing ? 1.f : 0.f;
-        strcpy(v->val, ts->swing ? "ON" : "OFF");
-        break;
     case UI_TK_PAGE:
         v->page = u->page[t];
         v->value = v->page + 1;
@@ -790,24 +754,6 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         v->v = (float)t / (float)(QD_NTRACK - 1);
         for (i = 0; i < QD_NTRACK; i++)
             v->tname[i] = a->model.t[i].name;
-        break;
-    case UI_TK_TRACK:                                   /* P1.3d: the eight tracks (P-LOCK's ALGORITHM; unused since
-                                                         * 2026-10-26, kept) */
-        v->has_col = 1;
-        v->col = UI_LOCK_COL;
-        v->value = t + 1;
-        v->v = (float)t / (float)(QD_NTRACK - 1);
-        for (i = 0; i < QD_NTRACK; i++) {
-            const qd_pattern_t *TP = qd_seq_track_pat(&a->seq, i);
-            const qd_tset_t *tt = &TP->trk[i];
-            const int n = qd_track_len(tt);
-            v->tname[i] = a->model.t[i].name;
-            if (!qd_seq_audible(&a->seq, TP, i))
-                v->tmute |= (uint8_t)(1u << i);
-            v->tlen[i] = (uint8_t)(n > 32 ? 32 : n);
-            for (s = 0; s < v->tlen[i]; s++)
-                v->ttrig[i][s] = (uint8_t)(qd_step_type(TP, i, qd_track_loop_step(tt, s)) != QD_TRIG_NONE);
-        }
         break;
     case UI_TK_SCALE:
     case UI_TK_ROOT: {

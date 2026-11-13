@@ -803,7 +803,9 @@ void ui_import_draw(const char *name, int pool, int slot, float t);   /* P1.5r (
 
 /* ---- a knob turned: the whole screen (line.html s21..s25, s16; PLAN §9a rule 5) */
 enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO, UI_TK_SWING, UI_TK_LEN, UI_TK_RATE,
-       UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_TK_TRACK,
+       UI_TK_LIMIT, UI_TK_TSWING,       /* (2026-11-13: LEN, RATE, LIMIT, TSWING and TRACK retired: no control shows
+                                         * them; their numbers kept) */
+       UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_TK_TRACK,
        UI_TK_TRACKBIG,                  /* P1.3y: FX held + ALGORITHM: the track big (number, name, its colour) */
        UI_TK_TAP,                       /* P1.5z: SHIFT + B6: the taps (the BPM big, the taps' dots, a pulse) */
        UI_TK_FOLLOW,                    /* P1.5z: SHIFT + B8: PAGE FOLLOW on / off (the pages, the playhead's arrow) */
@@ -827,14 +829,9 @@ typedef struct {
     int playing;
     /* TEMPO / SWING (s16): the BPM big, the swing in green, the metronome; swing > 50 swings unequal */
     int bpm, swing;
-    /* RATE (s25), SCALE, ROOT: a picker (the value big, its neighbours small) */
+    /* SCALE, ROOT: a picker (the value big, its neighbours small) */
     const char *prev, *next;            /* the neighbours' names (0: none) */
-    float rate;                         /* the track's speed against the pattern's (0.125 .. 2) */
-    float track_pos, pat_pos;           /* the two hands, steps 0..16 */
-    int track;                          /* 1..8 (the clock's label) */
-    /* LEN: the track's loop over the 8 pages; LIMIT: the 16-voice pool, the limit lit, the voices in use;
-     * TSWING: the track's swing on / off */
-    int voices;
+    int track;                          /* 1..8 */
     /* PAGE (SELECT): a page picker: the eight pages, the one edited big, the loop, each one's range and trigs */
     int page;                           /* 0..7 */
     uint8_t loop, pstart[8], pend[8];
@@ -846,11 +843,7 @@ typedef struct {
     /* P1.3d: the colour when it is not a knob's (has_col: col; the track chooser draws in P-LOCK's) */
     int has_col;
     qd_rgb col;
-    /* TRACK (P-LOCK + ALGORITHM): the eight tracks as rows: number, name, the loop's trigs (up to 32), muted grey */
-    const char *tname[UI_NTRACK];
-    uint8_t tmute;
-    uint8_t tlen[UI_NTRACK];
-    uint8_t ttrig[UI_NTRACK][32];
+    const char *tname[UI_NTRACK];       /* TRACKBIG: the tracks' names */
     /* P1.5z, TAP (SHIFT + B6): the taps' ages (s, the newest first; up to 8), the count, the clock external (dimmed) */
     int ntap;
     float tap_age[8];
