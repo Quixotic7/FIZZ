@@ -1913,7 +1913,7 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
 {
     qd_ui_t *u = &a->ui;
     const qd_pattern_t *P = qd_ctl_cpat(a);
-    const int g = qd_mfx_tgroup(a);
+    const int g = qd_mfx_vgroup(a);                    /* (2026-11-13: a selected step's) */
     int k, t;
     memset(v, 0, sizeof *v);
     v->g = g;

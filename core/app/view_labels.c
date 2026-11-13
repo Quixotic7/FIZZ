@@ -402,7 +402,7 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     if (qd_mfx_open(a)) {                               /* P1.6c: the MIDI FX screen */
-        const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a), ml = qd_ctl_main_layer(a);
+        const int g = qd_mfx_vgroup(a), lane = qd_mfx_lane_page(a), ml = qd_ctl_main_layer(a);
         char val[12];
         lb_set(o, LB_KNOB(QD_K_ALGO), "STEP");          /* (2026-11-13: the step cursor; PRESETS the group) */
         lb_set(o, LB_KNOB(QD_K_PRESETS), qd_mfx_steps_held(a, 0) ? "STEP MFX" : "GROUP");   /* (P1.6e: STEPS' steps) */

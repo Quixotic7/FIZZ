@@ -34,6 +34,30 @@ int qd_mfx_tgroup(const qd_app_t *a)
     const int m = qd_ctl_cpat(a)->trk[a->sel].mfx & 0x7f;   /* (QD_TMFX_OFF: a playback bypass, the group edited) */
     return m <= QD_MFX_NGROUP ? m : 0;
 }
+/* 2026-11-13 (owner): the group the screen shows and edits: a step selected (or its W key held), the step's (OFF: none;
+ * TRACK: the track's), else the track's */
+static int mf_step_group(const qd_app_t *a, int s)
+{
+    const int m = qd_ctl_cpat(a)->step[a->sel][s].mfx;
+    if (m == QD_SMFX_OFF)
+        return 0;
+    if (m >= QD_SMFX_G1)
+        return m - QD_SMFX_G1 + 1 <= QD_MFX_NGROUP ? m - QD_SMFX_G1 + 1 : 0;
+    return qd_mfx_tgroup(a);
+}
+int qd_mfx_vgroup(const qd_app_t *a)
+{
+    int s0 = 0;
+    return qd_mfx_steps_held(a, &s0) ? mf_step_group(a, s0) : qd_mfx_tgroup(a);
+}
+/* (the arp's lanes on pages 3, 4: the W keys the lane's steps; the group: the selection's, else the track's, so the W
+ * keys' own steps never decide it) */
+static int mf_lane_sel(const qd_app_t *a)
+{
+    const int g = a->ui.nheld ? mf_step_group(a, a->ui.held[0]) : qd_mfx_tgroup(a);
+    return g && a->proj.mfx[g - 1].slot[a->ui.mfx_slot & 7].type == QD_MFX_ARP &&
+           (a->ui.mfx_page == 2 || a->ui.mfx_page == 3);
+}
 void qd_mfx_track_changed(qd_app_t *a, int t)
 {
     if (t < 0 || t >= QD_PAT_NTRACK)
@@ -54,12 +78,12 @@ void qd_mfx_step_popup(qd_app_t *a)
 }
 static qd_mfx_slot_t *mf_slot(qd_app_t *a)
 {
-    const int g = qd_mfx_tgroup(a);
+    const int g = qd_mfx_vgroup(a);
     return g ? &a->proj.mfx[g - 1].slot[a->ui.mfx_slot & 7] : 0;
 }
 int qd_mfx_lane_page(const qd_app_t *a)
 {
-    const int g = qd_mfx_tgroup(a);
+    const int g = qd_mfx_vgroup(a);
     if (!qd_mfx_open(a) || !g || a->proj.mfx[g - 1].slot[a->ui.mfx_slot & 7].type != QD_MFX_ARP)
         return 0;
     return a->ui.mfx_page == 2 ? 1 : a->ui.mfx_page == 3 ? 2 : 0;
@@ -67,7 +91,7 @@ int qd_mfx_lane_page(const qd_app_t *a)
 
 static void mf_first_slot(qd_app_t *a)                  /* an empty slot selected: the first with an effect (the OMX's) */
 {
-    const int g = qd_mfx_tgroup(a);
+    const int g = qd_mfx_vgroup(a);
     int k;
     if (!g || a->proj.mfx[g - 1].slot[a->ui.mfx_slot & 7].type)
         return;
@@ -122,7 +146,7 @@ static void mf_move(qd_mfx_group_t *G, int i, int j)
 static void mf_drop(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
-    const int g = qd_mfx_tgroup(a), b = u->mfx_bheld - 1;
+    const int g = qd_mfx_vgroup(a), b = u->mfx_bheld - 1;
     u->mfx_bheld = 0;
     if (!g || b < 0 || b >= QD_MFX_NSLOT)
         return;
@@ -151,7 +175,7 @@ void qd_mfx_ms(qd_app_t *a)
 void qd_mfx_black(qd_app_t *a, int b, int down)
 {
     qd_ui_t *u = &a->ui;
-    const int g = qd_mfx_tgroup(a);
+    const int g = qd_mfx_vgroup(a);
     qd_mfx_slot_t *s = mf_slot(a);
     if (!down) {
         if (b < QD_MFX_NSLOT && u->mfx_bheld == b + 1)
@@ -163,7 +187,8 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
     {   /* 2026-10-26 (the owner): a step held (or the latch's selection): the black keys are its group: B1 OFF, B2..B6
          * groups 1..5, B11 back to the track's; the popup shows it */
         int s0 = 0;
-        if (qd_mfx_steps_held(a, &s0) && (b < 1 + QD_MFX_NGROUP || b == 10)) {
+        if (u->mfx_wheld && qd_mfx_steps_held(a, &s0) && (b < 1 + QD_MFX_NGROUP || b == 10)) {   /* (2026-11-13,
+                                                         * owner: only with the W keys held; a selection: the slots) */
             qd_pattern_t *p = qd_ctl_pat(a);
             const int m = b == 10 ? QD_SMFX_TRACK : b == 0 ? QD_SMFX_OFF : QD_SMFX_G1 + b - 1;
             int w, i;
@@ -315,19 +340,20 @@ void qd_mfx_rec(qd_app_t *a)
     if (u->tk == QD_TK_MFX_STEP)
         u->tk = QD_TK_NONE, u->tk_hold = 0;
 }
-int qd_mfx_steps_held(const qd_app_t *a, int *first)   /* STEPS: the W keys held, else the latch's selection */
+int qd_mfx_steps_held(const qd_app_t *a, int *first)   /* STEPS: the W keys held, else the selection (2026-11-13:
+                                                         * KEYS too, ALGORITHM's) */
 {
     const qd_ui_t *u = &a->ui;
     int w, n = 0;
-    if (!qd_mfx_open(a) || u->mode != QD_MODE_STEP || qd_mfx_lane_page(a))
+    if (!qd_mfx_open(a))
         return 0;
-    for (w = 0; w < 16; w++)
+    for (w = 0; w < 16 && u->mode == QD_MODE_STEP && !mf_lane_sel(a); w++)
         if ((u->mfx_wheld >> w) & 1u) {
             if (!n && first)
                 *first = u->page[a->sel] * QD_PAGE + w;
             n++;
         }
-    if (!n && u->slatch && u->nheld) {
+    if (!n && u->nheld) {
         if (first)
             *first = u->held[0];
         n = u->nheld;
@@ -359,7 +385,7 @@ int qd_mfx_glide(const qd_app_t *a, int from, int to, uint32_t t0)
 int qd_mfx_knob(qd_app_t *a, int knob, int d)
 {
     qd_ui_t *u = &a->ui;
-    const int g = qd_mfx_tgroup(a);
+    const int g = qd_mfx_vgroup(a);
     qd_mfx_slot_t *s = mf_slot(a);
     if (knob != QD_K_ALGO)
         u->mfx_arm = -1;
@@ -487,7 +513,7 @@ int qd_mfx_oct(qd_app_t *a, int d, int down)
 void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
 {
     const qd_ui_t *u = &a->ui;
-    const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a);
+    const int g = qd_mfx_vgroup(a), lane = qd_mfx_lane_page(a);
     const int bl = (int)((a->ms / QD_BLINK_MS) & 1u) == 0;
     int k;
     memset(key, 0, QD_NKEY);
@@ -545,7 +571,7 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
 
 const char *qd_mfx_knob_name(const qd_app_t *a, int k, char *val)
 {
-    const int g = qd_mfx_tgroup(a);
+    const int g = qd_mfx_vgroup(a);
     const qd_mfx_slot_t *s;
     int id;
     val[0] = 0;

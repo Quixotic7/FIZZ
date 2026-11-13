@@ -5998,7 +5998,8 @@ static void g_mfx_live(void)
     CHECK(A.ui.slatch && A.ui.held[0] == 6 && A.ui.tk == QD_TK_MFX_STEP, "the latch, step 7 selected, the MIDI FX "
           "screen: its popup stays up");
     black(B2);
-    CHECK(PAT()->step[0][6].mfx == QD_SMFX_G1, "B2: group 1 on the selection");
+    CHECK(PAT()->step[0][6].mfx == QD_SMFX_TRACK && A.ui.mfx_slot == 1,
+          "B2 (2026-11-13, owner: no W key held): slot 2, the selection's group untouched");
     btap(QD_B_HOME);
 }
 
@@ -10287,6 +10288,23 @@ static void g_mfx_knobs(void)
           "B2 held: the list, EFFECT CHORD, MOVE; KNOB 1 the next effect, KNOB 2 to slot 3; let go: there");
     turn(QD_K_PRESETS, 1);
     CHECK(PAT()->trk[0].mfx == 2, "PRESETS: the track's group (2)");
+    turn(QD_K_PRESETS, -1);
+    turn(QD_K_ALGO, 2);                                 /* step 2 selected: the screen its group (TRACK: the track's) */
+    ok = qd_mfx_vgroup(&A) == 1;
+    turn(QD_K_PRESETS, 1);                              /* .. PRESETS: the step's own (OFF), the screen follows */
+    ok &= PAT()->step[0][1].mfx == QD_SMFX_OFF && qd_mfx_vgroup(&A) == 0 && PAT()->trk[0].mfx == 1;
+    turn(QD_K_PRESETS, 2);
+    ok &= PAT()->step[0][1].mfx == QD_SMFX_G1 + 1 && qd_mfx_vgroup(&A) == 2;
+    qd_view_mfx(&A, &v);
+    ok &= v.steps_frame && v.g == 2;
+    black(B11);                                         /* (the step keyboard: KEYS; the selection ends, ALGORITHM
+                                                         * selects again) */
+    turn(QD_K_ALGO, -5);
+    turn(QD_K_ALGO, 2);
+    qd_view_mfx(&A, &v);
+    CHECK(ok && A.ui.mode == QD_MODE_KEYS && v.steps_frame && v.g == 2,
+          "a step selected: the screen its group (OFF, then 2), the frame; the step keyboard on: still (%d m%d f%d g%d nh%d)",
+          ok, A.ui.mode, v.steps_frame, v.g, A.ui.nheld);
     btap(QD_B_HOME);
 }
 
