@@ -612,21 +612,23 @@ void qd_mk_leds(const qd_app_t *a, uint8_t *key)
         case UI_F_RATCH: l = 15 + 15 * (w & 7); break;
         case UI_F_MICRO: l = w == 7 ? QD_LED_DIM : QD_LED_FAINT; break;   /* (W8 the grid) */
         case UI_F_COND: l = w < QD_COND_AB ? QD_LED_DIM : QD_LED_FAINT; break;
-        default: l = w < 10 ? 64 : 13 + 178 * (w - 10) / 5; break;   /* (SOUND: the sounds 25 %, the velocities a fade) */
+        default: l = w < 10 ? QD_LED_DIM : 13 + 178 * (w - 10) / 5; break;   /* (SOUND: the sounds dim, the
+                                                         * velocities a fade) */
         }
         key[QD_WHITE_KEY[w]] = (uint8_t)((lit >> w) & 1u ? QD_LED_LIT : l);
     }
 }
 
+/* .. the drawn keys: the lit one filled, the others a hint, a fill as high as their LED (the fades: VEL, CHNC, LEN,
+ * SOUND's velocities; RATCH's counts) */
 void qd_mk_kst(const qd_app_t *a, uint8_t *kst)
 {
-    const int m = a->ui.hmode;
-    const uint16_t lit = mk_lit(a);
+    uint8_t lv[QD_NKEY];
     int w;
-    for (w = 0; w < 16; w++) {                          /* (a hint: a fill by the value, VEL, CHNC, SOUND's velocities) */
-        const int h = m == UI_F_VEL ? qd_mk_val(a, m, w) * 31 / 127 : m == UI_F_CHNC ? (w + 1) * 31 / 16
-                    : m == UI_F_SOUND && w >= 10 ? MK_SVEL[w - 10] * 31 / 127 : 0;
-        kst[w] = (uint8_t)((lit >> w) & 1u ? 4 : 1 | h << 3);
+    qd_mk_leds(a, lv);
+    for (w = 0; w < 16; w++) {
+        const int l = lv[QD_WHITE_KEY[w]];
+        kst[w] = (uint8_t)(l == QD_LED_LIT ? 4 : 1 | (l > 13 ? (l - 13) * 31 / 178 : 0) << 3);
     }
 }
 
@@ -652,25 +654,33 @@ static void mk_set(qd_app_t *a, int s, int m, int w)
     }
 }
 
-/* W w's notes: ended; struck as a key's (the step's notes, velocity and sound) */
+/* the keys' notes (one set: the keys sound the track's or the shown step's notes; a pitch ends for every key at once
+ * anyway): ended, when the last key that sounds them is let go (w -1: now); struck as a key's (the notes, the
+ * velocity, the sound) */
 static void mk_end(qd_app_t *a, int w)
 {
     qd_ui_t *u = &a->ui;
     int i;
+    if (w >= 0 && (u->mk_on &= (uint16_t)~(1u << w)) != 0)
+        return;
     for (i = 0; i < QD_NNOTE; i++)
-        if (u->mk_nt[w][i])
-            qd_player_key_off(&a->player, u->mk_tr[w], u->mk_nt[w][i]);
-    memset(u->mk_nt[w], 0, sizeof u->mk_nt[w]);
+        if (u->mk_nt[i])
+            qd_player_key_off(&a->player, u->mk_tr, u->mk_nt[i]);
+    memset(u->mk_nt, 0, sizeof u->mk_nt);
+    u->mk_on = 0;
 }
 static void mk_strike(qd_app_t *a, int w, const qd_rstep_t *r)
 {
+    qd_ui_t *u = &a->ui;
     const int16_t *pt = r->sound > 0 ? qd_sound_patch(&a->proj, r->sound) : 0;
     int i;
-    mk_end(a, w);
-    a->ui.mk_tr[w] = (uint8_t)a->sel;
+    if (u->mk_tr != a->sel || memcmp(u->mk_nt, r->notes, (size_t)r->nn) != 0)
+        mk_end(a, -1);                                  /* (other notes: the ones sounding end first) */
+    u->mk_tr = (uint8_t)a->sel;
+    u->mk_on |= (uint16_t)(1u << w);
     for (i = 0; i < r->nn && i < QD_NNOTE; i++) {
         qd_player_key_on_p(&a->player, a->sel, r->notes[i] & 127, r->vel, pt);
-        a->ui.mk_nt[w][i] = (uint8_t)(r->notes[i] & 127);
+        u->mk_nt[i] = (uint8_t)(r->notes[i] & 127);
     }
 }
 
@@ -694,10 +704,10 @@ void qd_mk_white(qd_app_t *a, int key, int w, int down, int vel)
     if (!down) {
         if (u->mk_rec & bit) {                          /* (a recorded press: its notes end, LEN's value kept) */
             u->mk_rec &= (uint16_t)~bit;
-            s = rec_step_of(a, u->mk_nt[w][0]);
+            s = rec_step_of(a, u->mk_nt[0]);
             for (i = 0; i < QD_NNOTE; i++)
-                if (u->mk_nt[w][i])
-                    qd_rec_key(a, u->mk_nt[w][i], 0, 0);
+                if (u->mk_nt[i])
+                    qd_rec_key(a, u->mk_nt[i], 0, 0);
             if (s >= 0 && m == UI_F_LEN)
                 mk_set(a, s, m, w);
         }
@@ -734,30 +744,34 @@ void qd_mk_white(qd_app_t *a, int key, int w, int down, int vel)
     mk_strike(a, w, &r);
 }
 
-/* the band: the track's value of mode m now ("TRACK VEL 100", "TRACK NOTES C4 E4 G4") */
-static void mk_band(qd_app_t *a, int m)
+/* the band: the track's value of the mode B11 set now ("TRACK VEL 100", "TRACK NOTES C4 E4 G4"; o: 48 bytes) */
+void qd_mk_band(const qd_app_t *a, char *o)
 {
-    char *o = a->ui.mk_band, n[12];
+    const int m = a->ui.mk_bm;
+    char n[12];
+    const char *pre = "", *s = n, *suf = "";
     qd_rstep_t r;
     int i;
     mk_res(a, &r, 0);
     strcpy(o, "TRACK ");
-    strcat(strcat(o, m == UI_F_NOTE ? "NOTES" : UI_FIELD_NAME[m]), " ");
+    strcat(o, m == UI_F_NOTE ? "NOTES" : UI_FIELD_NAME[m]);
     switch (m) {
     case UI_F_NOTE:
         for (i = 0; i < r.nn && i < QD_NNOTE; i++)
-            strcat(strcat(o, i ? " " : ""), qd_note_name(r.notes[i], n));
+            strcat(strcat(o, " "), qd_note_name(r.notes[i], n));
+        s = 0;
         break;
-    case UI_F_VEL: strcat(o, ui_itoa(n, r.vel)); break;
-    case UI_F_LEN: strcat(o, qd_len_name(r.len)); break;
-    case UI_F_MICRO: strcat(strcat(o, r.micro > 0 ? "+" : ""), ui_itoa(n, r.micro)); break;
-    case UI_F_RATCH: strcat(strcat(o, "\xc3\x97"), ui_itoa(n, r.ratch)); break;
-    case UI_F_CHNC: strcat(strcat(o, ui_itoa(n, r.chance)), "%"); break;
-    case UI_F_COND: strcat(o, qd_cond_name(r.cond, n)); break;
-    case UI_F_SOUND: strncat(o, qd_track_sound_label(&a->model.t[a->sel]), 16); break;
-    default: o[strlen(o) - 1] = 0; break;               /* (TRIG, FUNC, SLIDE: the mode alone) */
+    case UI_F_VEL: ui_itoa(n, r.vel); break;
+    case UI_F_LEN: s = qd_len_name(r.len); break;
+    case UI_F_MICRO: ui_itoa(n, r.micro), pre = r.micro > 0 ? "+" : ""; break;
+    case UI_F_RATCH: ui_itoa(n, r.ratch), pre = "\xc3\x97"; break;
+    case UI_F_CHNC: ui_itoa(n, r.chance), suf = "%"; break;
+    case UI_F_COND: qd_cond_name(r.cond, n); break;
+    case UI_F_SOUND: strncat(strcat(o, " "), qd_track_sound_label(&a->model.t[a->sel]), 16), s = 0; break;
+    default: s = 0; break;                              /* (TRIG, FUNC, SLIDE: the mode alone) */
     }
-    qd_ctl_confirm_col(a, o, 0, QD_CF_BAND);
+    if (s)
+        strcat(strcat(strcat(strcat(o, " "), pre), s), suf);
 }
 
 int qd_mk_b11(qd_app_t *a)
@@ -795,6 +809,7 @@ int qd_mk_b11(qd_app_t *a)
             m = UI_F_VEL;
         qd_tdef_set(PAT(a), a->sel, m, m == UI_F_RATCH ? qd_ratch_make((first & 7) + 1, first >> 3) : v);
     }
-    mk_band(a, m);
+    u->mk_bm = (uint8_t)m;
+    qd_ctl_confirm_col(a, "", 0, QD_CF_BAND);           /* (its words at the drawing: qd_mk_band) */
     return 1;
 }

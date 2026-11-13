@@ -580,10 +580,11 @@ typedef struct {
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int ekeys;                         /* P1.5b: the W keys the keys (2026-11-10: a B11 click; the step view, the editor, the effects, the mix, TOOLS) */
     /* 2026-11-12 (owner, mockups/fizz-keys-modes.html): the orange keys in a hold mode, its sixteen values (ctl_rec.c,
-     * qd_mk_*): the notes each W key struck (0 none) and on which track; bit w of mk_rec: its press was recorded */
-    uint8_t mk_nt[16][QD_NNOTE], mk_tr[16];
-    uint16_t mk_rec;
-    char mk_band[40];                  /* .. hold keys + B11: the band ("TRACK VEL 100"; the confirmation's QD_CF_BAND) */
+     * qd_mk_*): the notes they sound (0 none; one set) on track mk_tr, bit w of mk_on: W w sounds them; of mk_rec:
+     * its press was recorded */
+    uint8_t mk_nt[QD_NNOTE], mk_tr;
+    uint8_t mk_bm;                     /* .. held keys + B11: the band's mode (the confirmation's QD_CF_BAND, qd_mk_band) */
+    uint16_t mk_on, mk_rec;
     uint32_t pflash_ms;                /* 2026-11-12 (owner): SELECT turned the page edited: its black key flashes once */
     uint8_t pflash;                    /* .. (the page + 1; 0 none) */
     int mod_slot, mod_src;             /* E4: the MOD page's chosen slot (0..7); hold-to-map's source (QD_MS_*) */
@@ -826,6 +827,7 @@ int qd_mk_on(const struct qd_app *a);           /* the orange keys are the hold 
 int qd_mk_val(const struct qd_app *a, int m, int w);   /* W w's value in mode m (RATCH: w, COND: QD_COND_*) */
 void qd_mk_white(struct qd_app *a, int key, int w, int down, int vel);
 int qd_mk_b11(struct qd_app *a);                /* B11 pressed: orange keys held, done (1); else 0 */
+void qd_mk_band(const struct qd_app *a, char *o);   /* .. its band's words, the track's value now (o: 48 bytes) */
 void qd_mk_leds(const struct qd_app *a, uint8_t *key);   /* the W keys: the value's key lit, a fade by the values */
 void qd_mk_kst(const struct qd_app *a, uint8_t *kst);    /* .. the drawn keys (ui_rec_key's states, a hint's fill) */
 void qd_snd_button(struct qd_app *a);           /* EDIT: open / close */

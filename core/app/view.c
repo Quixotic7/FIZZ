@@ -2668,9 +2668,11 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
                                                            : (float)(QD_CONFIRM_MS - d) / (float)QD_TK_FADE_MS;
         if (al > 0.f && u->cf_col == QD_CF_BAND) {      /* (2026-11-12: keys held + B11, the track's value: a band over
                                                          * the screen, as a knob's) */
+            char w[48];
+            qd_mk_band(a, w);
             qd_save();
             qd_alpha(al);
-            ui_word_band(u->cf_big);
+            ui_word_band(w);
             qd_restore();
         } else if (al > 0.f) {
             overlay_begin(al);

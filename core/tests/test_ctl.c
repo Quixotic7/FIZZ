@@ -9908,6 +9908,12 @@ static void g_keys_fixes(void)
 /* 2026-11-12 (owner, mockups/fizz-keys-modes.html): the orange keys in the hold modes: the sixteen values on a selected
  * step, the LEDs following the step, held keys + B11 (the step's value back; LIVE the track's default), SOUND's keys
  * (the lock; recorded at the playhead), SELECT's page flash, and the B11 click still the toggle */
+static const char *mkband(void)                         /* the B11 band's words now */
+{
+    static char b[48];
+    qd_mk_band(&A, b);
+    return b;
+}
 static void mkey(int w)                                 /* an orange key pressed, let go */
 {
     kdown(WK(w));
@@ -9944,7 +9950,8 @@ static void g_keys_modes(void)
     mkey(5);
     l = leds();
     qd_view_kst(&A, kst, 0);
-    CHECK(l.key[WK(5)] == QD_LED_LIT && l.key[WK(4)] == 13 + 178 * 4 / 15 && kst[5] == 4 && kst[4] == (1 | (40 * 31 / 127) << 3),
+    CHECK(l.key[WK(5)] == QD_LED_LIT && l.key[WK(4)] == 13 + 178 * 4 / 15 && kst[5] == 4 &&
+              kst[4] == (1 | ((178 * 4 / 15) * 31 / 178) << 3),
           "VEL 48: W6 lit (LED and screen), W5 its fade level and its fill");
     turn(QD_K_ALGO, 1);
     run(400);
@@ -9994,8 +10001,8 @@ static void g_keys_modes(void)
     mkey(11);
     l = leds();
     CHECK(ok && R(0, 2).vel == 40 && R(0, 2).sound == 2 && l.key[WK(1)] == QD_LED_LIT && l.key[WK(11)] == QD_LED_LIT &&
-              l.key[WK(0)] == 64 && l.key[WK(10)] == 13,
-          "SOUND: W2 the sound lock 2, W12 velocity 40 (both lit, the sounds 25 %%, the velocities a fade)");
+              l.key[WK(0)] == QD_LED_DIM && l.key[WK(10)] == 13,
+          "SOUND: W2 the sound lock 2, W12 velocity 40 (both lit, the sounds dim, the velocities a fade)");
     /* held + B11: the step's value back to the track's (no click, the keys stay) */
     mode(M_VEL);
     mkey(3);
@@ -10005,9 +10012,9 @@ static void g_keys_modes(void)
     kup(WK(11));
     run(10);
     CHECK(!OV(0, 2, QD_PM_VEL) && qd_snd_keys(&A) && A.ui.slatch && A.ui.nheld == 1 && A.ui.cf_on &&
-              A.ui.cf_col == QD_CF_BAND && !strcmp(A.ui.mk_band, "TRACK VEL 100"),
+              A.ui.cf_col == QD_CF_BAND && !strcmp(mkband(), "TRACK VEL 100"),
           "W12 held + B11: step 3's VEL the track's again, the band \"%s\", the keys and the selection stay",
-          A.ui.mk_band);
+          mkband());
     /* SELECT: page 2, B2 flashes once */
     mode(M_NOTE);
     run(1200);
@@ -10035,8 +10042,8 @@ static void g_keys_modes(void)
     black(B11);
     kup(WK(12));
     run(10);
-    CHECK(qd_tdef_get(PAT(), 0, QD_PM_VEL) == 104 && !strcmp(A.ui.mk_band, "TRACK VEL 104") && qd_snd_keys(&A),
-          "LIVE, W13 held + B11: the track's VEL 104 (\"%s\")", A.ui.mk_band);
+    CHECK(qd_tdef_get(PAT(), 0, QD_PM_VEL) == 104 && !strcmp(mkband(), "TRACK VEL 104") && qd_snd_keys(&A),
+          "LIVE, W13 held + B11: the track's VEL 104 (\"%s\")", mkband());
     mode(M_NOTE);
     kdown(WK(0)), kdown(WK(2)), kdown(WK(4));
     run(20);
@@ -10046,9 +10053,9 @@ static void g_keys_modes(void)
     {
         const qd_sdef_t *d = qd_tdef(PAT(), 0);
         CHECK(d->note[0] == qd_snd_key_note(&A, WK(0)) && d->note[1] == qd_snd_key_note(&A, WK(2)) &&
-                  d->note[2] == qd_snd_key_note(&A, WK(4)) && !strncmp(A.ui.mk_band, "TRACK NOTES ", 12) &&
+                  d->note[2] == qd_snd_key_note(&A, WK(4)) && !strncmp(mkband(), "TRACK NOTES ", 12) &&
                   qd_snd_keys(&A),
-              "LIVE NOTE, three keys held + B11: the track's notes (\"%s\")", A.ui.mk_band);
+              "LIVE NOTE, three keys held + B11: the track's notes (\"%s\")", mkband());
     }
     /* REC armed, playing: SOUND's keys recorded at the playhead */
     mode(M_SOUND);
