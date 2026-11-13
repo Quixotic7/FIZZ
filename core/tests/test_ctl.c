@@ -9254,7 +9254,9 @@ static void g_b11(void)
     kup(BK(B11));
     run(10);
     CHECK(!A.ui.slatch && !qd_snd_keys(&A) && !A.ui.latch, "let go: LIVE, no click, no menu");
-    /* a quick click: the W keys the keys; held long or used: none */
+    /* a quick click: the W keys the keys; held long or used: none (2026-11-12: in NOTE, the keys play; in VEL .. they
+     * are its values, g_keys_modes) */
+    mode(M_NOTE);
     black(B11);
     l = leds();
     CHECK(qd_snd_keys(&A) && !A.ui.slatch && l.key[WK(0)] == QD_LED_ROOT && l.key[WK(1)] == QD_LED_SCALE &&
@@ -9903,6 +9905,179 @@ static void g_keys_fixes(void)
     CHECK(!qd_snd_keys(&A), "only a B11 click: the steps again");
 }
 
+/* 2026-11-12 (owner, mockups/fizz-keys-modes.html): the orange keys in the hold modes: the sixteen values on a selected
+ * step, the LEDs following the step, held keys + B11 (the step's value back; LIVE the track's default), SOUND's keys
+ * (the lock; recorded at the playhead), SELECT's page flash, and the B11 click still the toggle */
+static void mkey(int w)                                 /* an orange key pressed, let go */
+{
+    kdown(WK(w));
+    run(20);
+    kup(WK(w));
+    run(10);
+}
+static void g_keys_modes(void)
+{
+    qd_leds_t l;
+    uint8_t kst[16];
+    int ok, w;
+    start();
+    A.ui.lmode = QD_LMODE_MODES;                        /* (the power-on default: the black keys the modes) */
+    A.ui.sound_bank = 0;
+    black(B11);
+    mode(M_VEL);
+    CHECK(qd_snd_keys(&A) && qd_mk_on(&A) && !A.ui.nheld, "a B11 click: the orange keys; VEL: they are its values");
+    run(400);
+    l = leds();
+    for (ok = 1, w = 0; w < 16; w++)                     /* (LIVE: the track's default 100 lit, a fade 5 % .. 75 %) */
+        ok &= l.key[WK(w)] == (w == 11 ? QD_LED_LIT : 13 + 178 * w / 15);
+    CHECK(ok, "LIVE VEL: the track's 100 on W12 lit, the others a fade (%d .. %d)", l.key[WK(0)], l.key[WK(15)]);
+    mkey(5);
+    CHECK(!R(0, 0).on && !R(0, 5).on, "LIVE: a key plays, writes nothing");
+    turn(QD_K_ALGO, 3);
+    run(400);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2, "ALGORITHM: step 3 selected");
+    /* the values, mode by mode */
+    mkey(5);
+    ok = R(0, 2).on && R(0, 2).vel == 48 && OV(0, 2, QD_PM_VEL);
+    mkey(15);
+    CHECK(ok && R(0, 2).vel == 127, "VEL: W6 48 (a trig made), W16 127");
+    mkey(5);
+    l = leds();
+    qd_view_kst(&A, kst, 0);
+    CHECK(l.key[WK(5)] == QD_LED_LIT && l.key[WK(4)] == 13 + 178 * 4 / 15 && kst[5] == 4 && kst[4] == (1 | (40 * 31 / 127) << 3),
+          "VEL 48: W6 lit (LED and screen), W5 its fade level and its fill");
+    turn(QD_K_ALGO, 1);
+    run(400);
+    l = leds();
+    CHECK(A.ui.held[0] == 3 && l.key[WK(11)] == QD_LED_LIT && l.key[WK(5)] != QD_LED_LIT,
+          "ALGORITHM to step 4 (the track's 100): W12 lit, W6 not");
+    turn(QD_K_ALGO, -1);
+    run(400);
+    CHECK(leds().key[WK(5)] == QD_LED_LIT, ".. back to step 3: W6 lit");
+    mode(M_LEN);
+    mkey(1);
+    ok = R(0, 2).len == 1;
+    mkey(15);
+    CHECK(ok && R(0, 2).len == QD_LEN_INF && leds().key[WK(15)] == QD_LED_LIT, "LEN: W2 1/4, W16 INF (lit)");
+    mode(M_MICRO);
+    mkey(0);
+    ok = R(0, 2).micro == -21;
+    mkey(15);
+    ok &= R(0, 2).micro == 23;
+    mkey(7);
+    l = leds();
+    CHECK(ok && R(0, 2).micro == 0 && l.key[WK(7)] == QD_LED_LIT && l.key[WK(6)] == QD_LED_FAINT,
+          "MICRO: W1 -21, W16 +23, W8 on the grid");
+    mkey(10);
+    CHECK(R(0, 2).micro == 9, "MICRO: W11 +9");
+    mode(M_RATCH);
+    mkey(2);
+    ok = R(0, 2).ratch == 3 && R(0, 2).ramp == QD_RAMP_FLAT;
+    mkey(10);
+    CHECK(ok && R(0, 2).ratch == 3 && R(0, 2).ramp == QD_RAMP_UP && leds().key[WK(10)] == QD_LED_LIT,
+          "RATCH: W3 x3 flat, W11 x3 rising");
+    mode(M_CHNC);
+    mkey(7);
+    ok = R(0, 2).chance == 50;
+    mkey(0);
+    CHECK(ok && R(0, 2).chance == 6 && leds().key[WK(0)] == QD_LED_LIT, "CHNC: W8 50 %%, W1 6 %%");
+    mode(M_COND);
+    mkey(1);
+    ok = R(0, 2).cond == QD_COND_FILL;
+    mkey(9);
+    ok &= R(0, 2).cond == qd_cond_ab(1, 2);
+    mkey(15);
+    CHECK(ok && R(0, 2).cond == qd_cond_ab(2, 4), "COND: W2 FILL, W10 1:2, W16 2:4");
+    mode(M_SOUND);
+    mkey(1);
+    ok = R(0, 2).sound == 2 && OV(0, 2, QD_PM_SOUND);
+    mkey(11);
+    l = leds();
+    CHECK(ok && R(0, 2).vel == 40 && R(0, 2).sound == 2 && l.key[WK(1)] == QD_LED_LIT && l.key[WK(11)] == QD_LED_LIT &&
+              l.key[WK(0)] == 64 && l.key[WK(10)] == 13,
+          "SOUND: W2 the sound lock 2, W12 velocity 40 (both lit, the sounds 25 %%, the velocities a fade)");
+    /* held + B11: the step's value back to the track's (no click, the keys stay) */
+    mode(M_VEL);
+    mkey(3);
+    kdown(WK(11));
+    run(20);
+    black(B11);
+    kup(WK(11));
+    run(10);
+    CHECK(!OV(0, 2, QD_PM_VEL) && qd_snd_keys(&A) && A.ui.slatch && A.ui.nheld == 1 && A.ui.cf_on &&
+              A.ui.cf_col == QD_CF_BAND && !strcmp(A.ui.mk_band, "TRACK VEL 100"),
+          "W12 held + B11: step 3's VEL the track's again, the band \"%s\", the keys and the selection stay",
+          A.ui.mk_band);
+    /* SELECT: page 2, B2 flashes once */
+    mode(M_NOTE);
+    run(1200);
+    turn(QD_K_SELECT, 1);
+    l = leds();
+    ok = A.ui.page[0] == 1 && l.key[BK(1)] == QD_LED_LIT;
+    run(QD_PFLASH_MS);
+    l = leds();
+    CHECK(ok && l.key[BK(1)] != QD_LED_LIT, "SELECT: page 2, B2 flashes once (then back)");
+    mode(M_VEL);
+    turn(QD_K_SELECT, -1);
+    l = leds();
+    ok = A.ui.page[0] == 0 && l.key[BK(0)] == QD_LED_LIT;
+    turn(QD_K_SELECT, 1);
+    l = leds();
+    ok &= l.key[BK(1)] == QD_LED_OFF;                   /* (B2 lit already, VEL's key: dark a moment) */
+    run(QD_PFLASH_MS / 2);
+    CHECK(ok && leds().key[BK(1)] == QD_LED_LIT, "VEL lit on B2: its flash dark a moment, then bright");
+    turn(QD_K_SELECT, -1);
+    /* LIVE: the held key's value the track's default; NOTE: the held notes the track's */
+    turn(QD_K_ALGO, -8);
+    CHECK(!A.ui.nheld, "ALGORITHM fully left: LIVE");
+    kdown(WK(12));
+    run(20);
+    black(B11);
+    kup(WK(12));
+    run(10);
+    CHECK(qd_tdef_get(PAT(), 0, QD_PM_VEL) == 104 && !strcmp(A.ui.mk_band, "TRACK VEL 104") && qd_snd_keys(&A),
+          "LIVE, W13 held + B11: the track's VEL 104 (\"%s\")", A.ui.mk_band);
+    mode(M_NOTE);
+    kdown(WK(0)), kdown(WK(2)), kdown(WK(4));
+    run(20);
+    black(B11);
+    kup(WK(0)), kup(WK(2)), kup(WK(4));
+    run(10);
+    {
+        const qd_sdef_t *d = qd_tdef(PAT(), 0);
+        CHECK(d->note[0] == qd_snd_key_note(&A, WK(0)) && d->note[1] == qd_snd_key_note(&A, WK(2)) &&
+                  d->note[2] == qd_snd_key_note(&A, WK(4)) && !strncmp(A.ui.mk_band, "TRACK NOTES ", 12) &&
+                  qd_snd_keys(&A),
+              "LIVE NOTE, three keys held + B11: the track's notes (\"%s\")", A.ui.mk_band);
+    }
+    /* REC armed, playing: SOUND's keys recorded at the playhead */
+    mode(M_SOUND);
+    A.proj.rec_dub = QD_TAKE_REPLACE;
+    btap(QD_B_PLAY);
+    qd_rec_arm_live(&A);
+    while (track_pos0() < 6.0)
+        run(1);
+    kdown(WK(2));
+    run(60);
+    kup(WK(2));
+    run(10);
+    while (track_pos0() < 9.0)
+        run(1);
+    kdown(WK(13));
+    run(60);
+    kup(WK(13));
+    run(10);
+    CHECK(R(0, 6).on && R(0, 6).sound == 3 && OV(0, 6, QD_PM_SOUND) && R(0, 9).on && R(0, 9).vel == 80 &&
+              !OV(0, 9, QD_PM_SOUND),
+          "REC armed, playing: W3 a trig with sound 3 at the playhead (step 7), W14 one with velocity 80 (step 10)");
+    btap(QD_B_PLAY);
+    run(10);
+    qd_rec_end(&A);
+    /* the B11 click alone: still the toggle */
+    black(B11);
+    CHECK(!qd_snd_keys(&A), "a B11 click alone: the steps again");
+}
+
 int main(void)
 {
     static const struct {
@@ -10057,6 +10232,7 @@ int main(void)
          g_keys_fixes},
         {"2026-11-11: a track key held + B11 clears every mute and solo (the mix, OVERVIEW)", g_mute_clear},
         {"2026-11-11: OVERVIEW's black keys: tracks / modes / values, the model's sweep and band, M / S", g_ov_keys},
+        {"2026-11-12: the orange keys in the hold modes: values, LEDs, + B11, SOUND, REC, the page flash", g_keys_modes},
     };
     size_t i;
     uint64_t h1, h2;
