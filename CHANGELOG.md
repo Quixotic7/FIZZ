@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.16 (2026-11-13)
+
 The step keyboard: the white keys play each hold mode's values, and a lot of step-entry polish.
 
 - **The step keyboard** (a B11 click turns the white keys into keys; B11 breathes while it is on). In each hold mode the sixteen white keys are that mode's values, and each press plays the step with it: **VEL** 8 .. 127, **LEN** 1/8 .. 32 steps and INF (the step plays at that length), **MICRO** with W8 on the grid (always a little brighter), **RATCHET** x1 .. x8 then x1 .. x8 rising, **CHANCE** 6 .. 100 %, **COND** A on W1..W8 and B on W9..W16 (1:1 .. 8:8), **TRIG, SLIDE, FUNC** their black keys' values on W1..W10, and **SOUND**: W1..W10 the bank's ten sounds, W11..W16 the pads' velocity (20 .. 127, kept for every sound you play), F1 / F2 clicked change the bank. The key LEDs show the step's value as you move through the steps.

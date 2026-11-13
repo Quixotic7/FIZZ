@@ -1,7 +1,59 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.15",
+  "latest": "0.12.0-beta.16",
   "releases": [
+    {
+      "version": "0.12.0-beta.16",
+      "date": "2026-11-13",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "78feaa1e49fd647bbb5fdafd87e37d069cfe8bf3",
+      "fm1base": "934e40d846d84e76e9c428d37b74bccb6192c823",
+      "notes": "The step keyboard: the white keys play each hold mode's values, and a lot of step-entry polish.\n\n- **The step keyboard** (a B11 click turns the white keys into keys; B11 breathes while it is on). In each hold mode the sixteen white keys are that mode's values, and each press plays the step with it: **VEL** 8 .. 127, **LEN** 1/8 .. 32 steps and INF (the step plays at that length), **MICRO** with W8 on the grid (always a little brighter), **RATCHET** x1 .. x8 then x1 .. x8 rising, **CHANCE** 6 .. 100 %, **COND** A on W1..W8 and B on W9..W16 (1:1 .. 8:8), **TRIG, SLIDE, FUNC** their black keys' values on W1..W10, and **SOUND**: W1..W10 the bank's ten sounds, W11..W16 the pads' velocity (20 .. 127, kept for every sound you play), F1 / F2 clicked change the bank. The key LEDs show the step's value as you move through the steps.\n- **With a step selected** the screen shows the page's 16 steps where the heading was (the mode's value stays top right), and the lock's frame goes round the keys too. **Held keys + B11** put that value back to the track's.\n- **LIVE (nothing selected)**: the screen shows the value of the key you hold, a second after you let go. **Held keys + B11** make it the track's own (NOTE: the held notes become the track's notes; a band says so). Playing, the key LEDs follow the step that plays.\n- **LIVE while playing**: in VEL, LEN, MICRO, RATCHET, CHANCE and COND, holding a white key overrides that value on every step the track plays while you hold it. With REC on it is written into every step it passes (an empty step becomes a ghost step, no trig and no notes). SOUND keys record their sound and velocity at the playhead: finger drumming.\n- **Hear the value you set.** Stopped, changing a value on the selected steps plays the step once; ratchets play their hits.\n- **LFO is the lock on the step pages, the effects and the sound editor**, with the step keyboard on too: off goes LIVE, on brings back the selection you had (the first time: step 1). **ALGORITHM selects steps in the effects too** (fully left: LIVE; ROUTING's DRY / WET is KNOB 2). ALGORITHM's step flashes its white key; turning SELECT to another page flashes that page's black key, everywhere.\n- **F1 / F2 on the step keyboard**: a quick click changes the octave (SOUND: the bank), held they are F1's and F2's step functions, with the white keys as steps. Their screens, and B11's pages screen, show the page's steps along the foot.\n- **Recording**: armed while stopped it is always a CAPTURE; armed while playing it is the record settings' TAKE, **OVERDUB** (the default) or **REPLACE**.\n- **SHIFT sticks**: a quick click keeps it on (click again to end it); a hold never sticks, and any button ends it after its shortcut.\n- **OVERVIEW**: the orange keys no longer cover the tracks, and the selected track's row is tinted in its colour.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI and USB audio",
+          "fwsc": {
+            "path": "0.12.0-beta.16/fizz.fwsc",
+            "bytes": 1042099,
+            "sha256": "8b4f9a1545310c98266b4a0b307d0430d428a269d6973b737ef0af35b2aaa6a9"
+          },
+          "data": {
+            "path": "0.12.0-beta.16/fizz-xdata.bin",
+            "bytes": 91896,
+            "sha256": "3f2042a8c5f62df897465f7cdf046bfdc37ed62ea7b614d1e8b55a51a83f00ec",
+            "crc32": 4236227058
+          }
+        },
+        {
+          "name": "fizz-ble",
+          "kind": "ble",
+          "label": "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+          "projects": 4,
+          "presets": 128,
+          "fwsc": {
+            "path": "0.12.0-beta.16/fizz-ble.fwsc",
+            "bytes": 1042154,
+            "sha256": "34947f9511b26deb96367c4de2068e1d550e9bcfde0462004718f794ee888746"
+          },
+          "data": {
+            "path": "0.12.0-beta.16/fizz-ble-xdata.bin",
+            "bytes": 85824,
+            "sha256": "970577093da4183f02af61752eb485d88b5d1af13865f792fd8a9f55275c9f40",
+            "crc32": 3354106122,
+            "at": 946176
+          },
+          "data2": {
+            "path": "0.12.0-beta.16/fizz-ble-xdata2.bin",
+            "bytes": 97976,
+            "sha256": "1da56fb0009a89b610d7015e78220e20efae1bd948d0914383f9fd54dc9cf7b2",
+            "crc32": 1431419498,
+            "at": 618496
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.15",
       "date": "2026-11-11",
