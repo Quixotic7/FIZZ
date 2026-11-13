@@ -75,7 +75,12 @@ void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fil
 #define UI_REC_KEY UI_K4                /* (2026-11-10) the W keys playing notes (REC): orange, boxy (ui_rec_key) */
 void ui_rec_key(float x, float y, float w, float h, int st);   /* st: 0 out, 1 in the scale, 2 a root; +4 sounding */
 void ui_rec_kb_sign(float x, float y);  /* the keyboard sign beside the keys' row */
-void ui_rec_keys_foot(const uint8_t *kst, int clear);   /* 2026-11-10: a B11 click's 16 keys along the foot (kst: ui_rec_key's) */
+void ui_rec_keys_foot(const uint8_t *kst, int clear);   /* 2026-11-10: a B11 click's 16 keys along the foot (kst: ui_rec_key's;
+                                                         * 2026-11-12: bits 3..7 a value's hint, a fill of n / 31) */
+void ui_page_row(float y, uint16_t trig, uint16_t sel, int red, int play);   /* the keyboard page's step row (the
+                                                         * hold modes' screens with the orange keys too) */
+void ui_word_band(const char *s);       /* 2026-11-12: a band over the top, "TRACK VEL 100" (the confirmation's
+                                         * QD_CF_BAND) */
 /* the same with nw white keys from any white note lo (the FM-1's keybed: 16 from F) */
 void ui_keybed(float x0, float y0, float w, float h, int lo, int nw, const qd_rgb *fill);
 
@@ -546,6 +551,9 @@ typedef struct ui_held {
     int dim;                            /* .. the playhead on an empty step: the last step played, dimmed a little */
     int band;                           /* P1.5p: the knob band is over the head (y 0..41): what the body draws there
                                          * (NOTE's scale, VEL's value and ramp) is left out while it shows */
+    int row;                            /* 2026-11-12 (owner, mockups/fizz-keys-modes.html): EDIT, a selection with the
+                                         * orange keys: the page's step row in the head's place (no words), the value
+                                         * under its right end, the frame round the whole screen */
     const struct ui_held *head;         /* P1.5z (the owner: "lets not change the header during playback"): EDIT
                                          * following, the head (its words, colours, tag and value) is this model's (the
                                          * track's default), the picture the step playing's; 0: v's own */

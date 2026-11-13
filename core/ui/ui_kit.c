@@ -512,6 +512,27 @@ void ui_rec_key(float x, float y, float w, float h, int st)
         qd_restore();
     }
     ui_RR(x, y, w, h, r, st & 3 ? UI_REC_KEY : UI_G3, 1.3f, QD_NONE);
+    if (st >> 3) {                                      /* 2026-11-12: a value's hint, a fill from the foot (st >> 3 of
+                                                         * 31) */
+        const float fh = (h - 4.f) * (float)(st >> 3) / 31.f;
+        qd_save();
+        qd_alpha(qd_get_alpha() * 0.4f);
+        ui_RR(x + 2.f, y + h - 2.f - fh, w - 4.f, fh, 1.f, QD_NONE, 0.f, UI_REC_KEY);
+        qd_restore();
+    }
+}
+
+/* the keyboard page's step row (2026-11-10), at y: the page's sixteen in fours, a trig filled, the selected outlined
+ * white, red the step recording's cursor, the playhead filled white (2026-11-12: over the hold modes' screens too) */
+void ui_page_row(float y, uint16_t trig, uint16_t sel, int red, int play)
+{
+    int i;
+    for (i = 0; i < 16; i++) {
+        const float sx = 14.f + (float)i * 13.f + (float)(i / 4) * 2.7f;
+        const int s = (sel >> i) & 1u;
+        ui_RR(sx, y, 11.f, 12.f, 2.f, i == red ? UI_RED : s ? UI_K3 : UI_G3, s ? 2.f : 1.f,
+              i == play ? UI_K3 : (trig >> i) & 1u ? UI_G2 : QD_NONE);
+    }
 }
 
 /* 2026-11-10 (owner): a B11 click's keys along a screen's foot (the step view's every view, the mix, TOOLS, the
