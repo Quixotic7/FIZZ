@@ -39,7 +39,9 @@
 
 #include "app.h"
 #include "ui.h"
+#include "../seq/chord.h"
 #include "../seq/scale.h"
+#include "../seq/sounds.h"
 
 static qd_pattern_t *PAT(qd_app_t *a) { return qd_ctl_pat(a); }
 static int tlen(qd_app_t *a) { return qd_track_len(&PAT(a)->trk[a->sel]); }
@@ -511,4 +513,288 @@ void qd_rec_midi_note(qd_app_t *a, int note, int down, int vel)
     if (!down && u->midi_n > 0)
         u->midi_n--;
     qd_rec_key(a, note, down, vel);                     /* (P1.6g: recording, in any view) */
+}
+
+/* ---------------------------------------------------------------- 2026-11-12: the orange keys' values (ctl.h qd_mk_*;
+ * the owner's mockups/fizz-keys-modes.html). The keys light the value of the step they show: the selection's first,
+ * else the track's default */
+static const uint8_t MK_SVEL[6] = {20, 40, 60, 80, 100, 127};   /* (SOUND's W11..W16) */
+
+int qd_mk_on(const qd_app_t *a)
+{
+    const int m = a->ui.hmode;
+    return qd_snd_keys(a) && !a->ui.latch && a->ui.view <= QD_VIEW_EDIT && m != UI_F_NOTE && m != UI_F_TRIG &&
+           m != UI_F_FUNC && m != UI_F_SLIDE;
+}
+
+int qd_mk_val(const qd_app_t *a, int m, int w)
+{
+    switch (m) {
+    case UI_F_VEL: return w == 15 ? 127 : 8 * (w + 1);
+    case UI_F_LEN: return w == 15 ? QD_LEN_INF : w;     /* (the table's 1/8 .. 32) */
+    case UI_F_MICRO: return w == 15 ? 23 : 3 * (w - 7);
+    case UI_F_CHNC: return (w + 1) * 100 / 16;
+    case UI_F_SOUND: return w < 10 ? a->ui.sound_bank * 10 + w + 1 : MK_SVEL[w - 10];
+    default: return w;                                  /* (RATCH: x1..x8, then rising; COND: ALWAYS .. !1ST, then
+                                                         * QD_COND_AB's 1:2 .. 2:4) */
+    }
+}
+
+/* the step the keys show (sel: the selection's first if any), else the track's defaults */
+static void mk_res(const qd_app_t *a, qd_rstep_t *r, int sel)
+{
+    const qd_pattern_t *P = qd_ctl_cpat(a);
+    qd_step_t on;
+    if (sel && a->ui.nheld) {
+        qd_step_resolve(P, a->sel, a->ui.held[0], r);
+        return;
+    }
+    memset(&on, 0, sizeof on);
+    on.flags = QD_SF_ON;
+    qd_step_resolve_def(&P->trk[a->sel].def, &on, r);
+}
+
+/* the key of lo..hi-1 holding v (near: the nearest, else the same; -1 none) */
+static int mk_key(const qd_app_t *a, int m, int v, int lo, int hi, int near)
+{
+    int w, best = -1, bd = near ? 1 << 20 : 1;
+    for (w = lo; w < hi; w++) {
+        int d = qd_mk_val(a, m, w) - v;
+        d = d < 0 ? -d : d;
+        if (d < bd)
+            bd = d, best = w;
+    }
+    return best;
+}
+
+/* the keys lit: the shown step's value (SOUND: its sound and its velocity), and the keys down */
+static uint16_t mk_lit(const qd_app_t *a)
+{
+    const int m = a->ui.hmode;
+    qd_rstep_t r;
+    int k, v, w;
+    uint16_t b = 0;
+    mk_res(a, &r, 1);
+    switch (m) {
+    case UI_F_VEL: v = r.vel; break;
+    case UI_F_LEN: v = r.len; break;
+    case UI_F_MICRO: v = r.micro; break;
+    case UI_F_RATCH: v = r.ramp > QD_RAMP_UP ? -9 : r.ramp * 8 + r.ratch - 1; break;
+    case UI_F_CHNC: v = r.chance; break;
+    case UI_F_COND: v = r.cond; break;
+    default: v = r.sound ? r.sound : a->model.t[a->sel].sound; break;   /* (SOUND: the track's own when no lock) */
+    }
+    if (m == UI_F_SOUND) {
+        k = mk_key(a, m, r.vel, 10, 16, 1);
+        b = (uint16_t)(1u << k);
+        k = mk_key(a, m, v, 0, 10, 0);
+    } else {
+        k = mk_key(a, m, v, 0, 16, m == UI_F_VEL || m == UI_F_MICRO || m == UI_F_CHNC);
+    }
+    if (k >= 0)
+        b |= (uint16_t)(1u << k);
+    for (w = 0; w < 16; w++)
+        if ((a->keys_held >> QD_WHITE_KEY[w]) & 1u)
+            b |= (uint16_t)(1u << w);
+    return b;
+}
+
+void qd_mk_leds(const qd_app_t *a, uint8_t *key)
+{
+    const int m = a->ui.hmode;
+    const uint16_t lit = mk_lit(a);
+    int w, l;
+    for (w = 0; w < 16; w++) {
+        switch (m) {
+        case UI_F_VEL:
+        case UI_F_CHNC: l = 13 + 178 * w / 15; break;  /* (a fade, 5 % .. 75 %) */
+        case UI_F_LEN: l = 13 + 102 * w / 15; break;
+        case UI_F_RATCH: l = 15 + 15 * (w & 7); break;
+        case UI_F_MICRO: l = w == 7 ? QD_LED_DIM : QD_LED_FAINT; break;   /* (W8 the grid) */
+        case UI_F_COND: l = w < QD_COND_AB ? QD_LED_DIM : QD_LED_FAINT; break;
+        default: l = w < 10 ? 64 : 13 + 178 * (w - 10) / 5; break;   /* (SOUND: the sounds 25 %, the velocities a fade) */
+        }
+        key[QD_WHITE_KEY[w]] = (uint8_t)((lit >> w) & 1u ? QD_LED_LIT : l);
+    }
+}
+
+void qd_mk_kst(const qd_app_t *a, uint8_t *kst)
+{
+    const int m = a->ui.hmode;
+    const uint16_t lit = mk_lit(a);
+    int w;
+    for (w = 0; w < 16; w++) {                          /* (a hint: a fill by the value, VEL, CHNC, SOUND's velocities) */
+        const int h = m == UI_F_VEL ? qd_mk_val(a, m, w) * 31 / 127 : m == UI_F_CHNC ? (w + 1) * 31 / 16
+                    : m == UI_F_SOUND && w >= 10 ? MK_SVEL[w - 10] * 31 / 127 : 0;
+        kst[w] = (uint8_t)((lit >> w) & 1u ? 4 : 1 | h << 3);
+    }
+}
+
+/* step s takes W w's value of mode m */
+static void mk_set(qd_app_t *a, int s, int m, int w)
+{
+    qd_pattern_t *p = PAT(a);
+    const int t = a->sel, v = qd_mk_val(a, m, w);
+    switch (m) {
+    case UI_F_VEL: qd_step_set_vel(p, t, s, v); break;
+    case UI_F_LEN: qd_step_set_len(p, t, s, v); break;
+    case UI_F_MICRO: qd_step_set_micro(p, t, s, v); break;
+    case UI_F_RATCH: qd_step_set_ratchet(p, t, s, (w & 7) + 1, w >> 3); break;   /* (QD_RAMP_FLAT, QD_RAMP_UP) */
+    case UI_F_CHNC: qd_step_set_chance(p, t, s, v); break;
+    case UI_F_COND: qd_step_set_cond(p, t, s, v); break;
+    case UI_F_SOUND:
+        if (w >= 10)
+            qd_step_set_vel(p, t, s, v);
+        else if (v <= a->proj.nsound)
+            qd_step_set_sound(p, t, s, v);
+        break;
+    default: break;
+    }
+}
+
+/* W w's notes: ended; struck as a key's (the step's notes, velocity and sound) */
+static void mk_end(qd_app_t *a, int w)
+{
+    qd_ui_t *u = &a->ui;
+    int i;
+    for (i = 0; i < QD_NNOTE; i++)
+        if (u->mk_nt[w][i])
+            qd_player_key_off(&a->player, u->mk_tr[w], u->mk_nt[w][i]);
+    memset(u->mk_nt[w], 0, sizeof u->mk_nt[w]);
+}
+static void mk_strike(qd_app_t *a, int w, const qd_rstep_t *r)
+{
+    const int16_t *pt = r->sound > 0 ? qd_sound_patch(&a->proj, r->sound) : 0;
+    int i;
+    mk_end(a, w);
+    a->ui.mk_tr[w] = (uint8_t)a->sel;
+    for (i = 0; i < r->nn && i < QD_NNOTE; i++) {
+        qd_player_key_on_p(&a->player, a->sel, r->notes[i] & 127, r->vel, pt);
+        a->ui.mk_nt[w][i] = (uint8_t)(r->notes[i] & 127);
+    }
+}
+
+/* the step a recorded note went into (-1 none) */
+static int rec_step_of(qd_app_t *a, int note)
+{
+    const qd_ui_t *u = &a->ui;
+    if (u->rec_t0[note & 127] < 0)
+        return -1;
+    return qd_rec_stepping(a) ? loop_step(a, u->cursor) : u->rec_s[note & 127];
+}
+
+void qd_mk_white(qd_app_t *a, int key, int w, int down, int vel)
+{
+    qd_ui_t *u = &a->ui;
+    const int m = u->hmode, v = qd_mk_val(a, m, w);
+    const uint16_t bit = (uint16_t)(1u << w);
+    qd_rstep_t r;
+    int i, s;
+    (void)key, (void)vel;
+    if (!down) {
+        if (u->mk_rec & bit) {                          /* (a recorded press: its notes end, LEN's value kept) */
+            u->mk_rec &= (uint16_t)~bit;
+            s = rec_step_of(a, u->mk_nt[w][0]);
+            for (i = 0; i < QD_NNOTE; i++)
+                if (u->mk_nt[w][i])
+                    qd_rec_key(a, u->mk_nt[w][i], 0, 0);
+            if (s >= 0 && m == UI_F_LEN)
+                mk_set(a, s, m, w);
+        }
+        mk_end(a, w);
+        return;
+    }
+    if (u->nheld && !u->rec) {                          /* the selection takes the value; the step heard with it */
+        qd_step_promote_all(a);
+        for (i = 0; i < u->nheld; i++)
+            mk_set(a, u->held[i], m, w);
+        if (m == UI_F_SOUND)
+            u->roll_ms = a->ms, u->roll_dir = 1;
+        if (qd_ctl_previewing(a)) {
+            qd_ctl_preview_strike(a, u->held[0]);
+            return;
+        }
+        mk_res(a, &r, 1);
+    } else {                                            /* LIVE (or recording): the track with the key's value */
+        mk_res(a, &r, 0);
+        if (m == UI_F_VEL || (m == UI_F_SOUND && w >= 10))
+            r.vel = v;
+        else if (m == UI_F_SOUND && v <= a->proj.nsound)
+            r.sound = v;
+        if (u->rec) {                                   /* REC armed: a trig at the playhead (as the keys' notes) */
+            for (i = 0; i < r.nn && i < QD_NNOTE; i++)
+                qd_rec_key(a, r.notes[i] & 127, 1, r.vel);
+            s = rec_step_of(a, r.notes[0]);
+            if (s >= 0) {
+                mk_set(a, s, m, w);
+                u->mk_rec |= bit;
+            }
+        }
+    }
+    mk_strike(a, w, &r);
+}
+
+/* the band: the track's value of mode m now ("TRACK VEL 100", "TRACK NOTES C4 E4 G4") */
+static void mk_band(qd_app_t *a, int m)
+{
+    char *o = a->ui.mk_band, n[12];
+    qd_rstep_t r;
+    int i;
+    mk_res(a, &r, 0);
+    strcpy(o, "TRACK ");
+    strcat(strcat(o, m == UI_F_NOTE ? "NOTES" : UI_FIELD_NAME[m]), " ");
+    switch (m) {
+    case UI_F_NOTE:
+        for (i = 0; i < r.nn && i < QD_NNOTE; i++)
+            strcat(strcat(o, i ? " " : ""), qd_note_name(r.notes[i], n));
+        break;
+    case UI_F_VEL: strcat(o, ui_itoa(n, r.vel)); break;
+    case UI_F_LEN: strcat(o, qd_len_name(r.len)); break;
+    case UI_F_MICRO: strcat(strcat(o, r.micro > 0 ? "+" : ""), ui_itoa(n, r.micro)); break;
+    case UI_F_RATCH: strcat(strcat(o, "\xc3\x97"), ui_itoa(n, r.ratch)); break;
+    case UI_F_CHNC: strcat(strcat(o, ui_itoa(n, r.chance)), "%"); break;
+    case UI_F_COND: strcat(o, qd_cond_name(r.cond, n)); break;
+    case UI_F_SOUND: strncat(o, qd_track_sound_label(&a->model.t[a->sel]), 16); break;
+    default: o[strlen(o) - 1] = 0; break;               /* (TRIG, FUNC, SLIDE: the mode alone) */
+    }
+    qd_ctl_confirm_col(a, o, 0, QD_CF_BAND);
+}
+
+int qd_mk_b11(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int w, first = -1, n = 0, m = u->hmode;
+    uint8_t notes[QD_NNOTE];
+    if (!qd_snd_keys(a) || u->latch || u->view > QD_VIEW_EDIT || qd_ctl_shift(a) ||
+        ((a->buttons_held >> QD_B_MIX | a->buttons_held >> QD_B_PATTERN) & 1u))
+        return 0;
+    for (w = 15; w >= 0; w--)
+        if ((a->keys_held >> QD_WHITE_KEY[w]) & 1u)
+            first = w;
+    if (first < 0)
+        return 0;
+    if (u->nheld) {                                     /* a selection: its value back to the track's (B11 + F2's) */
+        qd_step_b11_reset(a);
+    } else if (!qd_mk_on(a)) {                          /* the keys play: the held notes the track's notes */
+        for (w = first; w < 16 && n < QD_NNOTE; w++)
+            if ((a->keys_held >> QD_WHITE_KEY[w]) & 1u)
+                notes[n++] = (uint8_t)qd_snd_key_note(a, QD_WHITE_KEY[w]);
+        qd_tdef_set_notes(PAT(a), a->sel, notes, n);
+        m = UI_F_NOTE;
+    } else if (m == UI_F_SOUND && first < 10) {         /* a sound: the track's own sound */
+        const int k = qd_mk_val(a, m, first);
+        qd_track_t *tr = &a->model.t[a->sel];
+        if (k <= a->proj.nsound && qd_sound_used(&a->proj, k)) {
+            qd_track_load_sound(tr, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
+            tr->preset = qd_sound_preset(&a->proj, k);
+        }
+    } else {                                            /* the key's value the track's default (UI_F_VEL .. UI_F_COND
+                                                         * are QD_PM_VEL .. QD_PM_COND) */
+        const int v = qd_mk_val(a, m, first);
+        if (m == UI_F_SOUND)
+            m = UI_F_VEL;
+        qd_tdef_set(PAT(a), a->sel, m, m == UI_F_RATCH ? qd_ratch_make((first & 7) + 1, first >> 3) : v);
+    }
+    mk_band(a, m);
+    return 1;
 }

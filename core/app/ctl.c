@@ -254,6 +254,16 @@ void qd_ctl_set_page(qd_app_t *a, int p)
     u->slide_from = u->page[a->sel];
     u->page[a->sel] = p;
 }
+/* 2026-11-12 (owner): SELECT turned the page edited (every page where it does): that page's black key flashes once */
+void qd_ctl_sel_page(qd_app_t *a, int p)
+{
+    const int was = a->ui.page[a->sel];
+    qd_ctl_set_page(a, p);
+    if (a->ui.page[a->sel] != was) {
+        a->ui.pflash = (uint8_t)(a->ui.page[a->sel] + 1);
+        a->ui.pflash_ms = a->ms;
+    }
+}
 
 int qd_ctl_playing_page(const qd_app_t *a, int t)
 {
@@ -437,6 +447,8 @@ static void k_snd_mk(qd_app_t *a, int key, int w, int down, int vel)
         qd_rec_key(a, a->key_note[key], 0, 0);
 }
 static int w_snd_full(const qd_app_t *a) { return w_snd_keys(a) && a->proj.rec_ekeys; }
+static int w_mk(const qd_app_t *a) { return qd_mk_on(a) && w_snd_keys(a); }
+static void k_mk(qd_app_t *a, int key, int w, int down, int vel) { qd_mk_white(a, key, w, down, vel); }
 static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
 {
     (void)idx;
@@ -1143,6 +1155,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_main_layer, k_flayer_white},    /* P1.6h: a main page's steps, F1 / F2 held: the step view's copy, pick-up / drop */
     {w_snd_mk, k_snd_mk},              /* E4: the editor, B1 held: W1..W8 the modulation source (2026-10-26, the owner:
                                         * before the keyboard, so it works with the keys playing too) */
+    {w_mk, k_mk},                      /* 2026-11-12: the orange keys in VEL .. COND, SOUND: the mode's values (ctl_rec.c) */
     {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard (2026-10-26: SENDS' too, before its steps) */
     {w_panel, k_panel_white},          /* P1.4b: the track settings, the mix, the effects: the steps */
     {w_mfx, k_mfx_white},              /* P1.6c: the MIDI FX screen: the track through the group (the lanes' steps) */
@@ -1243,6 +1256,9 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
                                                          * closes its screen) */
             a->ui.lmode_open = 0;
         }
+        if (b == 10 && qd_mk_b11(a))                   /* 2026-11-12 (owner): orange keys held + B11: the track's
+                                                         * value (no click, no hold key) */
+            return;
         if (b == 10 && qd_ctl_b11_free(a)) {           /* 2026-11-10 (owner): B11 the hold key, every page alike */
             a->ui.key_row[key] = -1;
             b11_key(a, 1);
@@ -1878,7 +1894,7 @@ static void track_sound(qd_app_t *a, int d) { qd_br_turn(a, d); }
  * which shows every page already: there the edited row just moves */
 static void page_knob(qd_app_t *a, int d)
 {
-    qd_ctl_set_page(a, a->ui.page[a->sel] + d);
+    qd_ctl_sel_page(a, a->ui.page[a->sel] + d);
     if (!QD_VIEW_NOPICK(a->ui.view))
         qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
 }
@@ -1983,7 +1999,7 @@ static int k_f3(qd_app_t *a, int knob, int d)
     }
     if (knob == QD_K_SELECT) {                          /* 2026-11-10 (owner): SELECT the page edited, round (F3's map
                                                          * shows it) */
-        qd_ctl_set_page(a, (pg + d % QD_NPAGE + QD_NPAGE) % QD_NPAGE);
+        qd_ctl_sel_page(a, (pg + d % QD_NPAGE + QD_NPAGE) % QD_NPAGE);
         return 1;
     }
     if (knob == QD_K_PRESETS) {                         /* .. PRESETS the tempo, its metronome over the map (P1.3x: it

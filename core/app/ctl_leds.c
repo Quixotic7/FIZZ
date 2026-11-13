@@ -370,6 +370,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         memset(k, 0, sizeof k);
         qd_keys_leds(a, k);
         qd_keys_step_leds(a, k, 0);                       /* (2026-11-10: a selected step's notes, as the keyboard's) */
+        if (qd_mk_on(a))                                /* 2026-11-12: a hold mode's values: the step's value lit */
+            qd_mk_leds(a, k);
         for (i = 0; i < QD_NKEY; i++)
             if (qd_ctl_white(i) >= 0 || a->proj.rec_ekeys)
                 out->key[i] = k[i];
@@ -379,6 +381,11 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     if (qd_ctl_shift(a) && qd_ctl_shift_page(a))
         qd_shift_leds(a, out->key);                     /* P1.5c: SHIFT held: only its shortcuts lit (2026-11-10: on
                                                          * every page, the keyboard page too) */
+    if (u->pflash && a->ms - u->pflash_ms < QD_PFLASH_MS) {   /* 2026-11-12 (owner): SELECT turned the page: its
+                                                         * black key flashes once (lit already: dark a moment first) */
+        uint8_t *k = &out->key[QD_BLACK_KEY[(u->pflash - 1) & 7]];
+        *k = *k == QD_LED_LIT && a->ms - u->pflash_ms < QD_PFLASH_MS / 3u ? QD_LED_OFF : QD_LED_LIT;
+    }
     if (held(a, QD_B_TRACKS)) {                         /* TRACKS held: the selected track's white key dim */
         const int k = QD_WHITE_KEY[a->sel];
         if (out->key[k] < QD_LED_DIM)
