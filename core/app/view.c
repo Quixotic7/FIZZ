@@ -297,6 +297,36 @@ static const char *cond_text(int c)
     }
 }
 
+/* 2026-11-13 (owner): NOTE on the step keyboard, LIVE: the notes the keys play, while held and a second after */
+static void live_notes(const qd_app_t *a, qd_rstep_t *r)
+{
+    static uint8_t nt[QD_NNOTE];
+    static int nn;
+    static uint32_t ms;
+    uint8_t h[QD_NNOTE];
+    int i, j, c = 0;
+    for (i = 0; i < QD_NKEY; i++) {
+        int n;
+        if (!((a->keys_held >> i) & 1u) || (!a->proj.rec_ekeys && qd_ctl_white(i) < 0))
+            continue;
+        n = qd_snd_key_note(a, i);
+        if (n < 0 || n > 127)
+            continue;
+        for (j = 0; j < c && h[j] < n; j++)
+            ;
+        if ((j < c && h[j] == n) || c == QD_NNOTE)
+            continue;
+        memmove(h + j + 1, h + j, (size_t)(c - j));
+        h[j] = (uint8_t)n, c++;
+    }
+    if (c)
+        memcpy(nt, h, (size_t)c), nn = c, ms = a->ms;
+    if (nn && a->ms - ms < 1000u) {
+        r->nn = (uint8_t)nn;
+        memcpy(r->notes, nt, (size_t)nn);
+    }
+}
+
 /* the screen of mode m for step s (is_default: the track's default, s ignored: a step with no overrides) */
 static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
 {
@@ -316,6 +346,8 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
         qd_step_resolve_def(&ts->def, &on, &r);
         mk_snd = qd_mk_show(a, &r) && m == UI_F_SOUND && u->mk_shw <= 10;   /* (2026-11-13: LIVE, a W key held: its
                                                          * value shown; SOUND: the sound's name too) */
+        if (m == UI_F_NOTE && !u->nheld && qd_step_kb(a))
+            live_notes(a, &r);
         st = &on;
     } else {
         qd_step_resolve(P, t, s, &r);

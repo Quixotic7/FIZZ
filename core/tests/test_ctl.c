@@ -10135,6 +10135,18 @@ static void g_kb_round2(void)
     CHECK(!A.ui.slatch && !A.ui.nheld && qd_snd_keys(&A), "the step keyboard, step 3 locked: LFO unlocks (LIVE), the keys stay");
     btap(LFO);
     CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2, "LFO again: step 3 back");
+    {   /* 2026-11-13 (owner): NOTE, step 3 selected: each chord replaces the step's notes (no stacking) */
+        int n1;
+        mode(M_NOTE);
+        kdown(WK(0)), run(30), kup(WK(0)), run(200);
+        kdown(WK(2)), run(30), kup(WK(2)), run(200);
+        qd_step_resolve(PAT(), 0, 2, &r);
+        n1 = r.nn;
+        ok = r.nn == 1 && A.ui.slatch && A.ui.nheld == 1;
+        kdown(WK(0)), kdown(WK(4)), run(30), kup(WK(0)), kup(WK(4)), run(200);
+        qd_step_resolve(PAT(), 0, 2, &r);
+        CHECK(ok && r.nn == 2, "NOTE, step 3 selected: W1 then W3 leave one note (%d), a two-key chord two (%d)", n1, r.nn);
+    }
     btap(LFO);
     mode(M_NOTE);
     o = A.oct;

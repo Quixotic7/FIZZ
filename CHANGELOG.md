@@ -11,6 +11,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 - **SHIFT's button blinks while it is stuck** (after a quick click).
 - **SOUND, LIVE**: the screen names the sound you play, not only its number.
+- **NOTE, LIVE on the step keyboard**: the screen shows the notes you play (and their chord), a second after too.
+- **A selected step keeps the scale's roots lit** on the keys and on the screen's keyboard.
 
 ## 0.12.0-beta.17 (2026-11-13)
 

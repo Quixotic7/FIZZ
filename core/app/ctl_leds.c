@@ -290,7 +290,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
 
 /* 2026-11-10 (owner): the keys (the keyboard page's, a B11 click's orange keys on every other page) with a step
  * selected (or held; the first one): its notes lit full over the scale, the scale kept at its dim level (2026-11-11,
- * the owner: the scale stays shown); the roots drop to the scale's level so only the step's notes stand out */
+ * the owner: the scale stays shown); 2026-11-13 (owner): the roots stay lit too */
 void qd_keys_step_leds(const qd_app_t *a, uint8_t *key, int page)
 {
     const qd_ui_t *u = &a->ui;
@@ -306,8 +306,6 @@ void qd_keys_step_leds(const qd_app_t *a, uint8_t *key, int page)
                           : qd_snd_key_note(a, i);
         if (!page && !a->proj.rec_ekeys && qd_ctl_white(i) < 0)
             continue;                                   /* (SCALE: the black keys the page's own) */
-        if (key[i] == QD_LED_ROOT)
-            key[i] = QD_LED_SCALE;
         for (k = 0; k < r.nn && r.on; k++)
             if (r.notes[k] == n && !((a->keys_held >> i) & 1u))   /* 2026-11-11 (owner): the step's notes blink over
                                                          * the dim scale (a key pressed stays lit) */

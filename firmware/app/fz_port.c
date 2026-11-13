@@ -740,6 +740,8 @@ uint32_t fz_state_line(char *q, char *lim)
     q = st_u(q, "of=", (uint32_t)a->pool.nvoice);         /* (the build's: 8 single-core, 16 Standard) */
     q = st_u(q, "playing=", (uint32_t)a->playing);
     q = st_u(q, "seq_playing=", (uint32_t)a->seq.playing);
+    q = st_u(q, "kheld=", a->keys_held);               /* (2026-11-13: the keys FIZZ holds down, the step keyboard) */
+    q = st_u(q, "ekeys=", (uint32_t)a->ui.ekeys);
     q = st_u(q, "pat_miss=", a->proj.pat_miss);
     q = st_u(q, "snd_miss=", a->proj.snd_miss);
     q = st_u(q, "sw_late=", a->seq.sw_late);
