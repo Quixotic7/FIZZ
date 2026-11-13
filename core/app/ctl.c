@@ -1902,6 +1902,22 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_OCTUP] = b_octup,            /* F2 */
 };
 
+/* the menu buttons a stuck SHIFT gives way to (HOME, FX, ENV = the mix, EDIT), and whether theirs is showing */
+static int stick_menu(int button)
+{
+    return button == QD_B_HOME || button == QD_B_TRACKS || button == QD_B_PAGE || button == QD_B_SOUND ? button : -1;
+}
+static int stick_menu_shown(const qd_app_t *a, int button)
+{
+    const qd_ui_t *u = &a->ui;
+    if (button == QD_B_HOME)
+        return !home_away(a);
+    if (u->mode != QD_MODE_STEP)
+        return 0;
+    return button == QD_B_TRACKS ? u->latch == QD_LATCH_FX : button == QD_B_PAGE ? u->latch == QD_LATCH_MIX
+                                                                                : u->latch == QD_LATCH_SND;
+}
+
 void qd_ctl_button(qd_app_t *a, int button, int down)
 {
     if (down) {
@@ -1917,6 +1933,19 @@ void qd_ctl_button(qd_app_t *a, int button, int down)
     }
     if (qd_type_open(a) && qd_type_button(a, button, down))
         return;                                         /* P1.5u: a name typed: F1, F2, SAVE, HOME, SHIFT + a button */
+    if (!down && ((a->ui.shift_eat >> button) & 1u)) {
+        a->ui.shift_eat &= (uint16_t)~(1u << button);
+        return;
+    }
+    if (down && a->ui.shift_stick && !held(a, QD_B_FUNC) && stick_menu(button) >= 0) {
+        a->ui.shift_stick = 0;                          /* 2026-11-13 (owner): a stuck SHIFT + a menu button: SHIFT
+                                                         * ends, the press a plain one; its menu shown: only that
+                                                         * (no next page, no next view) */
+        if (stick_menu_shown(a, button)) {
+            a->ui.shift_eat |= (uint16_t)(1u << button);
+            return;
+        }
+    }
     BUTTONS[button](a, down);
     if (!down && button != QD_B_FUNC && a->ui.shift_stick && !held(a, QD_B_FUNC))
         a->ui.shift_stick = 0;                          /* 2026-11-13 (owner): a stuck SHIFT ends with any button (its
@@ -2175,12 +2204,9 @@ static int k_steps_cursor(qd_app_t *a, int knob, int d)
 static int when_snd(const qd_app_t *a) { return qd_snd_open(a) && !held(a, QD_B_MIX) && !held(a, QD_B_TRACKS); }
 static int k_snd(qd_app_t *a, int knob, int d)
 {
-    if (knob == QD_K_PRESETS && !a->ui.nheld) {
-        if (qd_ctl_shift(a))
-            return 0;
-        track_sound(a, d);
-        return 1;
-    }
+    if (knob == QD_K_PRESETS && qd_ctl_shift(a) && !a->ui.nheld)
+        return 0;                                       /* (2026-11-13, owner: PRESETS a value of the page, never the
+                                                         * preset) */
     return qd_snd_knob(a, knob, d);
 }
 

@@ -448,7 +448,7 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
     if (qd_snd_open(a)) {                               /* the sound editor: its groups, the page's values */
         static const char *const GRP[QD_NSG] = {"PLAY/MOD", "OPERATORS", "OP ENV", "FILTERS", "AMP/FX", "LFO 1", "LFO 2",
                                                 "LFO 3"};
-        static const int KN[5] = {QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_K_ALGO};
+        static const int KN[5] = {QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_K_PRESETS};   /* (2026-11-13: the fifth on PRESETS) */
         if (qd_snd_keys(a))
             lb_notes(a, o, !a->proj.rec_ekeys);
         if (!qd_snd_keys(a) || !a->proj.rec_ekeys)      /* (FULL: the black keys play too) */
@@ -463,7 +463,9 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         for (k = 0; k < 5; k++)
             lb_set(o, LB_KNOB(KN[k]), qd_snd_label(a, u->snd_page, k));
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
-        lb_set(o, LB_KNOB(QD_K_PRESETS), u->nheld ? "SOUND LOCK" : "PRESETS");
+        if (!qd_snd_fifth(a, u->snd_page))              /* (2026-11-13, owner: no fifth value: KNOB 1's) */
+            lb_set(o, LB_KNOB(QD_K_PRESETS), qd_snd_label(a, u->snd_page, 0));
+        lb_set(o, LB_KNOB(QD_K_ALGO), "STEP");          /* (2026-11-13, owner: the step cursor, as on the Home views) */
         lb_set(o, LB_BTN(QD_B_SOUND), "CLOSE");
         return;
     }

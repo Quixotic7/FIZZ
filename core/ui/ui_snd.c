@@ -7,7 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const qd_rgb SNDK[5] = {UI_K1, UI_K2, UI_K3, UI_K4, UI_KALG};   /* KNOB 1..4, ALGORITHM */
+static const qd_rgb SNDK[5] = {UI_K1, UI_K2, UI_K3, UI_K4, UI_KALG};   /* KNOB 1..4, PRESETS (2026-11-13: ALGORITHM's
+                                                                         * fifth moved there, its pink kept) */
+static const uint8_t OPK[4] = {1, 2, 3, 3};            /* 2026-11-13: RATIO's knobs: C on KNOB 2, A on 3, B on 4 (an
+                                                         * operator drawn in its ratio's colour) */
 #define SD_TOP 32.f                                     /* the drawing's area */
 #define SD_BOT 180.f                                    /* (P1.5j: the foot's labels from 184) */
 /* P1.5j: the foot, four fixed columns inside the frame's 4 px margin (the frame 3 px: its inner edge at 3) */
@@ -87,9 +90,9 @@ static void sd_mixrow(const ui_snd_t *v)
         }
         line2(x0, yy, x1, yy, UI_G2, 2.f);
         line2((x0 + x1) * 0.5f, yy - 4.f, (x0 + x1) * 0.5f, yy + 4.f, UI_G1, 1.2f);   /* MIX 0 */
-        ui_O(x0 - 9.f, yy, 4.5f, cx >= 0 ? sd_fade(SNDK[cx], sx) : UI_G1, 1.6f, UI_BG);   /* X */
-        ui_O(x1 + 9.f, yy, 4.5f, cy >= 0 ? sd_fade(SNDK[cy], sy) : UI_G1, 1.6f, UI_BG);   /* Y */
-        ui_RR(hx - 4.f, yy - 7.f, 8.f, 14.f, 2.5f, QD_NONE, 1.f, SNDK[3]);
+        ui_O(x0 - 9.f, yy, 4.5f, cx >= 0 ? sd_fade(SNDK[OPK[cx]], sx) : UI_G1, 1.6f, UI_BG);   /* X */
+        ui_O(x1 + 9.f, yy, 4.5f, cy >= 0 ? sd_fade(SNDK[OPK[cy]], sy) : UI_G1, 1.6f, UI_BG);   /* Y */
+        ui_RR(hx - 4.f, yy - 7.f, 8.f, 14.f, 2.5f, QD_NONE, 1.f, SNDK[4]);   /* (MIX on PRESETS here) */
     }
 }
 
@@ -110,7 +113,7 @@ static void sd_mixcell(const ui_snd_t *v)
             cy = o;
     }
     {
-        const qd_rgb xc = cx >= 0 ? SNDK[cx] : UI_G1, yc = cy >= 0 ? SNDK[cy] : UI_G1;
+        const qd_rgb xc = cx >= 0 ? SNDK[OPK[cx]] : UI_G1, yc = cy >= 0 ? SNDK[OPK[cy]] : UI_G1;
         const float hmax = 30.f, base = 136.f;
         ui_RR(160.f, base - 4.f - hmax * sx, 12.f, 4.f + hmax * sx, 3.f, QD_NONE, 1.f, sd_fade(xc, 0.35f + 0.65f * sx));
         ui_RR(188.f, base - 4.f - hmax * sy, 12.f, 4.f + hmax * sy, 3.f, QD_NONE, 1.f, sd_fade(yc, 0.35f + 0.65f * sy));
@@ -202,7 +205,7 @@ static void sd_algo(const ui_snd_t *v)
     }
     for (o = 0; o < 4; o++) {                           /* the operators: their waves at their ratios */
         const float r = sd_clampf(v->ratio[o], 0.25f, 4.f);
-        const qd_rgb oc = sd_fade(SNDK[o], sh[o]);
+        const qd_rgb oc = sd_fade(SNDK[OPK[o]], sh[o]);
         float p[2 * 25];
         int i;
         ui_O(x[o], y[o], SD_OPR, oc, 1.6f, UI_BG);
@@ -1133,7 +1136,7 @@ void ui_snd_draw(const ui_snd_t *v)
     if (v->npg > 1)
         x += (float)v->npg * 9.f + 6.f;
     ui_T(head, x, 18.f, 12.f, 600, 0.8f, hc, QD_LEFT);
-    if (v->has[4]) {                                    /* ALGORITHM's value: its badge, top right (a lock: its chip;
+    if (v->has[4]) {                                    /* PRESETS' value (2026-11-13; was ALGORITHM's): its badge, top right (a lock: its chip;
                                                          * P1.5j: 13 px, clear of the frame's 4 px margin) */
         float left;
         if (v->locked[4] || v->lockany[4]) {
@@ -1147,7 +1150,7 @@ void ui_snd_draw(const ui_snd_t *v)
             ui_T(v->txt[4], 230.f, 20.f, 14.f, 500, 0.f, SNDK[4], QD_RIGHT);
         }
         ui_O(left - 11.f, 15.f, 7.f, QD_NONE, 1.f, SNDK[4]);
-        ui_T("A", left - 11.f, 19.f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+        ui_T("P", left - 11.f, 19.f, 12.f, 700, 0.f, UI_BG, QD_CENTER);   /* (2026-11-13: PRESETS' value) */
     }
     if (v->keys)
         sd_keys_strip(v, UI_TRACK_COL);

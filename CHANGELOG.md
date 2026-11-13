@@ -13,6 +13,8 @@ its text becomes the release's notes on the install page and on GitHub.
 - **SOUND, LIVE**: the screen names the sound you play, not only its number.
 - **NOTE, LIVE on the step keyboard**: the screen shows the notes you play (and their chord), a second after too.
 - **A selected step keeps the scale's roots lit** on the keys and on the screen's keyboard.
+- **A stuck SHIFT + HOME, FX, ENV or EDIT** ends SHIFT and goes there; if you're already there, nothing else changes (no next view or page).
+- **The sound editor: ALGORITHM selects steps** as on the Home views (fully left: LIVE; LFO the lock). Each page's fifth value is on **PRESETS** now (the filter machine, AMP's mode, the delays, VOICE's priority, MOD's slot); a page without one: PRESETS turns KNOB 1's value. **RATIO**: ALGO on KNOB 1, the ratios C, A, B on KNOB 2..4, MIX on PRESETS.
 
 ## 0.12.0-beta.17 (2026-11-13)
 

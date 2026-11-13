@@ -692,6 +692,8 @@ typedef struct {
     uint8_t shift_stick;               /* 2026-11-13 (owner): SHIFT clicked: it stays on (a click again, or any button's
                                         * press and release, ends it; a hold never sticks) .. */
     uint8_t shift_unstick;             /* .. this press began stuck: its release ends it */
+    uint16_t shift_eat;                /* .. 2026-11-13 (owner): stuck, a menu button already shown: its press and
+                                        * release only end SHIFT (bit: the button) */
     uint32_t shift_ms;                 /* .. the press's time */
     /* the keyboard (ctl_rec.c) */
     int rec;                           /* recording armed in the keyboard (step recording stopped, live playing) */
@@ -826,6 +828,7 @@ void qd_trk_engine_set(struct qd_app *a, int t, int e);   /* .. set (KNOB 3) */
 void qd_msnd_put(struct qd_app *a, int t, qd_tsound_t *s);   /* a load's sound s over track t's (the side) */
 int qd_msnd_take(struct qd_app *a, int t);                /* .. the model's into the pattern's (the 1 ms sync) */
 void qd_side_clear(struct qd_app *a);                     /* ENGINE's sides forgotten */
+int qd_snd_fifth(const struct qd_app *a, int page);   /* 2026-11-13: the editor page's fifth value (on PRESETS) */
 int qd_snd_keys(const struct qd_app *a);        /* P1.5b: the editor open with the keyboard on (2026-10-26: or the
                                                  * effects' SENDS page: REC turns it on there too) */
 int qd_snd_scale_note(const struct qd_app *a, int w);   /* .. SCALE: W w's note (the scale's degree w from the root) */

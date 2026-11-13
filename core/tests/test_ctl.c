@@ -3777,12 +3777,28 @@ static void g_snd(void)
           "nothing held, KNOB 2 on ENV A: the track's A DEC +3 (live), the editor stays");
     black(B2);
     a0 = A.model.t[0].patch[QD_QP_ALGO];
-    turn(QD_K_ALGO, 1);
-    CHECK(A.model.t[0].patch[QD_QP_ALGO] == a0 + 1, "OPERATORS (RATIO): ALGORITHM the algorithm (%d)", a0 + 1);
+    turn(QD_K_1, 1);
+    CHECK(A.model.t[0].patch[QD_QP_ALGO] == a0 + 1 && !A.ui.slatch,
+          "OPERATORS (RATIO): KNOB 1 the algorithm (%d) (2026-11-13: ALGORITHM the steps)", a0 + 1);
+    {   /* 2026-11-13 (owner): MIX on PRESETS; ALGORITHM selects steps (fully left: LIVE) */
+        const int m0 = A.model.t[0].patch[QD_QP_MIX];
+        turn(QD_K_PRESETS, 2);
+        ok = A.model.t[0].patch[QD_QP_MIX] == m0 + 2;
+        turn(QD_K_ALGO, 2);
+        ok &= A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 1 && qd_snd_open(&A);
+        turn(QD_K_ALGO, -5);
+        CHECK(ok && !A.ui.slatch && qd_snd_open(&A), "RATIO: PRESETS the MIX; ALGORITHM step 2, fully left LIVE");
+    }
     black(B5), black(B5);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LEVEL"), "B5 twice: LEVEL (and DRIVE)");
     turn(QD_K_2, 40);
     CHECK(A.model.t[0].patch[QD_QP_DRIVE] == 40, "KNOB 2: the track's DRIVE 40");
+    {   /* 2026-11-13 (owner): no fifth value: PRESETS turns KNOB 1's (LEVEL), never the preset */
+        const int l0 = A.model.t[0].patch[QD_QP_LEVEL], p0 = A.model.t[0].preset;
+        turn(QD_K_PRESETS, -2);
+        CHECK(A.model.t[0].patch[QD_QP_LEVEL] == l0 - 2 && A.model.t[0].preset == p0 && qd_snd_open(&A),
+              "LEVEL: PRESETS turns LEVEL (KNOB 1's), the preset kept");
+    }
     /* a finger on a step: p-locks */
     whold(0);
     turn(QD_K_2, 20);
@@ -3822,8 +3838,8 @@ static void g_snd(void)
     for (k = 1; k <= A.proj.nsound && strcmp(qd_sound_name(&A.proj, k), "WOBBLE"); k++)
         ;
     CHECK(k <= A.proj.nsound && qd_sound_patch(&A.proj, k)[QD_QP_DRIVE] == 10, "the pool's WOBBLE (%d): DRIVE 10", k);
-    btap(QD_B_SOUND);
-    turn(QD_K_PRESETS, 1);                              /* (P1.5t: the browser, then on to WOBBLE, F2) */
+    turn(QD_K_PRESETS, 1);                              /* (P1.5t: the browser, then on to WOBBLE, F2; 2026-11-13: from
+                                                         * the Home view: the editor's PRESETS is a value) */
     {
         int list[QD_BR_LIST], n = qd_br_list(&A, QD_BR_ALL, 0, list), i;
         for (i = 0; i < n && list[i] != 10; i++)        /* (WOBBLE: factory preset 10, id 11) */
@@ -3831,9 +3847,8 @@ static void g_snd(void)
         turn(QD_K_PRESETS, i - A.ui.br.pos);
     }
     btap(F2);
-    CHECK(A.model.t[0].preset == 11 && A.model.t[0].patch[QD_QP_DRIVE] == 10 && qd_snd_open(&A),
-          "the editor, PRESETS: the browser, WOBBLE loaded (F2), its DRIVE 10 with it; back in the editor");
-    btap(QD_B_SOUND);
+    CHECK(A.model.t[0].preset == 11 && A.model.t[0].patch[QD_QP_DRIVE] == 10,
+          "PRESETS: the browser, WOBBLE loaded (F2), its DRIVE 10 with it");
 }
 
 /* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
@@ -4877,22 +4892,22 @@ static void g_p15i_ratio(void)
     pt = A.model.t[0].patch;
     qd_player_live_edit(&A.player, 0, QD_QP_RB1, 3);
     qd_player_live_edit(&A.player, 0, QD_QP_RB2, 3);
-    turn(QD_K_3, 1);
+    turn(QD_K_4, 1);
     qd_view_snd(&A, &sv);
-    CHECK(pt[QD_QP_RB1] == 3 && pt[QD_QP_RB2] == 4 && sv.pair[2] && !strcmp(sv.txt[2], "2.00") &&
-              !strcmp(sv.den[2], "1.00") && !strcmp(sv.lab[2], "RATIO B"),
-          "RATIO, KNOB 3: RATIO B 1.00/1.00 -> 2.00 over 1.00 (B2 the fast hand)");
+    CHECK(pt[QD_QP_RB1] == 3 && pt[QD_QP_RB2] == 4 && sv.pair[3] && !strcmp(sv.txt[3], "2.00") &&
+              !strcmp(sv.den[3], "1.00") && !strcmp(sv.lab[3], "RATIO B"),
+          "RATIO, KNOB 4: RATIO B 1.00/1.00 -> 2.00 over 1.00 (B2 the fast hand)");
     qd_player_live_edit(&A.player, 0, QD_QP_RB2, 18);
-    turn(QD_K_3, 1);
+    turn(QD_K_4, 1);
     CHECK(pt[QD_QP_RB1] == 4 && pt[QD_QP_RB2] == 0, "B2 at 16.00, +1: carries into B1 (2.00), B2 0.25");
     bdown(SHIFT);
-    turn(QD_K_3, -2);
+    turn(QD_K_4, -2);
     bup(SHIFT);
-    CHECK(pt[QD_QP_RB1] == 2 && pt[QD_QP_RB2] == 0, "SHIFT + KNOB 3: B1 two steps (the slow hand), B2 kept");
-    turn(QD_K_4, 20);
+    CHECK(pt[QD_QP_RB1] == 2 && pt[QD_QP_RB2] == 0, "SHIFT + KNOB 4: B1 two steps (the slow hand), B2 kept");
+    turn(QD_K_PRESETS, 20);
     qd_view_snd(&A, &sv);
-    CHECK(pt[QD_QP_MIX] == -64 + 20 && sv.has_mix && sv.mix == -44 && !strcmp(sv.lab[3], "MIX"),
-          "KNOB 4: MIX (-64 -> -44), the drawing's balance");
+    CHECK(pt[QD_QP_MIX] == -64 + 20 && sv.has_mix && sv.mix == -44 && !strcmp(sv.lab[4], "MIX"),
+          "PRESETS: MIX (-64 -> -44), the drawing's balance");
     A.ui.snd_page = qd_snd_page_of("TONE");
     qd_view_snd(&A, &sv);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TONE") && sv.has[3] && sv.has_mix && sv.mix == -44 &&
@@ -4901,10 +4916,10 @@ static void g_p15i_ratio(void)
     A.ui.snd_page = qd_snd_page_of("RATIO");
     wtap(3);
     whold(3);
-    turn(QD_K_3, 1);
+    turn(QD_K_4, 1);
     qd_view_snd(&A, &sv);
-    CHECK(LK(0, 3, QD_QP_RB1) == 2 && LK(0, 3, QD_QP_RB2) == 1 && pt[QD_QP_RB2] == 0 && sv.locked[2],
-          "a step held, KNOB 3: both halves locked (B1 2, B2 1), the track's stay");
+    CHECK(LK(0, 3, QD_QP_RB1) == 2 && LK(0, 3, QD_QP_RB2) == 1 && pt[QD_QP_RB2] == 0 && sv.locked[3],
+          "a step held, KNOB 4: both halves locked (B1 2, B2 1), the track's stay");
     wrel(3);
     btap(QD_B_HOME);
 }
@@ -5099,9 +5114,9 @@ static void g_e4_mods(void)
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "MOD") && sv.mod_src[0] == QD_MS_VEL && sv.mod_dep[0] == 2 &&
               sv.mod_src[1] == QD_MS_MW && sv.mod_dep[1] == -2 && sv.mod_sel == 2 && sv.mod_dst[0] &&
               !strcmp(sv.mod_dst[0], "FREQ"), "MOD: the slots' rows, the last mapped slot chosen (3)");
-    turn(QD_K_ALGO, -1);
+    turn(QD_K_PRESETS, -1);
     turn(QD_K_3, 5);
-    CHECK(A.ui.mod_slot == 1 && MS(1, DEPTH) == 3, "MOD: ALGORITHM the slot (2), its DEPTH turned (-2 -> +3)");
+    CHECK(A.ui.mod_slot == 1 && MS(1, DEPTH) == 3, "MOD: PRESETS the slot (2), its DEPTH turned (-2 -> +3)");
     btap(QD_B_HOME);
     /* a step held: the slot locked on the step, the track's sound untouched */
     start();
@@ -5146,19 +5161,19 @@ static void g_e41_machines(void)
     btap(QD_B_SOUND);
     pt = A.model.t[0].patch;
     A.ui.snd_page = qd_snd_page_of("FILTER");
-    turn(QD_K_ALGO, -1), turn(QD_K_ALGO, -1), turn(QD_K_ALGO, -1);
+    turn(QD_K_PRESETS, -1), turn(QD_K_PRESETS, -1), turn(QD_K_PRESETS, -1);
     for (k = 0; k < 6; k++) {
         ok &= pt[QD_QP_FTYPE] == FT[k] && !strcmp(QD_SND_MACHINE[qd_snd_machine(pt[QD_QP_FTYPE])], WANT[k]);
-        turn(QD_K_ALGO, 1);
+        turn(QD_K_PRESETS, 1);
     }
-    CHECK(ok && pt[QD_QP_FTYPE] == QD_QF_EQ, "ALGORITHM: MULTI, LOWPASS 4, LEGACY, COMB-, COMB+, EQ (and stops)");
+    CHECK(ok && pt[QD_QP_FTYPE] == QD_QF_EQ, "PRESETS: MULTI, LOWPASS 4, LEGACY, COMB-, COMB+, EQ (and stops)");
     for (k = 0; k < 3; k++)
-        turn(QD_K_ALGO, -1);
+        turn(QD_K_PRESETS, -1);
     turn(QD_K_3, 1);
     CHECK(pt[QD_QP_FTYPE] == QD_QF_HP12, "LEGACY: KNOB 3 its TYPE (HP12)");
-    turn(QD_K_ALGO, 1);
+    turn(QD_K_PRESETS, 1);
     CHECK(pt[QD_QP_FTYPE] == QD_QF_COMBN, "LEGACY, then COMB-");
-    turn(QD_K_ALGO, -1);
+    turn(QD_K_PRESETS, -1);
     CHECK(pt[QD_QP_FTYPE] == QD_QF_LP12, "back to LEGACY: LP12, its default");
     btap(QD_B_HOME);
 }
@@ -6406,9 +6421,9 @@ static void g_p16g_misc(void)
     start();
     btap(QD_B_SOUND);
     A.ui.snd_page = qd_snd_page_of("FILTER");
-    turn(QD_K_ALGO, 1);
+    turn(QD_K_PRESETS, 1);
     qd_view_snd(&A, &sv);
-    CHECK(sv.fpop && !A.ui.snd_fpop, "FILTER, ALGORITHM turned: the machines' popup shown (not held)");
+    CHECK(sv.fpop && !A.ui.snd_fpop, "FILTER, PRESETS turned: the machines' popup shown (not held)");
     run(QD_FPOP_SHOW_MS + 20);
     qd_view_snd(&A, &sv);
     CHECK(!sv.fpop, "a second after the last detent: gone");
@@ -6420,7 +6435,7 @@ static void g_p16g_misc(void)
     run(500);
     b0 = pt[QD_QP_RB1];
     for (k = 0; k < 24; k++) {                          /* a fast spin: a detent every 8 ms */
-        qd_app_knob(&A, QD_K_3, 1);
+        qd_app_knob(&A, QD_K_4, 1);
         run(8);
     }
     CHECK(pt[QD_QP_RB1] - b0 >= 8, "RATIO B, a fast spin of 24 detents: B1 swept %d places (accelerated)", pt[QD_QP_RB1] - b0);
@@ -6738,8 +6753,8 @@ static void g_p15n(void)
     turn(QD_K_4, 30);
     A.ui.snd_page = qd_snd_page_of("RATIO");
     qd_view_snd(&A, &sv);
-    ok = sv.mix == -34 && !strcmp(sv.lab[3], "MIX");
-    turn(QD_K_4, 10);
+    ok = sv.mix == -34 && !strcmp(sv.lab[4], "MIX");
+    turn(QD_K_PRESETS, 10);
     A.ui.snd_page = qd_snd_page_of("TONE");
     qd_view_snd(&A, &sv);
     CHECK(ok && sv.has_mix && sv.mix == -24, "MIX on TONE moves RATIO's, and back (-34, -24)");
@@ -6750,7 +6765,7 @@ static void g_p15n(void)
     ok = sv.locked[3];
     A.ui.snd_page = qd_snd_page_of("RATIO");
     qd_view_snd(&A, &sv);
-    CHECK(ok && sv.locked[3] && LK(0, 3, QD_QP_MIX) == -19, "a step held, MIX locked on TONE: the same chip on RATIO");
+    CHECK(ok && sv.locked[4] && LK(0, 3, QD_QP_MIX) == -19, "a step held, MIX locked on TONE: the same chip on RATIO");
     wrel(3);
     btap(QD_B_HOME);
 }
@@ -10278,6 +10293,20 @@ static void g_kb_round3(void)
     bdown(SHIFT), run(QD_TAP_MS + 50), bup(SHIFT), run(10);
     ok &= !qd_ctl_shift(&A);
     CHECK(ok, "SHIFT: a click sticks, a click again ends it, a hold never sticks");
+    {   /* 2026-11-13 (owner): stuck + a menu button: SHIFT ends, the menu shown stays as it is */
+        const int v = A.ui.view;
+        bdown(SHIFT), run(30), bup(SHIFT), run(10);
+        btap(QD_B_HOME);
+        ok = !qd_ctl_shift(&A) && A.ui.view == v;
+        bdown(SHIFT), run(30), bup(SHIFT), run(10);
+        btap(QD_B_PAGE);
+        ok &= !qd_ctl_shift(&A) && A.ui.latch == QD_LATCH_MIX && A.ui.mix_page == 0;
+        bdown(SHIFT), run(30), bup(SHIFT), run(10);
+        btap(QD_B_PAGE);
+        ok &= !qd_ctl_shift(&A) && A.ui.latch == QD_LATCH_MIX && A.ui.mix_page == 0;
+        btap(QD_B_HOME);
+        CHECK(ok && A.ui.view == v && !A.ui.latch, "SHIFT stuck + HOME: no next view; + ENV: the mix, again: its page kept");
+    }
     bdown(SHIFT), run(30), bup(SHIFT), run(10);
     btap(QD_B_OCTDN);                                   /* (SHIFT + F1: undo) */
     CHECK(!qd_ctl_shift(&A), "stuck SHIFT: a button (F1, its undo) ends it");
