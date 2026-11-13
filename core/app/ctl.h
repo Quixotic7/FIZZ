@@ -622,6 +622,7 @@ typedef struct {
                                          * held a moment) */
     uint32_t mfx_f1_ms;
     uint8_t mfx_from_keys;             /* 2026-11-13: opened over the keyboard page (KEYS), else a step view: back there */
+    uint32_t mfx_wms;                  /* 2026-11-13: the W keys' hold began (the step popup after QD_TAP_MS; 0 shown) */
     uint16_t mfx_wheld;                /* P1.6e: STEPS (the mode STEP there; KEYS the keyboard's: P1.6f, one state): the
                                         * steps held (the page's W keys), their MIDI FX locked by ALGORITHM */
     qd_mfx_slot_t mfx_clip;            /* P1.6d: F1's copy, F2's hand .. */

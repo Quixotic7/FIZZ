@@ -190,6 +190,10 @@ void qd_mfx_ms(qd_app_t *a)
             if (!((a->keys_held >> QD_WHITE_KEY[w]) & 1u))
                 u->mfx_wheld &= (uint16_t)~(1u << w);
     }
+    if (u->mfx_wheld && u->mfx_wms && a->ms - u->mfx_wms >= QD_TAP_MS) {
+        u->mfx_wms = 0;
+        qd_mfx_step_popup(a);
+    }
 }
 
 void qd_mfx_black(qd_app_t *a, int b, int down)
@@ -218,6 +222,7 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
             for (w = 0; w < 16; w++)
                 if ((u->mfx_wheld >> w) & 1u)
                     qd_step_set_mfx(p, a->sel, u->page[a->sel] * QD_PAGE + w, m);
+            u->mfx_wms = 0;                             /* (a shortcut: the popup at once) */
             qd_mfx_step_popup(a);
             return;
         }
@@ -315,6 +320,9 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
                                                          * FX); no sound */
         if (w < 0 || w >= 16)
             return;
+        if (down && !u->mfx_wheld)
+            u->mfx_wms = a->ms ? a->ms : 1u;            /* (2026-11-13, owner: the popup after a moment held, not on
+                                                         * a quick click: qd_mfx_ms) */
         if (down)                                       /* (2026-11-13: the W keys down, the latch on or off: the
                                                          * black keys' shortcuts; the release always clears it) */
             u->mfx_wheld |= (uint16_t)(1u << w);
@@ -329,8 +337,6 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
         }
         if (!u->mfx_wheld && u->tk == QD_TK_MFX_STEP)
             u->tk = QD_TK_NONE, u->tk_hold = 0;         /* (its picture: while held, the latch on too) */
-        if (down)
-            qd_mfx_step_popup(a);                       /* (2026-10-26: the popup at once, not only after ALGORITHM) */
         return;
     }
     if (down) {                                         /* the track through the group (its release: the app's) */

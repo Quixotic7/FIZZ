@@ -5957,7 +5957,7 @@ static void g_mfx_live(void)
 {
     qd_mfx_group_t *G;
     uint32_t m0;
-    int w;
+    int w, ok;
     start();
     for (w = 0; w < 16; w += 2)
         wtap(w);
@@ -5979,9 +5979,14 @@ static void g_mfx_live(void)
           "group (%u -> %u)", (unsigned)m0, (unsigned)A.player.mfx_ons);
     btap(QD_B_PLAY);
     turn(QD_K_PRESETS, -1);
+    wtap(2);                                            /* (2026-11-13, owner: a quick click: no popup) */
+    ok = A.ui.tk != QD_TK_MFX_STEP;
     kdown(WK(4));
     run(30);
-    CHECK(A.ui.tk == QD_TK_MFX_STEP && A.ui.tk_step == 4 && A.ui.tk_hold, "W5 held: its group popup at once");
+    ok &= A.ui.tk != QD_TK_MFX_STEP;
+    run(QD_TAP_MS);
+    CHECK(ok && A.ui.tk == QD_TK_MFX_STEP && A.ui.tk_step == 4 && A.ui.tk_hold,
+          "W3 clicked: no popup; W5 held: its group popup after a moment");
     black(B1);
     CHECK(PAT()->step[0][4].mfx == QD_SMFX_OFF, "B1: the step OFF");
     black(B3);
