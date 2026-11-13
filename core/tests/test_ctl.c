@@ -5935,6 +5935,8 @@ static void g_p16e_mfx(void)
     run(20);
     btap(QD_B_REC);                                     /* (back to STEPS: the step view after) */
     btap(QD_B_HOME);
+    if (A.ui.ekeys)
+        black(B11);                                     /* (2026-11-13: B11's state is global: the steps again) */
     /* the latch's selection counts */
     btap(LFO);
     wtap(4);
@@ -5995,8 +5997,8 @@ static void g_mfx_live(void)
     btap(QD_B_KEYS);
     kdown(WK(6)), kup(WK(6));
     run(QD_TK_MS + QD_TK_FADE_MS + 100);
-    CHECK(A.ui.slatch && A.ui.held[0] == 6 && A.ui.tk == QD_TK_MFX_STEP, "the latch, step 7 selected, the MIDI FX "
-          "screen: its popup stays up");
+    CHECK(A.ui.slatch && A.ui.held[0] == 6 && A.ui.tk != QD_TK_MFX_STEP, "the latch, step 7 selected, the MIDI FX "
+          "screen: W7 let go, the popup gone (2026-11-13, owner)");
     black(B2);
     CHECK(PAT()->step[0][6].mfx == QD_SMFX_TRACK && A.ui.mfx_slot == 1,
           "B2 (2026-11-13, owner: no W key held): slot 2, the selection's group untouched");
@@ -6098,12 +6100,10 @@ static void g_p16f_keys(void)
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_OFF &&
               !strcmp(lb.s[QD_LBL_B0 + 10], "SEL/STEPS"), "a B11 click: KEYS (B11 labelled SEL/STEPS)");
     btap(QD_B_KEYS);
-    CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && qd_view_screen(&A) == QD_SCR_KEYS, "left on KEYS: the keyboard");
-    qd_ctl_labels(&A, &lb);
-    CHECK(leds().button[QD_B_REC] == QD_LED_LIT && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "RECORD"), "the keyboard: REC "
-          "lit, its label RECORD (2026-11-10: a tap records there)");
+    CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP && A.ui.ekeys,
+          "left on KEYS: back to the step view, its step keyboard on (2026-11-13: B11's state global)");
     btap(QD_B_KEYS);
-    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS, "opened from the keyboard: KEYS");
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS, "opened again: KEYS");
     black(B11);
     btap(QD_B_HOME);
     CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP && qd_view_screen(&A) != QD_SCR_KEYS, "left on STEPS: the step view");
@@ -6158,13 +6158,13 @@ static void g_p16h_f1(void)
     CHECK(qd_snd_keys(&A) && A.oct == oct - 1, "its keyboard: F1 the octave (%d -> %d), open", oct, A.oct);
     btap(QD_B_HOME);
     CHECK(!A.ui.latch, "HOME: closed");
-    btap(QD_B_KEYS);
-    btap(F1);
-    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP, "MIDI FX, STEPS: F1 tapped, open");
-    black(B11);                                         /* (2026-11-10: a B11 click the keys; REC was) */
+    btap(QD_B_KEYS);                                    /* (2026-11-13: B11's state global: the editor's keys, KEYS) */
     oct = A.oct;
     btap(F1);
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && A.oct == oct, "MIDI FX, KEYS: F1 tapped, open (no octave)");
+    black(B11);
+    btap(F1);
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP, "MIDI FX, STEPS: F1 tapped, open");
     btap(QD_B_KEYS);
     CHECK(!qd_mfx_open(&A), "ARP: closed");
     btap(QD_B_HOME);
@@ -10325,9 +10325,11 @@ static void g_mfx_knobs(void)
         ok &= PAT()->step[0][4].mfx == QD_SMFX_TRACK && A.ui.mode == QD_MODE_STEP;
         black(B1);
         ok &= PAT()->step[0][4].mfx == QD_SMFX_OFF;
+        ok &= A.ui.tk == QD_TK_MFX_STEP;
         kup(WK(4));
         run(30);
-        CHECK(ok && !A.ui.mfx_wheld, "the latch on, W5 held: B3 group 2 (lit), B8 / B10 nothing, B11 TRACK, B1 OFF");
+        CHECK(ok && !A.ui.mfx_wheld && A.ui.tk != QD_TK_MFX_STEP,
+              "the latch on, W5 held: the popup, B3 group 2 (lit), B8 / B10 nothing, B11 TRACK, B1 OFF; let go: the popup gone");
         turn(QD_K_ALGO, -16);
         kdown(WK(6));
         run(30);
@@ -10341,6 +10343,37 @@ static void g_mfx_knobs(void)
               A.ui.nheld);
     }
     btap(QD_B_HOME);
+}
+
+
+/* 2026-11-13 (owner): the MIDI FX screen keeps B11's one global state: the step keyboard KEYS, the selection STEPS */
+static void g_mfx_b11_global(void)
+{
+    int ok;
+    start();
+    keys_compat = 0;
+    black(B11);                                         /* Home: the step keyboard on */
+    ok = A.ui.ekeys && A.ui.mode == QD_MODE_STEP;
+    btap(QD_B_KEYS);
+    ok &= qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS;
+    black(B11);
+    ok &= A.ui.mode == QD_MODE_STEP && !A.ui.ekeys;
+    btap(QD_B_KEYS);
+    CHECK(ok && !qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP && !A.ui.ekeys,
+          "Home's step keyboard: MIDI FX KEYS; B11 there: STEPS; ARP: Home, the step selection (m%d e%d)", A.ui.mode,
+          A.ui.ekeys);
+    black(B11);
+    btap(QD_B_KEYS);
+    ok = A.ui.mode == QD_MODE_KEYS;
+    btap(QD_B_KEYS);
+    btap(QD_B_REC);                                     /* the keyboard page: the keys (ekeys) */
+    ok &= A.ui.mode == QD_MODE_KEYS && !A.ui.ksteps;
+    black(B11);                                         /* .. its STEPS */
+    btap(QD_B_KEYS);
+    ok &= A.ui.mode == QD_MODE_STEP && !A.ui.ekeys;
+    btap(QD_B_KEYS);
+    CHECK(ok && A.ui.mode == QD_MODE_KEYS && A.ui.ksteps && !qd_mfx_open(&A),
+          "the keyboard page's STEPS: MIDI FX STEPS; ARP: the keyboard page, STEPS");
 }
 
 /* 2026-11-13 (owner): B11's state is one across the Home views and the keyboard page (REC): the Home views' steps are
@@ -10663,6 +10696,7 @@ int main(void)
         {"2026-11-13: SAVE a step's sound from the editor", g_save_step},
         {"2026-11-13: B11 one state: the Home views and the keyboard page", g_b11_global},
         {"2026-11-13: the MIDI FX screen's knobs", g_mfx_knobs},
+        {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
     };

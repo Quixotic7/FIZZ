@@ -621,6 +621,7 @@ typedef struct {
     int mfx_f1_src;                    /* P1.6e: F1's copy came from this slot (-1); F1 went down (its COPY picture once
                                          * held a moment) */
     uint32_t mfx_f1_ms;
+    uint8_t mfx_from_keys;             /* 2026-11-13: opened over the keyboard page (KEYS), else a step view: back there */
     uint16_t mfx_wheld;                /* P1.6e: STEPS (the mode STEP there; KEYS the keyboard's: P1.6f, one state): the
                                         * steps held (the page's W keys), their MIDI FX locked by ALGORITHM */
     qd_mfx_slot_t mfx_clip;            /* P1.6d: F1's copy, F2's hand .. */
@@ -875,6 +876,7 @@ const qd_lockscreen_t *qd_snd_lock_screen(const struct qd_app *a, int page);
  * white keys play the track through the group (the arp's lanes: the steps; SHIFT + W a random value); F1 tapped or
  * HOME close it. (T1b: ARP held: the arp bypassed / playing, TOOLS is SEQ tapped; the arp on / off is its slot here: added / removed, B10 bypass) */
 int qd_mfx_open(const struct qd_app *a);
+void qd_mfx_close(struct qd_app *a);             /* 2026-11-13: ARP tapped: closed, back to the page under it */
 int qd_mfx_vgroup(const struct qd_app *a);   /* 2026-11-13: the group the MIDI FX screen shows (a step's) */
 int qd_mfx_tgroup(const struct qd_app *a);        /* the selected track's group (0 OFF, 1..5) */
 void qd_mfx_track_changed(struct qd_app *a, int t);   /* 2026-10-26: track t's group changed: its notes leave the old

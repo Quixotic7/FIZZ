@@ -262,8 +262,9 @@ USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at 
           # grid, SAVE's STEP: 624 B over; the step controls, no drawing, and the takeovers' bands, as on Bluetooth)
           "build_units_c_clip.o", "build_units_c_chord.o",   # (2026-11-13, the MIDI FX screen following the step: 112
           # B over; the clipboard and the notes' names, as on Bluetooth)
-          "build_units_c_ctl_preview.o"}   # (2026-11-13, the MIDI FX steps' shortcuts: 128 B over; the value
+          "build_units_c_ctl_preview.o",   # (2026-11-13, the MIDI FX steps' shortcuts: 128 B over; the value
           # preview's controls, no drawing, as on Bluetooth)
+          "build_units_c_ctl.o"}   # (2026-11-13, MIDI FX keeping B11's global state: 64 B over; the controls' dispatch, no drawing)
 # (2026-11-12, the orange keys' modes: the single-core package's slot 2,476 B over, 1,508 free before: ui_idle.o and
 # ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
 SINGLE_OZ = USB_OZ | {"build_units_c_ui_held.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)

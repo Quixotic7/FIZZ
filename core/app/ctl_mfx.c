@@ -106,8 +106,11 @@ static void mf_first_slot(qd_app_t *a)                  /* an empty slot selecte
 void qd_mfx_screen(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
+    u->mfx_from_keys = u->mode == QD_MODE_KEYS;
     if (u->mode != QD_MODE_STEP && u->mode != QD_MODE_KEYS)
-        qd_ctl_set_mode(a, QD_MODE_STEP);               /* (P1.6f: from the keyboard: KEYS; else STEPS) */
+        qd_ctl_set_mode(a, QD_MODE_STEP);
+    u->mode = u->ekeys ? QD_MODE_KEYS : QD_MODE_STEP;   /* (2026-11-13, owner: B11's one global state: the step
+                                                         * keyboard KEYS, the step selection STEPS) */
     if (!u->slatch)                                     /* (P1.6e: the latch's selection kept: STEPS locks it) */
         qd_step_release_all(a);
     qd_latch_open(a, QD_LATCH_MFX);
@@ -124,6 +127,16 @@ void qd_mfx_screen(qd_app_t *a)
     mf_first_slot(a);
 }
 static void mf_closed(qd_app_t *a) { a->ui.mfx_arm = -1, a->ui.mfx_f1 = 0; }
+void qd_mfx_close(qd_app_t *a)                          /* (ARP tapped: back to the page it opened over, B11's state
+                                                         * kept; HOME and the other pages: theirs) */
+{
+    qd_ui_t *u = &a->ui;
+    qd_latch_close(a);
+    if (u->mode == QD_MODE_STEP || u->mode == QD_MODE_KEYS) {
+        u->mode = u->mfx_from_keys ? QD_MODE_KEYS : QD_MODE_STEP;
+        u->ksteps = (uint8_t)!u->ekeys;
+    }
+}
 static int mf_key_down(const qd_app_t *a, int b) { return (int)((a->keys_held >> QD_BLACK_KEY[b]) & 1u); }
 
 /* the slot moved from i to j, the ones between closing up (F2 + B) */
@@ -313,11 +326,9 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
                 qd_step_white_down(a, w);
             else
                 qd_step_white_up_hold(a, w);
-            qd_mfx_step_popup(a);
-            return;
         }
         if (!u->mfx_wheld && u->tk == QD_TK_MFX_STEP)
-            u->tk = QD_TK_NONE;                         /* (its picture: while held) */
+            u->tk = QD_TK_NONE, u->tk_hold = 0;         /* (its picture: while held, the latch on too) */
         if (down)
             qd_mfx_step_popup(a);                       /* (2026-10-26: the popup at once, not only after ALGORITHM) */
         return;
@@ -342,6 +353,8 @@ void qd_mfx_rec(qd_app_t *a)
         qd_step_release_all(a);
         u->mode = QD_MODE_KEYS;
     }
+    u->ekeys = u->mode == QD_MODE_KEYS;                 /* (B11's one global state) */
+    u->ksteps = (uint8_t)!u->ekeys;
     u->mfx_wheld = 0;
     if (u->tk == QD_TK_MFX_STEP)
         u->tk = QD_TK_NONE, u->tk_hold = 0;

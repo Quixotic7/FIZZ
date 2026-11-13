@@ -1526,7 +1526,7 @@ static void b_fill(qd_app_t *a, int down)
     }
     if (!u->arp_used && a->ms - u->arp_ms < QD_ARP_HOLD_MS && u->mode != QD_MODE_IDLE) {
         if (qd_mfx_open(a))
-            qd_latch_close(a);
+            qd_mfx_close(a);
         else
             qd_mfx_screen(a);
     }
@@ -2539,7 +2539,8 @@ void qd_ctl_ms(qd_app_t *a)
             u->tk = QD_TK_NONE, u->tk_hold = 0, u->tk_lock = 0;   /* (let go: closed, the choice kept) */
     } else if (u->tk == QD_TK_MFX_STEP && u->tk_hold) {   /* P1.6e: STEPS' steps held: up while they are (2026-10-26:
                                                          * or the latch's selection on the MIDI FX screen) */
-        if (!u->mfx_wheld && !(qd_mfx_open(a) && u->slatch && u->nheld))
+        if (!u->mfx_wheld)                              /* (2026-11-13, owner: gone the moment the W keys are up,
+                                                         * the latch on too) */
             u->tk = QD_TK_NONE, u->tk_hold = 0;
     } else if (u->tk == UI_TK_TOOL && u->tk_knob != 1 && a->ms - u->tk_ms >= QD_TOOL_POP_MS) {
         u->tk = QD_TK_NONE;                             /* (T1: a tool's name, a message: ~0.8 s) */
