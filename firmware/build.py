@@ -243,10 +243,14 @@ BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_
           # (2026-11-13, round 3, the owner's OK: the controls' step and keys units: ~2 KB over)
           "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",
           *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
-USB_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o"}   # (2026-11-13: + the held screens: 224 B over)
+USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at -Os: -Oz made the EDIT view ~15 ms a frame
+          # slower playing (87 vs 72 ms, unit); the cold units at -Oz in their place: the idle screen, the pickers, the
+          # octave map, the mix's pages, the keys' recording and latch code)
+          "build_units_c_ui_idle.o", "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
+          "build_units_c_ctl_rec.o", "build_units_c_ctl_latch.o"}
 # (2026-11-12, the orange keys' modes: the single-core package's slot 2,476 B over, 1,508 free before: ui_idle.o and
 # ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
-SINGLE_OZ = USB_OZ | {"build_units_c_ui_idle.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)
+SINGLE_OZ = USB_OZ | {"build_units_c_ui_held.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)
                       "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
                       "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o"}   # (round 3)
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
