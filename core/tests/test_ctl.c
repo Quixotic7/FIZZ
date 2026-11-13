@@ -10159,6 +10159,13 @@ static void g_kb_round2(void)
     CHECK(A.ui.mk_svel == 40 && l.key[WK(11)] == QD_LED_LIT && !R(0, 0).on, "SOUND, LIVE: W12 the pads' velocity (40), lit");
     kdown(WK(0)), run(20);
     CHECK(sounding(60) || A.ui.mk_nt[0], "W1 sounds (at the pads' velocity)");
+    {   /* (2026-11-13, owner: LIVE shows the played sound's name, not the track's) */
+        static ui_held_t h;
+        static ui_lane_t ln;
+        qd_view_edit(&A, &h, &ln);
+        CHECK(h.is_default && h.sound == 1 && h.sound_cur && !strcmp(h.sound_cur, qd_sound_name(&A.proj, 1)),
+              "SOUND, LIVE, W1 held: the screen names sound 1 (%s)", h.sound_cur ? h.sound_cur : "-");
+    }
     kup(WK(0)), run(10);
     mode(M_TRIG);
     turn(QD_K_ALGO, 4);
@@ -10247,7 +10254,14 @@ static void g_kb_round3(void)
     btap(QD_B_PLAY);
     bdown(SHIFT), run(30), bup(SHIFT), run(10);
     ok = qd_ctl_shift(&A);
+    {   /* stuck: its LED blinks (lit and off within a blink period) */
+        int lit = 0, off = 0;
+        for (n = 0; n < 4; n++, run(QD_BLINK_MS / 2))
+            leds().button[SHIFT] == QD_LED_LIT ? lit++ : off++;
+        ok &= lit && off;
+    }
     bdown(SHIFT), run(30), bup(SHIFT), run(10);
+    ok &= leds().button[SHIFT] == QD_LED_OFF;
     ok &= !qd_ctl_shift(&A);
     bdown(SHIFT), run(QD_TAP_MS + 50), bup(SHIFT), run(10);
     ok &= !qd_ctl_shift(&A);

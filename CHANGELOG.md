@@ -9,6 +9,9 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **SHIFT's button blinks while it is stuck** (after a quick click).
+- **SOUND, LIVE**: the screen names the sound you play, not only its number.
+
 ## 0.12.0-beta.17 (2026-11-13)
 
 A speed fix for beta.16 on the USB package.

@@ -402,6 +402,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     }
     for (i = 0; i < QD_NBTN; i++)
         out->button[i] = held(a, i) ? QD_LED_LIT : QD_LED_OFF;
+    if (u->shift_stick && !held(a, QD_B_FUNC))          /* 2026-11-13 (owner): a stuck SHIFT blinks */
+        out->button[QD_B_FUNC] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
     {   /* the OCT keys where they are an octave: blinking by the distance from the centre */
         int shown;
         const int off = qd_ctl_oct_offset(a, &shown);

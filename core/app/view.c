@@ -307,14 +307,15 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
     const qd_tset_t *ts = &P->trk[t];
     const qd_step_t *st = qd_step(P, t, s < 0 ? 0 : s);
     qd_rstep_t r;
-    int i, k;
+    int i, k, mk_snd = 0;
     memset(v, 0, sizeof *v);
     if (is_default) {                                   /* the track's defaults: a step with no overrides */
         static qd_step_t on;
         memset(&on, 0, sizeof on);
         on.flags = QD_SF_ON;
         qd_step_resolve_def(&ts->def, &on, &r);
-        qd_mk_show(a, &r);                              /* (2026-11-13: LIVE, a W key held: its value shown) */
+        mk_snd = qd_mk_show(a, &r) && m == UI_F_SOUND && u->mk_shw <= 10;   /* (2026-11-13: LIVE, a W key held: its
+                                                         * value shown; SOUND: the sound's name too) */
         st = &on;
     } else {
         qd_step_resolve(P, t, s, &r);
@@ -427,7 +428,7 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
         for (i = 0; i < QD_PAGE; i++)
             v->jump_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, t, v->jump_page * QD_PAGE + i));
     }
-    v->sound_cur = is_default || r.sound <= 0 ? qd_track_sound_label(&a->model.t[t]) : sound_name(a, r.sound);   /* (P1.3y:
+    v->sound_cur = (is_default && !mk_snd) || r.sound <= 0 ? qd_track_sound_label(&a->model.t[t]) : sound_name(a, r.sound);   /* (P1.3y:
                                                          * no lock: the track's sound by name, under TRACK) */
     v->sound_prev = r.sound > 0 ? sound_name(a, r.sound - 1) : 0;
     v->sound_next = r.sound < a->proj.nsound ? sound_name(a, r.sound + 1) : 0;
