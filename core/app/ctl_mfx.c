@@ -170,6 +170,13 @@ void qd_mfx_ms(qd_app_t *a)
         mf_drop(a);
     if (u->mfx_wheld && !qd_mfx_open(a))
         u->mfx_wheld = 0;
+    if (u->mfx_wheld) {                                 /* (2026-11-13: only the W keys really down: a release missed
+                                                         * never leaves a step stuck held) */
+        int w;
+        for (w = 0; w < 16; w++)
+            if (!((a->keys_held >> QD_WHITE_KEY[w]) & 1u))
+                u->mfx_wheld &= (uint16_t)~(1u << w);
+    }
 }
 
 void qd_mfx_black(qd_app_t *a, int b, int down)
@@ -187,19 +194,17 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
     {   /* 2026-10-26 (the owner): a step held (or the latch's selection): the black keys are its group: B1 OFF, B2..B6
          * groups 1..5, B11 back to the track's; the popup shows it */
         int s0 = 0;
-        if (u->mfx_wheld && qd_mfx_steps_held(a, &s0) && (b < 1 + QD_MFX_NGROUP || b == 10)) {   /* (2026-11-13,
-                                                         * owner: only with the W keys held; a selection: the slots) */
+        if (u->mfx_wheld && qd_mfx_steps_held(a, &s0)) {   /* (2026-11-13, owner: only with the W keys held, the
+                                                         * latch on or off; a selection alone: the slots. The other
+                                                         * black keys do nothing then) */
             qd_pattern_t *p = qd_ctl_pat(a);
             const int m = b == 10 ? QD_SMFX_TRACK : b == 0 ? QD_SMFX_OFF : QD_SMFX_G1 + b - 1;
-            int w, i;
-            if (u->mfx_wheld) {
-                for (w = 0; w < 16; w++)
-                    if ((u->mfx_wheld >> w) & 1u)
-                        qd_step_set_mfx(p, a->sel, u->page[a->sel] * QD_PAGE + w, m);
-            } else {
-                for (i = 0; i < u->nheld; i++)
-                    qd_step_set_mfx(p, a->sel, u->held[i], m);
-            }
+            int w;
+            if (b >= 1 + QD_MFX_NGROUP && b != 10)
+                return;
+            for (w = 0; w < 16; w++)
+                if ((u->mfx_wheld >> w) & 1u)
+                    qd_step_set_mfx(p, a->sel, u->page[a->sel] * QD_PAGE + w, m);
             qd_mfx_step_popup(a);
             return;
         }
@@ -297,6 +302,11 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
                                                          * FX); no sound */
         if (w < 0 || w >= 16)
             return;
+        if (down)                                       /* (2026-11-13: the W keys down, the latch on or off: the
+                                                         * black keys' shortcuts; the release always clears it) */
+            u->mfx_wheld |= (uint16_t)(1u << w);
+        else
+            u->mfx_wheld &= (uint16_t)~(1u << w);
         if (u->slatch) {                                /* 2026-10-26 (the owner): the latch on: the step view's
                                                          * selection, as on EDIT (a tap selects, several together) */
             if (down)
@@ -306,10 +316,6 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
             qd_mfx_step_popup(a);
             return;
         }
-        if (down)
-            u->mfx_wheld |= (uint16_t)(1u << w);
-        else
-            u->mfx_wheld &= (uint16_t)~(1u << w);
         if (!u->mfx_wheld && u->tk == QD_TK_MFX_STEP)
             u->tk = QD_TK_NONE;                         /* (its picture: while held) */
         if (down)
@@ -529,6 +535,18 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
                                  : !qd_page_in_range(&p->trk[a->sel], st) ? QD_LED_OFF
                                  : ty == QD_TRIG_LOCK ? QD_LED_DIM : ty ? QD_LED_LIT : QD_LED_FAINT;
         }
+    }
+    if (u->mfx_wheld && !lane && u->mode == QD_MODE_STEP) {   /* (2026-11-13, owner: W keys held: the black keys
+                                                         * their group's shortcuts, B1 OFF, B2..B6 1..5, B11 TRACK; the
+                                                         * held step's lit) */
+        int s0 = 0, m;
+        qd_mfx_steps_held(a, &s0);
+        m = qd_ctl_cpat(a)->step[a->sel][s0].mfx;
+        for (k = 0; k <= QD_MFX_NGROUP; k++)
+            key[QD_BLACK_KEY[k]] = QD_LED_DIM;
+        key[QD_BLACK_KEY[10]] = QD_LED_DIM;
+        key[QD_BLACK_KEY[m == QD_SMFX_OFF ? 0 : m == QD_SMFX_TRACK ? 10 : m - QD_SMFX_G1 + 1]] = QD_LED_LIT;
+        return;
     }
     if (!g)
         return;

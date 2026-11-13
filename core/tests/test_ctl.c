@@ -10305,6 +10305,41 @@ static void g_mfx_knobs(void)
     CHECK(ok && A.ui.mode == QD_MODE_KEYS && v.steps_frame && v.g == 2,
           "a step selected: the screen its group (OFF, then 2), the frame; the step keyboard on: still (%d m%d f%d g%d nh%d)",
           ok, A.ui.mode, v.steps_frame, v.g, A.ui.nheld);
+    {   /* (2026-11-13, owner: W keys held, the latch on or off: the black keys the steps' group, B1 OFF, B2..B6, B11
+         * TRACK, lit so; the others nothing; a release while the latch turns on never leaves a step held) */
+        qd_leds_t l;
+        const int slot0 = A.ui.mfx_slot, by = G->slot[slot0 & 7].bypass;
+        black(B11);                                     /* (STEPS again) */
+        turn(QD_K_ALGO, -5);
+        turn(QD_K_ALGO, 4);                             /* the latch on, step 4 */
+        kdown(WK(4));
+        run(30);
+        black(B3);
+        l = leds();
+        ok = A.ui.mode == QD_MODE_STEP && PAT()->step[0][4].mfx == QD_SMFX_G1 + 1 && l.key[BK(B3)] == QD_LED_LIT &&
+             l.key[BK(B1)] == QD_LED_DIM && l.key[BK(B11)] == QD_LED_DIM && l.key[BK(B8)] == QD_LED_OFF;
+        black(B8);
+        black(B10);
+        ok &= A.ui.mfx_slot == slot0 && G->slot[slot0 & 7].bypass == by;
+        black(B11);
+        ok &= PAT()->step[0][4].mfx == QD_SMFX_TRACK && A.ui.mode == QD_MODE_STEP;
+        black(B1);
+        ok &= PAT()->step[0][4].mfx == QD_SMFX_OFF;
+        kup(WK(4));
+        run(30);
+        CHECK(ok && !A.ui.mfx_wheld, "the latch on, W5 held: B3 group 2 (lit), B8 / B10 nothing, B11 TRACK, B1 OFF");
+        turn(QD_K_ALGO, -16);
+        kdown(WK(6));
+        run(30);
+        turn(QD_K_ALGO, 2);
+        kup(WK(6));
+        run(30);
+        ok = !A.ui.mfx_wheld && A.ui.slatch;
+        turn(QD_K_ALGO, -16);
+        CHECK(ok && !A.ui.slatch && !A.ui.nheld && qd_mfx_vgroup(&A) == qd_mfx_tgroup(&A),
+              "W7 held, ALGORITHM, W7 let go: nothing stuck; ALGORITHM fully left: the track (%d %d)", A.ui.slatch,
+              A.ui.nheld);
+    }
     btap(QD_B_HOME);
 }
 
