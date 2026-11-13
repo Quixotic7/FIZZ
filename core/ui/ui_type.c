@@ -197,6 +197,12 @@ void ui_type_draw(const ui_type_t *v)
     ui_T(v->title, 8.f, 17.f, 12.f, 600, 1.f, UI_LIB_COL, QD_LEFT);
     if (v->track)
         ui_box(214.f, 4.f, v->track, UI_TRACK_PAL[(v->track - 1) & 7]);
+    if (v->step) {                                      /* 2026-11-13: a step selected: the sound saved, the STEP's
+                                                         * (magenta, filled) or the TRACK's (KNOB 4) */
+        char lab[20] = "STEP ";
+        ui_itoa(lab + 5, v->step);
+        ui_chip(v->src ? lab : "TRACK", 172.f, 18.f, 12.f, 60.f, v->src ? UI_STEP_FRAME : UI_G1, v->src);
+    }
     line2(8.f, 25.f, 232.f, 25.f, UI_G3, 1.f);
     if (v->ideas_on) {
         ty_ideas(v);

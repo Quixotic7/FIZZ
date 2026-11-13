@@ -108,6 +108,10 @@ typedef struct {
     uint8_t page_trig[16];              /* rec 1: the cursor's page: 1 a step with a trig (row: the page edited's) */
     int row;                            /* 2026-11-10: B11 held or steps selected (rec 0): the page edited's row */
     uint16_t sel;                       /* .. its selected steps, outlined */
+    int ksteps;                         /* 2026-11-13 (owner): a B11 click's W keys the steps (the row up top): the
+                                         * keybed gives way to the ten black keys that play, an orange grid (ui_rec_key) */
+    uint8_t bst[10];                    /* .. their states (ui_rec_key's: 1 in the scale, 2 a root, +4 sounding) */
+    int play;                           /* the playing step on the page (0..15), -1 none */
     int quantize;                       /* rec 2: quantize is on ("Q" by the badge) */
     int scale;                          /* P1.3b: the track's scale (not chromatic: its name by the octave) */
     const char *scale_name;
@@ -291,6 +295,8 @@ typedef struct {
     int choice;                         /* .. P1.5v: 0 NEW, 1 REPLACE (the one SAVE does: bright, filled) */
     const char *newname;                /* .. NEW then saves as this (shown when it differs) */
     const char *sub;                    /* a project's number ("01") */
+    int step;                           /* 2026-11-13: SAVE PRESET, a step selected: its number (1..), 0 none .. */
+    int src;                            /* .. 1 the step's sound saved (KNOB 4: TRACK / STEP) */
     float t;
 } ui_type_t;
 void ui_type_draw(const ui_type_t *v);

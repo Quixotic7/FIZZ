@@ -239,6 +239,12 @@ int qd_type_knob(qd_app_t *a, int knob, int d)
         y->spark = 0;
         y->idea_ms = 0;
         ty_changed(a);
+    } else if (knob == QD_K_4 && a->ui.latch == QD_LATCH_SAVE && a->ui.sv.step >= 0) {   /* 2026-11-13 (owner): a step
+                                                         * selected: KNOB 4 the TRACK's sound or the STEP's */
+        if (a->ui.sv.src != (d > 0)) {
+            a->ui.sv.src = (uint8_t)(d > 0);
+            qd_sv_start(a);
+        }
     } else if (knob == QD_K_PRESETS || knob == QD_K_4 || knob == QD_K_2) {   /* P1.5z: names rolled, endless; left: the
                                                          * last ten (KNOB 2: the settings page's knob that opened it) */
         ty_roll(a, d);

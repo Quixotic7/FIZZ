@@ -10225,6 +10225,37 @@ static void g_kb_round2(void)
 /* 2026-11-13 (owner), round 3: F1 / F2 held on the step keyboard: the W keys the steps (their LEDs); B11 breathes with
  * the step keyboard on; ALGORITHM's step flashes its W key; LIVE playing: a VEL key held overrides every step's
  * velocity, recorded into each step passed (an empty one a LOCK step); SHIFT clicked sticks, a button ends it */
+/* 2026-11-13 (owner): SAVE in the sound editor with a step selected: the step's sound (its locks), KNOB 4 TRACK / STEP;
+ * the track's sound kept */
+static void g_save_step(void)
+{
+    qd_sound_t sd;
+    int f0, p0, ok, slot;
+    start();
+    btap(QD_B_SOUND);
+    A.ui.snd_page = qd_snd_page_of("TONE");
+    turn(QD_K_ALGO, 3);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2 && qd_snd_open(&A), "the editor, ALGORITHM: step 3 (%d)",
+          A.ui.nheld ? A.ui.held[0] + 1 : 0);
+    f0 = A.model.t[0].patch[QD_QP_FDBK];
+    p0 = A.model.t[0].preset;
+    turn(QD_K_3, 10);
+    CHECK(LK(0, 2, QD_QP_FDBK) == f0 + 10 && A.model.t[0].patch[QD_QP_FDBK] == f0, "KNOB 3: FDBK locked on step 3");
+    btap(QD_B_SAVE);
+    ok = A.ui.latch == QD_LATCH_SAVE && A.ui.sv.step == 2 && A.ui.sv.src == 1;
+    turn(QD_K_4, -1);
+    ok &= !A.ui.sv.src;
+    turn(QD_K_4, 1);
+    CHECK(ok && A.ui.sv.src == 1, "SAVE: the step's sound (STEP 3); KNOB 4 left TRACK, right STEP again");
+    btap(QD_B_SAVE);
+    slot = qd_lib_find(&A, A.ui.tk_snd.preset);
+    ok = slot >= 0 && A.ui.latch != QD_LATCH_SAVE;
+    if (ok)
+        qd_lib_read(&A, slot, &sd);
+    CHECK(ok && sd.patch[QD_QP_FDBK] == f0 + 10 && A.model.t[0].preset == p0 && A.model.t[0].patch[QD_QP_FDBK] == f0,
+          "SAVE again: a new preset with the step's FDBK (%d); the track's sound kept", ok ? sd.patch[QD_QP_FDBK] : -1);
+}
+
 static void g_kb_round3(void)
 {
     qd_leds_t l;
@@ -10483,6 +10514,7 @@ int main(void)
         {"2026-11-12: the orange keys in the hold modes: values, LEDs, + B11, SOUND, REC, the page flash", g_keys_modes},
         {"2026-11-13: the step keyboard, round 2: MICRO's W8, LFO, F1 / F2, SOUND's velocity, TRIG, LIVE shown, LEN, B11's row",
          g_kb_round2},
+        {"2026-11-13: SAVE a step's sound from the editor", g_save_step},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
     };

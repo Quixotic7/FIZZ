@@ -247,8 +247,10 @@ USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at 
           # slower playing (87 vs 72 ms, unit); the cold units at -Oz in their place: the idle screen, the pickers, the
           # octave map, the mix's pages, the keys' recording and latch code)
           "build_units_c_ui_idle.o", "build_units_c_ui_picker.o", "build_units_c_ui_octave.o",
-          "build_units_c_ctl_rec.o", "build_units_c_ctl_latch.o"}   # (not ui_tracks.o: it draws the Home views' rows and
-          # the mix; at -Oz every Home view drew ~10 ms slower, drawbench on the unit)
+          "build_units_c_ctl_rec.o", "build_units_c_ctl_latch.o",   # (not ui_tracks.o: it draws the Home views' rows
+          # and the mix; at -Oz every Home view drew ~10 ms slower, drawbench on the unit)
+          "build_units_c_ctl_step.o", "build_units_c_ui_turn.o"}   # (2026-11-13: the editor's knobs, the B11 STEPS
+          # grid, SAVE's STEP: 624 B over; the step controls, no drawing, and the takeovers' bands, as on Bluetooth)
 # (2026-11-12, the orange keys' modes: the single-core package's slot 2,476 B over, 1,508 free before: ui_idle.o and
 # ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
 SINGLE_OZ = USB_OZ | {"build_units_c_ui_held.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)

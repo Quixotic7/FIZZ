@@ -124,15 +124,21 @@ void ui_keys_draw(const ui_keys_t *v)
         ui_O(x + ui_TW(v->sound, 26.f, 300, 0.5f) + 6.f, 74.f, 2.f, QD_NONE, 1.f, UI_K4);
 
     /* the keybed */
-    for (i = 0; i < 128; i++) {                         /* (2026-11-10: back to the white keybed; a selected step's
+    if (v->ksteps && v->row) {                          /* 2026-11-13 (owner): the W keys the steps (the row up top):
+                                                         * the ten black keys that play, an orange grid */
+        for (i = 0; i < 10; i++)
+            ui_rec_key(16.f + (float)i * 21.f, 118.f, 18.f, 78.f, v->bst[i]);
+    } else {
+        for (i = 0; i < 128; i++) {                     /* (2026-11-10: back to the white keybed; a selected step's
                                                          * notes in the held step's magenta) */
-        fill[i] = v->sounding[i] == 1 ? UI_K3 : v->sounding[i] ? UI_STEP_FRAME : QD_NONE;
-        below |= v->sounding[i] && i < lo;
-        above |= v->sounding[i] && i >= lo;
+            fill[i] = v->sounding[i] == 1 ? UI_K3 : v->sounding[i] ? UI_STEP_FRAME : QD_NONE;
+            below |= v->sounding[i] && i < lo;
+            above |= v->sounding[i] && i >= lo;
+        }
+        if (below && !above && lo >= 12)
+            lo -= 12;
+        ui_keybed(14.f, 118.f, 212.f, 78.f, lo, 16, fill);
     }
-    if (below && !above && lo >= 12)
-        lo -= 12;
-    ui_keybed(14.f, 118.f, 212.f, 78.f, lo, 16, fill);
 
     num[0] = 0;                                         /* the octave; a track in a scale: the scale */
     cat(num, oct_name(v->octave));
@@ -151,7 +157,8 @@ void ui_keys_draw(const ui_keys_t *v)
         uint16_t trig = 0;
         for (i = 0; i < 16; i++)
             trig |= (uint16_t)((v->page_trig[i] != 0) << i);
-        ui_page_row(38.f, trig, v->sel, c, -1);         /* (above the sound's name, 12 px: the owner, 2026-11-10) */
+        ui_page_row(38.f, trig, v->sel, c, v->ksteps && v->rec != 1 ? v->play : -1);   /* (above the sound's name, 12
+                                                         * px: the owner, 2026-11-10; STEPS: the playhead too) */
     }
     if (v->rec == 1) {
         ui_icon(UI_IC_REC, 20.f, 220.f, 1.f, UI_RED);  /* (P1.3v: step recording: the red dot, the step number) */

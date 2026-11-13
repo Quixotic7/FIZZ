@@ -42,6 +42,7 @@
 
 #include "app.h"
 #include "ui.h"
+#include "../seq/scale.h"
 
 #define QD_TRIG_LED_MS_ 80u
 
@@ -318,8 +319,18 @@ static void leds_keys(const qd_app_t *a, qd_leds_t *out)
     const qd_ui_t *u = &a->ui;
     qd_keys_leds(a, out->key);                          /* P1.5b: the scale (roots 75 %, its notes 40 %, sounding full) */
     qd_keys_step_leds(a, out->key, 1);                    /* 2026-11-10 (owner): a selected step: its notes lit, alone */
-    if (u->ksteps)                                      /* .. a B11 click: its W keys the steps */
+    if (u->ksteps) {                                    /* .. a B11 click: its W keys the steps; 2026-11-13 (owner):
+                                                         * B1..B10 by the note each plays, as the screen's grid (a root
+                                                         * brighter, held full) */
+        int i, sc, rt;
+        qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
         leds_whites(a, out);
+        for (i = 0; i < 10; i++) {
+            const int k = QD_BLACK_KEY[i];
+            out->key[k] = (a->keys_held >> k) & 1u ? QD_LED_LIT : qd_rec_key_note(a, k) % 12 == rt ? QD_LED_ROOT
+                                                                                                  : QD_LED_SCALE;
+        }
+    }
     if (qd_rec_stepping(a)) {                           /* step recording: the cursor's place blinks */
         const int s = qd_track_loop_step(&qd_ctl_cpat(a)->trk[a->sel], a->ui.cursor);
         out->key[QD_WHITE_KEY[s % QD_PAGE]] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;

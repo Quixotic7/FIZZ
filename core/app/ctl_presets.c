@@ -525,24 +525,42 @@ static void sv_update_new(qd_app_t *a)
     sv_unique(a, nm[0] ? nm : "SOUND", v->newname);
 }
 
-void qd_sv_open(qd_app_t *a)
+/* 2026-11-13 (owner): the sound SAVE saves: the track's, or the step's (its sound lock, else the track's sound; its
+ * locks over it, as the trig plays it: fill_rec); the preset it came from */
+static void sv_patch(const qd_app_t *a, int16_t *out)
 {
-    qd_ui_t *u = &a->ui;
-    qd_saveui_t *v = &u->sv;
+    const qd_saveui_t *v = &a->ui.sv;
     const qd_track_t *t = &a->model.t[a->sel];
-    char nm[QD_SOUND_NAME];
-    if (u->latch == QD_LATCH_SAVE) {                    /* SAVE again: NEW */
-        qd_sv_new(a);
-        return;
+    memcpy(out, t->patch, sizeof t->patch);
+    if (v->src) {
+        const qd_pattern_t *P = qd_ctl_cpat(a);
+        qd_rstep_t r;
+        int n, k;
+        const qd_lock_t *lk = qd_locks(P, a->sel, v->step, &n);
+        qd_step_resolve(P, a->sel, v->step, &r);
+        if (r.sound > 0)
+            memcpy(out, qd_sound_patch(&a->proj, r.sound), sizeof t->patch);
+        for (k = 0; k < n; k++)
+            if (lk[k].id < QD_QUAD_NP && lk[k].id != QD_QP_PORT && lk[k].id != QD_QP_PTIM && lk[k].id != QD_QP_PSLOPE)
+                out[lk[k].id] = lk[k].value;
     }
-    v->ret_mode = u->mode;
-    if (u->mode != QD_MODE_STEP)
-        qd_ctl_set_mode(a, QD_MODE_STEP);
-    if (!u->slatch)
-        qd_step_release_all(a);
-    u->tk = QD_TK_NONE;
-    qd_latch_open(a, QD_LATCH_SAVE);
-    v->replace = qd_lib_find(a, t->preset);             /* (from one of MY presets: REPLACE offered) */
+}
+static int sv_from(const qd_app_t *a)
+{
+    if (a->ui.sv.src) {
+        qd_rstep_t r;
+        qd_step_resolve(qd_ctl_cpat(a), a->sel, a->ui.sv.step, &r);
+        if (r.sound > 0)
+            return qd_sound_preset(&a->proj, r.sound);
+    }
+    return a->model.t[a->sel].preset;
+}
+/* the name and REPLACE for the sound chosen (opened; KNOB 4 switched TRACK / STEP) */
+void qd_sv_start(qd_app_t *a)
+{
+    qd_saveui_t *v = &a->ui.sv;
+    char nm[QD_SOUND_NAME];
+    v->replace = qd_lib_find(a, sv_from(a));            /* (from one of MY presets: REPLACE offered) */
     v->choice = 0;                                      /* (P1.5v: NEW first; F2 switches) */
     if (v->replace >= 0) {
         qd_type_start(a, qd_lib_name(a, v->replace), 0);
@@ -557,6 +575,27 @@ void qd_sv_open(qd_app_t *a)
     sv_update_new(a);
 }
 
+void qd_sv_open(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    qd_saveui_t *v = &u->sv;
+    if (u->latch == QD_LATCH_SAVE) {                    /* SAVE again: NEW */
+        qd_sv_new(a);
+        return;
+    }
+    v->step = (int16_t)(u->latch == QD_LATCH_SND && u->slatch && u->nheld ? u->held[0] : -1);   /* (2026-11-13,
+                                                         * owner: the editor, a step selected: its sound) */
+    v->src = v->step >= 0;
+    v->ret_mode = u->mode;
+    if (u->mode != QD_MODE_STEP)
+        qd_ctl_set_mode(a, QD_MODE_STEP);
+    if (!u->slatch)
+        qd_step_release_all(a);
+    u->tk = QD_TK_NONE;
+    qd_latch_open(a, QD_LATCH_SAVE);
+    qd_sv_start(a);
+}
+
 static void sv_done(qd_app_t *a, int slot)
 {
     qd_ui_t *u = &a->ui;
@@ -564,10 +603,12 @@ static void sv_done(qd_app_t *a, int slot)
     qd_sound_t s;
     qd_lib_read(a, slot, &s);
     qd_persist_soon(a, QD_PI_LIB + slot);              /* (written now: SAVED means saved) */
-    memcpy(t->sound_name, s.name, QD_SOUND_NAME);
-    t->preset = s.preset;
-    t->sound = 0;
-    t->edited = 0;
+    if (!u->sv.src) {                                   /* (a step's: the track's sound stays as it is) */
+        memcpy(t->sound_name, s.name, QD_SOUND_NAME);
+        t->preset = s.preset;
+        t->sound = 0;
+        t->edited = 0;
+    }
     u->tk_snd = s;
     if (u->sv.ret_mode != QD_MODE_STEP && u->sv.ret_mode != QD_MODE_IDLE)
         u->mode = u->sv.ret_mode;
@@ -584,6 +625,21 @@ static void sv_mix(qd_app_t *a, int slot)
     qd_lib_read(a, slot, &s);
     s.pan = m->pan;
     s.chorus = m->chorus, s.delay = m->delay, s.reverb = m->reverb;
+    if (a->ui.sv.src) {                                 /* (a step's: its mix locks over the track's) */
+        int n, k;
+        const qd_lock_t *lk = qd_locks(qd_ctl_cpat(a), a->sel, a->ui.sv.step, &n);
+        for (k = 0; k < n; k++) {
+            const int id = lk[k].id, x = lk[k].value;
+            if (id == QD_LK_PAN)
+                s.pan = (int8_t)x;
+            else if (id == QD_LK_DELAY)
+                s.delay = (uint8_t)x;
+            else if (id == QD_LK_REVERB)
+                s.reverb = (uint8_t)x;
+            else if (id == QD_LK_CHORUS)
+                s.chorus = (uint8_t)x;
+        }
+    }
     qd_lib_write(a, slot, &s);
     qd_pool_resolve(a);                                 /* (the pool's references: its mix too) */
 }
@@ -595,8 +651,10 @@ void qd_sv_new(qd_app_t *a)
         qd_ctl_confirm(a, "FULL", 0);
         return;
     }
+    int16_t pt[QD_QUAD_NP];
     sv_update_new(a);
-    qd_lib_store(a, slot, a->ui.sv.newname, a->model.t[a->sel].patch);
+    sv_patch(a, pt);
+    qd_lib_store(a, slot, a->ui.sv.newname, pt);
     sv_mix(a, slot);
     sv_done(a, slot);
 }
@@ -610,7 +668,11 @@ void qd_sv_replace(qd_app_t *a)
     qd_type_trimmed(a, nm);
     if (!nm[0])
         snprintf(nm, sizeof nm, "%s", qd_lib_name(a, v->replace));
-    qd_lib_replace(a, v->replace, nm, a->model.t[a->sel].patch);
+    {
+        int16_t pt[QD_QUAD_NP];
+        sv_patch(a, pt);
+        qd_lib_replace(a, v->replace, nm, pt);
+    }
     sv_mix(a, v->replace);
     sv_done(a, v->replace);
 }

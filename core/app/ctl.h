@@ -387,6 +387,10 @@ typedef struct {
     int choice;                        /* P1.5v: 0 NEW, 1 REPLACE (F2 switches it; SAVE does it) */
     char newname[QD_SOUND_NAME];       /* .. NEW then saves under this ("DARK BASS 2") */
     int ret_mode;
+    int16_t step;                      /* 2026-11-13 (owner): opened from the sound editor with a step selected: that
+                                        * step (-1 none) .. */
+    uint8_t src;                       /* .. 1: the step's sound is saved (its sound lock or the track's, its locks
+                                        * over it; the track kept), 0 the track's (KNOB 4 switches) */
 } qd_saveui_t;
 typedef struct {
     int target, proj;                  /* 2: project proj (P1.5t: the only one; SAVE PRESET names its own) */
@@ -995,6 +999,7 @@ void qd_br_key(struct qd_app *a, int key, int w, int b, int down, int vel);
 int qd_br_knob(struct qd_app *a, int knob, int d);
 void qd_br_leds(const struct qd_app *a, uint8_t *key);
 int qd_br_pool_k(const struct qd_app *a);        /* P1.5v: the pool number the chosen is (or its copy's), 0 none */
+void qd_sv_start(struct qd_app *a);   /* 2026-11-13: SAVE PRESET's name and REPLACE for the sound chosen */
 void qd_sv_open(struct qd_app *a);               /* SAVE: SAVE PRESET (again: saved as NEW) */
 void qd_sv_new(struct qd_app *a);
 void qd_sv_replace(struct qd_app *a);

@@ -186,7 +186,7 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_1), "LETTER");
         lb_set(o, LB_KNOB(QD_K_ALGO), "CURSOR");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "NEW NAME");
-        lb_set(o, LB_KNOB(QD_K_4), "NEW NAME");
+        lb_set(o, LB_KNOB(QD_K_4), save && u->sv.step >= 0 ? "TRACK/STEP" : "NEW NAME");
         lb_set(o, LB_BTN(QD_B_OCTDN), shift ? "CLEAR" : "DELETE");
         if (save && u->sv.replace >= 0)
             lb_set(o, LB_BTN(QD_B_OCTUP), u->sv.choice ? "NEW" : "REPLACE");

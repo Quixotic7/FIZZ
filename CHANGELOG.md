@@ -15,6 +15,8 @@ its text becomes the release's notes on the install page and on GitHub.
 - **A selected step keeps the scale's roots lit** on the keys and on the screen's keyboard.
 - **A stuck SHIFT + HOME, FX, ENV or EDIT** ends SHIFT and goes there; if you're already there, nothing else changes (no next view or page).
 - **The sound editor: ALGORITHM selects steps** as on the Home views (fully left: LIVE; LFO the lock). Each page's fifth value is on **PRESETS** now (the filter machine, AMP's mode, the delays, VOICE's priority, MOD's slot); a page without one: PRESETS turns KNOB 1's value. **RATIO**: ALGO on KNOB 1, the ratios C, A, B on KNOB 2..4, MIX on PRESETS.
+- **The keyboard page, B11's STEPS**: the white keys are the steps (the row up top, with the playhead), and the keybed gives way to an orange grid of B1..B10, the keys that play, the scale's roots marked (on their LEDs too).
+- **SAVE in the sound editor with a step selected** saves that step's sound (its sound lock, or the track's, with its locks): a magenta STEP chip says so; KNOB 4 switches between the TRACK's sound and the STEP's. The track's sound stays as it is: program a kit's pieces on steps and save each one out.
 
 ## 0.12.0-beta.17 (2026-11-13)
 

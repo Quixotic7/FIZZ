@@ -925,6 +925,19 @@ static void draw_keys(qd_app_t *a)
         for (i = 0; i < u->nheld; i++)
             if (u->held[i] / QD_PAGE == pg / QD_PAGE)
                 v.sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        v.ksteps = u->ksteps;
+        if (u->ksteps)                                  /* (2026-11-13, owner: the black keys that play, by the note
+                                                         * each plays (in a scale: snapped): a root marked, held full) */
+            for (i = 0; i < 10; i++) {
+                const int k = QD_BLACK_KEY[i];
+                v.bst[i] = (uint8_t)((qd_rec_key_note(a, k) % 12 == rt ? 2 : 1) | ((a->keys_held >> k) & 1u ? 4 : 0));
+            }
+        v.play = -1;
+        if (a->seq.playing) {
+            const int s = qd_seq_track_step(&a->seq, a->sel);
+            if (s >= 0 && s / QD_PAGE == pg / QD_PAGE)
+                v.play = s % QD_PAGE;
+        }
     }
     ui_keys_draw(&v);
 }
@@ -1115,6 +1128,8 @@ static void fill_type(const qd_app_t *a, ui_type_t *v)
         v->choice = v->replace && a->ui.sv.choice;
         qd_type_trimmed(a, nm);
         v->newname = strcmp(nm, a->ui.sv.newname) ? a->ui.sv.newname : 0;
+        v->step = a->ui.sv.step + 1;
+        v->src = a->ui.sv.src;
     } else if (a->ui.nm.target != 3) {
         const int p = a->ui.nm.proj < 0 ? 0 : a->ui.nm.proj;
         sub[0] = (char)('0' + (p + 1) / 10), sub[1] = (char)('0' + (p + 1) % 10), sub[2] = 0;
