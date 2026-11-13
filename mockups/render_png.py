@@ -81,6 +81,11 @@ for i, n in enumerate(SH, 1):                  # fizz-shift.html: the SHIFT scre
     SHOTS[f'sh-{i}'] = (f'shot={i}', 240, 240, f'fizz-shift-{i:02d}-{n}.png', 'fizz-shift.html')
 SHOTS['sheet-sh'] = ('sheet=1', 2030, 1100, 'fizz-shift-sheet.png', 'fizz-shift.html')
 
+KM = ['note-live', 'note-step', 'note-lockin', 'vel', 'len', 'micro', 'ratchet', 'chance', 'cond', 'sound', 'rec-sound', 'page-flash', 'reset']
+for i, n in enumerate(KM, 1):                  # fizz-keys-modes.html: the white keys by mode on the step pages (2026-11-12)
+    SHOTS[f'km-{i}'] = (f'shot={i}', 240, 286, f'fizz-keys-modes-{i:02d}-{n}.png', 'fizz-keys-modes.html')
+SHOTS['sheet-km'] = ('sheet=1', 2030, 2530, 'fizz-keys-modes-sheet.png', 'fizz-keys-modes.html')
+
 def render(key, scratch):
     query, w, h, name = SHOTS[key][:4]
     page = SHOTS[key][4] if len(SHOTS[key]) > 4 else 'index.html'

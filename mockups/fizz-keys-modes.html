@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ keys by mode</title>
+<!-- FIZZ: the orange keys on the step pages (a B11 click), the owner 2026-11-12. Take 2 (the owner: "Each hold mode
+     already has its own UI for it that looks good. We reuse that and change the top so it shows the steps"): each mode's
+     own screen from the simulator (ref/km-*.png), moved down 12 px under a 16-step row like the keyboard page's; NOTE
+     loses its scale line instead; the orange keys 8 px shorter; the lock's frame round the keys too; the key LEDs per
+     mode under each. ?shot=N one canvas at 1x, ?sheet=1 all -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 16px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: auto; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the white keys by mode, take 2 (mock-up, 2026-11-12)</h1>
+<p>Each hold mode keeps its own screen. The heading's labels (TRACK, STEP n, the mode, DEFAULT, NOTE's scale) give way to the keyboard page's row of the
+page's 16 steps (the trigs, the selected step outlined, the playhead); the value keeps its corner, just under the row.
+No page is shown: turning SELECT flashes the page's black key, and so it does wherever SELECT turns pages. In LIVE (no
+step selected) the screens stay as they are now. With a step selected, white keys held + B11 put the step's value for
+the mode back to the track's. The lock's frame goes round the keys. The key LEDs under each screen show the step's
+value as ALGORITHM moves through the steps.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const F = 'IT';
+const C = { k3:'#f1f0ea', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d', red:'#ff3b4e', frame:'#ee3cff', or:'#ff6a2c', lock:'#3f9bff' };
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 500} ${o.s || 12}px ${F}`; c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'center';
+  if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y); c.restore();
+}
+function RR(c, x, y, w, h, r, fill, a = 1, stroke, lw = 1) {
+  c.save(); c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function glow(c, col, b, fn) { c.save(); c.shadowColor = col; c.shadowBlur = b; fn(); c.restore(); }
+
+// the page's 16 steps in the heading's place: the keyboard page's own row (12 px squares 13 px apart; empty outlined,
+// trigs grey, the selected outlined white, the playhead white); no page shown (a page change flashes its black key)
+const TRIGS = [0, 2, 4, 6, 8, 10, 12, 14];
+function stepRow(c, o = {}) {
+  const sz = 12, y = 6;
+  for (let s = 0; s < 16; s++) {
+    const x = 14 + s * 13.1, trig = (o.trigs || TRIGS).includes(s), rec = (o.rec || []).includes(s);
+    if (o.play === s) RR(c, x, y, sz, sz, 2, '#fff');
+    else if (trig) RR(c, x, y, sz, sz, 2, rec ? C.red : '#5c5c64');
+    else RR(c, x + 0.5, y + 0.5, sz - 1, sz - 1, 2, null, 1, C.g2, 1);
+    if (o.sel === s) RR(c, x - 0.5, y - 0.5, sz + 1, sz + 1, 2.5, null, 1, '#fff', 2);
+  }
+}
+// the orange keys, 8 px shorter (y 192..226); hint(i, x, y, w, h): what a key holds (a fill, a few dots)
+function keys(c, o = {}) {
+  const x0 = 20, w = 11.2, pitch = 13.25, y = 184, h = 42;
+  c.save(); c.drawImage(IMG.keyicon, 0, 194, 20, 18, 0, y + 13, 20, 18); c.restore();
+  for (let i = 0; i < 16; i++) {
+    const x = x0 + i * pitch, on = (o.lit || []).includes(i), dim = (o.dim || []).includes(i);
+    if (on) glow(c, C.or, 7, () => RR(c, x, y, w, h, 2.5, C.or));
+    else { RR(c, x, y, w, h, 2.5, dim ? C.or : null, dim ? 0.35 : 1, C.or, 1.2); }
+    if (o.hint && !on) o.hint(c, i, x, y, w, h);
+  }
+}
+function frame(c) { RR(c, 1, 1, 238, 238, 9, null, 1, C.frame, 2.2); }
+// the real screen, unshifted; its heading (labels) gone: NOTE's scale line too; the value on the heading's right (92, 1/4,
+// HAT ..) drawn 16 px lower, under the row's right end
+function screen(c, img, note, o = {}) {
+  c.drawImage(img, 0, 0, 240, 178, 0, 0, 240, 178);
+  if (o.live) return;                                  // (LIVE: the screen as it is now)
+  c.fillStyle = '#000';
+  if (o.open) { c.fillRect(0, 0, 4, 178); c.fillRect(236, 0, 4, 178); c.fillRect(0, 0, 240, 4); }   // (not locked: no frame)
+  if (note) { c.fillRect(3, 2, 234, 31); return; }
+  c.fillRect(3, 2, 234, 22);
+  if (o.val !== false) c.drawImage(img, 176, 5, 58, 23, 176, 24, 58, 23);
+}
+// the physical keys' LEDs: the white keys' brightness 0..1, the black keys' row (lit ones)
+function leds(c, y0, br, blacks) {
+  RR(c, 0, y0, 240, 46, 0, '#0b0b0d');
+  T(c, 'LEDS', 6, y0 + 13, { s: 12, w: 700, al: 'left', col: C.g2 });
+  for (let i = 0; i < 16; i++) {
+    const x = 9 + i * 14.5, y = y0 + 31, b = br[i] || 0;
+    RR(c, x - 5.5, y - 8, 11, 16, 2, '#1d1d22');
+    if (b > 0) glow(c, '#fff', 10 * b, () => RR(c, x - 5.5, y - 8, 11, 16, 2, '#fff', Math.min(1, 0.08 + b)));
+  }
+  for (let k = 0; k < 11; k++) RR(c, 96 + k * 12.8 - 4, y0 + 5, 8, 8, 1.5, (blacks || []).includes(k) ? '#fff' : '#1d1d22');
+}
+function flashKey(c, y0, k) { glow(c, '#fff', 12, () => RR(c, 96 + k * 12.8 - 6, y0 + 3, 12, 12, 2.5, null, 1, '#fff', 1.5)); }
+const ramp = (i, lo = 0.05, hi = 0.75) => lo + (hi - lo) * i / 15;
+const fill = (frac) => (c, i, x, y, w, h) => RR(c, x + 2, y + h - 2 - (h - 4) * frac(i), w - 4, (h - 4) * frac(i), 1.5, C.or, 0.4);
+const SCALE = [0.35, 0, 0.12, 0, 0.12, 0.12, 0, 0.35, 0, 0.12, 0, 0.12, 0.12, 0, 0.35, 0];   // (the scale dim, its roots brighter)
+
+const S = [
+  { cap: '1 · NOTE, LIVE (nothing selected): as now (no steps); the keys play', img: 'm00-live-note', draw(c, im) {
+    screen(c, im, true, { live: true }); keys(c, { lit: [] });
+    return { br: SCALE, b: [10] }; } },
+  { cap: '2 · NOTE on STEP 3: the step outlined; the frame round the keys; its notes blink over the dim scale', img: 'm01-note', draw(c, im) {
+    screen(c, im, true); stepRow(c, { sel: 2, play: 5 }); keys(c, { lit: [0] }); frame(c);
+    const b = SCALE.slice(); b[0] = 1; return { br: b, b: [0, 10] }; } },
+  { cap: '3 · LIVE: C, E, G held, then B11: the track’s own notes (the band, as a knob’s value shows)', img: 'm00-live-note', draw(c, im) {
+    screen(c, im, true, { live: true });
+    RR(c, 0, 21, 240, 24, 0, C.lock, 1);
+    T(c, 'TRACK NOTES  C4 E4 G4', 120, 38, { s: 14, w: 700, col: '#000' });
+    keys(c, { lit: [0, 2, 4] });
+    const b = SCALE.slice(); b[0] = b[2] = b[4] = 1; return { br: b, b: [10] }; } },
+  { cap: '4 · VEL: W1..W16 8 .. 127, each press plays the step at it; the LEDs a fade, the step’s full', img: 'm02-vel', draw(c, im) {
+    screen(c, im); stepRow(c, { sel: 2, play: 5 }); keys(c, { lit: [11], hint: fill((i) => (i === 15 ? 127 : 8 * (i + 1)) / 127) }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 11 ? 1 : ramp(i)), b: [1, 10] }; } },
+  { cap: '5 · LEN: W1..W15 1/8 .. 32 steps, W16 INF', img: 'm03-len', draw(c, im) {
+    screen(c, im); stepRow(c, { sel: 2, play: 5 }); keys(c, { lit: [1] }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 1 ? 1 : ramp(i, 0.05, 0.45)), b: [2, 10] }; } },
+  { cap: '6 · MICRO: W8 on the grid, W1..W7 early, W9..W16 late (24ths of a step)', img: 'm04-micro', draw(c, im) {
+    screen(c, im); stepRow(c, { sel: 2, play: 5 }); keys(c, { lit: [7], dim: [] }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 7 ? 1 : 0.06 + 0.04 * Math.abs(i - 7)), b: [3, 10] }; } },
+  { cap: '7 · RATCHET: W1..W8 x1..x8, W9..W16 x1..x8 rising; you hear the hits', img: 'm05-ratchet', draw(c, im) {
+    screen(c, im); stepRow(c, { sel: 2, play: 5 });
+    keys(c, { lit: [0], hint: (c, i, x, y, w, h) => { for (let k = 0; k <= i % 8; k++) RR(c, x + 3, y + h - 5 - k * 3.6, w - 6, 2, 1, C.or, i >= 8 ? 0.3 + 0.08 * k : 0.5); } }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 0 ? 1 : 0.06 + 0.06 * (i % 8)), b: [4, 10] }; } },
+  { cap: '8 · CHANCE: W1..W16 6 % .. 100 %', img: 'm06-chance', draw(c, im) {
+    screen(c, im, false, { val: false }); stepRow(c, { sel: 2, play: 5 }); keys(c, { lit: [15], hint: fill((i) => (i + 1) / 16) }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 15 ? 1 : ramp(i)), b: [5, 10] }; } },
+  { cap: '9 · COND: ALWAYS, FILL .. !1ST, then 1:2 .. 2:4 (the rest on the knob, as now)', img: 'm07-cond', draw(c, im) {
+    screen(c, im, false, { val: false }); stepRow(c, { sel: 2, play: 5 }); keys(c, { lit: [0] }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 0 ? 1 : i < 9 ? 0.2 : 0.08), b: [6, 10] }; } },
+  { cap: '10 · SOUND: W1..W10 the bank’s ten sounds, W11..W16 velocity 20 .. 127 (their LEDs a fade, 5 % .. 75 %)', img: 'm08-sound', draw(c, im) {
+    screen(c, im); stepRow(c, { sel: 2, play: 5 });
+    keys(c, { lit: [1, 13], hint: (c, i, x, y, w, h) => { if (i >= 10) fill((k) => [20, 40, 60, 80, 100, 127][k - 10] / 127)(c, i, x, y, w, h); } }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 1 || i === 13 ? 1 : i < 10 ? 0.25 : 0.05 + 0.7 * (i - 10) / 5), b: [9, 10] }; } },
+  { cap: '11 · LIVE SOUND (as now), REC on, playing: finger drumming; each press writes its sound and velocity at the playhead', img: 'm10-live-sound', draw(c, im) {
+    screen(c, im, false, { live: true });
+    keys(c, { lit: [1, 14], hint: (c, i, x, y, w, h) => { if (i >= 10) fill((k) => [20, 40, 60, 80, 100, 127][k - 10] / 127)(c, i, x, y, w, h); } });
+    return { br: Array.from({ length: 16 }, (_, i) => i === 1 || i === 14 ? 1 : i < 10 ? 0.25 : 0.05 + 0.7 * (i - 10) / 5), b: [9, 10] }; } },
+  { cap: '12 · A step selected, SELECT turned to page 2: the row shows page 2’s steps, and B2 (the page’s black key) flashes once; the same flash wherever SELECT turns pages', img: 'm02-vel', draw(c, im) {
+    screen(c, im); stepRow(c, { sel: 4, trigs: [0, 3, 4, 7, 8, 11, 12, 15] }); frame(c); keys(c, { lit: [11], hint: fill((i) => (i === 15 ? 127 : 8 * (i + 1)) / 127) });
+    return { br: Array.from({ length: 16 }, (_, i) => ramp(i)), b: [1, 10], flash: 1 }; } },
+  { cap: '13 · A step selected, W12 held, then B11: the step’s value for the mode back to the track’s (as a held step + B11 does now; in every mode)', img: 'm02-vel', draw(c, im) {
+    screen(c, im); stepRow(c, { sel: 2, play: 5 });
+    RR(c, 0, 21, 240, 24, 0, C.lock, 1); T(c, 'TRACK VEL  100', 120, 38, { s: 14, w: 700, col: '#000' });
+    keys(c, { lit: [11], hint: fill((i) => (i === 15 ? 127 : 8 * (i + 1)) / 127) }); frame(c);
+    return { br: Array.from({ length: 16 }, (_, i) => i === 11 ? 1 : ramp(i)), b: [1, 10] }; } },
+];
+
+const IMG = {};
+const load = (k, src) => new Promise((r) => { IMG[k] = new Image(); IMG[k].onload = r; IMG[k].src = src; });
+const ready = Promise.all([
+  ...[...new Set(S.map((s) => s.img))].map((n) => load(n, `ref/km-${n}.png`)), load('keyicon', 'ref/km-m02-vel.png'),
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]);
+function canvasFor(s, scale = 2) {
+  const cv = document.createElement('canvas'); cv.width = 240 * scale; cv.height = 286 * scale; cv.className = 'scr';
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.scale(scale, scale);
+  c.fillStyle = '#000'; c.fillRect(0, 0, 240, 240);
+  const r = s.draw(c, IMG[s.img]); leds(c, 240, r.br, r.b); if (r.flash != null) flashKey(c, 240, r.flash); return cv;
+}
+const q = new URLSearchParams(location.search);
+ready.then(() => {
+  if (q.get('shot')) { document.body.className = 'shot'; document.body.innerHTML = ''; const cv = canvasFor(S[+q.get('shot') - 1], 1); cv.style.width = '240px'; document.body.appendChild(cv); return; }
+  const sheet = q.get('sheet');
+  if (sheet) { document.body.className = 'sheet'; document.body.innerHTML = '<div class="sheetgrid"></div>'; }
+  const g = sheet ? document.querySelector('.sheetgrid') : document.getElementById('cells');
+  for (const s of S) { const d = document.createElement('div'); d.className = 'cell'; d.appendChild(canvasFor(s)); const p = document.createElement(sheet ? 'div' : 'p'); if (sheet) p.className = 'cap'; p.textContent = s.cap; d.appendChild(p); g.appendChild(d); }
+});
+</script>
+</body>
+</html>
