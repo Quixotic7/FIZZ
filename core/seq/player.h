@@ -112,6 +112,8 @@ void qd_player_block(qd_player_t *pl);  /* qd_seq_block into the pool */
 void qd_player_stop(qd_player_t *pl);   /* the transport stops: the sequencer's notes released (tails ring) */
 /* the keybed and MIDI notes on a track (P1.1's path; the sequencer's OFFs leave a key's note alone) */
 void qd_player_key_on(qd_player_t *pl, int t, int note, int vel);
+void qd_player_key_on_p(qd_player_t *pl, int t, int note, int vel, const int16_t *patch);   /* (2026-11-12: with a pool
+                                                         * sound's patch, the orange keys' SOUND; 0 the track's) */
 void qd_player_key_off(qd_player_t *pl, int t, int note);
 /* P1.6c: the groups' tick now; track t's notes released (MIDI's ALL NOTES OFF: the pool's and the groups') */
 int64_t qd_player_mfx_tick(const qd_player_t *pl);

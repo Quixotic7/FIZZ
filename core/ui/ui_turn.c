@@ -630,6 +630,18 @@ void ui_band_draw(const ui_band_t *v)
     }
 }
 
+/* 2026-11-12 (owner, mockups/fizz-keys-modes.html): the word as a band over the top (keys held + B11: the track's
+ * value now), black on the lock's blue */
+void ui_word_band(const char *s)
+{
+    const float w = ui_TW(s, 14.f, 700, 0.f);
+    float size = w > 224.f ? 14.f * 224.f / w : 14.f;
+    if (size < 12.f)
+        size = 12.f;
+    qd_fill_rect(0.f, 19.f, (float)QD_W, 27.f, UI_K1);   /* (under the step row, over the value under it) */
+    ui_T(s, 120.f, 37.f, size, 700, 0.f, UI_BG, QD_CENTER);
+}
+
 /* ---------------------------------------------------------------- the frame */
 void ui_turn_draw(const ui_turn_t *v)
 {

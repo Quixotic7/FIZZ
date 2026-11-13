@@ -796,6 +796,10 @@ void qd_view_kst(const qd_app_t *a, uint8_t *kst, int full)
 {
     uint8_t lv[QD_NKEY];
     int i;
+    if (!full && qd_mk_on(a)) {                         /* 2026-11-12: a hold mode's values */
+        qd_mk_kst(a, kst);
+        return;
+    }
     memset(lv, 0, sizeof lv);
     qd_keys_leds(a, lv);
     qd_keys_step_leds(a, lv, a->ui.mode == QD_MODE_KEYS);   /* (2026-11-10: a selected step's notes, alone) */
@@ -2462,7 +2466,10 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 #define fv (*fvp)
 #define mfv (*mfvp)
     const qd_ui_t *u = &a->ui;
-    const int scr = qd_view_screen(a);
+    const int row = u->mode == QD_MODE_STEP && !u->latch && u->slatch && u->nheld && qd_snd_keys(a);   /* 2026-11-12
+                                                         * (owner): a selection with the orange keys: the mode's EDIT
+                                                         * picture in every Home view, the page's row on top */
+    const int scr0 = qd_view_screen(a), scr = row && scr0 == QD_SCR_HELD ? QD_SCR_EDIT : scr0;
     char pat[4], ctx[24];
     a->geek.scope_on = 0;                               /* (P2.11: the scope's samples only while it shows) */
     a->geek.tsc_on = 0;                                 /* (2026-10-27: TRACKS' too) */
@@ -2540,6 +2547,7 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         ui_lane_draw(&lv);
         break;
     case QD_SCR_EDIT:                                   /* P1.3r: the page's row under the mode's picture */
+        lv.cells = row;                                 /* (2026-11-12: the row's cells in every view) */
 #if QD_EDIT_ANIM_FPS < 30
         {   /* (P2.6i: its models filled at the clock's steps: between them the same frame) */
             const uint32_t ms0 = a->ms;
@@ -2550,6 +2558,7 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 #else
         qd_view_edit(a, &hv, &lv);
 #endif
+        hv.row = row && !hv.is_default && !hv.head;
         ui_edit_draw(&hv, &lv);
         break;
     case QD_SCR_GEEK: {                                 /* P2.11: a Geek Out page */
@@ -2571,6 +2580,8 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
                                                          * SENDS' (the sound editor: its strip) */
         qd_view_kst(a, kst, 0);
         ui_rec_keys_foot(kst, 1);
+        if (scr == QD_SCR_EDIT && hv.row)               /* 2026-11-12 (owner): the lock's frame round the keys too */
+            ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
     }
     if (u->lmode_open) {                                /* P1.5h: LFO held: the latch mode's screen, while held */
         ui_lmode_draw(u->lmode, secs(a->ms));
@@ -2655,7 +2666,15 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         const uint32_t d = a->ms - u->cf_ms;
         const float al = d + QD_TK_FADE_MS < QD_CONFIRM_MS ? 1.f
                                                            : (float)(QD_CONFIRM_MS - d) / (float)QD_TK_FADE_MS;
-        if (al > 0.f) {
+        if (al > 0.f && u->cf_col == QD_CF_BAND) {      /* (2026-11-12: keys held + B11, the track's value: a band over
+                                                         * the screen, as a knob's) */
+            char w[48];
+            qd_mk_band(a, w);
+            qd_save();
+            qd_alpha(al);
+            ui_word_band(w);
+            qd_restore();
+        } else if (al > 0.f) {
             overlay_begin(al);
             ui_confirm_draw(u->cf_big, u->cf_small, u->cf_col ? u->cf_col : UI_K3);
             qd_restore();

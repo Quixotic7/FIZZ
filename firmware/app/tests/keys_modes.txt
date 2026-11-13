@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-11-12 (owner, mockups/fizz-keys-modes.html, take 4): the orange keys in the hold modes. A B11 click turns the W
+# keys into orange keys; LIVE (nothing selected) the screens stay as they were. ALGORITHM selects a step: the head's
+# words give way to the page's step row (the selected step outlined), the value under its right end, the lock frame
+# round the keys too. In VEL .. COND and SOUND the keys are the mode's sixteen values (the step's lit); held keys +
+# B11: the step's value back to the track's (a band says it); in LIVE the held key's value (NOTE: the held notes)
+# becomes the track's. SELECT turning the page flashes that page's black key (see "leds").
+#   firmware/build.py --host, then (mkdir -p firmware/app/build/keys_modes first)
+#   firmware/app/build/host/fizz_host firmware/app/tests/keys_modes.txt firmware/app/build/keys_modes
+expect fz_up 1
+tap HOME
+wait 300
+expect fz_mode 1
+# the orange keys (a B11 click), LIVE: as before
+tapkey b10
+wait 300
+shot km-00-live-note.png
+# ALGORITHM: step 3 selected
+turn ALGO 3
+wait 400
+shot km-01-note.png
+tapkey b1
+wait 300
+shot km-02-vel.png
+# W6 (48): the step's velocity
+tapkey w5
+wait 300
+shot km-02b-vel-w6.png
+tapkey b2
+wait 300
+shot km-03-len.png
+tapkey w1
+wait 300
+shot km-03b-len-w2.png
+tapkey b3
+wait 300
+shot km-04-micro.png
+tapkey w10
+wait 300
+shot km-04b-micro-w11.png
+tapkey b4
+wait 300
+shot km-05-ratchet.png
+tapkey w10
+wait 300
+shot km-05b-ratchet-w11.png
+tapkey b5
+wait 300
+shot km-06-chance.png
+tapkey w7
+wait 300
+shot km-06b-chance-w8.png
+tapkey b6
+wait 300
+shot km-07-cond.png
+tapkey w9
+wait 300
+shot km-07b-cond-w10.png
+tapkey b9
+wait 300
+shot km-08-sound.png
+tapkey w4
+wait 300
+tapkey w13
+wait 300
+shot km-08b-sound-w5-w14.png
+leds
+# playing: the playhead in the row (filled white)
+tap PLAY
+wait 700
+shot km-08c-playing.png
+tap PLAY
+wait 300
+# VEL: W12 held, then B11: the step's velocity back to the track's (the band)
+tapkey b1
+wait 300
+key w11 down
+wait 100
+tapkey b10
+wait 200
+shot km-09-reset-band.png
+key w11 up
+wait 1300
+# SELECT: page 2; its black key (B2) flashes once (lit already in VEL: dark a moment, then bright)
+turn SELECT 1
+wait 50
+leds
+wait 150
+leds
+shot km-10-page2.png
+wait 600
+leds
+turn SELECT -1
+wait 300
+# ALGORITHM fully left: LIVE (the screen as before)
+spin ALGO -16
+wait 300
+shot km-11-live-vel.png
+# LIVE: W13 held + B11: the track's VEL 104
+key w12 down
+wait 100
+tapkey b10
+wait 200
+shot km-12-live-vel-band.png
+key w12 up
+wait 1300
+# LIVE NOTE: C, E, G held, then B11: the track's notes
+tapkey b0
+wait 300
+key w0 down
+key w2 down
+key w4 down
+wait 100
+tapkey b10
+wait 200
+shot km-13-live-notes-band.png
+key w0 up
+key w2 up
+key w4 up
+wait 1300
+# LIVE SOUND
+tapkey b9
+wait 300
+shot km-14-live-sound.png
+# the B11 quick click alone: the steps again
+tapkey b10
+wait 300
+shot km-15-steps.png

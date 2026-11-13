@@ -232,10 +232,16 @@ BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx"],
 # views, OVERVIEW's knobs: the USB package's slot 48 B over): the screens' unit at -Oz on the USB package too (USB_OZ),
 # as the Bluetooth package has had it. 2026-11-11 (OVERVIEW's black keys): the held step's screens (ui_held.o, 1,984 B)
 # and the takeovers' and knob band's (ui_turn.o, 480 B) at -Oz too: drawing only (their one helper the keys use,
-# ui_itoa, is ui_kit.o's, still -Os)
+# ui_itoa, is ui_kit.o's, still -Os). 2026-11-12 (the orange keys in the hold modes, ~3.9 KB: the slot 2,416 B over,
+# 1,472 free before them): the idle screen's unit (ui_idle.o, 1,352 B) and the drawing's helpers (ui_kit.o, 1,636 B: the
+# rounded boxes, the text's width, the icons, the keybed; ui_itoa with them, a key's band and labels) at -Oz too
 BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_ui_turn.o",
+          "build_units_c_ui_idle.o", "build_units_c_ui_kit.o",
           *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
 USB_OZ = {"build_units_c_ui_layer.o"}
+# (2026-11-12, the orange keys' modes: the single-core package's slot 2,476 B over, 1,508 free before: ui_idle.o and
+# ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
+SINGLE_OZ = USB_OZ | {"build_units_c_ui_idle.o", "build_units_c_ui_kit.o"}
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
@@ -535,7 +541,7 @@ def tc(tool, *args):
                 args = [a if a != "-Os" else "-O2" for a in args]
             if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
                 args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
-            if out.name in (BLE_OZ if BLE_PKG else USB_OZ):
+            if out.name in (BLE_OZ if BLE_PKG else SINGLE_OZ if SINGLE else USB_OZ):
                 args = [a if a != "-Os" else "-Oz" for a in args]
             if out.name in HOT or (BLE_PKG and (out.name in BLE_SLOT or out.name in BLE_X2_FN)):
                 r = _tc(tool, *args)

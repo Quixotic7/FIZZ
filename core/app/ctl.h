@@ -579,6 +579,14 @@ typedef struct {
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int ekeys;                         /* P1.5b: the W keys the keys (2026-11-10: a B11 click; the step view, the editor, the effects, the mix, TOOLS) */
+    /* 2026-11-12 (owner, mockups/fizz-keys-modes.html): the orange keys in a hold mode, its sixteen values (ctl_rec.c,
+     * qd_mk_*): the notes they sound (0 none; one set) on track mk_tr, bit w of mk_on: W w sounds them; of mk_rec:
+     * its press was recorded */
+    uint8_t mk_nt[QD_NNOTE], mk_tr;
+    uint8_t mk_bm;                     /* .. held keys + B11: the band's mode (the confirmation's QD_CF_BAND, qd_mk_band) */
+    uint16_t mk_on, mk_rec;
+    uint32_t pflash_ms;                /* 2026-11-12 (owner): SELECT turned the page edited: its black key flashes once */
+    uint8_t pflash;                    /* .. (the page + 1; 0 none) */
     int mod_slot, mod_src;             /* E4: the MOD page's chosen slot (0..7); hold-to-map's source (QD_MS_*) */
     /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
     int mfx_slot, mfx_page;            /* the slot selected, its page */
@@ -726,12 +734,15 @@ int qd_ctl_main_steps(const struct qd_app *a);      /* P1.6h: a main page whose 
 int qd_ctl_main_layer(const struct qd_app *a);      /* .. there, F1 / F2 held: QD_LAYER_F1 / F2 (their W, their picture) */
 int qd_ctl_playing_page(const struct qd_app *a, int t);   /* the page under the track's play head, -1 stopped */
 void qd_ctl_set_page(struct qd_app *a, int p);      /* the page edited on the selected track (slides) */
+void qd_ctl_sel_page(struct qd_app *a, int p);      /* 2026-11-12: .. by SELECT: a change flashes its black key once */
+#define QD_PFLASH_MS 320u                           /* (that flash) */
 void qd_step_select_toggle(struct qd_app *a, int s);   /* T1: step s in / out of the latch's selection (latch on) */
 void qd_ctl_takeover(struct qd_app *a, int tk, int knob, int dir, int lock, int step);
 void qd_ctl_confirm(struct qd_app *a, const char *big, const char *small);
 void qd_ctl_imported(struct qd_app *a, const char *name, int pool, int slot);   /* P1.5r: its takeover */
 int qd_preset_walk(const struct qd_app *a, int lib, int k, int d, int *lib_out);   /* P1.5s: the pool, then the library */
 void qd_ctl_confirm_col(struct qd_app *a, const char *big, const char *small, uint32_t col);   /* P1.5o: in a colour */
+#define QD_CF_BAND 1u                  /* 2026-11-12: (as its colour) the word as a band over the top, a knob's value's */
 int qd_ctl_rate_index(int rate);       /* a rate's place in the picker (slowest first) */
 int qd_ctl_rate_at(int i);             /* .. and back */
 
@@ -808,6 +819,21 @@ int qd_keys_on(const struct qd_app *a);         /* P1.5b: the keyboard (the keyb
 void qd_keys_leds(const struct qd_app *a, uint8_t *key);   /* P1.5b: the keys lit by the scale (27 levels) */
 void qd_keys_step_leds(const struct qd_app *a, uint8_t *key, int page);   /* 2026-11-10: a selected step's notes
                                                  * alone on the keys (page: the keyboard page's, else the orange keys) */
+/* 2026-11-12 (owner, mockups/fizz-keys-modes.html; ctl_rec.c): the orange keys in the step view's hold modes VEL, LEN,
+ * MICRO, RATCH, CHNC, COND, SOUND are its sixteen values (NOTE, TRIG / SLIDE, FUNC: the keys play): a press sets the
+ * selected steps' value and sounds the step (stopped: its preview; playing: as a key), nothing selected it sounds the
+ * track with that value; REC armed it is recorded at the playhead (SOUND: its sound lock and velocity). W1..W16:
+ *   VEL 8, 16 .. 120, 127; LEN the lengths 1/8 .. 32, INF; MICRO -21 .. -3, 0 (W8), +3 .. +21, +23; RATCH x1..x8 flat,
+ *   x1..x8 rising; CHNC 6 % .. 100 %; COND ALWAYS .. !1ST, 1:2 .. 2:4; SOUND the bank's ten sounds, velocity 20 .. 127
+ * Keys held + B11 (qd_mk_b11): a selection's value back to the track's; nothing selected, the key's value the track's
+ * default (NOTE and the keys that play: the held notes the track's notes); a band says what it is now */
+int qd_mk_on(const struct qd_app *a);           /* the orange keys are the hold mode's values now */
+int qd_mk_val(const struct qd_app *a, int m, int w);   /* W w's value in mode m (RATCH: w, COND: QD_COND_*) */
+void qd_mk_white(struct qd_app *a, int key, int w, int down, int vel);
+int qd_mk_b11(struct qd_app *a);                /* B11 pressed: orange keys held, done (1); else 0 */
+void qd_mk_band(const struct qd_app *a, char *o);   /* .. its band's words, the track's value now (o: 48 bytes) */
+void qd_mk_leds(const struct qd_app *a, uint8_t *key);   /* the W keys: the value's key lit, a fade by the values */
+void qd_mk_kst(const struct qd_app *a, uint8_t *kst);    /* .. the drawn keys (ui_rec_key's states, a hint's fill) */
 void qd_snd_button(struct qd_app *a);           /* EDIT: open / close */
 void qd_snd_black(struct qd_app *a, int b);
 void qd_snd_black_up(struct qd_app *a, int b);  /* P1.5c: B10 let go (the bottle: released early, nothing) */     /* B1..B5 the groups (again: the next page), B11 the page's locks */
@@ -995,6 +1021,7 @@ const qd_latch_t *qd_latch_cur(const struct qd_app *a);   /* the latch open, 0 n
 /* ---- ctl_preview.c (P1.3d): with the transport stopped, the held steps sound (PLAN §8b 2.2) */
 int qd_ctl_previewing(const struct qd_app *a);   /* the held steps are previewed now */
 void qd_ctl_preview_once(struct qd_app *a, int s);   /* P1.5s: the step cursor's step sounds once */
+void qd_ctl_preview_strike(struct qd_app *a, int s); /* 2026-11-12: .. again now (its sound ended first): an edit heard */
 void qd_ctl_preview_sync(struct qd_app *a);      /* after every input and every millisecond: start, re-strike, stop */
 extern const uint8_t QD_WHITE_KEY[16], QD_BLACK_KEY[11];
 

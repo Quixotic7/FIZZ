@@ -242,6 +242,19 @@ void qd_ctl_preview_sync(qd_app_t *a)
     }
 }
 
+/* 2026-11-12 (owner): an orange key set step s's value: s sounds once again, with it */
+void qd_ctl_preview_strike(qd_app_t *a, int s)
+{
+    qd_ui_t *u = &a->ui;
+    int i;
+    for (i = u->pvs_n - 1; i >= 0; i--)
+        if (u->pvs_step[i] == s && u->pvs_track[i] == a->sel) {
+            release(a, i);
+            drop(u, i);
+        }
+    qd_ctl_preview_once(a, s);
+}
+
 /* P1.5s: the step cursor moved the latch's selection onto step s: it sounds once (QD_PREVIEW_MS); a once-preview of
  * another step ends */
 void qd_ctl_preview_once(qd_app_t *a, int s)

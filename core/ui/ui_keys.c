@@ -147,13 +147,11 @@ void ui_keys_draw(const ui_keys_t *v)
 
     if (v->rec == 1 || v->row) {                        /* STEP recording: the cursor's page (2026-11-10: B11 held
                                                          * or a selection: the page edited's, the selected outlined) */
-        const int c = v->rec == 1 ? (v->cursor - 1) % 16 : -1;
-        for (i = 0; i < 16; i++) {                      /* (above the sound's name, 12 px: the owner, 2026-11-10) */
-            const float sx = 14.f + (float)i * 13.f + (float)(i / 4) * 2.7f;
-            const int cur = i == c && v->blink, sel = (v->sel >> i) & 1u;
-            ui_RR(sx, 38.f, 11.f, 12.f, 2.f, cur ? UI_RED : sel ? UI_K3 : UI_G3, sel ? 2.f : 1.f,
-                  v->page_trig[i] ? UI_G2 : QD_NONE);
-        }
+        const int c = v->rec == 1 && v->blink ? (v->cursor - 1) % 16 : -1;
+        uint16_t trig = 0;
+        for (i = 0; i < 16; i++)
+            trig |= (uint16_t)((v->page_trig[i] != 0) << i);
+        ui_page_row(38.f, trig, v->sel, c, -1);         /* (above the sound's name, 12 px: the owner, 2026-11-10) */
     }
     if (v->rec == 1) {
         ui_icon(UI_IC_REC, 20.f, 220.f, 1.f, UI_RED);  /* (P1.3v: step recording: the red dot, the step number) */

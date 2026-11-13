@@ -468,7 +468,7 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
     if (knob == QD_K_SELECT) {                          /* the page shown (PAGE's change kept first) */
         if (T->scope == QD_TS_PAGE)
             tl_keep(a);
-        qd_ctl_set_page(a, (tl_page(a) + d % QD_NPAGE + QD_NPAGE) % QD_NPAGE);
+        qd_ctl_sel_page(a, (tl_page(a) + d % QD_NPAGE + QD_NPAGE) % QD_NPAGE);
         tl_norm(a);
         qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);   /* (the eight pages, "PAGE 3": the step view's) */
         return 1;

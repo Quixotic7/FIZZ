@@ -585,7 +585,8 @@ static void mfx_key_note(qd_player_t *pl, int t, int note, int vel, int g, int o
     qd_mfx_note(&pl->mfx, g, on, &n, qd_player_mfx_tick(pl));
 }
 
-void qd_player_key_on(qd_player_t *pl, int t, int note, int vel)
+void qd_player_key_on(qd_player_t *pl, int t, int note, int vel) { qd_player_key_on_p(pl, t, note, vel, 0); }
+void qd_player_key_on_p(qd_player_t *pl, int t, int note, int vel, const int16_t *patch)
 {
     int held, i;
     if (t < 0 || t >= QD_PAT_NTRACK || note < 0 || note > 127)
@@ -604,7 +605,7 @@ void qd_player_key_on(qd_player_t *pl, int t, int note, int vel)
     }
     held = qd_pool_gated(pl->pool, t);
     qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);
-    i = qd_pool_note_on(pl->pool, t, &pl->model->t[t].owner, note, vel, pl->model->t[t].patch);
+    i = qd_pool_note_on(pl->pool, t, &pl->model->t[t].owner, note, vel, patch ? patch : pl->model->t[t].patch);
     qd_pool_glide_note(pl->pool, i, &pl->model->t[t].owner, 0, 0, held);   /* E1: a played note glides alone */
     pout(pl, t, note, vel, 1);
     pl->last_on[t][note] = 0;

@@ -1003,8 +1003,10 @@ static int held_head(const ui_held_t *v, pal_t *p)
                                                          * latch's selection) has the frame, a track's default none
                                                          * (P1.5q: nor the step playing, followed: none held) */
         ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+    if (v->row)                                         /* (2026-11-12: the step row in the words' place) */
+        return field;
 
-    left[0] = 0;                                        /* "STEP 5 · NOTE", several held: "STEP 5+2 · NOTE" */
+    left[0] = 0;                                       /* "STEP 5 · NOTE", several held: "STEP 5+2 · NOTE" */
     if (v->is_default) {
         cat(left, "TRACK DEFAULT");
     } else {
@@ -1106,7 +1108,8 @@ static void head_value(const ui_held_t *v, const pal_t *p, const char *val)
         size = size * room / ui_TW(val, size, 200, 0.f);
     if (size < 12.f)                                    /* (no room: the drawing says it, e.g. SOUND's cassette) */
         return;
-    ui_T(val, 232.f, 21.f, size, 200, 0.f, p->empty ? UI_G1 : p->k[0], QD_RIGHT);
+    ui_T(val, 232.f, v->row ? 38.f : 21.f, size, 200, 0.f, p->empty ? UI_G1 : p->k[0], QD_RIGHT);   /* (2026-11-12:
+                                                         * the row over it: under its right end) */
 }
 
 /* P1.5z: the head's value of v as the EDIT view's switch below makes it (for the head of another model than the
@@ -1222,9 +1225,20 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
         val[0] = 0;
         cat(val, "EMPTY STEP");
     }
-    head_value(hv, &hp, val);
-    if (sub[0])
+    if (!(hv->row && (field == UI_F_COND || field == UI_F_CHNC)))   /* (2026-11-12: with the row, their body's alone) */
+        head_value(hv, &hp, val);
+    if (hv->row) {                                      /* 2026-11-12 (owner): the page's step row in the head's place */
+        const int pg = lane->page >= 0 && lane->page < 8 ? lane->page : 0;
+        uint16_t trig = 0, sel = 0;
+        int i;
+        for (i = 0; i < 16; i++) {
+            trig |= (uint16_t)(((lane->cell[pg][i] & UI_C_ON) != 0) << i);
+            sel |= (uint16_t)(((lane->cell[pg][i] & UI_C_HELD) != 0) << i);
+        }
+        ui_page_row(6.f, trig, sel, -1, lane->play_step >= 0 && lane->play_step / 16 == pg ? lane->play_step % 16 : -1);
+    } else if (sub[0]) {
         ui_lab(sub, 8.f, 31.f, UI_G1, QD_LEFT);
+    }
     if (v->is_default && v->reset)                      /* the mode key held: B11 resets the default */
         reset_word(v, 36.f);
     ui_steps_row(lane, ED_ROW_Y, ED_ROW_OPEN);
