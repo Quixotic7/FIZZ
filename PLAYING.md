@@ -143,7 +143,10 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   track's box and name: only what is being edited.
 - In the PIANO ROLL the small dots over the columns mark the beats (steps 1, 5, 9, 13; the first a little brighter).
 - **FX held + ALGORITHM** chooses the track: the track's number big in its colour with its name, the six below.
-- After two minutes untouched with nothing playing, it goes back to the FIZZ screen.
+- After two minutes untouched with nothing playing, it goes back to the FIZZ screen. **The press or turn that wakes
+  it does nothing else** (2026-11-13, the owner): any key, button (PLAY too) or knob only wakes it; a button held
+  while it wakes is no modifier and no hold (no SHIFT, no HOME settings, no SEQ map, no REC arm) until it is let go
+  and pressed again.
 - **PLAY** tapped plays and stops (on the release: about a tenth of a second after the press). **Hold PLAY** (or
   **SHIFT + PLAY**) to open the **F3** menu (the same as both OCT keys), from the keyboard page too (2026-11-10).
 

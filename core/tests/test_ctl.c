@@ -318,10 +318,68 @@ static void g_wake(void)
     CHECK(A.ui.mode == QD_MODE_STEP && R(0, 0).on == on0, "a key wakes to the step view and does nothing else");
     run(QD_IDLE_MS + 10);
     CHECK(A.ui.mode == QD_MODE_IDLE, "two minutes untouched, stopped: idle again");
+    wake();                                             /* (2026-11-13: the press that wakes does nothing else) */
     btap(QD_B_PLAY);
     run(QD_IDLE_MS + 10);
     CHECK(A.ui.mode == QD_MODE_STEP, "playing: no idle");
     btap(QD_B_PLAY);
+}
+
+/* 2026-11-13 (owner): "if we are in screensaver mode then any button press should wake the screensaver then be
+ * consumed": every button (its release too; held, no modifier and no hold) and every knob turn that wakes the unit
+ * does nothing else; pressed again, it does its job */
+static void idle_again(void)                            /* (two minutes untouched, without simulating them) */
+{
+    A.ui.touch_ms = A.ms - QD_IDLE_MS - 1u;
+    run(5);
+}
+static void g_wake_eats(void)
+{
+    static const int BT[] = {QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_MUTE, QD_B_SOUND, QD_B_FUNC, QD_B_HOME,
+                             QD_B_SAVE, QD_B_KEYS, QD_B_MIX, QD_B_PLAY, QD_B_REC, QD_B_OCTDN, QD_B_OCTUP};
+    size_t i;
+    int ok = 1, bad = -1, k;
+    fresh();
+    for (i = 0; i < sizeof BT / sizeof BT[0]; i++) {    /* tapped, and held long (HOME's settings, SEQ's map, REC's
+                                                         * arm, PLAY's F3, ARP's bypass, LFO's screen ..) */
+        for (k = 0; k < 2; k++) {
+            const int view = A.ui.view, mfx = qd_ctl_pat(&A)->trk[0].mfx;
+            idle_again();
+            bdown(BT[i]);
+            run(k ? 1200 : 20);
+            if (BT[i] == QD_B_FUNC)
+                ok &= !qd_ctl_shift(&A);                /* (SHIFT that woke it: no SHIFT layer while held) */
+            bup(BT[i]);
+            run(20);
+            if (!(A.ui.mode == QD_MODE_STEP && !A.ui.latch && A.ui.view == view && !A.seq.playing && !A.ui.rec &&
+                  !qd_ctl_seq_map(&A) && !A.ui.shift_stick && !A.ui.slatch && A.ui.ov_back < 0 && !A.ui.lmode_open &&
+                  qd_ctl_pat(&A)->trk[0].mfx == mfx && A.ui.tk == QD_TK_NONE) &&
+                bad < 0)
+                ok = 0, bad = (int)i * 2 + k;
+        }
+    }
+    CHECK(ok, "every button that wakes the unit (tapped or held) does nothing else (button %d, %s)", bad / 2,
+          bad & 1 ? "held" : "tapped");
+    idle_again();
+    turn(QD_K_ALGO, 1);
+    ok = A.ui.mode == QD_MODE_STEP && !A.ui.slatch;
+    turn(QD_K_ALGO, 1);
+    CHECK(ok && A.ui.slatch, "a knob turn that wakes it: nothing else (ALGORITHM: no cursor); the next turn works");
+    turn(QD_K_ALGO, -16);
+    idle_again();
+    bdown(QD_B_FUNC);                                   /* SHIFT wakes it, still held: another button is a plain one */
+    run(20);
+    btap(QD_B_PATTERN);
+    bup(QD_B_FUNC);
+    run(20);
+    CHECK(A.ui.latch != QD_LATCH_TRK && QD_OV_ON(&A), "SHIFT that woke it is no SHIFT: SEL is OVERVIEW, not SHIFT + SEL");
+    btap(QD_B_HOME);
+    idle_again();
+    btap(QD_B_SOUND);
+    ok = !A.ui.latch;
+    btap(QD_B_SOUND);
+    CHECK(ok && qd_snd_open(&A), "EDIT: the first press wakes, the second opens the editor");
+    btap(QD_B_HOME);
 }
 
 static void g_tap(void)
@@ -11078,6 +11136,7 @@ int main(void)
         {"2026-11-13: stage 2: the playhead on every step row", g_rows_one},
         {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
         {"B11 walk: every page to page keeps the steps / keys", g_b11_walk},
+        {"wake: the press or turn that wakes the unit does nothing else", g_wake_eats},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
     };
