@@ -252,3 +252,24 @@ Not done (the main session works in ctl.c, ctl_mfx.c, ctl_tools.c, view*.c and t
 
 How to find more of the same: `noinline` where the map shows a static with several callers and no section
 (`.text.NAME`) of its own; FZ_COLD before moving a drawing unit back to -Oz.
+
+## 8. The owner's decisions for stage 2 (2026-11-13)
+
+When: after the main session's MIDI FX / TOOLS round settles, in one agreed window, with these built in. The three
+commits already on master in those files (2579fb9, 26b826d, 4088a89) stay.
+
+| question | decision |
+|---|---|
+| A short W press (under 250 ms) | **Wait 250 ms everywhere** (the sound editor's way): the mix and the effects no longer take locks at once |
+| The step lock turned on | **Starts with the last selection, on every page** (every way the lock ends saves it; the mix and MIDI FX too) |
+| The LFO button (the owner's words) | "You should only go to the LFO page if quick clicking the LFO button. Holding it is always for assigning and should never bring you back to the LFO page." |
+| Following the step played | **Keep as is** (the keyboard page keeps its own way) |
+| A page opened over the step view | **Keeps the step lock, clears any popup**, every page |
+| Clearing | **One message** for a cleared track; **every press-twice arm times out after 2 s** (DELETE?, OUT?, the MIDI FX remove, the project copy) |
+| A page's own key again | **Keep as is** (multi-page screens step through, single screens close) |
+| The step row's page | **Keep as is** (the sound editor shows the selected step's page) |
+| Blinks and the playhead | **One blink rate and phase for selected steps everywhere; every step row shows the playhead** (mock-ups first) |
+| Key lights | **One rule** (`qd_key_st`): held and sounding keys light alike on every page; FULL's B9 / B10 lit as what they do |
+
+Not asked yet (§4 stage 3): ALGORITHM on the mix, the keyboard page's knobs with a selection, SEQ held + ALGORITHM,
+the foot cells' grid, the step rows' geometry, the step frame's gaps.
