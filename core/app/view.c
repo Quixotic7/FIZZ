@@ -24,7 +24,8 @@
 #define QD_ROLL_MS 150.f               /* a picker's roll at a detent */
 
 /* ---------------------------------------------------------------- numbers as text (no stdio) --- */
-static char *cat(char *d, const char *s)
+/* (noinline: 80 callers; inlined, it cost ~1 KB) */
+static __attribute__((noinline)) char *cat(char *d, const char *s)
 {
     while (*d)
         d++;
@@ -59,7 +60,7 @@ static float range01(int id, int v)
     return hi > lo ? (float)(v - lo) / (float)(hi - lo) : 0.f;
 }
 
-static float secs(uint32_t ms) { return (float)ms / 1000.f; }
+static __attribute__((noinline)) float secs(uint32_t ms) { return (float)ms / 1000.f; }
 
 static void cond_short(int cond, char *out)            /* "" ALWAYS, "FILL", "!FIL", "PRE", "3:4" */
 {

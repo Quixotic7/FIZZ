@@ -85,7 +85,7 @@ typedef struct {
     uint32_t pos;                                       /* bytes made */
     uint32_t h;                                         /* their FNV-1a */
 } em_t;
-static void em_init(em_t *e, uint8_t *win, uint32_t woff, uint32_t wn)
+static __attribute__((noinline)) void em_init(em_t *e, uint8_t *win, uint32_t woff, uint32_t wn)
 {
     e->win = win, e->woff = woff, e->wn = wn, e->pos = 0, e->h = 2166136261u;
 }
@@ -102,7 +102,7 @@ static void em(em_t *e, const void *src, uint32_t n)
     }
     e->pos += n;
 }
-static void em8(em_t *e, uint32_t v)
+static __attribute__((noinline)) void em8(em_t *e, uint32_t v)
 {
     const uint8_t b = (uint8_t)v;
     em(e, &b, 1);
@@ -488,7 +488,7 @@ static void snd_now(const qd_app_t *a, int it, qd_sound_t *out)
 
 /* a pool slot's (key 1..QD_NSOUND) or a library place's (QD_SK_LIB + i) sound from its record */
 static void pool_cache(const qd_app_t *a, qd_sound_t *s);
-static void snd_from_rec(const qd_app_t *a, int key, qd_sound_t *s, const uint8_t *b, uint32_t len)
+static __attribute__((noinline)) void snd_from_rec(const qd_app_t *a, int key, qd_sound_t *s, const uint8_t *b, uint32_t len)
 {
     if (key < QD_SK_LIB) {
         if (len == 4 && b[0] == 'R' && b[1] == 1) {     /* P1.5w: a reference (resolved below) */
@@ -730,7 +730,7 @@ static uint32_t item_hash(const qd_app_t *a, int it, uint32_t *len)
         *len = e.pos;
     return em_hash(&e);
 }
-static qd_store_t *item_store(qd_app_t *a, int it)
+static __attribute__((noinline)) qd_store_t *item_store(qd_app_t *a, int it)
 {
     return it >= QD_PI_LIB && it != QD_PI_MFX ? &a->per.lib_st : &a->per.prj_st;
 }
@@ -1917,7 +1917,7 @@ int qd_pool_users(const qd_app_t *a, int k, uint8_t *tracks, int *steps)
  * written): the steps locking it (on: those sounding; tracks: theirs), its track sounds' sources; rec: each lock kept
  * for undo. -1: a record it cannot read (read it in) */
 static qd_store_t *pat_store(qd_app_t *a);
-static int rd_skip(rd_t *r, uint32_t n)
+static __attribute__((noinline)) int rd_skip(rd_t *r, uint32_t n)
 {
     if (r->pos + n > r->len)
         return 0;
@@ -2689,7 +2689,7 @@ static int sw_prog(void *c, uint32_t off, const void *src, uint32_t n)
     return 0;
 }
 #endif
-static qd_store_t *pat_store(qd_app_t *a)
+static __attribute__((noinline)) qd_store_t *pat_store(qd_app_t *a)
 {
     if (a->per.on)
         return &a->per.prj_st;

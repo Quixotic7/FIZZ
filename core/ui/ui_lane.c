@@ -46,7 +46,7 @@
 
 static const float DASH[2] = {2.f, 3.f};
 
-static float col_x(int i) { return 9.f + (float)i * 13.5f + (float)(i / 4) * 2.f; }
+static __attribute__((noinline)) float col_x(int i) { return 9.f + (float)i * 13.5f + (float)(i / 4) * 2.f; }
 
 #define line2 qd_line                           /* (a line: qd_gfx's own) */
 
@@ -80,7 +80,7 @@ static int ramp_vel(int v, int ramp, int h, int n)
 }
 
 /* a column's colour: the playhead's white, an override the mode's, the track's default grey */
-static qd_rgb ccol(const ui_lane_t *v, const ui_lcol_t *c)
+static __attribute__((noinline)) qd_rgb ccol(const ui_lane_t *v, const ui_lcol_t *c)
 {
     return c->lit ? UI_K3 : c->ovr ? UI_MODE_COL[v->mode] : UI_G1;
 }

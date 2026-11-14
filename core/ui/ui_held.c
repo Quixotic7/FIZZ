@@ -217,7 +217,7 @@ static void f_note(const ui_held_t *v, const pal_t *p)
  * a puff of speed lines. The bike is drawn in its own frame (the rear hub at 0, 0, the front hub at 60, 0, facing +x)
  * and placed by rd_* (mirrored, turned and scaled here: no rotation in the gfx layer); strokes scale, never under 1.2 */
 static float rd_tx, rd_ty, rd_a, rd_b, rd_c, rd_d, rd_k, rd_ty_lift;
-static void rd_pt(float x, float y, float *X, float *Y)
+static __attribute__((noinline)) void rd_pt(float x, float y, float *X, float *Y)
 {
     *X = rd_tx + rd_a * x + rd_b * y;
     *Y = rd_ty + rd_c * x + rd_d * y;
