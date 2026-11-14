@@ -72,7 +72,7 @@ static void pr_arrow(float x, float y, qd_rgb col)
 }
 
 /* the head: TITLE (12 px 600), a chip (the kind filter), the track's box, "7/31" */
-static void pr_head(const char *title, qd_rgb col, const char *right, int track, int chip)
+static FZ_COLD void pr_head(const char *title, qd_rgb col, const char *right, int track, int chip)
 {
     float x = 8.f + ui_TW(title, 12.f, 600, 1.f) + 8.f;
     ui_T(title, 8.f, 17.f, 12.f, 600, 1.f, col, QD_LEFT);

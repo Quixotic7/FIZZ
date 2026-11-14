@@ -209,13 +209,16 @@ if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does n
 # 2026-11-13 (SEQ's pages, PATTERNS' copy / cut / paste: ~0.9 KB in the slot, which had 192 B): those main-loop
 # functions too (PATTERNS' F1 / F2, the pattern undo's forget, SEQ's click); the blob paid for them with SEL's retired
 # track map (ui_layer.o's tracks(), ~1.2 KB, gone)
+# 2026-11-14 (SAVE's page button, PATTERNS' copy / paste, the roll's grid, the wake rule: the slot 1,808 B over, the
+# blob 68): the slot's room made by FZ_COLD (qd_config.h, below); the blob's by FZ_COLD on the TOOLS', the browser's and
+# the project page's drawing helpers; the history's recall (qd_hist_recall_k, 88 B) back in the slot for the balance
 BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)",
           "*/o2/build_units_c_ctl_latch.o(.text.qd_msnd_engine .text.side_keep .text.qd_trk_engine "
           ".text.qd_trk_engine_set .text.qd_msnd_put .text.qd_msnd_take .text.qd_side_clear "
           ".text.qd_pc_white .text.qd_pc_ms .text.qd_pc_up .text.qd_pc_layer .text.pc_do .text.pc_run)",
           "*/o2/build_units_c_ctl.o(.text.b_seq .text.qd_ctl_seq_page .text.qd_ctl_home_view)",
           "*/o2/build_units_c_quad_voice.o(.text.qd_quad_side_pack .text.qd_quad_side_unpack .text.qd_msnd_over)",
-          "*/o2/build_units_c_app.o(.text.qd_app_fm_auto .text.qd_undo_forget_pat .text.qd_hist_recall_k)", "*(.fzx2.*)"]
+          "*/o2/build_units_c_app.o(.text.qd_app_fm_auto .text.qd_undo_forget_pat)", "*(.fzx2.*)"]
 BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-10) .. and single functions of other units the other way, into the second blob (sections renamed .fzx2.*;
 # main-loop drawing only, noinline in the source): OVERVIEW's model (view.c), ~0.4 KB the slot did not have; the
@@ -248,6 +251,13 @@ BLE_X2_FN = {"build_units_c_view.o": ["fill_fx", "pr_fill", "fill_shift"]}   # (
 # room: the drawing's small helpers out of line (qd_line for the nine line helpers, noinline where -Os had copied a
 # helper into every caller), the dead takeovers gone. Only the controls (no drawing, main loop only) stay at -Oz.
 # ui_picker.o has no caller (the linker drops it). FZ_BLE_OZ=a.o,b.o adds units for a measure (FZ_MEASURE=1)
+# 2026-11-14 (the slot 1,808 B over, the blob 68): no unit to -Oz; FZ_COLD (now in qd_config.h, for every unit) on code
+# run seldom: the Manager's SysEx (fizz_sx.c, its LABELS view_labels.c), the undo's close / apply and the snapshots,
+# the TOOLS' operations (tools.c), the namesizer, the store's writes and reads (flash-bound), boot and project load /
+# new, the TAP ape's frame (ap_draw, ap_burst); the icons (ui_icon, ui_kind_icon: coordinates only, the raster stays
+# -Os) and fz_cosf a call to fz_sinf; the port's stats reply (app.c, fizz_xdata.py stats) minsize. ~2.0 KB. A measure
+# of every main-loop unit at -Oz (FZ_BLE_OZ) found ~5.3 KB in all, spread thin (held_body 558 B, ui_icon 392, the
+# rest under 200 a function). The pool: persist.c's record buffer (512 B) in NOINIT (app.h QD_BLE_NI): 8,688 free
 OZ_CTL = {"build_units_c_ctl.o", "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",
           "build_units_c_ctl_preview.o", "build_units_c_clip.o", "build_units_c_chord.o"}
 BLE_OZ = OZ_CTL | {"build_units_c_ui_idle.o",   # (the idle screen: nothing played on it; at -Os the slot

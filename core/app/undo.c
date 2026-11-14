@@ -76,7 +76,7 @@ static uint8_t *g_push(qd_hist_t *u, uint32_t n)
 }
 #endif
 
-static void undo_take(qd_app_t *a)                    /* the gesture's "before" */
+static FZ_COLD void undo_take(qd_app_t *a)            /* the gesture's "before" */
 {
     qd_hist_t *u = &a->undo;
     u->pat = a->seq.cur;
@@ -223,7 +223,7 @@ void qd_undo_hint(qd_app_t *a, int kind)
 /* the XOR difference of a region (now ^ before) into out (P2.1: out 0: counted only; no copy of a level is made before
  * it goes into the pool): runs of (offset u32, length u16, bytes); a run ends at 8 equal bytes in a row. Returns the
  * bytes (0: no change), -1: no room */
-static long undo_diff(uint8_t *out, uint32_t room, const uint8_t *now, const uint8_t *before, uint32_t n)
+static FZ_COLD long undo_diff(uint8_t *out, uint32_t room, const uint8_t *now, const uint8_t *before, uint32_t n)
 {
     uint32_t i = 0, o = 0;
     while (i < n) {
@@ -294,7 +294,7 @@ static void undo_apply_runs(uint8_t *mem, uint32_t n, const uint8_t *d, uint32_t
 #ifdef QD_UNDO_SLOTS
 static qd_pattern_t *undo_S;                            /* (the gesture's pattern as it was, borrowed while closing) */
 #endif
-static void undo_regions(qd_app_t *a, const uint8_t **now, const uint8_t **was, uint32_t *sz)
+static FZ_COLD void undo_regions(qd_app_t *a, const uint8_t **now, const uint8_t **was, uint32_t *sz)
 {
     qd_hist_t *u = &a->undo;
 #ifdef QD_UNDO_SLOTS
@@ -327,7 +327,7 @@ static const uint8_t *g_next(const qd_hist_t *u, uint32_t *pos, int *tag)
     return u->pool + *pos;
 }
 static uint32_t g_first(const qd_hist_t *u) { return GEND(u) - u->gpz - G_MFX; }
-static uint32_t undo_slots(qd_app_t *a, uint8_t *out)
+static FZ_COLD uint32_t undo_slots(qd_app_t *a, uint8_t *out)
 {
     qd_hist_t *u = &a->undo;
     uint32_t o = 0, pos = g_first(u);
@@ -356,7 +356,7 @@ static uint32_t undo_slots(qd_app_t *a, uint8_t *out)
 #endif
 
 static void undo_close(qd_app_t *a);
-void qd_undo_close(qd_app_t *a)
+FZ_COLD void qd_undo_close(qd_app_t *a)
 {
     undo_close(a);
 #ifdef QD_UNDO_SLOTS
@@ -366,7 +366,7 @@ void qd_undo_close(qd_app_t *a)
     }
 #endif
 }
-static void undo_close(qd_app_t *a)
+static FZ_COLD void undo_close(qd_app_t *a)
 {
     qd_hist_t *u = &a->undo;
     const uint8_t *now[4], *was[4];
@@ -485,7 +485,7 @@ void qd_undo_ms(qd_app_t *a)
         qd_undo_close(a);
 }
 
-static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
+static FZ_COLD void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
 {
     const uint8_t *d = a->undo.pool + l->off;
     uint8_t *mem[4];
@@ -668,7 +668,7 @@ int qd_undo_room(qd_app_t *a)
 int qd_undo_count(const qd_app_t *a, int dir) { return dir < 0 ? a->undo.pos : a->undo.n - a->undo.pos; }
 
 /* ---------------------------------------------------------------- the snapshot, the pattern clipboard */
-int qd_hist_store_k(qd_app_t *a, int which, int k)
+FZ_COLD int qd_hist_store_k(qd_app_t *a, int which, int k)
 {
     qd_hist_t *h = &a->undo;
     const qd_pattern_t *P = qd_proj_cpat(&a->proj, k);
@@ -725,7 +725,7 @@ int qd_hist_store_k(qd_app_t *a, int which, int k)
     return 1;
 }
 
-int qd_hist_recall_k(qd_app_t *a, int which, int k)
+FZ_COLD int qd_hist_recall_k(qd_app_t *a, int which, int k)
 {
     qd_hist_t *h = &a->undo;
     qd_pattern_t *P;

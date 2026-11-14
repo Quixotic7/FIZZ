@@ -1013,6 +1013,9 @@ static void fz_stats_send(int part, const char *line)   /* F0 7D 46 50 part ASCI
 #if QD_PKG_BLE
 static void fz_ble_stats(void);
 #endif
+#if defined(__clang__)
+__attribute__((minsize))                 /* (2026-11-14: asked for by fizz_xdata.py stats only: optimised for size) */
+#endif
 static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, three lines (fizz_xdata.py stats) */
 {
     char line[FZ_LINE], *c;

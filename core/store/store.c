@@ -46,7 +46,7 @@ static int next_page(const qd_store_t *s, int pg)
     return best < 0 ? -1 : best * (int)QDS_PPS + 1;
 }
 
-static int read_hdr(qd_store_t *s, int pg, qds_hdr_t *h, uint8_t *payload)
+static FZ_COLD int read_hdr(qd_store_t *s, int pg, qds_hdr_t *h, uint8_t *payload)
 {
     uint8_t b[QDS_PAGE];
     if (s->fl.read(s->fl.ctx, page_off(s, pg), b, QDS_PAGE))
@@ -77,7 +77,7 @@ static qds_ent_t *find(qd_store_t *s, uint32_t key)
     return 0;
 }
 
-static void index_put(qd_store_t *s, uint32_t key, uint32_t rseq, int first, int np, int len)
+static FZ_COLD void index_put(qd_store_t *s, uint32_t key, uint32_t rseq, int first, int np, int len)
 {
     qds_ent_t *e = find(s, key);
     if ((uint32_t)np != pages_of((uint32_t)len))      /* (P2.1b: the index keeps no page count: a record whose header
@@ -235,7 +235,7 @@ int qd_store_pending(const qd_store_t *s)
     return n;
 }
 
-int qd_store_get(qd_store_t *s, uint32_t key, void *buf, uint32_t max)
+FZ_COLD int qd_store_get(qd_store_t *s, uint32_t key, void *buf, uint32_t max)
 {
     const qds_ent_t *e = find(s, key);
     uint8_t pay[QDS_PAYLOAD];
@@ -259,7 +259,7 @@ int qd_store_get(qd_store_t *s, uint32_t key, void *buf, uint32_t max)
     return e->len;
 }
 
-int qd_store_read(qd_store_t *s, uint32_t key, uint32_t off, void *buf, uint32_t n)
+FZ_COLD int qd_store_read(qd_store_t *s, uint32_t key, uint32_t off, void *buf, uint32_t n)
 {
     const qds_ent_t *e = find(s, key);
     uint8_t pay[QDS_PAYLOAD];
@@ -299,7 +299,7 @@ void qd_store_use(const qd_store_t *s, uint32_t *live_pages, uint32_t *total_pag
 int qd_store_busy(const qd_store_t *s) { return s->busy; }
 void qd_store_set_reserve(qd_store_t *s, int sectors) { s->reserve = sectors < 1 ? 1 : sectors > s->nsec - 2 ? s->nsec - 2 : sectors; }
 
-static int put_job(qd_store_t *s, uint32_t key, uint32_t len)
+static FZ_COLD int put_job(qd_store_t *s, uint32_t key, uint32_t len)
 {
     uint32_t live, total;
     const qds_ent_t *e = find(s, key);
@@ -371,8 +371,8 @@ static int open_sector(qd_store_t *s)
 
 /* one page of a record at the head, its payload from data (the record's bytes), else src (P2.1: its owner's), else
  * pay (a payload as it is: GC's copy): 1 written, 0 no room (no blank sector) or the source failed */
-static int write_page(qd_store_t *s, uint32_t key, uint32_t rseq, int idx, int np, uint32_t len, const uint8_t *data,
-                      qds_src_fn src, void *ctx, const uint8_t *pay, int *at)
+static FZ_COLD int write_page(qd_store_t *s, uint32_t key, uint32_t rseq, int idx, int np, uint32_t len,
+                              const uint8_t *data, qds_src_fn src, void *ctx, const uint8_t *pay, int *at)
 {
     uint8_t b[QDS_PAGE];
     uint32_t off = (uint32_t)idx * QDS_PAYLOAD, take = 0;
@@ -431,7 +431,7 @@ static int gc_victim(qd_store_t *s)
 
 /* GC one sector (quiet, no record half written): its records written again whole, page by page (P2.1: no copy of a
  * record in RAM), then it is erased */
-static int gc_one(qd_store_t *s)
+static FZ_COLD int gc_one(qd_store_t *s)
 {
     const int v = gc_victim(s);
     int i, moved = 1;
@@ -477,7 +477,7 @@ static int gc_one(qd_store_t *s)
     return 1;
 }
 
-int qd_store_step(qd_store_t *s, int playing, int quiet, int max_pages)
+FZ_COLD int qd_store_step(qd_store_t *s, int playing, int quiet, int max_pages)
 {
     int n = playing ? 1 : max_pages < 1 ? 1 : max_pages, erased = 0;
     if (quiet) {                                        /* P2.4: at most one erase a step (a step returns soon) */

@@ -177,3 +177,12 @@
 #else
 #define QD_POOL_DEFAULT 8              /* the voices a unit plays with (the host: FM1VST, the site; P2.6f: 8, as the unit) */
 #endif
+
+/* (2026-11-13) code run or drawn seldom (menus, browser, TOOLS, the Manager's SysEx, the undo history, ...): optimised
+ * for size, whatever its unit's flags (clang's minsize: what -Oz is, function by function), so its unit can stay at
+ * -Os for what runs often (2026-11-14: here, not in ui.h, so the core's other units have it too) */
+#if defined(__clang__)
+#define FZ_COLD __attribute__((minsize))
+#else
+#define FZ_COLD __attribute__((cold))
+#endif

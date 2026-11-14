@@ -187,6 +187,13 @@ extern qd_side_t qd_side_m[QD_TRACKS];
 #define QD_SIDE_V(a) ((a)->side_v)
 #define QD_SIDE_M(a) ((a)->side_m)
 #endif
+/* 2026-11-14: a main-loop buffer the Bluetooth unit keeps in NOINIT (FIZZ's: zeroed by app.c before FIZZ starts), not
+ * in its full pool (its unit's zero-initialised data's: firmware/build.py BLE_TO_POOL) */
+#if defined(QD_TARGET_FM1) && QD_PKG_BLE
+#define QD_BLE_NI __attribute__((section(".fz_nidata")))
+#else
+#define QD_BLE_NI
+#endif
 
 typedef struct qd_app {
     /* the clock */

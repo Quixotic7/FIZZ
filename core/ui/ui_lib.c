@@ -90,7 +90,7 @@ FZ_COLD void ui_import_draw(const char *name, int pool, int slot, float t)
 }
 
 /* ---------------------------------------------------------------- the project pages */
-static void prj_meter(float y, float frac, float own, qd_rgb col, int chip, const char *txt)
+static FZ_COLD void prj_meter(float y, float frac, float own, qd_rgb col, int chip, const char *txt)
 {
     const float x0 = 32.f, w = 160.f;
     if (chip) {                                         /* the flash: a chip */

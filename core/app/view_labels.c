@@ -17,7 +17,7 @@
 typedef char qd_lbl_order_ok[QD_LBL_W0 == QD_LBL_BTN0 + QD_NBTN && QD_LBL_N == 49 && QD_LBL_MASTER == QD_K_4 + 1 ? 1 : -1];
 static int lb_held(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
 static int lb_finger(const qd_app_t *a) { return (a->keys_held & 0x7FFFFFFu) != 0; }
-static void lb_set(qd_labels_t *o, int i, const char *s)
+static FZ_COLD void lb_set(qd_labels_t *o, int i, const char *s)
 {
     int k = 0;
     if (i < 0 || i >= QD_LBL_N)
@@ -26,7 +26,7 @@ static void lb_set(qd_labels_t *o, int i, const char *s)
         o->s[i][k] = (char)(s[k] >= 'a' && s[k] <= 'z' ? s[k] - 32 : (s[k] & 0x7F) < 0x20 ? ' ' : s[k] & 0x7F);
     o->s[i][k] = 0;
 }
-static void lb_setn(qd_labels_t *o, int i, const char *pre, int n)
+static FZ_COLD void lb_setn(qd_labels_t *o, int i, const char *pre, int n)
 {
     char b[24];
     snprintf(b, sizeof b, "%s%d", pre, n);
@@ -38,7 +38,7 @@ static void lb_setn(qd_labels_t *o, int i, const char *pre, int n)
 #define LB_B(b) (QD_LBL_B0 + (b))
 
 /* the buttons' everyday jobs (the step view, the keyboard), each overridden by its context below */
-static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
+static FZ_COLD void lb_buttons(const qd_app_t *a, qd_labels_t *o)
 {
     const qd_ui_t *u = &a->ui;
     const int keys = u->mode == QD_MODE_KEYS;
@@ -63,7 +63,7 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
 }
 
 /* a knob's job (qd_ctl_knob_job) as a word */
-static const char *lb_job(int job, int mode)
+static FZ_COLD const char *lb_job(int job, int mode)
 {
     static const char *const MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
                                                 "CONDITION", "TRIG", "FUNCTION", "SLIDE", "SOUND"};
@@ -90,7 +90,7 @@ static const char *lb_job(int job, int mode)
 }
 
 /* 2026-11-10: the black keys as the hold modes (B9 TRIG / SLIDE), B11 the hold key */
-static void lb_modes(const qd_app_t *a, qd_labels_t *o)
+static FZ_COLD void lb_modes(const qd_app_t *a, qd_labels_t *o)
 {
     int i;
     for (i = 0; i < 10; i++)
@@ -100,7 +100,7 @@ static void lb_modes(const qd_app_t *a, qd_labels_t *o)
 }
 
 /* the keys as notes (the keyboard, the editor's keyboard): each key's note, by the scale */
-static void lb_notes(const qd_app_t *a, qd_labels_t *o, int scale_whites)
+static FZ_COLD void lb_notes(const qd_app_t *a, qd_labels_t *o, int scale_whites)
 {
     char nm[8];
     int i;
@@ -123,7 +123,7 @@ static void lb_notes(const qd_app_t *a, qd_labels_t *o, int scale_whites)
 }
 
 /* the step view's F1 / F2 layers: their keys (P1.6h: the main pages' too); 1 when one is held */
-static int lb_flayer(const qd_app_t *a, qd_labels_t *o, int layer)
+static FZ_COLD int lb_flayer(const qd_app_t *a, qd_labels_t *o, int layer)
 {
     int i;
     if (layer == QD_LAYER_F1) {                         /* F1: the pages */
@@ -147,7 +147,7 @@ static int lb_flayer(const qd_app_t *a, qd_labels_t *o, int layer)
 }
 
 static void lb_ctx(const qd_app_t *a, qd_labels_t *o);
-void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
+FZ_COLD void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
 {
     const qd_ui_t *u = &a->ui;
     lb_ctx(a, o);
@@ -156,7 +156,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_B(10), qd_tools_open(a) ? "SEL/CLEAR"   /* (2026-11-13: TOOLS: a click clears the selection) */
                             : qd_snd_keys(a) || (u->mode == QD_MODE_KEYS && !u->ksteps) ? "SEL/STEPS" : "SEL/KEYS");
 }
-static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
+static FZ_COLD void lb_ctx(const qd_app_t *a, qd_labels_t *o)
 {
     const qd_ui_t *u = &a->ui;
     const int shift = qd_ctl_shift(a), step = u->mode == QD_MODE_STEP;

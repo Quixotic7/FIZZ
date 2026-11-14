@@ -102,7 +102,7 @@ int ui_track_kind(int n) { return n >= 1 && n <= UI_NTRACK && UI_TRACK_KIND[n - 
 
 /* P1.6d: the kinds' icons. BASS a long low wave, KEYS three keys and two black ones, PLUCK a spike decaying, PAD a
  * slow swell, LEAD a square wave, DRUMS a drum and its sticks, FX a sparkle */
-void ui_kind_icon(int kind, float cx, float cy, float s, qd_rgb col)
+FZ_COLD void ui_kind_icon(int kind, float cx, float cy, float s, qd_rgb col)
 {
     float p[20];
     int i;
@@ -257,7 +257,7 @@ static void note_glyph(int v, float cx, float cy, float s, qd_rgb c)
            1.1f);
 }
 
-void ui_icon(int id, float cx, float cy, float s, qd_rgb c)
+FZ_COLD void ui_icon(int id, float cx, float cy, float s, qd_rgb c)
 {
     switch (id) {
     case UI_IC_CLEAR:                                   /* a cross */

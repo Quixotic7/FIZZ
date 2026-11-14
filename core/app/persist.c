@@ -1013,7 +1013,7 @@ static int prj_format_ok(qd_persist_t *ps, const qd_flash_t *fl)
     return qd_store_mount(&ps->prj_st, fl, QD_FLASH_PRJ, QD_FLASH_PRJ_SEC, ps->prj_ent, QD_PRJ_KEYS);
 }
 
-void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)
+FZ_COLD void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)   /* (once, at boot: minsize) */
 {
     qd_persist_t *ps = &a->per;
     int proj = 0, pat = QD_PAT_START, sel = 0, len;
@@ -1165,7 +1165,7 @@ static int job_start(qd_app_t *a, int it)
     ps->job_it = it;
     if (n <= QDS_JOBBUF) {                              /* (short, and the host's every record: copied now, as in
                                                          * Phase 1: what is written is what it was at the start) */
-        static uint8_t flat[QDS_JOBBUF];
+        static uint8_t flat[QDS_JOBBUF] QD_BLE_NI;    /* (2026-11-14: the Bluetooth unit's NOINIT) */
         em_t e;
         em_init(&e, flat, 0, n);
         item_em(a, it, &e);
@@ -1398,7 +1398,7 @@ static int proj_switch_prep(qd_app_t *a)
     return 1;
 }
 
-int qd_proj_load(qd_app_t *a, int p)
+FZ_COLD int qd_proj_load(qd_app_t *a, int p)
 {
     qd_persist_t *ps = &a->per;
     if (p < 0 || p >= QD_NPROJ || !ps->on)
@@ -1442,7 +1442,7 @@ static void names_from_sounds(qd_app_t *a)
     }
 }
 
-int qd_proj_new(qd_app_t *a, int p)
+FZ_COLD int qd_proj_new(qd_app_t *a, int p)
 {
     qd_persist_t *ps = &a->per;
     if (p < 0 || p >= QD_NPROJ || !ps->on)
