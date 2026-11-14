@@ -24,7 +24,7 @@ const WHITE = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
 const MODES = ["NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "FUNC", "TRIG/SLIDE", "SOUND", "SEL/KEYS"];   // (2026-11-10: B11 the hold key; a click the keys)
 // buttons in matrix order: 0 OCT- 1 OCT+ 2 FX 3 SEL 4 ENV 5 LFO 6 EDIT 7 GLO 8 HOME 9 SAVE 10 ARP 11 SEQ 12 PLAY 13 REC
 // (2026-11-10: SEL tapped OVERVIEW, HOME clicks the next view; SHIFT + SEL the track settings, + PLAY F3, no SHIFT + HOME)
-const BASE_BTN = ["COPY", "MOVE", "EFFECTS", "OVERVIEW", "MIX", "LATCH", "EDITOR", "SHIFT", "NEXT VIEW", "SOUNDS", "MIDI FX", "PATTERNS", "PLAY", "KEYBOARD"];
+const BASE_BTN = ["COPY", "MOVE", "EFFECTS", "OVERVIEW", "MIX", "LATCH", "EDITOR", "SHIFT", "NEXT VIEW", "SAVE", "MIDI FX", "PATTERNS", "PLAY", "KEYBOARD"];
 const SHIFT_BTN = ["UNDO", "REDO", "FILL", "TRACK SET", "", "", "", "SHIFT", "", "PROJECT", "MFX ON/OFF", "AT ONCE", "F3", "REC SET"];
 const SHIFT_BLACK = ["SNAPSHOT", "", "RECALL", "COPY PAT", "PASTE PAT", "TAP TEMPO", "CLICK", "FOLLOW", "DOUBLE", "", "CLEAR TRK"];   // (P1.5z: B8 page follow)
 export function stubLabels(held = {}) {
