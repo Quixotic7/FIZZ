@@ -86,6 +86,10 @@ for i, n in enumerate(KM, 1):                  # fizz-keys-modes.html: the white
     SHOTS[f'km-{i}'] = (f'shot={i}', 240, 286, f'fizz-keys-modes-{i:02d}-{n}.png', 'fizz-keys-modes.html')
 SHOTS['sheet-km'] = ('sheet=1', 2030, 2530, 'fizz-keys-modes-sheet.png', 'fizz-keys-modes.html')
 
+for m in ('cond', 'func', 'trig', 'sound', 'slide'):   # fizz-roll-grid.html: the PIANO ROLL's 4 x 4 grid (2026-11-13)
+    SHOTS[f'rg-{m}'] = (f'sheet={m}', 1524, 600, f'roll-grid-{m}.png', 'fizz-roll-grid.html')
+SHOTS['sheet-rg'] = ('sheet=all', 1524, 2720, 'roll-grid-sheet.png', 'fizz-roll-grid.html')
+
 def render(key, scratch):
     query, w, h, name = SHOTS[key][:4]
     page = SHOTS[key][4] if len(SHOTS[key]) > 4 else 'index.html'

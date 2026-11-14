@@ -402,8 +402,8 @@ void ui_keymap(const ui_kkey_t k[11], float y, float h);
  * outlines and the page's dashes (the loop, each page's start..end); in the columns:
  *   NOTE   the piano roll (P1.3's s2)        VEL   bars up from the floor      LEN   bars over the steps
  *   MICRO  each step's start off its grid   RATCH the hits in the step        CHNC  a column of dots, lit by chance
- *   COND   the conditions' short names      TRIG  NOTE / LOCK / TIE icons      SOUND the pool number (a dot: none)
  *   LOCKS  the step's lock count
+ * (2026-11-13: COND, TRIG, FUNC, SLIDE and SOUND a 4 x 4 grid of boxes instead, a row a beat: ui_lane.c's grid)
  * a step that overrides the mode in the mode's colour, a step on the track's default grey; the default itself as a
  * dashed line (VEL, LEN, MICRO, RATCH, CHNC, NOTE: the default chord's notes) or a grey label (COND, TRIG, SOUND)
  * across the page. Steps outside the page's start..end dark. The mode's name and the track small in the top line */
@@ -424,6 +424,7 @@ typedef struct {
     uint8_t chance;                     /* 0..100 */
     char cond[6];                       /* "3:4", "FILL", "!1ST"; "" ALWAYS */
     uint8_t sound;                      /* the pool number of its sound lock, 0 none */
+    const char *sname;                  /* .. its name (2026-11-13: SOUND's grid; 0 none) */
     uint8_t nlock;                      /* p-locks */
     uint8_t strum;
     uint8_t func;                       /* P1.3w: the step function (QD_FN_*) */
@@ -477,6 +478,8 @@ enum { UI_C_ON = 1, UI_C_LOCK = 2, UI_C_TIE = 4, UI_C_OVR = 8, UI_C_RANGE = 16, 
 qd_rgb ui_steps_fill(uint8_t cell);     /* a cell's fill: UI_STEP_OWN / UI_STEP_TRACK, QD_NONE (a ghost, off, out of range) */
 qd_rgb ui_steps_ink(uint8_t cell);      /* the notes' colour on that fill (a dark shade of it) */
 void ui_lane_draw(const ui_lane_t *v);
+int ui_lane_jump_to(const ui_lane_t *v, int i);   /* 2026-11-13: the box step i's JUMP / LEAP lands in (-1: none, or
+                                                   * off the page) */
 void ui_steps_row(const ui_lane_t *v, float y, float open);   /* P1.3r: the page edited's row alone (EDIT) */
 
 /* ---- a held step (line.html s4..s10, s19, s20; PLAN §9a rule 7, §8b): one layout, "STEP n · MODE" top left, the

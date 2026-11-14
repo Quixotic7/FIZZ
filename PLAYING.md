@@ -142,6 +142,17 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 - Pop-ups (the held-step and default pictures, the knob takeovers, the octave and sound pickers) no longer show the
   track's box and name: only what is being edited.
 - In the PIANO ROLL the small dots over the columns mark the beats (steps 1, 5, 9, 13; the first a little brighter).
+- **The PIANO ROLL as a grid** (2026-11-13): in **COND, TRIG, FUNC, SLIDE and SOUND** the page is a 4 x 4 grid of
+  boxes, a row a beat (NOTE, VEL, LEN, MICRO, RATCH and CHNC keep their lanes). An empty step is a dark outline, a
+  trig on the track's value a grey box, a step with its own value a box in the mode's colour with the value big. The
+  playing step's box flashes with a red bar along its foot; the cursor, held and selected steps are outlined white.
+  - **COND**: an A:B is a ring cut into B passes with the A-th lit and "A:B" inside; FILL, PRE, !1ST and the other
+    names big; ALWAYS a grey ring (chance stays in CHNC).
+  - **TRIG**: NOTE a disc, LOCK a violet padlock, TIE a ring with its slur from the step before (STEPS' colours).
+  - **SLIDE**: the box is the pitch over the step: the note's dot rising to an arrow; the longer the TIME, the further
+    across the climb; LEGATO adds a slur under it; an OFF lock is a crossed ring.
+  - **SOUND**: a sound lock's pool number big with its name under it, each sound in its own colour (the same sound
+    the same colour on every step); the track's sound a grey ring, named at the foot.
 - **FX held + ALGORITHM** chooses the track: the track's number big in its colour with its name, the six below.
 - After two minutes untouched with nothing playing, it goes back to the FIZZ screen. **The press or turn that wakes
   it does nothing else** (2026-11-13, the owner): any key, button (PLAY too) or knob only wakes it; a button held
@@ -239,9 +250,10 @@ and chance; a LOCK step's runs too).
   not held; it works with the step latch too). **SELECT** while holding turns the page to target a step on another
   page. KNOB 1 (or ALGORITHM, with a finger on the step) walks the nine kinds.
 - The FUNC keys light like the other modes': the step's function's key lit.
-- **B11** removes the step's function. The PIANO ROLL's FUNC lane shows each step's function as an icon (an arrow, a
-  circular arrow, a die, a jump with its target's number, two hops with LEAP's amount); STEPS marks a step with a
-  function with a small blue dot.
+- **B11** removes the step's function. The PIANO ROLL in FUNC shows the page as a 4 x 4 grid of boxes, each step's
+  function as a big icon (an arrow, a circular arrow, a die, a jump with its target's number, two hops with LEAP's
+  amount), and a dashed arrow from each JUMP / LEAP to the box it lands in (white while its step plays; a target on
+  another page: no arrow); STEPS marks a step with a function with a small blue dot.
 
 ## How do I hear a step while I edit it?
 
