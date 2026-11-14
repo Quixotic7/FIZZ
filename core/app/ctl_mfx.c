@@ -110,6 +110,8 @@ void qd_mfx_screen(qd_app_t *a)
     qd_page_open(a, QD_LATCH_MFX, QD_PO_KEYS);
     u->mode = u->ekeys ? QD_MODE_KEYS : QD_MODE_STEP;   /* (2026-11-13, owner: B11's one global state: the step
                                                          * keyboard KEYS, the step selection STEPS) */
+    u->ksteps = (uint8_t)!u->ekeys;                     /* (.. the keyboard's flag with it: left stale, B11's label
+                                                         * and SHIFT + W read the other state) */
     u->mfx_wheld = 0;
     u->mfx_drop = -1, u->mfx_f1_src = -1;
     u->mfx_slot &= 7;
