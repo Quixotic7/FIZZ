@@ -221,6 +221,11 @@ so a row's change is not all the refactor's.
 | 53fc27b, noinline helpers (view's cat, the lane's, persist's) | 9,552 | 3,912 / 368 | 6,308 |
 | bbad86f, the drawing back at -Os (with 37a3ea8, 97ad083, 6395425 before it) | 7,520 | 576 / 280 | 2,756 |
 | 4088a89, the last commit of this round | **8,096** | **1,040 / 336** | **3,332** |
+| master 81d5a54 (the main session's MIDI FX / TOOLS round) | 6,736 | **does not link** (336 over) / 336 | 1,972 |
+| 1545419, stage 2: the W wait, LFO's selection, `qd_page_open`, the arms | 6,944 | 128 over (before the arms) | 2,180 |
+| 62128be, `qd_key_led`, `qd_leds_row` | — | 160 over | — |
+| cef3241, the TOOLS knob table | — | 16 / 336 | — |
+| 3b22e20, `qd_ctl_no_room`, `page_btn`, the LEDs' copies, `step_tk_close` | **7,264** | **208 / 336** | **2,500** |
 
 ## 7. Status (2026-11-13, end of the first round)
 
@@ -273,3 +278,36 @@ commits already on master in those files (2579fb9, 26b826d, 4088a89) stay.
 
 Not asked yet (§4 stage 3): ALGORITHM on the mix, the keyboard page's knobs with a selection, SEQ held + ALGORITHM,
 the foot cells' grid, the step rows' geometry, the step frame's gaps.
+
+## 9. Status (2026-11-13, stage 2's round)
+
+On branch `ui-refactor`, rebased onto master 81d5a54 (the main session's MIDI FX / TOOLS round). Not merged, not
+flashed.
+
+The owner's decisions (§8), built:
+- A W down under QD_TAP_MS is not held yet on the mix and the effects either: a knob then edits the track, as in the
+  sound editor (1545419).
+- LFO's lock brings back the last selection on every page (the mix and MIDI FX started empty). With cae8d69 the
+  selection is already kept across the modes; this covers the lock turned off and on again.
+- `qd_page_open` (ctl_latch.c) replaces the nine page-opening copies: every page keeps the step lock and closes a
+  running takeover (EDIT, MIDI FX, TOOLS and both settings pages left it up). TOOLS still shows its tool's name.
+- One message for a cleared track ("TRACK CLEARED"); MIDI FX's remove, the project copy and the browser's DELETE? /
+  OUT? arms time out after QD_ARM_MS, as the clear arm.
+- One key-light rule, `qd_key_led` (62128be): held or sounding lit, else root / scale / off. MIDI FX's W keys now
+  light while held (with an ARP too); STEPS' B1..B10 light for a note sounding, LEDs and screen.
+- FULL in the sound editor: B9 / B10 play notes (they always did), so they are no longer labelled DICE / NEW SOUND
+  there. Their LEDs already lit as notes.
+- One step-row rule for the W LEDs, `qd_leds_row`: the playhead's key inverted, the selected steps blinking at
+  QD_FAST_MS, on the step view, MIDI FX's STEPS (QD_BLINK_MS before, no playhead) and TOOLS (no playhead before;
+  the owner chose it there too). TOOLS' blink was already in the step view's phase (§4's item 14 was wrong on that).
+- The keyboard page's step row draws the playhead with KEYS too (the owner OKed the mock-up:
+  `docs/ui-review/stage2-keys-playhead.png`; render_kst has a new `keys-play` shot).
+
+Refactors (same behaviour, the determinism hash unchanged): the TOOLS knob table (2.8, 176 B), `qd_ctl_no_room` and
+`page_btn` (1.11), the LEDs' breath and black-key copies (1.9), `step_tk_close`.
+
+Master 81d5a54's Bluetooth package does not link (XIP overflowed by 336 B). This branch fits: see §6. `make -C tools test` passes at 3b22e20.
+
+Not done: `qd_selection` / `qd_sel_t` beyond the mask, the takeovers' lifetime table, `ui_row_t`, `qd_mix_value`, the
+browser's relist pairs, `ui_T_fit`, EDIT's head value; stage 3 (ALGORITHM on the mix, the keyboard page's knobs with
+a selection, SEQ held + ALGORITHM, the foot cells, the step rows' geometry, the step frame).
