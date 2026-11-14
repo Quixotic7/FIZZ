@@ -12,3 +12,4 @@ ios/Local.xcconfig
 *.cer
 ios/FIZZ.xcodeproj/project.xcworkspace/xcuserdata/
 promo/build/
+demos/*/build/

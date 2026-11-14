@@ -1,0 +1,9 @@
+reset
+wait 300
+tap HOME
+wait 300
+project 3 new
+name CARNIVAL
+song
+wait 300
+store carnival.bin
