@@ -9,6 +9,10 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **SEQ is a page button with three pages: TOOLS, PATTERNS and the PIANO ROLL.** From anywhere else a SEQ click opens the one you used last (TOOLS after power-on); on one of them a click goes to the next, round. HOME leaves them for your Home view, so HOME / SEQ flips between the two. SEQ is lit on its pages.
+- **Holding SEQ is a quick peek at the patterns**: choose a pattern or a bank while you hold it, and you're back where you were when you let go (it no longer stays open: click SEQ to PATTERNS for that).
+- **The PIANO ROLL moved from HOME to SEQ.** HOME's views are now STEPS, EDIT and GEEK OUT; the settings' HOME VIEW offers those three (a saved PIANO ROLL comes back as EDIT). The roll itself works as before; EDIT, ENV, FX or ARP opened over it go back to it with their own key, to your Home view with HOME.
+
 ## 0.12.0-beta.18 (2026-11-13)
 
 One design language across the pages: ALGORITHM selects steps everywhere, the selection, SOUND's bank and the octave stay put as you move around, and MIDI FX, TOOLS and FUNC are redone to match.

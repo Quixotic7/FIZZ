@@ -1829,7 +1829,7 @@ int main(void)
         qd_app_sysex(&A, f, n);
         CHECK(!strcmp(LIB(&A, 99)->name, "SX KEEP"), "a SysEx import into LIBRARY 100");
     }
-    A.ui.view = QD_VIEW_STEPS;                          /* (P1.5s: the user's view kept) */
+    qd_ctl_set_view(&A, QD_VIEW_STEPS);                 /* (P1.5s: the user's view kept) */
     qd_persist_flush(&A);
     boot(&B);
     CHECK(B.ui.view == QD_VIEW_STEPS, "a restart: the view kept (STEPS; P1.5s)");
@@ -1842,17 +1842,30 @@ int main(void)
         static uint8_t b[QDS_MAXREC];
         int len;
         B.ui.home_lock = 1;
-        B.ui.view = QD_VIEW_ROLL;                       /* (2026-11-11: OVERVIEW is SEL's, never saved as the view) */
+        qd_ctl_set_view(&B, QD_VIEW_EDIT);
+        qd_ctl_set_view(&B, QD_VIEW_ROLL);              /* (2026-11-11: OVERVIEW is SEL's, never saved as the view;
+                                                         * 2026-11-13: nor SEQ's PIANO ROLL: the Home view under it) */
         qd_persist_flush(&B);
         boot(&A);
         len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
-        CHECK(A.ui.home_lock && A.ui.view == QD_VIEW_ROLL && len > 0 && b[len - 1] == 3,
-              "a restart: the Home view (PIANO ROLL) and its LOCK kept (the last byte %d)", len > 0 ? b[len - 1] : -1);
+        CHECK(A.ui.home_lock && A.ui.view == QD_VIEW_EDIT && A.ui.hview == QD_VIEW_EDIT && len > 0 &&
+                  b[6] == QD_VIEW_EDIT && b[len - 1] == 3,
+              "a restart on the roll: the Home view (EDIT) and its LOCK kept (the last byte %d)", len > 0 ? b[len - 1] : -1);
         b[len - 1] = 1;
         qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
         qd_store_flush(&A.per.prj_st);
         boot(&B);
-        CHECK(!B.ui.home_lock && B.ui.view == QD_VIEW_ROLL, "a record from before the LOCK: unlocked, the view kept");
+        CHECK(!B.ui.home_lock && B.ui.view == QD_VIEW_EDIT, "a record from before the LOCK: unlocked, the view kept");
+        b[6] = QD_VIEW_ROLL;                            /* (a record from before 2026-11-13 with the PIANO ROLL: EDIT) */
+        qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+        qd_store_flush(&B.per.prj_st);
+        boot(&A);
+        CHECK(A.ui.view == QD_VIEW_EDIT && A.ui.hview == QD_VIEW_EDIT, "2026-11-13: a saved PIANO ROLL comes back as EDIT");
+        b[6] = QD_VIEW_STEPS;
+        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+        qd_store_flush(&A.per.prj_st);
+        boot(&B);
+        CHECK(B.ui.view == QD_VIEW_STEPS && B.ui.hview == QD_VIEW_STEPS, ".. a saved STEPS as STEPS");
         b[6] = QD_VIEW_OVERVIEW;                        /* (a record from 1ad69a7 with OVERVIEW as its view: EDIT) */
         qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
         qd_store_flush(&B.per.prj_st);

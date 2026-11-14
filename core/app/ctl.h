@@ -211,6 +211,10 @@ enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT,     /* P1.3e: the sequencer's 
                                                         * it as 8 % 8, the PIANO ROLL) */
        QD_NVIEW };
 #define QD_VIEW_GEEK(v) ((v) >= QD_VIEW_METERS && (v) <= QD_VIEW_TRACKS)
+/* 2026-11-13 (owner): the Home views (HOME's cycle: STEPS, EDIT, GEEK OUT); the PIANO ROLL is SEQ's page (its cycle:
+ * TOOLS, PATTERNS, PIANO ROLL), OVERVIEW SEL's. A record or a setting saying PIANO ROLL reads as EDIT */
+#define QD_VIEW_HOME(v) ((v) > QD_VIEW_ROLL && (v) < QD_VIEW_OVERVIEW)
+enum { QD_SEQ_TOOLS, QD_SEQ_PATTERNS, QD_SEQ_ROLL, QD_NSEQ };   /* SEQ's pages, its clicks' cycle */
 #define QD_VIEW_ROWS(v) ((v) == QD_VIEW_STEPS || (v) == QD_VIEW_EDIT)   /* P1.3r: the views drawing the pages' rows */
 #define QD_VIEW_NOPICK(v) (QD_VIEW_ROWS(v) || (v) == QD_VIEW_OVERVIEW)   /* .. and OVERVIEW: SELECT's page, no picker */
 /* 2026-11-10: OVERVIEW on screen's keys: B1..B6 the tracks as the mix's (tap, hold, double tap), B9 mutes and solos
@@ -287,6 +291,8 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
 enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_NKR };
 int qd_ctl_sel_map(const struct qd_app *a);
 int qd_ctl_seq_map(const struct qd_app *a);
+int qd_ctl_seq_page(const struct qd_app *a);   /* 2026-11-13: SEQ's page on screen (QD_SEQ_*), -1 none */
+int qd_ctl_home_view(const struct qd_app *a);  /* .. the Home view HOME goes back to (QD_VIEW_*) */
 int qd_ctl_latch_modes(const struct qd_app *a);
 /* 2026-11-11 (owner): the latch mode as the black keys take it: OVERVIEW always MODES (a finger on a step: the
  * values), elsewhere the setting */
@@ -436,6 +442,9 @@ typedef struct {
     int mode;                          /* QD_MODE_* */
     int view;                          /* P1.3e: the sequencer's view (QD_VIEW_*): kept for the session */
     uint8_t geek;                      /* the Geek Out page last shown (0: METERS ..): SHIFT + HOME from EDIT goes there */
+    uint8_t hview;                     /* 2026-11-13: the Home view last shown (QD_VIEW_HOME: HOME and the PIANO ROLL's
+                                        * way back; saved as the view) .. */
+    uint8_t seq_pg;                    /* .. SEQ's page last shown (QD_SEQ_*: a SEQ click from elsewhere; RAM only) */
     int home_woke;                     /* (the HOME press that woke the unit: it switches nothing) */
     uint32_t home_ms;                  /* 2026-11-10 (owner): HOME went down (held QD_HOME_HOLD_MS: the global settings) .. */
     uint8_t home_used;                 /* .. its press did its job already (a page left, a hold): no click at the release */

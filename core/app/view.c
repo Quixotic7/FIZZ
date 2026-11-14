@@ -2061,7 +2061,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->boost = u->boost;
     v->clk_out = u->clk_out, v->cc_out = u->cc_out;     /* (FIZZ MIDI (c)) */
     v->set_page = u->set_page;
-    v->home_view = qd_ctl_view_family(u->ov_back >= 0 ? u->ov_back : u->view), v->home_lock = u->home_lock;
+    v->home_view = qd_ctl_view_family(qd_ctl_home_view(a)) - 1, v->home_lock = u->home_lock;   /* (2026-11-13: STEPS 0 ..) */
 #if QD_PKG_BLE
     v->ble_on = !u->ble_off, v->ble_st = u->ble_st;     /* (the Bluetooth package's page 3) */
 #endif

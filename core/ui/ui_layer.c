@@ -748,8 +748,8 @@ static FZ_COLD __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /*
 #endif
 
 /* 2026-11-10 (owner): SETTINGS' page 2, HOME, on the track settings' grid (TRK_Y: four rows 53.25 px apart, the value
- * 26 px at the right): KNOB 1 HOME VIEW (its name), KNOB 2 LOCK (ON / OFF, a padlock shut or open); under them the five
- * Home views as five little screens in HOME's order, the chosen one lit in KNOB 1's colour; unlocked an arrow along
+ * 26 px at the right): KNOB 1 HOME VIEW (its name), KNOB 2 LOCK (ON / OFF, a padlock shut or open); under them the three
+ * Home views (2026-11-13) as little screens in HOME's order, the chosen one lit in KNOB 1's colour; unlocked an arrow along
  * them (HOME clicks go round), locked the padlock over the chosen one */
 static void padlock(float cx, float cy, int shut, qd_rgb col)   /* its shackle (open: lifted), its body */
 {
@@ -759,8 +759,9 @@ static void padlock(float cx, float cy, int shut, qd_rgb col)   /* its shackle (
 static FZ_COLD __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /* (noinline: the Bluetooth package's second
                                                          * blob, as menu_set2) */
 {
-    static const char *const VN[4] = {"PIANO ROLL", "STEPS", "EDIT", "GEEK OUT"};   /* (2026-11-11: OVERVIEW is SEL's) */
-    const int hv = v->home_view < 0 || v->home_view > 3 ? 0 : v->home_view;
+    static const char *const VN[3] = {"STEPS", "EDIT", "GEEK OUT"};   /* (2026-11-11: OVERVIEW is SEL's; 2026-11-13:
+                                                         * the PIANO ROLL SEQ's) */
+    const int hv = v->home_view < 0 || v->home_view > 2 ? 1 : v->home_view;
     int k, i;
     for (k = 0; k < 2; k++) {
         const float y = 40.f + (float)k * 53.25f, vy = y + 30.f;
@@ -772,21 +773,20 @@ static FZ_COLD __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /*
         if (k == 1)
             padlock(232.f - (w > 150.f ? 150.f : w) - 18.f, vy - 9.f, v->home_lock, col);
     }
-    for (k = 0; k < 4; k++) {                           /* the four views, small: a few bars each (x, y, w, h) */
-        static const uint8_t TH[4][6][4] = {
-            {{5, 24, 7, 4}, {13, 18, 7, 4}, {21, 26, 7, 4}, {29, 12, 6, 4}},                  /* PIANO ROLL: notes */
+    for (k = 0; k < 3; k++) {                           /* the three views, small: a few bars each (x, y, w, h) */
+        static const uint8_t TH[3][6][4] = {
             {{5, 6, 30, 4}, {5, 13, 30, 12}, {5, 28, 30, 4}},                                 /* STEPS: a row open */
             {{11, 5, 18, 18}, {5, 29, 30, 6}},                                                /* EDIT: the picture, the row */
             {{6, 26, 5, 8}, {14, 20, 5, 14}, {22, 14, 5, 20}, {30, 8, 5, 26}},                /* GEEK OUT: meters */
         };
-        const float x = 22.f + (float)k * 52.f, y = 160.f;
+        const float x = 48.f + (float)k * 52.f, y = 160.f;
         const qd_rgb c = k == hv ? KCOL[0] : UI_G2;
         ui_RR(x, y, 40.f, 40.f, 5.f, c, k == hv ? 2.f : 1.2f, QD_NONE);
         for (i = 0; i < 6 && TH[k][i][2]; i++)
             ui_RR(x + TH[k][i][0], y + TH[k][i][1], TH[k][i][2], TH[k][i][3], 1.f, QD_NONE, 1.f, c);
     }
     if (v->home_lock)                                   /* locked: the padlock under the chosen one */
-        padlock(42.f + (float)hv * 52.f, 214.f, 1, KCOL[1]);
+        padlock(68.f + (float)hv * 52.f, 214.f, 1, KCOL[1]);
     else                                                /* HOME clicks go round */
         ui_icon(UI_IC_RIGHT, 120.f, 216.f, 2.f, UI_G1);
 }

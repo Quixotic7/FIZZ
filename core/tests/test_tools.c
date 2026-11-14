@@ -463,8 +463,7 @@ static void start(void)
     btap(QD_B_HOME);
     bdown(QD_B_MIX);                                    /* the empty A05 */
     white(4);
-    bup(QD_B_MIX);
-    btap(QD_B_MIX);                                     /* (the latched map closed) */
+    bup(QD_B_MIX);                                      /* (2026-11-13: a peek: closed on release) */
     run(10);
 }
 static void tools_open(void)
@@ -513,20 +512,21 @@ static void t_arp(void)
     CHECK(qd_ctl_seq_map(&A), "SEQ held over TOOLS: the patterns map");
     bup(QD_B_MIX);
     run(10);
-    CHECK(qd_tools_open(&A) && qd_ctl_seq_map(&A), "let go: the map latched over TOOLS (2026-10-25)");
+    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A), "let go: TOOLS again (2026-11-13: the patterns a peek)");
     btap(QD_B_MIX);
-    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A), "SEQ tapped: the map closed, TOOLS still");
+    CHECK(!qd_tools_open(&A) && qd_ctl_seq_map(&A) && leds().button[QD_B_MIX] == QD_LED_LIT,
+          "SEQ tapped: PATTERNS (2026-11-13: SEQ's cycle), SEQ lit");
     btap(QD_B_MIX);
-    CHECK(!qd_tools_open(&A) && leds().button[QD_B_MIX] == QD_LED_OFF, "SEQ tapped again: closed, SEQ dark");
     btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A), ".. the PIANO ROLL, TOOLS again");
     btap(QD_B_HOME);
-    CHECK(!qd_tools_open(&A) && leds().button[QD_B_KEYS] == QD_LED_OFF, "HOME: closed, ARP dark (no group)");
+    CHECK(!qd_tools_open(&A) && leds().button[QD_B_KEYS] == QD_LED_OFF && leds().button[QD_B_MIX] == QD_LED_OFF,
+          "HOME: closed, ARP and SEQ dark (no group)");
     bdown(QD_B_MIX);
     run(QD_TAP_MS + 20);
     bup(QD_B_MIX);
     run(10);
-    CHECK(!qd_tools_open(&A) && !qd_lib_open(&A) && qd_ctl_seq_map(&A), "SEQ held, let go: the map latched, no TOOLS");
-    btap(QD_B_HOME);
+    CHECK(!qd_tools_open(&A) && !qd_lib_open(&A) && !qd_ctl_seq_map(&A), "SEQ held, let go: no map, no TOOLS");
     btap(QD_B_KEYS);
     CHECK(qd_mfx_open(&A) && leds().button[QD_B_KEYS] == QD_LED_LIT, "ARP tapped: the MIDI FX screen, ARP lit");
     btap(QD_B_HOME);

@@ -15,7 +15,7 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | OCT− and OCT+ together | **F3** (it stays open; OCT− closes it) |
 | GLO | **SHIFT** |
 | SEL (printed) | **SEL**: hold it for the tracks; tap it for the track settings |
-| SEQ (printed) | **SEQ**: hold it for the patterns (they stay open on release; SEQ tapped or HOME closes them); tap it for TOOLS |
+| SEQ (printed) | **SEQ**: its pages TOOLS, PATTERNS and the PIANO ROLL (clicks go round; HOME leaves them); hold it to peek at the patterns |
 | SAVE (printed) | **SAVE**: SAVE PRESET, the selected track's sound into MY PRESETS |
 | LFO (printed) | **LATCH**: the step latch, on / off |
 | FX (printed) | **FX**: tap it for the effects; hold it to choose the track |
@@ -48,19 +48,28 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 - **HOME** (2026-11-10, the owner): **from any other page** (the sound editor, the effects, the mixer, MIDI FX,
   TOOLS, the keyboard page, F3, a settings menu, the step latch, OVERVIEW opened by SEL ..) **the first click brings
   you back to the Home view you were on**, in one press. **On the Home view, a click goes to the next Home view**:
-  PIANO ROLL, STEPS, EDIT, GEEK OUT, OVERVIEW, then the PIANO ROLL again (SHIFT + HOME is no longer needed). **Hold
+  STEPS, EDIT, GEEK OUT, then STEPS again (SHIFT + HOME is no longer needed; 2026-11-13: the PIANO ROLL is SEQ's
+  page now, below). **Hold
   HOME** (half a second) for **the global settings**, from anywhere (below). With the global settings' **LOCK** on,
   HOME clicks never cycle: HOME always brings you to the Home view you chose there.
+- **SEQ** (2026-11-13, the owner) is a page button too, with **three pages: TOOLS, PATTERNS and the PIANO ROLL**.
+  **From any other page** (a Home view, the sound editor, the mixer ..) **a SEQ click opens the SEQ page you used
+  last** (TOOLS after power-on); **on a SEQ page a click goes to the next**: TOOLS, PATTERNS, PIANO ROLL, then TOOLS
+  again. **HOME** leaves any of them for the Home view, so HOME / SEQ flips between your Home view and your SEQ page.
+  SEQ is lit on its pages. **Hold SEQ** (or press a key or turn a knob with it) **to peek at the patterns** from
+  anywhere: they work as on PATTERNS, and when you let go you are back where you were (it no longer latches them).
+  The PIANO ROLL works exactly as before (the hold modes, the steps, B11, F1 / F2, the latch, page follow); pages
+  opened over it (EDIT, ENV, FX, ARP) go back to it with their own key, and to the Home view with HOME.
 - **The white keys' steps / keys** (a B11 click, below) is **one switch for every page**: changing pages, Home views,
   HOME clicks and opening the editors all leave it as it is; only a B11 click turns it (not kept across power-off).
-- **Main pages and pop-ups (0.9.6).** The main pages are the step view (PIANO ROLL, STEPS, EDIT), the **mixer**
+- **Main pages and pop-ups (0.9.6).** The main pages are the step view (STEPS, EDIT; SEQ's PIANO ROLL), the **mixer**
   (ENV, both pages), the **effects** (FX), the **sound editor** (EDIT) and the **MIDI FX** screen (ARP). **F1 never
   leaves them**: they close with **HOME** or their own key (EDIT, ARP; ENV and FX turn their pages), or by opening
   another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SHIFT + SEL),
   the record settings (SHIFT + REC), the global settings (HOME held), the project pages (SHIFT + SAVE), the browser
   (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
   (2026-11-10: the track settings are SHIFT + SEL, the global settings HOME held.)
-- **HOME clicks** cycle **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT**, **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE, TRACKS) and **OVERVIEW** (below). Whatever page you come back from, the step view is the one you were on, and GEEK OUT returns on its last page. STEPS shows all eight
+- **HOME clicks** cycle **STEPS**, **EDIT** and **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE, TRACKS); **OVERVIEW** is SEL's (below) and the **PIANO ROLL** (the mode's lane) SEQ's (2026-11-13). Whatever page you come back from, the step view is the one you were on, and GEEK OUT returns on its last page. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
@@ -592,7 +601,10 @@ Undo and redo of everything (P1.5c):
 
 ## How do I change patterns?
 
-- Hold **SEQ**: the screen shows one bank's 16 patterns; let go and they stay open (SEQ lit) until a SEQ tap or HOME (the playing one white, the queued one blinking orange).
+- **PATTERNS** is one of SEQ's pages (2026-11-13: SEQ clicks go TOOLS, PATTERNS, PIANO ROLL; HOME leaves it). The
+  screen shows one bank's 16 patterns (the playing one white, the queued one blinking orange). **Hold SEQ** from
+  anywhere for a peek: the same patterns and keys while you hold it, back where you were when you let go.
+- The keys below work on PATTERNS without SEQ, and with SEQ held anywhere.
 - **SEQ + B1..B4**: bank A..D (64 patterns). The current bank's key is lit, banks with patterns in them dim.
 - **SEQ + tap W1..W16**: that pattern of the bank comes in at the next change point. **SEQ + hold W**: it comes in now.
 - **SEQ + ALGORITHM**: when a tapped pattern comes in: **END** (the end of the playing pattern, the default), **BAR**
@@ -732,7 +744,7 @@ Where OCT− / OCT+ change an octave (NOTE with a step held or tapped with nothi
   - **PLAY while recording** stops the transport and the recording (REPLACE, OVERDUB); in a CAPTURE take it ends the
     take and playback goes on (PLAY again stops).
   - The page buttons: one is lit, the page you are on (EDIT, ENV, FX, SEL, SEQ, ARP, SAVE, REC); **HOME** is lit on the
-    step view with no page open.
+    Home view with no page open (SEQ on TOOLS, PATTERNS and the PIANO ROLL).
   - REC's light: **off** (every other page), **lit** (the keyboard page), **blinking**
     (armed), **lit** (recording). While it records the screen is framed in red, a red dot on the band under a knob as
     it writes.
@@ -975,9 +987,10 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
   key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from
   where the envelope is. In AHD, SUS and REL are not used (KNOB 4 is empty).
 
-## TOOLS: change a whole page, track or pattern (SEQ tapped, 0.12.0)
+## TOOLS: change a whole page, track or pattern (SEQ's first page, 0.12.0)
 
-- **Tap SEQ**: TOOLS opens on the selected track (SHIFT + SELECT still changes it). **SEQ** again or **HOME** closes it.
+- **Click SEQ** (until TOOLS, the first of SEQ's pages): TOOLS opens on the selected track (SHIFT + SELECT still
+  changes it). **SEQ** again goes on to PATTERNS (2026-11-13; it closed TOOLS before); **HOME** closes it.
 - **B1..B5**: ROTATE (the steps round the loop), REVERSE, RANDOM (new steps: density, notes, velocity, chance),
   EUCLID (N hits spread evenly), GRIDS (a drum part from a map: X, Y, density, chaos). **B6 HUMANIZE / QUANTIZE**
   (2026-11-10, one key for the two: from another tool HUMANIZE, the timing and velocity jitter; B6 again QUANTIZE, the
@@ -1040,8 +1053,8 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
 - **ARP held** (400 ms alone, anywhere) or **SHIFT + ARP** (at once): the track's **MIDI FX off**, a bypass: the group
   is kept and its page still edits it (OFF in red by the hexagon; a popup says MIDI FX OFF); again: **back on** (MIDI FX
-  ON). Program a chain while the pattern plays dry, then bring it in on the drop. **SEQ tapped** opens **TOOLS** (SEQ
-  again or HOME closes it, SEQ lit while open). **ARP is lit** while the selected track's MIDI FX is on (a group, not
+  ON). Program a chain while the pattern plays dry, then bring it in on the drop. **SEQ tapped** opens SEQ's pages
+  (**TOOLS** first; HOME closes them, SEQ lit while one is open). **ARP is lit** while the selected track's MIDI FX is on (a group, not
   bypassed) and while its page is open; off otherwise.
 - **From a latched F3** (PLAY held, or F1 + F2), the record settings or the settings, the page keys (EDIT, SEL, ENV,
   FX, ARP, SEQ, SAVE, SHIFT + SAVE) close it and open their page in one press.
@@ -1101,8 +1114,8 @@ SELECT turns the pages (the dots at the top):
 
 - Page 1: **KNOB 1 PAGE FOLLOW** on / off (the same as on the track settings' second page), **KNOB 2 BOOST**,
   **KNOB 3 CLOCK OUT**, **KNOB 4 CC OUT**.
-- Page 2, **HOME**: **KNOB 1 HOME VIEW** chooses the Home view (PIANO ROLL, STEPS, EDIT, GEEK OUT, OVERVIEW; the
-  five drawn small, the chosen one lit), **KNOB 2 LOCK** on / off: locked, HOME clicks no longer cycle the views,
+- Page 2, **HOME**: **KNOB 1 HOME VIEW** chooses the Home view (STEPS, EDIT, GEEK OUT; the three drawn small, the
+  chosen one lit; 2026-11-13: the PIANO ROLL is SEQ's page, a saved PIANO ROLL comes back as EDIT), **KNOB 2 LOCK** on / off: locked, HOME clicks no longer cycle the views,
   HOME always brings you back to that view (a padlock under it). Saved with the other settings.
 - Page 3 (the Bluetooth package): **BLUETOOTH** on / off and its state.
 

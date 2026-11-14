@@ -191,7 +191,7 @@ void qd_app_show(qd_app_t *a, int mode, int view)
     a->ui.tk = QD_TK_NONE;
     a->ui.cf_on = 0;
     if (view >= 0 && view < QD_NVIEW)
-        a->ui.view = view;
+        qd_ctl_set_view(a, view);                       /* (2026-11-13: a Home view kept as HOME's) */
     a->ui.touch_ms = a->ms;                             /* (as a touch: the idle clock from now) */
     qd_ctl_set_mode(a, mode);
 }

@@ -96,6 +96,8 @@ static void fresh(void)
     qd_app_init(&A);
     keys_compat = 1;
     A.ui.view = QD_VIEW_ROLL;   /* (P1.5s: EDIT is the power-on view; made on the PIANO ROLL) */
+    A.ui.hview = QD_VIEW_STEPS;   /* (2026-11-13: the roll is SEQ's page; HOME from it to STEPS, as the scenarios had
+                                   * HOME's cycle from the roll) */
     A.ui.lmode = QD_LMODE_VALUES;   /* (the scenarios were written for VALUES, the old default; MODES is the default
                                      * since 2026-10-25: g_knob_layouts checks it) */
     now = 0;
@@ -227,20 +229,24 @@ static void shome(void)                                 /* the next view (P1.3y:
     btap(QD_B_HOME);
     run(10);
 }
-static void shome_wrap(void)                            /* P2.11: from EDIT past the GEEK OUT view: the PIANO ROLL
-                                                         * (2026-11-11: OVERVIEW is SEL's, out of the cycle) */
+static void to_roll(void)                               /* 2026-11-13: SEQ clicks to its PIANO ROLL */
 {
     int i;
-    for (i = 0; i < 2; i++)
-        shome();
+    for (i = 0; i < 4 && qd_ctl_seq_page(&A) != QD_SEQ_ROLL; i++) {
+        btap(QD_B_MIX);
+        run(10);
+    }
 }
-static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once); the map
-                                                         * latched on release (2026-10-25): a SEQ tap closes it */
+static void shome_wrap(void)                            /* P2.11: from EDIT the PIANO ROLL (2026-11-13: SEQ's page) */
+{
+    to_roll();
+}
+static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once); 2026-11-13:
+                                                         * a peek, let go: back where it was */
 {
     bdown(QD_B_MIX);
     wtap(k);
     bup(QD_B_MIX);
-    btap(QD_B_MIX);
     run(10);
 }
 /* track 1's playhead in steps (P2.4: the core gives num / den; the test reads it as a double) */
@@ -2580,6 +2586,7 @@ static void g_plock_track(void)
     turn(QD_K_PRESETS, 1);
     CHECK(A.ui.latch == QD_LATCH_BROWSE && !A.ui.tk_lock, "PRESETS: the library browser (P1.5t)");
     btap(QD_B_HOME);
+    to_roll();                                          /* (2026-11-13: HOME leaves the roll; SEQ's page) */
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "SELECT: the page");
@@ -2606,8 +2613,7 @@ static void g_banks(void)
           "SEQ + W3 in bank B, stopped: B03 at once (lit)");
     black(B5);
     CHECK(A.ui.seq_bank == 1, "SEQ + B5: nothing");
-    bup(QD_B_MIX);
-    btap(QD_B_MIX);                                     /* (2026-10-25: the latched map closed) */
+    bup(QD_B_MIX);                                      /* (2026-11-13: a peek: closed on release) */
     run(10);
     wtap(0);
     CHECK(R(0, 0).on && A.seq.cur == 18, "B03 is edited (W1 a trig on it)");
@@ -3081,7 +3087,9 @@ static void g_home(void)
     run(10);
     CHECK(!A.ui.latch && A.ui.view == QD_VIEW_NUMBERS, "HOME from the effects: back, the Geek Out page kept (no cycle)");
     btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME again (2026-11-11: past the Geek Out pages, OVERVIEW is SEL's): the PIANO ROLL");
+    CHECK(A.ui.view == QD_VIEW_STEPS, "HOME again (2026-11-11: past the Geek Out pages, OVERVIEW is SEL's; 2026-11-13: the "
+          "PIANO ROLL SEQ's): STEPS");
+    to_roll();
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "the PIANO ROLL, SELECT: page 2 with its picker");
     turn(QD_K_SELECT, -1);
@@ -3249,6 +3257,8 @@ static void g_cursor(void)
     turn(QD_K_PRESETS, 1);
     CHECK(!A.ui.slatch && A.ui.latch == QD_LATCH_BROWSE, "the PIANO ROLL: PRESETS is the browser too");
     btap(QD_B_HOME);
+    CHECK(A.ui.view == QD_VIEW_EDIT, "2026-11-13: HOME from the browser over the roll: the Home view (EDIT)");
+    to_roll();
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     turn(QD_K_ALGO, 1);
     k = A.ui.held[0];
@@ -3751,12 +3761,13 @@ static void g_sel_tap(void)
     CHECK(A.ui.view == QD_VIEW_ROLL, "SEL again: back to the PIANO ROLL");
     btap(QD_B_PATTERN);
     btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_ROLL && qd_view_screen(&A) == QD_SCR_LANE, "SEL, HOME: back too (no cycle)");
+    CHECK(A.ui.view == QD_VIEW_STEPS && qd_view_screen(&A) == QD_SCR_LANE,
+          "SEL, HOME: the Home view (2026-11-13: the roll is SEQ's page, HOME leaves it)");
     btap(QD_B_SOUND);
     btap(QD_B_PATTERN);
     CHECK(!qd_snd_open(&A) && A.ui.view == QD_VIEW_OVERVIEW, "from the sound editor: OVERVIEW, the editor closed");
     btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME: the view it came from");
+    CHECK(A.ui.view == QD_VIEW_STEPS, "HOME: the view it came from");
 }
 
 /* P1.4a: the sound editor on EDIT: every value of the sound on one page; the groups on B1..B5 (again: the next page);
@@ -8862,8 +8873,7 @@ static void g_page_leds(void)
     int i, ok = 1;
     start();
     for (i = 0; i < 9; i++) {
-        if (W[i] != QD_B_HOME || i)
-            btap(W[i]);
+        btap(W[i]);                                     /* (2026-11-13: the roll is SEQ's: HOME first) */
         run(20);
         ok &= page_lit(W[i]);
         if (!ok) {
@@ -8871,19 +8881,30 @@ static void g_page_leds(void)
             break;
         }
     }
+    btap(QD_B_HOME);
+    to_roll();
+    ok &= page_lit(QD_B_MIX);
+    btap(QD_B_MIX);
+    run(20);
+    ok &= page_lit(QD_B_MIX);
+    btap(QD_B_MIX);
+    run(20);
+    ok &= page_lit(QD_B_MIX);
     btap(QD_B_REC);
     run(20);
-    CHECK(ok && page_lit(QD_B_REC), "the page LEDs: HOME, EDIT, HOME, ENV, HOME, SEQ, HOME, ARP, HOME, REC: one lit, the page's");
+    CHECK(ok && page_lit(QD_B_REC), "the page LEDs: HOME, EDIT, HOME, ENV, HOME, SEQ, HOME, ARP, HOME, REC: one lit, the page's (2026-11-13: SEQ's three pages SEQ's)");
 }
 
-/* the owner, 2026-10-25: HOME keeps the view (ROLL, STEPS, EDIT, a GEEK OUT page) from EDIT and ENV; SEQ held latches
- * the patterns map (W3 queues, SEQ tapped or HOME closes; a tap with no map: TOOLS) */
+/* the owner, 2026-10-25: HOME keeps the view (STEPS, EDIT, a GEEK OUT page) from EDIT and ENV. 2026-11-13 (owner): SEQ
+ * a page button: its clicks TOOLS -> PATTERNS -> PIANO ROLL -> TOOLS, from elsewhere the one shown last (TOOLS at
+ * power-on), HOME leaves them (HOME / SEQ flip); SEQ held the patterns, a peek (back on release); SEQ lit on its pages;
+ * the editor over the roll back to it with EDIT, to the Home view with HOME */
 static void g_home_keeps_seq_latch(void)
 {
-    static const int V[6] = {QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_OVERVIEW};
+    static const int V[4] = {QD_VIEW_STEPS, QD_VIEW_EDIT, QD_VIEW_VOICES, QD_VIEW_SCOPE};
     int i, ok = 1;
     start();
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < 4; i++) {
         A.ui.view = V[i];
         btap(QD_B_SOUND);
         btap(QD_B_HOME);
@@ -8892,37 +8913,91 @@ static void g_home_keeps_seq_latch(void)
         btap(QD_B_HOME);
         ok &= A.ui.view == V[i] && !A.ui.latch;
     }
-    CHECK(ok, "EDIT -> HOME, ENV -> HOME: the view kept (ROLL, STEPS, EDIT, VOICES, SCOPE, OVERVIEW)");
+    CHECK(ok, "EDIT -> HOME, ENV -> HOME: the view kept (STEPS, EDIT, VOICES, SCOPE)");
     A.ui.view = QD_VIEW_EDIT;
     shome();
     turn(QD_K_SELECT, 1);
     turn(QD_K_SELECT, 1);
     shome();
     shome();
-    shome();
-    shome();                                            /* (2026-11-11: no OVERVIEW in HOME's cycle) */
+    shome();                                            /* (2026-11-11: no OVERVIEW in HOME's cycle; 2026-11-13: nor
+                                                         * the PIANO ROLL) */
     CHECK(A.ui.view == QD_VIEW_VOICES, "GEEK OUT comes back on its page (VOICES)");
+    A.ui.seq_pg = QD_SEQ_TOOLS;                         /* (as at power-on) */
+    CHECK(qd_ctl_seq_page(&A) < 0 && leds().button[QD_B_MIX] == QD_LED_OFF, "a Home view: no SEQ page, SEQ dark");
+    btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A) && qd_ctl_seq_page(&A) == QD_SEQ_TOOLS && leds().button[QD_B_MIX] == QD_LED_LIT &&
+              leds().button[QD_B_HOME] == QD_LED_OFF, "SEQ: TOOLS (the power-on one), SEQ lit, HOME dark");
+    btap(QD_B_MIX);
+    CHECK(!qd_tools_open(&A) && qd_ctl_seq_page(&A) == QD_SEQ_PATTERNS && qd_view_screen(&A) == QD_SCR_SEQ &&
+              leds().button[QD_B_MIX] == QD_LED_LIT && leds().button[QD_B_HOME] == QD_LED_OFF,
+          "SEQ again: PATTERNS (the map latched), SEQ lit");
     btap(QD_B_PLAY);
     run(300);
+    ktap(WK(2), 30);
+    CHECK(qd_seq_queued(&A.seq) == 2 && qd_ctl_seq_page(&A) == QD_SEQ_PATTERNS, "W3: A03 queued, PATTERNS stays");
+    btap(QD_B_MIX);
+    CHECK(!qd_ctl_seq_map(&A) && A.ui.view == QD_VIEW_ROLL && qd_view_screen(&A) == QD_SCR_LANE &&
+              qd_ctl_seq_page(&A) == QD_SEQ_ROLL && leds().button[QD_B_MIX] == QD_LED_LIT &&
+              leds().button[QD_B_HOME] == QD_LED_OFF, "SEQ again: the PIANO ROLL, SEQ lit, HOME dark");
+    btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A) && A.ui.view == QD_VIEW_VOICES, "SEQ again: TOOLS (round; over the Home view)");
+    btap(QD_B_MIX);
+    btap(QD_B_HOME);
+    CHECK(qd_ctl_seq_page(&A) < 0 && A.ui.view == QD_VIEW_VOICES && leds().button[QD_B_MIX] == QD_LED_OFF &&
+              leds().button[QD_B_HOME] == QD_LED_LIT, "HOME from PATTERNS: the Home view (VOICES), SEQ dark");
+    btap(QD_B_MIX);
+    ok = qd_ctl_seq_page(&A) == QD_SEQ_PATTERNS;
+    btap(QD_B_HOME);
+    ok &= A.ui.view == QD_VIEW_VOICES && qd_ctl_seq_page(&A) < 0;
+    btap(QD_B_MIX);
+    CHECK(ok && qd_ctl_seq_page(&A) == QD_SEQ_PATTERNS, "SEQ / HOME / SEQ: PATTERNS, VOICES, PATTERNS (the one shown last)");
+    btap(QD_B_MIX);
+    btap(QD_B_HOME);
+    btap(QD_B_MIX);
+    CHECK(qd_ctl_seq_page(&A) == QD_SEQ_ROLL && A.ui.view == QD_VIEW_ROLL, "HOME / SEQ: the PIANO ROLL remembered");
+    btap(QD_B_SOUND);
+    CHECK(qd_snd_open(&A) && qd_ctl_seq_page(&A) < 0 && leds().button[QD_B_MIX] == QD_LED_OFF,
+          "EDIT over the roll: the sound editor, no SEQ page");
+    btap(QD_B_SOUND);
+    CHECK(!qd_snd_open(&A) && qd_ctl_seq_page(&A) == QD_SEQ_ROLL, "EDIT again: back on the roll");
+    btap(QD_B_SOUND);
+    btap(QD_B_HOME);
+    CHECK(!qd_snd_open(&A) && A.ui.view == QD_VIEW_VOICES, "the editor over the roll, HOME: the Home view");
+    btap(QD_B_PAGE);
+    btap(QD_B_MIX);
+    CHECK(!A.ui.latch && qd_ctl_seq_page(&A) == QD_SEQ_ROLL, "the mix, SEQ: the mix closed, the roll (the one shown last)");
     bdown(QD_B_MIX);
-    run(QD_TAP_MS + 20);
+    run(30);
+    CHECK(qd_view_screen(&A) == QD_SCR_LANE, "SEQ down 30 ms: no map yet");
+    run(QD_TAP_MS);
+    CHECK(qd_view_screen(&A) == QD_SCR_SEQ, "SEQ held: the patterns (a peek)");
     bup(QD_B_MIX);
     run(10);
-    CHECK(qd_ctl_seq_map(&A) && qd_view_screen(&A) == QD_SCR_SEQ && leds().button[QD_B_MIX] == QD_LED_LIT,
-          "SEQ held, let go: the map latched, SEQ lit");
-    ktap(WK(2), 30);
-    CHECK(qd_seq_queued(&A.seq) == 2 && qd_ctl_seq_map(&A), "W3: A03 queued, the map stays");
-    btap(QD_B_MIX);
-    CHECK(!qd_ctl_seq_map(&A) && !qd_tools_open(&A), "SEQ tapped: closed (no TOOLS)");
+    CHECK(!qd_ctl_seq_map(&A) && qd_ctl_seq_page(&A) == QD_SEQ_ROLL, "let go: back on the roll (no latch)");
+    btap(QD_B_HOME);
     bdown(QD_B_MIX);
     ktap(WK(3), 30);
+    CHECK(qd_ctl_seq_map(&A) && qd_seq_queued(&A.seq) == 3, "a Home view, SEQ held + W4 at once: A04 queued");
     bup(QD_B_MIX);
     run(10);
-    CHECK(qd_ctl_seq_map(&A), "SEQ held with a key: latched too");
-    btap(QD_B_HOME);
-    CHECK(!qd_ctl_seq_map(&A) && leds().button[QD_B_MIX] == QD_LED_OFF, "HOME: closed");
+    CHECK(!qd_ctl_seq_map(&A) && qd_ctl_seq_page(&A) < 0 && A.ui.view == QD_VIEW_VOICES,
+          "let go: back on the Home view (no latch, no TOOLS)");
     btap(QD_B_MIX);
-    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A), "SEQ tapped, no map: TOOLS");
+    btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A), "SEQ, SEQ: the roll, TOOLS");
+    bdown(QD_B_MIX);
+    ktap(WK(4), 30);
+    bup(QD_B_MIX);
+    run(10);
+    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A) && qd_seq_queued(&A.seq) == 4,
+          "over TOOLS, SEQ held + W5: A05 queued; let go: TOOLS still");
+    btap(QD_B_MIX);
+    bdown(QD_B_MIX);
+    ktap(WK(5), 30);
+    bup(QD_B_MIX);
+    run(10);
+    CHECK(qd_ctl_seq_page(&A) == QD_SEQ_PATTERNS, "on PATTERNS, SEQ held + a W: PATTERNS still (no next page)");
     btap(QD_B_HOME);
     btap(QD_B_PLAY);
 }
@@ -9020,7 +9095,7 @@ static void g_p211_geek(void)
         turn(QD_K_SELECT, 1);
     }
     shome();
-    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, TRACKS, round) -> PIANO ROLL (2026-11-11: OVERVIEW is SEL's)");
+    CHECK(ok && A.ui.view == QD_VIEW_STEPS, "HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, TRACKS, round) -> STEPS (2026-11-11: OVERVIEW is SEL's; 2026-11-13: the PIANO ROLL SEQ's)");
     A.ui.view = QD_VIEW_METERS;
     bpm0 = A.bpm, sel0 = A.sel;
     turn(QD_K_ALGO, 3);
@@ -9674,20 +9749,24 @@ static void g_home_settings(void)
     run(QD_HOME_HOLD_MS - 50);
     CHECK(!A.ui.latch, "HOME down under the hold: nothing yet");
     run(70);
-    CHECK(A.ui.latch == QD_LATCH_SET && !A.ui.set_page && A.ui.view == QD_VIEW_ROLL, "HOME held: the global settings");
+    CHECK(A.ui.latch == QD_LATCH_SET && !A.ui.set_page && A.ui.view == QD_VIEW_STEPS,
+          "HOME held: the global settings (2026-11-13: its press left SEQ's roll for the Home view)");
     bup(QD_B_HOME);
     run(10);
-    CHECK(A.ui.latch == QD_LATCH_SET && A.ui.view == QD_VIEW_ROLL, "its release: no click (the view as it was)");
+    CHECK(A.ui.latch == QD_LATCH_SET && A.ui.view == QD_VIEW_STEPS, "its release: no click (the view as it was)");
     turn(QD_K_SELECT, 1);
     qd_view_menu(&A, &mv);
     qd_ctl_labels(&A, &lb);
     CHECK(A.ui.set_page == 1 && mv.set_page == 1 && mv.home_view == 0 && !mv.home_lock &&
               !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "HOME VIEW") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_2], "LOCK"),
-          "SELECT: page 2, HOME: the PIANO ROLL, unlocked (its labels)");
+          "SELECT: page 2, HOME: STEPS, unlocked (its labels)");
     run(60);
-    turn(QD_K_1, 2);
+    turn(QD_K_1, -3);
     qd_view_menu(&A, &mv);
-    CHECK(A.ui.view == QD_VIEW_EDIT && mv.home_view == 2, "KNOB 1: EDIT");
+    CHECK(A.ui.view == QD_VIEW_STEPS && mv.home_view == 0, "KNOB 1 down: STEPS the first (2026-11-13: no PIANO ROLL)");
+    turn(QD_K_1, 1);
+    qd_view_menu(&A, &mv);
+    CHECK(A.ui.view == QD_VIEW_EDIT && mv.home_view == 1, "KNOB 1: EDIT");
     turn(QD_K_1, 1);
     CHECK(QD_VIEW_GEEK(A.ui.view), "KNOB 1: GEEK OUT");
     turn(QD_K_1, 1);
@@ -10557,6 +10636,7 @@ static void g_page_open(void)
         if ((A.ui.tk == UI_TK_PAGE || !A.ui.slatch || !A.ui.nheld || !A.ui.latch) && bad < 0)
             bad = i;
         btap(QD_B_HOME);
+        to_roll();                                      /* (2026-11-13: HOME leaves SEQ's roll; the picker is its) */
         turn(QD_K_ALGO, -16);
     }
     CHECK(bad < 0, "SELECT's page picker up, the lock on: EDIT, MIDI FX, TOOLS, FX, MIX open with the lock kept and "
@@ -10752,6 +10832,7 @@ static void g_kb_round3(void)
     bdown(SHIFT), run(QD_TAP_MS + 50), bup(SHIFT), run(10);
     ok &= !qd_ctl_shift(&A);
     CHECK(ok, "SHIFT: a click sticks, a click again ends it, a hold never sticks");
+    btap(QD_B_HOME);                                    /* (2026-11-13: the Home view; the roll is SEQ's page) */
     {   /* 2026-11-13 (owner): stuck + a menu button: SHIFT ends, the menu shown stays as it is */
         const int v = A.ui.view;
         bdown(SHIFT), run(30), bup(SHIFT), run(10);
