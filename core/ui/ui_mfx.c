@@ -13,13 +13,13 @@
 
 const qd_rgb UI_MFX_COL[11] = {0x8d8d96u, 0x3f8cffu, 0xff2d45u, 0xff8268u, 0xff6fb4u, 0xa86cffu,
                                0xffd23fu, 0xff5418u, 0x28e1ffu, 0x6f72ffu, 0xffa21fu};
-static const qd_rgb MF_TP[8] = {0x3f7dffu, 0x1fd47eu, 0xf1f0eau, 0xff6a2cu, 0xff3ca0u, 0xffd23fu, 0x9664ffu, 0x28e1ffu};
+#define MF_TP UI_TRACK_PAL                       /* (the tracks' colours) */
 #define MF_MINT UI_MFX_MINT
 #define MF_TAU 6.28318530718f
 
 /* ---------------------------------------------------------------- the helpers (the mock-up's) */
 static float mf_clamp(float x, float a, float b) { return x < a ? a : x > b ? b : x; }
-static float mf_ease(float x) { x = mf_clamp(x, 0.f, 1.f); return x * x * (3.f - 2.f * x); }
+#define mf_ease ui_ease
 static float mf_lerp(float a, float b, float u) { return a + (b - a) * u; }
 static float mf_hash(float n)
 {

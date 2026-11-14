@@ -8,7 +8,7 @@
  * drawing, colour and motion. */
 
 static float lb_clamp(float x, float a, float b) { return x < a ? a : x > b ? b : x; }
-static float lb_ease(float x) { x = lb_clamp(x, 0.f, 1.f); return x * x * (3.f - 2.f * x); }
+#define lb_ease ui_ease
 static float lb_hash(int n)
 {
     const float s = sinf((float)n * 127.1f + 311.7f) * 43758.5453f;

@@ -36,6 +36,7 @@ extern const qd_rgb UI_K[4];
 #define UI_PI 3.14159265359f
 float ui_ease(float x);                 /* smoothstep on 0..1, clamped (line.html's ease) */
 char *ui_itoa(char *out, int n);        /* n in decimal (out: 12 bytes) */
+char *ui_cat(char *d, const char *s);   /* s (0: nothing) after d's end; d */
 
 /* ---- the kit */
 float ui_T(const char *s, float x, float y, float size, int weight, float ls, qd_rgb col, int align);

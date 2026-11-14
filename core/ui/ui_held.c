@@ -52,16 +52,7 @@ typedef struct {
 
 #define DEF_COL 0xb4b4bcu               /* a value on the track's default: grey-white */
 
-static char *cat(char *d, const char *s)
-{
-    char *e = d;
-    while (*e)
-        e++;
-    while (s && *s)
-        *e++ = *s++;
-    *e = 0;
-    return d;
-}
+#define cat ui_cat                               /* (the kit's) */
 
 /* a pool number with three digits ("015"), "---" for 0 */
 static char *three(char *s, int n)
@@ -113,11 +104,7 @@ static void big(const pal_t *p, const char *s, float x, float y, float size)
         ui_T(s, x, y, size, 200, 0.f, p->k[0], QD_LEFT);
 }
 
-static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
-}
+#define line2 qd_line                           /* (a line: qd_gfx's own) */
 
 /* ---------------------------------------------------------------- NOTE (s4) */
 /* P1.3t (the owner): the keybed low (just over EDIT's row), the step's notes as one readable line right over it, each in

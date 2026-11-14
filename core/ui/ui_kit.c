@@ -28,6 +28,18 @@ char *ui_itoa(char *out, int n)
     return out;
 }
 
+/* s (0: nothing) after d's end: d */
+char *ui_cat(char *d, const char *s)
+{
+    char *e = d;
+    while (*e)
+        e++;
+    while (s && *s)
+        *e++ = *s++;
+    *e = 0;
+    return d;
+}
+
 float ui_ease(float x) { return x < 0.f ? 0.f : x > 1.f ? 1.f : x * x * (3.f - 2.f * x); }
 
 /* T(c, s, x, y, {s, w, ls, col, al}) */
@@ -227,11 +239,7 @@ float ui_strip_x(int k)
 }
 
 /* ---------------------------------------------------------------- P1.3v: icons and the visual key map */
-static void ln(float x0, float y0, float x1, float y1, qd_rgb c, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, c, lw, 0, QD_NONE);
-}
+#define ln qd_line                           /* (a line: qd_gfx's own) */
 
 /* a note value's glyph: 0 1/1 (a hollow head), 1 1/2 (hollow, a stem), 2 1/4 (filled, a stem), 3.. 1/8 .. (flags) */
 static void note_glyph(int v, float cx, float cy, float s, qd_rgb c)

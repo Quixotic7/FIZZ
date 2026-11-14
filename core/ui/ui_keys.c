@@ -25,16 +25,7 @@
 static const char *const OCT[5] = {"OCT -2", "OCT -1", "OCT 0", "OCT +1", "OCT +2"};
 static const char *oct_name(int o) { return OCT[o < -2 ? 0 : o > 2 ? 4 : o + 2]; }
 
-static char *cat(char *d, const char *s)
-{
-    char *e = d;
-    while (*e)
-        e++;
-    while (*s)
-        *e++ = *s++;
-    *e = 0;
-    return d;
-}
+#define cat ui_cat                               /* (the kit's) */
 
 static qd_rgb fill[128];                               /* (the keybed's, both drawings') */
 

@@ -48,11 +48,7 @@ static const float DASH[2] = {2.f, 3.f};
 
 static float col_x(int i) { return 9.f + (float)i * 13.5f + (float)(i / 4) * 2.f; }
 
-static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
-}
+#define line2 qd_line                           /* (a line: qd_gfx's own) */
 
 static void dashed(float x0, float y0, float x1, float y1, qd_rgb col)
 {

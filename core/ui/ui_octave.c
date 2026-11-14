@@ -20,11 +20,7 @@
 static const int WI[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6};
 static const int ISB[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
 
-static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
-}
+#define line2 qd_line                           /* (a line: qd_gfx's own) */
 
 /* note n's white-key index from note 0 (a black key: the white key it sits after) */
 static int wx(int n) { return n / 12 * 7 + WI[n % 12]; }

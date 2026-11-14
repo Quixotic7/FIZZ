@@ -16,11 +16,7 @@ static void tl_alpha(float a)                           /* (a part of the alpha 
     qd_save();
     qd_alpha(qd_get_alpha() * a);
 }
-static void tl_line(float x0, float y0, float x1, float y1, qd_rgb c, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, c, lw, 0, QD_NONE);
-}
+#define tl_line qd_line                           /* (a line: qd_gfx's own) */
 
 /* each tool as a little picture, centred at x, y */
 void ui_tools_icon(int i, float x, float y, int on)

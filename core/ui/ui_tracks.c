@@ -13,11 +13,7 @@
 
 static const qd_rgb FK[4] = {UI_K1, UI_K2, UI_K3, UI_K4};
 
-static void ln(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
-}
+#define ln qd_line                           /* (a line: qd_gfx's own) */
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 /* the head: the title, an effect's pages as dots; P1.6h: no back arrow (F1 is no back on these main pages), the steps

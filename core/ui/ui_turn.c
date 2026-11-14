@@ -26,11 +26,7 @@
 
 static const float DASH[2] = {2.f, 3.f};
 
-static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
-}
+#define line2 qd_line                           /* (a line: qd_gfx's own) */
 
 /* ---------------------------------------------------------------- FREQ (s21's freqDraw) */
 static void grid(void)

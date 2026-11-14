@@ -39,22 +39,9 @@
 static const char *const DOT = " \xc2\xb7 ";          /* " · " */
 static const char *const DASH = "\xe2\x80\x93";        /* "–" */
 
-static char *cat(char *d, const char *s)
-{
-    char *e = d;
-    while (*e)
-        e++;
-    while (s && *s)
-        *e++ = *s++;
-    *e = 0;
-    return d;
-}
+#define cat ui_cat                               /* (the kit's) */
 
-static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
-}
+#define line2 qd_line                           /* (a line: qd_gfx's own) */
 
 static const char *const NUM[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
 #define KM_Y 202.f                                      /* the key map's top, its height */

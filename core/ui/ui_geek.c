@@ -20,11 +20,7 @@ static qd_rgb gk_mix(qd_rgb a, qd_rgb b, float u)       /* a .. b at u (0..1), p
     bl = (unsigned)((float)(a & 255u) + ((float)(b & 255u) - (float)(a & 255u)) * u + 0.5f);
     return r << 16 | g << 8 | bl;
 }
-static void gk_line(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
-{
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
-}
+#define gk_line qd_line                           /* (a line: qd_gfx's own) */
 static void gk_alpha_begin(float a)
 {
     qd_save();
