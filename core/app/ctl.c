@@ -997,8 +997,11 @@ static void keys_toggle(qd_app_t *a)
         qd_mfx_rec(a);
         return;
     }
-    if (qd_tools_open(a))                               /* (2026-11-13, owner: TOOLS is always the steps) */
+    if (qd_tools_open(a)) {                             /* (2026-11-13, owner: TOOLS is always the steps; a click
+                                                         * clears the selection) */
+        qd_tools_clear_sel(a);
         return;
+    }
     if (u->mode == QD_MODE_KEYS)
         u->ksteps ^= 1, u->ekeys = !u->ksteps;          /* (the keyboard page: its W keys the steps, the screen's
                                                          * keyboard stays) */
@@ -1165,8 +1168,14 @@ static void k_main_black(qd_app_t *a, int key, int b, int down, int vel);
 static void k_tools_lw(qd_app_t *a, int key, int w, int down, int vel)   /* (2026-11-13: TOOLS, F1 / F2 held: the
                                                          * step view's layers, a pending change kept first) */
 {
-    if (down)
+    const qd_ui_t *u = &a->ui;
+    const int l = qd_ctl_layer(a), s = step_of(a, w);
+    if (down) {
         qd_tools_keep(a);
+        if (l == QD_LAYER_F1 ? u->f1_copied
+                             : l == QD_LAYER_F2 && u->f2_loaded && (u->f2_holding || !qd_step_is_on(qd_step(qd_ctl_cpat(a), a->sel, s))))
+            qd_tools_pasted(a, s);                      /* (the steps pasted: the selection when F1 / F2 is let go) */
+    }
     k_flayer_white(a, key, w, down, vel);
 }
 static void k_tools_lb(qd_app_t *a, int key, int b, int down, int vel)
@@ -1782,6 +1791,8 @@ static void b_oct(qd_app_t *a, int d, int down)
             u->f2_knob = 0;
         }
         if (!held(a, QD_B_OCTDN) && !held(a, QD_B_OCTUP)) {
+            if (qd_tools_open(a))
+                qd_tools_paste_done(a);                 /* (2026-11-13, owner: the steps pasted, selected) */
             u->lk_down = 0;
             u->pg_range = 0;
             if (!u->latch)

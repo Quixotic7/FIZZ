@@ -700,8 +700,10 @@ static void t_selected(void)                            /* the step lock: SELECT
         qd_step_select_toggle(&A, A.ui.held[0]);
     white(0), white(3), white(5);                       /* steps 1 (on), 4 (on), 6 (off) */
     CHECK(A.ui.nheld == 3 && qd_tools_sel_mask(&A) == 0x29, "W1, W4, W6: selected (the mask 1, 4, 6)");
+    run(QD_DBL_MS);                                     /* (2026-11-13: not a double click) */
     white(5);
     CHECK(A.ui.nheld == 2, "W6 again: out");
+    run(QD_DBL_MS);
     white(5);
     black(1);                                           /* REVERSE */
     black(1);                                           /* flip */
@@ -719,7 +721,7 @@ static void t_selected(void)                            /* the step lock: SELECT
     CHECK(!memcmp(PAT()->step, before->step, sizeof before->step), "OCT-: back");
     black(6);
     white(2);
-    CHECK(A.ui.tl.scope == QD_TS_SEL && A.ui.tk_knob == 1, "PAGE scope, a W: SELECTED again");
+    CHECK(A.ui.tl.scope == QD_TS_PAGE, "PAGE scope, a W: PAGE stays (2026-11-13, owner: the scope the user's)");
     btap(QD_B_HOME);
     free(before);
 }
@@ -1137,7 +1139,8 @@ static void t_sel_rotate(void)                          /* one step selected and
     run(600);
     n0 = qd_undo_count(&A, -1);
     tools_open();
-    white(3);                                           /* step 4 (on) selected: SELECTED */
+    turn(QD_K_PRESETS, -3);                             /* (2026-11-13: SELECTED by the user) */
+    white(3);                                           /* step 4 (on) selected */
     CHECK(A.ui.tl.scope == QD_TS_SEL && A.ui.nheld == 1 && A.ui.held[0] == 3, "W4: SELECTED, step 4");
     turn(QD_K_1, 1);
     CHECK(qd_tools_pending(&A) && qd_step_is_on(&PAT()->step[0][4]) && !qd_step_is_on(&PAT()->step[0][3]) &&
@@ -1314,6 +1317,7 @@ static void t_quant_live(void)
     CHECK(same_pat(before), "OCT-: byte for byte");
     while (A.ui.nheld)                                  /* (W1 and W4 selected) */
         qd_step_select_toggle(&A, A.ui.held[0]);
+    turn(QD_K_PRESETS, -3);                             /* (2026-11-13: SELECTED by the user) */
     white(0), white(3);
     turn(QD_K_1, -1);                                   /* (100 % kept from before: a change again) */
     turn(QD_K_1, 20);
@@ -1407,14 +1411,27 @@ static void t_owner_1113(void)
     ok &= A.ui.tl.scope == QD_TS_PAGE;
     CHECK(ok, "SELECT: the next tool; PRESETS: the scope (PAGE)");
     white(2), white(5);
-    ok = A.ui.slatch && A.ui.nheld == 2 && A.ui.tl.scope == QD_TS_SEL;
+    ok = A.ui.slatch && A.ui.nheld == 2 && A.ui.tl.scope == QD_TS_PAGE;
     turn(QD_K_ALGO, 1);
-    ok &= A.ui.nheld == 1 && A.ui.held[0] == 3 && A.ui.tl.scope == QD_TS_SEL;
+    ok &= A.ui.nheld == 1 && A.ui.held[0] == 3 && A.ui.tl.scope == QD_TS_PAGE;
     turn(QD_K_ALGO, 1);
-    CHECK(ok && A.ui.nheld == 1 && A.ui.held[0] == 4, "W3, W6: both selected; ALGORITHM: the next one alone (4, 5)");
+    CHECK(ok && A.ui.nheld == 1 && A.ui.held[0] == 4,
+          "W3, W6: both selected, the scope kept (PAGE); ALGORITHM: the next one alone (4, 5)");
     turn(QD_K_ALGO, -16);
-    CHECK(!A.ui.slatch && !A.ui.nheld && A.ui.tl.scope == QD_TS_TRACK && qd_tools_open(&A),
-          "ALGORITHM fully left: nothing selected, the scope TRACK, TOOLS open");
+    CHECK(!A.ui.slatch && !A.ui.nheld && A.ui.tl.scope == QD_TS_PAGE && qd_tools_open(&A),
+          "ALGORITHM fully left: nothing selected, the scope kept, TOOLS open");
+    run(QD_DBL_MS);
+    white(2), white(5), white(8);
+    ok = A.ui.nheld == 3;
+    black(10);
+    run(QD_TAP_MS);
+    ok &= !A.ui.nheld && qd_tools_open(&A);
+    white(2), white(5);
+    run(QD_DBL_MS);
+    white(8);
+    white(8);
+    CHECK(ok && A.ui.nheld == 1 && A.ui.held[0] == 8, "B11 clicked: the selection cleared; W9 tapped twice: W9 alone");
+    run(QD_DBL_MS);
     A.ui.ekeys = 1;                                     /* (the Home views' step keyboard on) */
     black(10);
     ok = A.ui.ekeys && qd_tools_open(&A) && !qd_snd_keys(&A);
@@ -1455,8 +1472,18 @@ static void t_owner_1113(void)
     run(20);
     bup(F1);
     run(20);
-    CHECK(ok && qd_step_is_on(&PAT()->step[0][9]) == qd_step_is_on(&PAT()->step[0][0]) && qd_tools_open(&A),
-          "OCT- held + W1: the change kept, step 1 copied; + W10: pasted; TOOLS open");
+    CHECK(ok && qd_step_is_on(&PAT()->step[0][9]) == qd_step_is_on(&PAT()->step[0][0]) && qd_tools_open(&A) &&
+              A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 9,
+          "OCT- held + W1: the change kept, step 1 copied; + W10: pasted; let go: step 10 selected; TOOLS open");
+    bdown(F1);
+    run(20);
+    qd_app_key(&A, WK(0), 1, 100), run(20), qd_app_key(&A, WK(0), 0, 0), run(20);
+    qd_app_key(&A, WK(13), 1, 100), run(20), qd_app_key(&A, WK(13), 0, 0), run(20);
+    qd_app_key(&A, WK(14), 1, 100), run(20), qd_app_key(&A, WK(14), 0, 0), run(20);
+    ok = A.ui.held[0] == 9;
+    bup(F1);
+    run(20);
+    CHECK(ok && A.ui.nheld == 2 && qd_tools_sel_mask(&A) == 0x6000, "F1 + W1, W14, W15: let go, W14 and W15 selected");
     btap(QD_B_HOME);
 }
 

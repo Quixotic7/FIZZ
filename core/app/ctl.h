@@ -171,6 +171,7 @@ struct qd_app;
 #define QD_TAP_MS 250u                 /* a white key held this long is held, not tapped */
 #define QD_SEL_TAP_MS 500u             /* 2026-11-11 (owner): SEL let go within this, nothing else pressed: OVERVIEW
                                          * (the track map still shows from QD_TAP_MS) */
+#define QD_DBL_MS 300u                 /* 2026-11-13: TOOLS, a W tapped twice within this: that step alone */
 #define QD_CLICK_MS 200u               /* Form's tap (a page key) and its double tap */
 #define QD_ARM_MS 2000u                /* SHIFT + B11's (CLEAR's) second press within this */
 #define QD_CHORD_MS 60u                /* F1 / F2 alone this long before its map shows (both within: F3) */
@@ -427,6 +428,10 @@ typedef struct {
         struct { uint8_t fit; int8_t rung; } st;   /* STRETCH: onto this many pages (0: by the ladder's rung, -6..6) */
         struct { uint8_t act; } cl;    /* CLIP: the action OCT+ does (QD_CL_*) */
     } v;
+    uint8_t wlast, npaste;             /* 2026-11-13 (owner): the W tapped last (step + 1; a double click: that step
+                                        * alone), the steps F1 / F2 pasted this hold (the selection on its release) */
+    uint8_t paste[16];
+    uint32_t wms;
 } qd_tools_t;
 
 typedef struct {
@@ -914,6 +919,9 @@ int qd_tools_key_tool(int b);                   /* .. the tool on black key b (-
 int qd_tools_tool_key(int t);                   /* .. the black key of tool t */
 int qd_tools_knob(struct qd_app *a, int knob, int d);
 void qd_tools_keep(struct qd_app *a);
+void qd_tools_clear_sel(struct qd_app *a);
+void qd_tools_pasted(struct qd_app *a, int s);
+void qd_tools_paste_done(struct qd_app *a);
 void qd_tools_oct_click(struct qd_app *a, int d);
 void qd_tools_ms(struct qd_app *a);
 void qd_tools_leds(const struct qd_app *a, uint8_t *key);

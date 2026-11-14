@@ -9624,8 +9624,8 @@ static void g_b11_pages(void)
     }
     black(B1);
     ok = b11_overlay(QD_SCR_TOOLS);
-    CHECK(ok && A.ui.tl.scope == QD_TS_SEL && qd_tools_sel_mask(&A) == 0x12, "TOOLS: the same; the selection SELECTED "
-          "(%#x)", qd_tools_sel_mask(&A));
+    CHECK(ok && qd_tools_sel_mask(&A) == 0x12, "TOOLS: the same, the selection (%#x; 2026-11-13: the scope the user's)",
+          qd_tools_sel_mask(&A));
     btap(QD_B_HOME);
     /* HOME: a click's keys drawn along the foot (the orange keys), every view */
     black(B11);

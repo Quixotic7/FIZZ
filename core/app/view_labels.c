@@ -153,7 +153,8 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     lb_ctx(a, o);
     if (qd_ctl_b11_free(a) && !qd_ctl_b11(a))         /* 2026-11-10: B11 the hold key (held: select, the pages; a
                                                          * click: what the W keys become) */
-        lb_set(o, LB_B(10), qd_snd_keys(a) || (u->mode == QD_MODE_KEYS && !u->ksteps) ? "SEL/STEPS" : "SEL/KEYS");
+        lb_set(o, LB_B(10), qd_tools_open(a) ? "SEL/CLEAR"   /* (2026-11-13: TOOLS: a click clears the selection) */
+                            : qd_snd_keys(a) || (u->mode == QD_MODE_KEYS && !u->ksteps) ? "SEL/STEPS" : "SEL/KEYS");
 }
 static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
 {

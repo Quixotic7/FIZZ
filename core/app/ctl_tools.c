@@ -7,7 +7,7 @@
  * THE CONTROLS (the owner's layout, 2026-10-25; 2026-11-10: B11 the hold key, every page's): B1..B5 ROTATE, REVERSE,
  * RANDOM, EUCLID, GRIDS, B6 HUMANIZE / QUANTIZE (again: the other), B7 the scope, B8 LENGTH, B9 STRETCH, B10 CLIP (COPY /
  * PASTE / CLEAR: KNOB 1 picks, OCT+ or B10 does it); 2026-11-13 (owner): SELECT every tool, B7 or PRESETS the scope
- * (SELECTED STEPS, PAGE, TRACK, PATTERN), ALGORITHM the step cursor (fully left: TRACK), B11 + B1..B8 the page shown
+ * (SELECTED STEPS, PAGE, TRACK, PATTERN), ALGORITHM the step cursor (the scope stays the user's), B11 + B1..B8 the page shown
  * (it stays: no page follow in TOOLS), B11 never the keys; OCT held the step view's F1 / F2, a quick click OCT+ keeps,
  * OCT- reverts; W1..W16 the page's steps (a press: in / out of the selection, the
  * scope SELECTED; lit as the change makes them, the ghosts dim, the steps that do not play dark); KNOB 1..4 the
@@ -453,20 +453,55 @@ void qd_tools_black(qd_app_t *a, int b, int down)
 
 /* W: the page's step in / out of the selection (the scope SELECTED: another scope's change kept first; SELECTED's
  * pending change follows the selection, live) */
-void qd_tools_sel_changed(qd_app_t *a)
+void qd_tools_sel_changed(qd_app_t *a)               /* (2026-11-13, owner: the scope the user's, never SELECTED
+                                                         * by itself) */
 {
     qd_tools_t *T = &a->ui.tl;
-    if (T->scope != QD_TS_SEL)
-        tl_scope(a, QD_TS_SEL);
     tl_norm(a);
-    if (T->flags & QD_TLF_PEND)
+    if ((T->flags & QD_TLF_PEND) && T->scope == QD_TS_SEL)
         T->flags |= QD_TLF_DIRTY;
 }
-void qd_tools_white(qd_app_t *a, int w, int down)
+void qd_tools_white(qd_app_t *a, int w, int down)     /* (2026-11-13, owner: a tap in / out; tapped twice: that step
+                                                         * alone) */
 {
+    qd_tools_t *T = &a->ui.tl;
+    const int s = tl_page(a) * QD_PAGE + (w & 15);
     if (!down)
         return;
-    qd_step_select_toggle(a, tl_page(a) * QD_PAGE + (w & 15));
+    if (T->wlast == s + 1 && a->ms - T->wms < QD_DBL_MS) {
+        a->ui.nheld = 0;
+        T->wlast = 0;
+    } else {
+        T->wlast = (uint8_t)(s + 1), T->wms = a->ms;
+    }
+    qd_step_select_toggle(a, s);
+    qd_tools_sel_changed(a);
+}
+void qd_tools_clear_sel(qd_app_t *a)                  /* 2026-11-13 (owner): a B11 click: nothing selected */
+{
+    qd_step_latch(a, 0);
+    qd_tools_sel_changed(a);
+}
+void qd_tools_pasted(qd_app_t *a, int s)              /* (F1 / F2 pasted on step s, this hold) */
+{
+    qd_tools_t *T = &a->ui.tl;
+    int i;
+    for (i = 0; i < T->npaste; i++)
+        if (T->paste[i] == s)
+            return;
+    if (T->npaste < 16)
+        T->paste[T->npaste++] = (uint8_t)s;
+}
+void qd_tools_paste_done(qd_app_t *a)                 /* F1 / F2 let go: the steps pasted the selection */
+{
+    qd_tools_t *T = &a->ui.tl;
+    int i;
+    if (!T->npaste)
+        return;
+    qd_step_latch(a, 1);
+    for (i = 0; i < T->npaste; i++)
+        qd_step_select_toggle(a, T->paste[i]);
+    T->npaste = 0;
     qd_tools_sel_changed(a);
 }
 
@@ -490,10 +525,7 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
     if (knob == QD_K_ALGO) {                            /* 2026-11-13 (owner): the step cursor, as everywhere: the
                                                          * selection one step, SELECTED; fully left LIVE: the track */
         qd_step_cursor(a, d);
-        if (a->ui.nheld)
-            qd_tools_sel_changed(a);
-        else if (T->scope == QD_TS_SEL)
-            tl_scope(a, QD_TS_TRACK);
+        qd_tools_sel_changed(a);
         return 1;
     }
     switch (T->tool) {
