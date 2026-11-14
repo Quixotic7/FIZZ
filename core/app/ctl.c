@@ -494,7 +494,11 @@ static void k_mfx_white(qd_app_t *a, int key, int w, int down, int vel) { qd_mfx
 static int w_shift_keys(const qd_app_t *a) { return qd_ctl_shift(a) && qd_ctl_shift_page(a); }
 /* .. and the W keys where they play (the keyboard page, a B11 click's keys): nothing, as in the step view (SHIFT + W
  * is free there; its LEDs dark) */
-static int w_shift_white(const qd_app_t *a) { return w_shift_keys(a) && qd_keys_on(a) && !a->ui.ksteps; }
+/* (2026-11-13: ksteps is the keyboard page's alone: left behind outside it, it is not read) */
+static int w_shift_white(const qd_app_t *a)
+{
+    return w_shift_keys(a) && qd_keys_on(a) && !(a->ui.mode == QD_MODE_KEYS && a->ui.ksteps);
+}
 static void k_shift_black(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;

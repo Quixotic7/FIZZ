@@ -9863,6 +9863,26 @@ static void g_shift_everywhere(void)
     CHECK(qd_view_screen(&A) == QD_SCR_SHIFT, "SHIFT over the track settings too");
     bup(SHIFT);
     btap(QD_B_HOME);
+    /* 2026-11-13 (the UI review): the keyboard page's STEPS (ksteps) left behind: in the step view a B11 click's keys
+     * play, so SHIFT + W is nothing there too */
+    start();
+    btap(QD_B_REC);
+    if (!A.ui.ksteps)                                   /* (the tests' REC shim: the keys first) */
+        black(B11);
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.ksteps, "REC: the keyboard page, its W keys the steps");
+    btap(QD_B_HOME);
+    black(B11);
+    CHECK(A.ui.mode == QD_MODE_STEP && qd_keys_on(&A), "the step view, a B11 click: its keys");
+    A.keys_struck = 0;
+    bdown(SHIFT);
+    run(100);
+    kdown(WK(2));
+    run(20);
+    kup(WK(2));
+    run(10);
+    bup(SHIFT);
+    run(300);
+    CHECK(!A.keys_struck && !R(0, 2).on, "SHIFT + W3 there: nothing (no note, no step)");
 }
 
 /* 2026-11-10 (the owner, on the unit): A PLAY held opens F3 from the keyboard page; B the keyboard page's LEDs with a
