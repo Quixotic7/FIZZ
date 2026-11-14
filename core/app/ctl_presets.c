@@ -21,8 +21,9 @@
  * preset's tags are the owner's too, its sound read only).
  * SAVE PRESET (QD_LATCH_SAVE): SAVE. A name from the sound (the sparkle), selected, typed on the keybed (P1.5u:
  * ctl_type.c's typewriter: the keys type, PRESETS name ideas, ALGORITHM the cursor, SELECT the character, F1
- * deletes); SAVE again does the choice: NEW (a new preset in MY presets) or, when the sound came from one of MY
- * presets, REPLACE (that one): P1.5v: F2 switches the choice, both shown; HOME cancels. Saved: the track plays that preset (not edited). */
+ * deletes); F2 does the choice (2026-11-13; it was SAVE again): NEW (a new preset in MY presets) or, when the sound
+ * came from one of MY presets, REPLACE (that one): PRESETS turns the choice (P1.5v's F2), both shown; HOME cancels,
+ * SAVE goes on to the PROJECT. Saved: the track plays that preset (not edited). */
 
 /* ---------------------------------------------------------------- the list */
 int qd_br_buf[QD_BR_LIST];                              /* (P2.1b: one list for all: each is used and done before the
@@ -570,16 +571,19 @@ void qd_sv_start(qd_app_t *a)
     sv_update_new(a);
 }
 
+/* (2026-11-13, owner: the editor, a step selected: its sound; -1 none) */
+static int sv_step(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    return u->latch == QD_LATCH_SND && u->slatch && u->nheld ? u->held[0] : -1;
+}
+
 void qd_sv_open(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     qd_saveui_t *v = &u->sv;
-    if (u->latch == QD_LATCH_SAVE) {                    /* SAVE again: NEW */
-        qd_sv_new(a);
-        return;
-    }
-    v->step = (int16_t)(u->latch == QD_LATCH_SND && u->slatch && u->nheld ? u->held[0] : -1);   /* (2026-11-13,
-                                                         * owner: the editor, a step selected: its sound) */
+    u->pj.last = 0;                                     /* (the SAVE page used last) */
+    v->step = (int16_t)sv_step(a);
     v->src = v->step >= 0;
     v->ret_mode = u->mode;
     qd_page_open(a, QD_LATCH_SAVE, QD_PO_STEP);

@@ -9,6 +9,13 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **SAVE is a page button**: a click opens the SAVE page you used last, and clicks turn between **SAVE PRESET** and
+  **PROJECT**. In the sound editor with a step selected, a click still opens SAVE PRESET for that step's sound.
+- **Hold SAVE** (half a second) to save the project now: a big green tick says **PROJECT SAVED** (playing, SAVING
+  first, about half a second). **F2 on the PROJECT page** does the same. The project still saves by itself too.
+- **F2 saves** on SAVE PRESET (SAVE no longer does), and **F2 keeps** a project's or a track's name. NEW or REPLACE
+  is chosen with **PRESETS**.
+
 ## 0.12.0-beta.18 (2026-11-13)
 
 One design language across the pages: ALGORITHM selects steps everywhere, the selection, SOUND's bank and the octave stay put as you move around, and MIDI FX, TOOLS and FUNC are redone to match.

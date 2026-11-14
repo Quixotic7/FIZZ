@@ -192,6 +192,8 @@ struct qd_app;
 #define QD_PLAY_HOLD_MS 400u           /* P1.3x: PLAY held this long: F3 (a tap plays / stops on its release) */
 #define QD_HOME_HOLD_MS 500u           /* 2026-11-10 (owner): HOME held this long: the global settings (a click: the
                                         * Home view, the next one) */
+#define QD_SAVE_HOLD_MS 500u           /* 2026-11-13 (owner): SAVE held this long: the project saved (a click: the SAVE
+                                        * pages, SAVE PRESET <-> PROJECT) */
 #define QD_REC_HOLD_MS 400u            /* P1.3x: REC held this long: live recording armed (a tap: the keyboard) */
 #define QD_PREVIEW_MS 300u             /* a note turned on a knob sounds this long */
 #define QD_OCT_SLIDE_MS 350u           /* the octave takeover's keyboard slides this long */
@@ -401,6 +403,10 @@ typedef struct {
     int f1_down, src, armed;           /* F1 + W: copy from src (onto one that exists: armed) */
     int b11_down, b11_used;
     int oct_used;
+    uint32_t save_ms;                  /* 2026-11-13 (owner): SAVE went down (held QD_SAVE_HOLD_MS: the project saved) .. */
+    uint8_t save_used;                 /* .. its release no click (SHIFT + SAVE, the hold, a name typed) */
+    uint8_t last;                      /* the SAVE page used last (0 SAVE PRESET, 1 PROJECT): a SAVE click opens it */
+    uint8_t saving;                    /* SAVING shown until the project is written (then PROJECT SAVED) */
 } qd_prjui_t;
 
 /* T1 (docs/TRACK-TOOLS-PLAN.md; ctl_tools.c): TOOLS' state, packed (only one tool is live at a time: its values are
@@ -770,6 +776,7 @@ void qd_ctl_imported(struct qd_app *a, const char *name, int pool, int slot);   
 int qd_preset_walk(const struct qd_app *a, int lib, int k, int d, int *lib_out);   /* P1.5s: the pool, then the library */
 void qd_ctl_confirm_col(struct qd_app *a, const char *big, const char *small, uint32_t col);   /* P1.5o: in a colour */
 #define QD_CF_BAND 1u                  /* 2026-11-12: (as its colour) the word as a band over the top, a knob's value's */
+#define QD_CF_TICK 2u                  /* 2026-11-13: (as its colour) the word green under a big tick (PROJECT SAVED) */
 int qd_ctl_rate_index(int rate);       /* a rate's place in the picker (slowest first) */
 int qd_ctl_rate_at(int i);             /* .. and back */
 
@@ -989,7 +996,8 @@ void qd_panel_leds(const struct qd_app *a, uint8_t *black);
 /* ---- ctl_lib.c (P1.5a, built through ctl_latch.c): the pages over the step view: the library browser and SAVE
  * PRESET (P1.5t, ctl_presets.c), the name editor, the project pages; their keys, knobs, OCT keys and clock */
 int qd_lib_open(const struct qd_app *a);         /* one of them open */
-void qd_lib_save(struct qd_app *a);              /* SAVE */
+void qd_lib_save(struct qd_app *a, int down);    /* SAVE: a click the SAVE pages, held the project saved */
+void qd_lib_save_ms(struct qd_app *a);           /* .. each ms: the hold, SAVING's end */
 void qd_prj_button(struct qd_app *a);            /* SHIFT + SAVE (T1b) */
 void qd_lib_back(struct qd_app *a);
 void qd_name_open(struct qd_app *a, int target, int proj);
@@ -1012,7 +1020,7 @@ int qd_br_knob(struct qd_app *a, int knob, int d);
 void qd_br_leds(const struct qd_app *a, uint8_t *key);
 int qd_br_pool_k(const struct qd_app *a);        /* P1.5v: the pool number the chosen is (or its copy's), 0 none */
 void qd_sv_start(struct qd_app *a);   /* 2026-11-13: SAVE PRESET's name and REPLACE for the sound chosen */
-void qd_sv_open(struct qd_app *a);               /* SAVE: SAVE PRESET (again: saved as NEW) */
+void qd_sv_open(struct qd_app *a);               /* SAVE: SAVE PRESET (F2 saves) */
 void qd_sv_new(struct qd_app *a);
 void qd_sv_replace(struct qd_app *a);
 void qd_sv_leds(const struct qd_app *a, uint8_t *key);

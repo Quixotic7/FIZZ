@@ -5611,8 +5611,10 @@ static void g_p16d_kinds(void)
     wtap(6);                                            /* R */
     wtap(4);                                            /* P */
     btap(QD_B_SAVE);
+    CHECK(qd_view_screen(&A) == QD_SCR_NAME && !strcmp(A.ui.ty.name, "ARP"), "SAVE in a name: nothing (2026-11-13)");
+    btap(F2);
     CHECK(!strcmp(A.model.t[2].name, "ARP") && A.model.t[2].named && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2,
-          "A R P, SAVE: named ARP (typed), back on page 3 (%s)", A.model.t[2].name);
+          "A R P, F2: named ARP (typed), back on page 3 (%s)", A.model.t[2].name);
     turn(QD_K_1, -1);
     CHECK(A.model.t[2].kind == QD_PK_PLUCK && !strcmp(A.model.t[2].name, "ARP"), "a kind chosen: the typed name stays");
     turn(QD_K_2, 1);
@@ -7896,10 +7898,10 @@ static void g_p15t_save(void)
           "two before the end");
     memcpy(nm, A.ui.sv.newname, QD_SOUND_NAME);
     n = qd_undo_count(&A, -1);
-    btap(QD_B_SAVE);
+    btap(F2);
     run(600);
     CHECK(!strcmp(LIB(&A, 0)->name, nm) && A.model.t[0].preset == LIB(&A, 0)->preset && !A.model.t[0].edited &&
-              A.ui.tk == QD_TK_SAVED && !A.ui.latch, "SAVE again: NEW (%s), the track plays it; SAVED", nm);
+              A.ui.tk == QD_TK_SAVED && !A.ui.latch, "F2: NEW (%s), the track plays it; SAVED", nm);
     CHECK(qd_undo_count(&A, -1) == n + 1, "one undo level");
     undo_redo(-1);
     CHECK(!LIB(&A, 0)->name[0], "undo: not saved");
@@ -7917,19 +7919,20 @@ static void g_p15t_save(void)
           "HOME: cancelled, nothing saved");
     btap(QD_B_SAVE);
     CHECK(A.ui.sv.choice == 0 && leds().button[F2] == QD_LED_LIT, "REPLACE offered: NEW chosen first, F2 lit");
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.sv.choice == 1 && A.ui.latch == QD_LATCH_SAVE, "PRESETS right (2026-11-13): REPLACE chosen, nothing saved yet");
+    turn(QD_K_PRESETS, -1);
+    CHECK(A.ui.sv.choice == 0, "PRESETS left: NEW");
+    turn(QD_K_PRESETS, 1);
     btap(F2);
-    CHECK(A.ui.sv.choice == 1 && A.ui.latch == QD_LATCH_SAVE, "F2 (P1.5v): REPLACE chosen, nothing saved yet");
-    btap(F2);
-    btap(F2);
-    btap(QD_B_SAVE);
     run(600);
     CHECK(LIB(&A, 0)->patch[QD_QP_HARM] == 1200 && !LIB(&A, 1)->name[0] && !A.model.t[0].edited &&
-              A.model.t[0].preset == LIB(&A, 0)->preset, "F2 again (NEW), again (REPLACE), SAVE: REPLACED (the same preset), nothing new");
+              A.model.t[0].preset == LIB(&A, 0)->preset, "PRESETS right, F2: REPLACED (the same preset), nothing new");
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
-    btap(QD_B_SAVE);
+    btap(F2);
     CHECK(LIB(&A, 1)->name[0] && strstr(LIB(&A, 1)->name, " 2") && A.model.t[0].preset == LIB(&A, 1)->preset,
-          "SAVE, SAVE: NEW as %s", LIB(&A, 1)->name);
+          "SAVE, F2: NEW as %s", LIB(&A, 1)->name);
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
 }
 
@@ -8060,9 +8063,9 @@ static void g_p15u_edit(void)
     CHECK(!A.ui.ty.name[0] && A.ui.ty.cur == 0 && A.ui.latch == QD_LATCH_SAVE, "SHIFT + F1: cleared");
     btap(F1);
     CHECK(!A.ui.ty.name[0] && A.ui.latch == QD_LATCH_SAVE, "F1 on nothing: nothing (still open)");
-    btap(QD_B_SAVE);
+    btap(F2);
     run(600);
-    CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "SOUND"), "SAVE on an empty name: saved as SOUND (%s)",
+    CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "SOUND"), "F2 on an empty name: saved as SOUND (%s)",
           LIB(&A, 0)->name);
     btap(QD_B_SAVE);                                    /* a selected name: F1 deletes all of it */
     btap(F1);
@@ -8145,11 +8148,11 @@ static void g_p15u_save(void)
     ty_open();
     ty_type("DUST");
     n = qd_undo_count(&A, -1);
-    btap(QD_B_SAVE);
+    btap(F2);
     run(600);
     CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "DUST") && A.model.t[0].preset == LIB(&A, 0)->preset &&
               !strcmp(A.model.t[0].sound_name, "DUST") && qd_undo_count(&A, -1) == n + 1,
-          "D U S T, SAVE: NEW as DUST, the track plays it; one undo level");
+          "D U S T, F2: NEW as DUST, the track plays it; one undo level");
     id = LIB(&A, 0)->preset;
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].patch[QD_QP_HARM] = 700;
@@ -8159,12 +8162,12 @@ static void g_p15u_save(void)
     CHECK(A.ui.sv.replace == 0 && A.ui.ty.sel && !strcmp(A.ui.ty.name, "DUST"), "edited, SAVE: DUST selected, REPLACE "
           "offered");
     ty_type("DUSK");
+    turn(QD_K_PRESETS, 1);
     btap(F2);
-    btap(QD_B_SAVE);
     run(600);
     CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "DUSK") && LIB(&A, 0)->preset == id &&
               LIB(&A, 0)->patch[QD_QP_HARM] == 700 && !LIB(&A, 1)->name[0] && !strcmp(A.model.t[0].sound_name, "DUSK"),
-          "D U S K, F2, SAVE: REPLACED under the typed name, the same preset, nothing new");
+          "D U S K, PRESETS, F2: REPLACED under the typed name, the same preset, nothing new");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
@@ -8240,9 +8243,11 @@ static void g_p15u_leds(void)
     CHECK(qd_view_screen(&A) == QD_SCR_NAME && ok && A.ui.ty.sel == !!A.per.pname[A.per.proj][0], "B10 on the project page: the name, the same keys "
           "lit");
     ty_type("NIGHT BUS");
-    btap(QD_B_SAVE);
-    CHECK(!strcmp(A.per.pname[A.per.proj], "NIGHT BUS") && A.ui.latch == QD_LATCH_PRJ, "N I G H T SPACE B U S, SAVE: "
-          "the project named; its page (%s)", A.per.pname[A.per.proj]);
+    CHECK(leds().button[F2] == QD_LED_LIT && leds().button[QD_B_SAVE] == QD_LED_OFF, "a name: F2 lit (keep), SAVE dark");
+    btap(F2);
+    CHECK(!strcmp(A.per.pname[A.per.proj], "NIGHT BUS") && A.ui.latch == QD_LATCH_PRJ && !A.ui.pj.saving &&
+              !A.ui.cf_on, "N I G H T SPACE B U S, F2: the project named; its page, not saved by F2's release (%s)",
+          A.per.pname[A.per.proj]);
     black(B10);
     ty_type("XX");
     btap(QD_B_HOME);
@@ -8381,29 +8386,96 @@ static void g_p15v_save(void)
     start();
     run(600);
     btap(QD_B_SAVE);
-    CHECK(A.ui.sv.replace < 0 && leds().button[F2] == QD_LED_OFF, "a factory sound: NEW only, F2 dark");
+    CHECK(A.ui.sv.replace < 0 && leds().button[F2] == QD_LED_LIT && leds().button[QD_B_SAVE] == QD_LED_LIT,
+          "a factory sound: NEW only; F2 lit (save), SAVE lit (a SAVE page)");
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.sv.choice == 0 && A.ui.latch == QD_LATCH_SAVE, "PRESETS: no REPLACE to choose (a name rolled)");
     btap(F2);
-    CHECK(A.ui.sv.choice == 0 && A.ui.latch == QD_LATCH_SAVE, "F2: nothing");
-    btap(QD_B_SAVE);
     run(600);
-    CHECK(LIB(&A, 0)->name[0] && !A.ui.latch, "SAVE: NEW");
+    CHECK(LIB(&A, 0)->name[0] && !A.ui.latch, "F2: NEW");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
     CHECK(A.ui.sv.replace == 0 && A.ui.sv.choice == 0 && leds().button[F2] == QD_LED_LIT, "from one of MY presets: "
           "NEW chosen, F2 lit");
+    turn(QD_K_PRESETS, 1);
     btap(F2);
-    btap(QD_B_SAVE);
     run(600);
-    CHECK(!LIB(&A, 1)->name[0] && !A.ui.latch, "F2, SAVE: REPLACE (nothing new)");
+    CHECK(!LIB(&A, 1)->name[0] && !A.ui.latch, "PRESETS right, F2: REPLACE (nothing new)");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, -1);
     btap(F2);
-    btap(F2);
-    btap(QD_B_SAVE);
     run(600);
-    CHECK(LIB(&A, 1)->name[0], "F2, F2, SAVE: NEW (%s)", LIB(&A, 1)->name);
+    CHECK(LIB(&A, 1)->name[0], "PRESETS right, left, F2: NEW (%s)", LIB(&A, 1)->name);
+}
+
+/* 2026-11-13 (owner): SAVE is a page button: clicks cycle SAVE PRESET <-> PROJECT, the one used last first (the editor
+ * with a step selected: SAVE PRESET for the step); held, the project saved (PROJECT SAVED); F2 saves on the PROJECT */
+static void g_save_cycle(void)
+{
+    static uint16_t lcd[QD_W * QD_H];
+    start();
+    run(600);
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_SAVE, "power-on: a click opens SAVE PRESET");
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_PRJ && A.ui.pj.page == 0 && !LIB(&A, 0)->name[0] && leds().button[F2] == QD_LED_LIT &&
+              leds().button[QD_B_SAVE] == QD_LED_LIT, "SAVE PRESET, a click: the PROJECT, nothing saved; F2, SAVE lit");
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_SAVE && !LIB(&A, 0)->name[0], "the PROJECT, a click: SAVE PRESET");
+    btap(QD_B_SAVE);
+    turn(QD_K_SELECT, 1);
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_SAVE, "the projects, a click: SAVE PRESET");
+    btap(QD_B_SAVE);
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch, "HOME leaves");
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_PRJ && A.ui.pj.page == 0, "a click again: the PROJECT (the one used last)");
+    btap(QD_B_HOME);
+    btap(QD_B_SOUND);                                   /* the editor, a step selected: SAVE PRESET for the step */
+    turn(QD_K_ALGO, 3);
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_SAVE && A.ui.sv.step == 2 && A.ui.sv.src, "the editor, step 3 selected: SAVE PRESET "
+          "for the step (the PROJECT used last)");
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_PRJ, ".. a click: the PROJECT");
+    btap(QD_B_HOME);
+    turn(QD_K_ALGO, -20);
+    bdown(QD_B_SAVE);                                   /* held: the project saved, no page */
+    run(QD_SAVE_HOLD_MS - 30);
+    CHECK(!A.ui.latch && !A.ui.cf_on, "SAVE held under half a second: nothing yet");
+    run(40);
+    CHECK(A.ui.cf_on && A.ui.cf_col == QD_CF_TICK && !strcmp(A.ui.cf_big, "PROJECT SAVED") && !A.ui.latch,
+          "held: PROJECT SAVED, no page");
+    qd_app_frame(&A, lcd);
+    bup(QD_B_SAVE);
+    run(20);
+    CHECK(!A.ui.latch, "its release: no click");
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_PRJ, "a click: the PROJECT");
+    run(QD_CONFIRM_MS);
+    btap(F2);
+    CHECK(A.ui.cf_on && A.ui.cf_col == QD_CF_TICK && A.ui.latch == QD_LATCH_PRJ, "F2 on the PROJECT: PROJECT SAVED, "
+          "the page stays");
+    btap(QD_B_SAVE);
+    run(QD_CONFIRM_MS);
+    bdown(QD_B_SAVE);                                   /* SAVE PRESET (a name typed): a hold nothing */
+    run(QD_SAVE_HOLD_MS + 100);
+    bup(QD_B_SAVE);
+    run(20);
+    CHECK(A.ui.latch == QD_LATCH_SAVE && !A.ui.cf_on && !LIB(&A, 0)->name[0], "SAVE PRESET, SAVE held: nothing (no "
+          "save, no page)");
+    btap(QD_B_PLAY);                                    /* playing: saved too (no flash here: at once) */
+    btap(QD_B_HOME);
+    bdown(QD_B_SAVE);
+    run(QD_SAVE_HOLD_MS + 10);
+    bup(QD_B_SAVE);
+    CHECK(A.seq.playing && A.ui.cf_on && A.ui.cf_col == QD_CF_TICK && !A.ui.latch, "playing, held: PROJECT SAVED");
+    btap(QD_B_PLAY);
 }
 
 static void g_p15v_picker(void)
@@ -8466,8 +8538,8 @@ static void g_p15w_refs(void)
     A.model.t[1].edited = 1;
     run(20);
     btap(QD_B_SAVE);
+    turn(QD_K_PRESETS, 1);
     btap(F2);
-    btap(QD_B_SAVE);
     run(600);
     CHECK(LIB(&A, 0)->patch[QD_QP_HARM] == 1500 && POOL(&A.proj, k)->patch[QD_QP_HARM] == 1500 &&
               R(1, 2).sound == k, "REPLACE: the pool's reference (and the step locking it) play the new REF ME");
@@ -8566,7 +8638,7 @@ static void g_p15x_mix(void)
     A.model.t[0].mix.pan = 12, A.model.t[0].mix.chorus = 1, A.model.t[0].mix.delay = 2, A.model.t[0].mix.reverb = 3;
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
-    btap(QD_B_SAVE);
+    btap(F2);
     run(600);
     CHECK(LIB(&A, 0)->pan == 12 && LIB(&A, 0)->chorus == 1 && LIB(&A, 0)->delay == 2 && LIB(&A, 0)->reverb == 3,
           "SAVE (NEW): the track's pan and sends saved with it");
@@ -8574,8 +8646,8 @@ static void g_p15x_mix(void)
     A.model.t[0].mix.reverb = 99;
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
+    turn(QD_K_PRESETS, 1);
     btap(F2);
-    btap(QD_B_SAVE);
     run(600);
     CHECK(LIB(&A, 0)->reverb == 99 && !LIB(&A, 1)->name[0], "REPLACE: its mix too (reverb 99)");
     k = qd_pool_add_sound(&A, LIB(&A, 0));           /* a step's sound lock: the sound only */
@@ -10675,13 +10747,13 @@ static void g_save_step(void)
     ok &= !A.ui.sv.src;
     turn(QD_K_4, 1);
     CHECK(ok && A.ui.sv.src == 1, "SAVE: the step's sound (STEP 3); KNOB 4 left TRACK, right STEP again");
-    btap(QD_B_SAVE);
+    btap(F2);
     slot = qd_lib_find(&A, A.ui.tk_snd.preset);
     ok = slot >= 0 && A.ui.latch != QD_LATCH_SAVE;
     if (ok)
         qd_lib_read(&A, slot, &sd);
     CHECK(ok && sd.patch[QD_QP_FDBK] == f0 + 10 && A.model.t[0].preset == p0 && A.model.t[0].patch[QD_QP_FDBK] == f0,
-          "SAVE again: a new preset with the step's FDBK (%d); the track's sound kept", ok ? sd.patch[QD_QP_FDBK] : -1);
+          "F2: a new preset with the step's FDBK (%d); the track's sound kept", ok ? sd.patch[QD_QP_FDBK] : -1);
 }
 
 static void g_kb_round3(void)
@@ -10908,7 +10980,8 @@ int main(void)
         {"P1.5v: DELETE?: armed, cancelled by any other key, deleted", g_p15v_delete},
         {"P1.5v: B10 toggles the pool from ALL and MINE; OUT?", g_p15v_pool},
         {"P1.5v: tags: SHIFT + B2..B8, the filters, the factory's", g_p15v_tags},
-        {"P1.5v: NEW / REPLACE: F2 chooses, SAVE does it", g_p15v_save},
+        {"P1.5v: NEW / REPLACE: PRESETS chooses, F2 does it (2026-11-13)", g_p15v_save},
+        {"2026-11-13: SAVE clicks cycle SAVE PRESET / PROJECT; held, PROJECT SAVED", g_save_cycle},
         {"P1.5v: a step + PRESETS: the picker up while held", g_p15v_picker},
         {"P1.5w: the pool's references: REPLACE, DELETE?'s use, undo", g_p15w_refs},
         {"P1.5x: presets carry their mix: LOAD, CANCEL, SAVE, a lock", g_p15x_mix},

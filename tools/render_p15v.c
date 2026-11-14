@@ -20,7 +20,7 @@
 #include "ui.h"
 #include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
-#define NSHOT 12
+#define NSHOT 14
 static qd_app_t A;
 static uint32_t now;
 static uint64_t frames_done;
@@ -277,9 +277,9 @@ int render_p15v(const char *out)
     btap(QD_B_SAVE);
     run(1300);
     shot("new", "SAVE, from one of MY presets: NEW chosen (F2 lit)", 0);
-    btap(QD_B_OCTUP);
+    turn(QD_K_PRESETS, 1);
     run(300);
-    shot("replace", "F2: REPLACE chosen; SAVE does the chosen", 0);
+    shot("replace", "PRESETS: REPLACE chosen; F2 does the chosen", 0);
     btap(QD_B_HOME);
     run(300);
     for (k = 0; k < 2; k++)                             /* 10 a step held + PRESETS: up while held */
@@ -300,6 +300,17 @@ int render_p15v(const char *out)
     run(100);
     shot("released", "Let go: closed, the sound kept", 0);
     run(500);
+    qd_ctl_confirm(&A, "SAVING", 0);                    /* 2026-11-13: playing, SAVE held: SAVING until written (no
+                                                         * flash here: shown by hand) */
+    run(300);
+    shot("prjsaving", "Playing, SAVE held: SAVING until it is written", 0);
+    run(QD_CONFIRM_MS);
+    bdown(QD_B_SAVE);                                   /* .. SAVE held: the project saved */
+    run(QD_SAVE_HOLD_MS + 10);
+    bup(QD_B_SAVE);
+    run(300);
+    shot("prjsaved", "SAVE held: PROJECT SAVED (the tick drawn in)", 1);
+    run(QD_CONFIRM_MS);
 
     if (!failed)
         sheet_as("p15v-sheet.png", "FIZZ P1.5v: delete, the pool from any source, tags, NEW / REPLACE, the picker held (1.5x)");

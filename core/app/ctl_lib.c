@@ -8,11 +8,12 @@
  * snapshots; T1b: SHIFT + SAVE is the project).
  *
  *   PRESETS (nothing held)   THE LIBRARY BROWSER (ctl_presets.c)
- *   SAVE (anywhere)          SAVE PRESET (ctl_presets.c)
+ *   SAVE clicked (anywhere)  SAVE PRESET (ctl_presets.c) or THE PROJECT, the one used last; on one, the other
+ *   SAVE held                the project saved (PROJECT SAVED)
  *   THE NAME EDITOR (B10 on the project page): P1.5u: the typewriter (ctl_type.c): the project's name selected, the
- *        keys type; SAVE keeps it, HOME leaves the old name (both back to the project page).
+ *        keys type; F2 keeps it (2026-11-13; SAVE nothing), HOME leaves the old name (both back to the project page).
  *   SHIFT + SAVE (T1b; it was SEQ tapped)  THE PROJECT: its number and name, its 64 patterns, the flash and the pool
- *        in use. SELECT or SHIFT + SAVE again: THE PROJECTS, eight on W1..W8: W chooses (it blinks with F2), F2 loads (an empty
+ *        in use; F2 saves it. SELECT or SHIFT + SAVE again: THE PROJECTS, eight on W1..W8: W chooses (it blinks with F2), F2 loads (an empty
  *        one: a new project), F1 + W copies one onto another (onto one that exists: armed, that W again), B11 + W
  *        deletes one, B10 names the one worked on. */
 
@@ -27,8 +28,57 @@ static void lib_open_page(qd_app_t *a, int kind)
     qd_page_open(a, kind, QD_PO_STEP);
 }
 
-/* SAVE (not with SHIFT: P1.5b's) */
-void qd_lib_save(qd_app_t *a) { qd_sv_open(a); }
+/* SAVE (2026-11-13, the owner: "quick clicks cycle between preset / project", "project saves by holding the save
+ * button with a clear Project Saved message"): a click (its release) opens the SAVE page used last (power-on SAVE
+ * PRESET; the sound editor with a step selected: SAVE PRESET for the step), on SAVE PRESET the PROJECT, on the project
+ * pages SAVE PRESET; held QD_SAVE_HOLD_MS (not while a name is typed): the project saved, SAVING while it is written
+ * (playing), then PROJECT SAVED; SHIFT + SAVE the project page (again: the projects) */
+static void prj_save(qd_app_t *a)
+{
+    qd_persist_save_project(a);
+    a->ui.pj.saving = 1;                                /* (qd_lib_save_ms: SAVING, or PROJECT SAVED once written) */
+}
+void qd_lib_save_ms(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    qd_prjui_t *p = &u->pj;
+    if (((a->buttons_held >> QD_B_SAVE) & 1u) && !p->save_used && a->ms - p->save_ms >= QD_SAVE_HOLD_MS &&
+        !qd_type_open(a)) {
+        p->save_used = 1;
+        prj_save(a);
+    }
+    if (p->saving) {
+        const int busy = qd_persist_save_busy(a);
+        qd_ctl_confirm(a, busy ? "SAVING" : "PROJECT SAVED", 0);   /* (SAVING stays up until it is written) */
+        if (!busy)
+            u->cf_col = QD_CF_TICK;
+        p->saving = (uint8_t)busy;
+    }
+}
+void qd_lib_save(qd_app_t *a, int down)
+{
+    qd_ui_t *u = &a->ui;
+    qd_prjui_t *p = &u->pj;
+    if (down) {
+        p->save_ms = a->ms;
+        p->save_used = 0;
+        if (qd_ctl_shift(a)) {                          /* (T1b's shortcut, kept) */
+            u->shift_used = 1;
+            p->save_used = 1;
+            qd_prj_button(a);
+        }
+        return;
+    }
+    if (p->save_used || a->ms - p->save_ms >= QD_SAVE_HOLD_MS) {
+        p->save_used = 1;                               /* (a hold: no page) */
+        return;
+    }
+    p->save_used = 1;
+    if (u->latch == QD_LATCH_PRJ || (u->latch != QD_LATCH_SAVE && (!p->last || sv_step(a) >= 0)))
+        qd_sv_open(a);
+    else
+        qd_prj_button(a);
+}
 
 void qd_lib_back(qd_app_t *a) { qd_latch_close(a); }
 
@@ -68,6 +118,7 @@ static void name_back(qd_app_t *a)
         return;
     }
     qd_latch_open(a, QD_LATCH_PRJ);
+    a->ui.pj.oct_used |= 2;                             /* (F2 kept the name: its release does not save) */
 }
 
 /* ---------------------------------------------------------------- the project pages */
@@ -80,6 +131,7 @@ void qd_prj_button(qd_app_t *a)
         return;
     }
     lib_open_page(a, QD_LATCH_PRJ);
+    p->last = 1;                                        /* (the SAVE page used last) */
     p->page = 0;
     p->chosen = a->per.proj;
     p->src = -1;
@@ -124,8 +176,10 @@ static void prj_white(qd_app_t *a, int w, int down)
 static void prj_f2(qd_app_t *a)
 {
     qd_prjui_t *p = &a->ui.pj;
-    if (p->page != 1)
+    if (p->page != 1) {                                 /* 2026-11-13 (owner): the project page: F2 saves it */
+        prj_save(a);
         return;
+    }
     if (p->chosen == a->per.proj)
         return;
     if (a->per.pexists[p->chosen])
@@ -199,6 +253,7 @@ int qd_lib_oct(qd_app_t *a, int d, int down)
             p->oct_used &= ~(d < 0 ? 1 : 2);
             return 1;
         }
+        u->oct_eaten &= (uint8_t)~(d < 0 ? 1u : 2u);   /* (one the name editor ate: free again) */
         if (d < 0) {
             p->f1_down = 0;
             if (!(p->oct_used & 1))

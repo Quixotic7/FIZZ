@@ -1238,6 +1238,18 @@ void qd_persist_ms(qd_app_t *a)
         else
             look(a, QD_PI_LIB + (ps->scan * 4 + j) % QD_NLIB);   /* (P1.5t: 256: four new ones a look) */
     }
+    if (ps->save_req > QD_PI_N) {                       /* (saved by hand: done when what changed before is written) */
+        for (it = 0; it < QD_PI_N && (ps->seen[it] == ps->saved[it] || ps->changed[it] > ps->save_t ||
+                                      !item_here(a, it)); it++)
+            ;
+        if (it == QD_PI_N && ps->job < 0)
+            ps->save_req = 0;
+    } else if (ps->save_req) {                          /* (.. every item looked at, one a ms) */
+        it = ps->save_req++ - 1;
+        look(a, it);
+        if (ps->seen[it] != ps->saved[it])
+            ps->changed[it] = ps->save_t;
+    }
     if (ps->job < 0 && ps->urgent) {                    /* P2.4: the one a prefetch waits on: now, no debounce */
         it = ps->urgent - 1;
         if (!item_here(a, it))
@@ -1253,7 +1265,7 @@ void qd_persist_ms(qd_app_t *a)
         for (it = 0; it < QD_PI_N; it++)
             if (ps->seen[it] != ps->saved[it]) {
                 dirty = 1;
-                if (a->ms - ps->changed[it] >= QD_SAVE_DEBOUNCE_MS && item_here(a, it)) {   /* (P2.6c: in RAM: a
+                if ((ps->save_req || a->ms - ps->changed[it] >= QD_SAVE_DEBOUNCE_MS) && item_here(a, it)) {   /* (P2.6c: in RAM: a
                                                          * sound's job never reads one in) */
                     job_start(a, it);
                     break;
@@ -1271,6 +1283,17 @@ void qd_persist_soon(qd_app_t *a, int it)
     if (!a->per.urgent)
         a->per.urgent = it + 1;
 }
+
+void qd_persist_save_project(qd_app_t *a)
+{
+    qd_persist_t *ps = &a->per;
+    ps->save_req = 0;
+    if (!a->seq.playing && qd_persist_flush(a))
+        return;
+    ps->save_req = 1;
+    ps->save_t = a->ms;
+}
+int qd_persist_save_busy(const qd_app_t *a) { return a->per.on && a->per.save_req; }
 
 void qd_persist_own_step(qd_app_t *a, int on) { a->per.own_step = on != 0; }
 

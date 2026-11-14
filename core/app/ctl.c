@@ -1817,19 +1817,9 @@ static void b_octdn(qd_app_t *a, int down) { b_oct(a, -1, down); }
 static void b_octup(qd_app_t *a, int down) { b_oct(a, 1, down); }
 void qd_ctl_set_mode(qd_app_t *a, int mode) { set_mode(a, mode); }
 
-/* P1.5a: SAVE: the sounds page, storing the selected track's sound (SAVE again stores); T1b: SHIFT + SAVE the
- * project page (again: the projects) */
-static void b_save(qd_app_t *a, int down)
-{
-    if (!down || a->ui.mode == QD_MODE_IDLE)
-        return;
-    if (qd_ctl_shift(a)) {
-        a->ui.shift_used = 1;
-        qd_prj_button(a);
-        return;
-    }
-    qd_lib_save(a);
-}
+/* P1.5a: SAVE (2026-11-13, owner): a click the SAVE pages (SAVE PRESET <-> PROJECT), held the project saved; SHIFT +
+ * SAVE the project page (ctl_lib.c) */
+static void b_save(qd_app_t *a, int down) { qd_lib_save(a, down); }
 
 /* P1.5a: SEQ (printed): held, the patterns (their map after QD_TAP_MS, or at once with a key or a knob); the owner,
  * 2026-10-25: a hold latches the map on release (the same keys; SEQ tapped or HOME: closed); T1b: tapped with no map
@@ -2586,6 +2576,7 @@ void qd_ctl_ms(qd_app_t *a)
     }
     if (held(a, QD_B_HOME) && !(u->home_used & 2) && a->ms - u->home_ms >= QD_HOME_HOLD_MS && u->mode != QD_MODE_IDLE)
         home_hold(a);                                   /* 2026-11-10 (owner): HOME held: the global settings */
+    qd_lib_save_ms(a);                                  /* 2026-11-13 (owner): SAVE held: the project saved */
     if (held(a, QD_B_REC) && !u->rec_down_used && !u->rec_auto_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS &&
         !a->seq.playing && u->mode != QD_MODE_IDLE) {
         u->rec_down_used = 1;                           /* P1.6g: stopped, REC held: armed, latched, in any view (the

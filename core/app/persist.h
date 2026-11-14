@@ -141,6 +141,9 @@ typedef struct {
     uint32_t fetch_ms;                 /* P2.4: the prefetch's last wait (it tries again 8 ms on) */
     uint32_t written_ms[QD_NPAT];      /* when each pattern was last written (its bubbles) */
     uint16_t wc_done;                  /* (Manager P2-B) a STORE job's preset: its records already keep their copies */
+    int save_req;                      /* 2026-11-13: the project saved by hand, playing: 1 + the next item looked at
+                                        * (past QD_PI_N: all looked at, written with no debounce until done) .. */
+    uint32_t save_t;                   /* .. asked then (what changes after it is not waited for) */
 #if QD_PKG_BLE
     uint8_t erase_hold;                /* (the Bluetooth package) the port: a computer linked over Bluetooth, the stores'
                                         * erases wait unless one is down to its last blank sector (persist.c) .. */
@@ -167,6 +170,11 @@ void qd_persist_step(struct qd_app *a);
 int qd_persist_flush(struct qd_app *a);   /* everything changed written now (a shutdown, a load); 1 done */
 int qd_persist_dirty(const struct qd_app *a);   /* something is not written yet */
 void qd_persist_soon(struct qd_app *a, int it);   /* item it (QD_PI_..) written next, no debounce */
+/* 2026-11-13 (owner): the project saved by hand (SAVE held, F2 on the project page): everything changed written;
+ * stopped at once (qd_persist_flush), playing by §7's rules (a page a frame, no erase unless quiet), every item looked
+ * at and none debounced, until qd_persist_save_busy is 0. (The one entry a manual-only save and a revert will use) */
+void qd_persist_save_project(struct qd_app *a);
+int qd_persist_save_busy(const struct qd_app *a);
 void qd_persist_io(struct qd_app *a);  /* P2.1: the patterns' and sounds' backing (pattern.h qd_pat_io_t, qd_snd_io_t):
                                         * the store */
 void qd_persist_prefetch(struct qd_app *a);   /* P2.1: the patterns the sequencer will want read in (each ms) */

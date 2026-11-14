@@ -548,8 +548,18 @@ void ui_confirm_draw(const char *big, const char *small, qd_rgb col)
         ui_T(small, 120.f, 162.f, 16.f, 600, 1.f, col, QD_CENTER);
 }
 
+/* 2026-11-13: PROJECT SAVED: a green tick, its ring popping open round it (its first 150 ms), the word under it */
+static const float SAVED_TICK[6] = {100.f, 66.f, 114.f, 80.f, 140.f, 50.f};
+FZ_COLD void ui_saved_draw(const char *big, float t)
+{
+    qd_translate(0.f, 30.f);                            /* (the confirmation's word lower, the tick over it: centred) */
+    ui_O(120.f, 64.f, t < .15f ? 240.f * t : 36.f, UI_K2, 3.f, QD_NONE);
+    ui_P(SAVED_TICK, 3, UI_K2, 7.f, 0, QD_NONE);
+    ui_confirm_draw(big, 0, UI_K2);
+}
+
 /* P1.5c: UNDO / REDO, what it was as a glyph */
-void ui_undo_draw(int redo, int kind, float t)
+FZ_COLD void ui_undo_draw(int redo, int kind, float t)
 {
     const qd_rgb c = kind < 0 ? UI_G2 : UI_K3;
     const float cx = 120.f, cy = 150.f;

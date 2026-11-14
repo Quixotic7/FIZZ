@@ -795,6 +795,7 @@ void ui_snd_draw(const ui_snd_t *v);
 
 /* ---- a brief full-screen word (CLEARED; UNDONE; COPIED; NO ROOM FOR LOCKS) */
 void ui_confirm_draw(const char *big, const char *small, qd_rgb col);
+void ui_saved_draw(const char *big, float t);   /* 2026-11-13: PROJECT SAVED: the word green under a big tick */
 /* P1.5c: SHIFT + F1 / F2: UNDO / REDO big, under it what it was as a glyph (undo.h QD_UK_*; -1: nothing there, dim) */
 void ui_undo_draw(int redo, int kind, float t);
 void ui_import_draw(const char *name, int pool, int slot, float t);   /* P1.5r (ui_lib.c): a sound imported */

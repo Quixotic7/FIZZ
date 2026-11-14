@@ -16,7 +16,7 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | GLO | **SHIFT** |
 | SEL (printed) | **SEL**: hold it for the tracks; tap it for the track settings |
 | SEQ (printed) | **SEQ**: hold it for the patterns (they stay open on release; SEQ tapped or HOME closes them); tap it for TOOLS |
-| SAVE (printed) | **SAVE**: SAVE PRESET, the selected track's sound into MY PRESETS |
+| SAVE (printed) | **SAVE**: clicks turn SAVE PRESET / PROJECT (the one used last first); held, the project saved |
 | LFO (printed) | **LATCH**: the step latch, on / off |
 | FX (printed) | **FX**: tap it for the effects; hold it to choose the track |
 | ENV (printed) | **MIX**: the mixer |
@@ -57,8 +57,9 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   (ENV, both pages), the **effects** (FX), the **sound editor** (EDIT) and the **MIDI FX** screen (ARP). **F1 never
   leaves them**: they close with **HOME** or their own key (EDIT, ARP; ENV and FX turn their pages), or by opening
   another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SHIFT + SEL),
-  the record settings (SHIFT + REC), the global settings (HOME held), the project pages (SHIFT + SAVE), the browser
-  (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
+  the record settings (SHIFT + REC), the global settings (HOME held), the project pages (SAVE), the browser
+  (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, F2 saves / keeps,
+  HOME cancels).
   (2026-11-10: the track settings are SHIFT + SEL, the global settings HOME held.)
 - **HOME clicks** cycle **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT**, **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE, TRACKS) and **OVERVIEW** (below). Whatever page you come back from, the step view is the one you were on, and GEEK OUT returns on its last page. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
@@ -493,7 +494,7 @@ Undo and redo of everything (P1.5c):
   **KNOB 3 PAGE FOLLOW**, **KNOB 4 MIDI FX**.
 - Page 3 (0.9.1): **KNOB 1 KIND**: BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (the presets' seven tags), each with its
   icon; choosing one **renames the track to the kind** unless you typed a name of your own. **KNOB 2 NAME**: a turn
-  opens the name keyboard (TRACK NAME; PRESETS or KNOB 2 rolls names from the kind and namesizer: DUSTY BASS, PAD 3 ..); SAVE
+  opens the name keyboard (TRACK NAME; PRESETS or KNOB 2 rolls names from the kind and namesizer: DUSTY BASS, PAD 3 ..); F2
   keeps it (a typed name stays when the kind changes; typing the kind's own name lets it follow again), HOME cancels;
   both come back to page 3. **KNOB 3 ENGINE**: **FM TONE**, **FM+MIDI** or **MIDI** (MIDI: the track plays no voice,
   its notes and its sound's CCs go out on MIDI OUT; FM+MIDI: the FM TONE sound plays and its editor's values go out
@@ -1044,7 +1045,7 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
   again or HOME closes it, SEQ lit while open). **ARP is lit** while the selected track's MIDI FX is on (a group, not
   bypassed) and while its page is open; off otherwise.
 - **From a latched F3** (PLAY held, or F1 + F2), the record settings or the settings, the page keys (EDIT, SEL, ENV,
-  FX, ARP, SEQ, SAVE, SHIFT + SAVE) close it and open their page in one press.
+  FX, ARP, SEQ, SAVE) close it and open their page in one press.
 - **The stopped preview** (0.9.3): a step held while stopped plays **through its MIDI FX group** (its own, else the
   track's): you hear the arp, the chord, the harmony; letting go ends every note (a HOLD arp's too).
 - **A step's own group**: hold the step in **TRIG** (B8): **KNOB 2** is its MIDI FX (TRACK: the track's, the default;
@@ -1118,8 +1119,11 @@ SELECT turns the pages (the dots at the top):
 
 ## Saving (P1.5a)
 
-- **Nothing to save by hand**: the project is written by itself, a moment (1.5 s) after your last change, while you
-  play too (never in a way you could hear). Every pattern keeps its six tracks' sounds as you edited them:
+- **The project is written by itself**, a moment (1.5 s) after your last change, while you play too (never in a way
+  you could hear).
+- **Hold SAVE** (half a second, from anywhere but a name being typed), or **F2 on the PROJECT page**: the project is
+  written **now**, and a big green tick says **PROJECT SAVED**. Playing, **SAVING** shows until it is written (about
+  half a second), then PROJECT SAVED (2026-11-13). Every pattern keeps its six tracks' sounds as you edited them:
   switching patterns switches the sounds.
 - Switching the unit off and on (in FM1VST: quitting and starting the Standalone) brings back the project you worked
   on, its pattern and the selected track, the effects and the latch mode.
@@ -1138,14 +1142,19 @@ A back-up of your projects and MY PRESETS: `fizz_xdata.py backup FILE` (and `res
 
 ## How do I keep a sound? (SAVE: SAVE PRESET)
 
-- **SAVE** (from anywhere) opens **SAVE PRESET** for the selected track's sound, with a **suggested name** (a sparkle
-  marks it), **selected** (a shaded band): since P1.5y a pair from the owner's **namesizer** (SPICY WALRUS, RAPID
-  CAR, COSMIC TREE ...), a new one each time. Name it on the keybed (below), or keep it.
-- **SAVE again** saves it as a **NEW** preset in MY PRESETS. When the sound came from one of MY presets, **NEW and
-  REPLACE** both show and **F2 switches which one is chosen** (the chosen bright and filled, the other dim; F2 lit;
-  NEW first): **SAVE does the chosen one** (P1.5v). NEW saves under a new name such as "DARK BASS 2" when the name is
-  taken; REPLACE overwrites that preset. Only NEW possible: only NEW shows, F2 dark. Factory presets are never
-  replaced. **HOME** cancels. The track's **pan and sends are saved with the sound** (P1.5x), NEW and REPLACE alike.
+- **SAVE is a page button with two pages, SAVE PRESET and PROJECT** (2026-11-13). A **click** opens the one you used
+  last (after switching on: SAVE PRESET); **on one, a click goes to the other**; HOME leaves. **In the sound editor
+  with a step selected**, a click always opens SAVE PRESET for **that step's sound** (KNOB 4: TRACK or STEP); a click
+  again goes on to the PROJECT. **Hold SAVE** to save the project (above). SHIFT + SAVE still opens the PROJECT.
+- **SAVE PRESET** is for the selected track's sound, with a **suggested name** (a sparkle marks it), **selected** (a
+  shaded band): since P1.5y a pair from the owner's **namesizer** (SPICY WALRUS, RAPID CAR, COSMIC TREE ...), a new
+  one each time. Name it on the keybed (below), or keep it.
+- **F2** (lit) **saves it** as a **NEW** preset in MY PRESETS (2026-11-13: SAVE no longer saves; it goes on to the
+  PROJECT). When the sound came from one of MY presets, **NEW and REPLACE** both show and **PRESETS turns which one
+  is chosen** (left NEW, right REPLACE; the chosen bright and filled, the other dim; NEW first): **F2 does the chosen
+  one**. NEW saves under a new name such as "DARK BASS 2" when the name is taken; REPLACE overwrites that preset. Only
+  NEW possible: only NEW shows, and PRESETS rolls names as KNOB 4 does. Factory presets are never replaced. **HOME**
+  cancels. The track's **pan and sends are saved with the sound** (P1.5x), NEW and REPLACE alike.
 - Saved: it drops into MY PRESETS ("SAVED"), and the track now plays that preset, no longer edited.
 - **SHIFT + F1** undoes a save.
 - The old sounds page (banks, the LIBRARY / POOL tabs, F1 / F2 / B11 + W) is gone: the browser does all of it.
@@ -1161,11 +1170,12 @@ bright).
   the bottom row). A key types its letter at the cursor and moves the cursor on (it flies up into the name). Upper
   case only; holding a key does not repeat; twelve characters (a key on a full name flashes the row orange and types
   nothing).
-- **The suggested name starts selected**: SAVE right away keeps it; **the first key typed replaces it**.
+- **The suggested name starts selected**: F2 right away keeps it; **the first key typed replaces it**.
 - **SHIFT held**: the black keys are **0..9 and -**, the white keys **. , ' & ! ? # + / ( ) \* : _ ~** and SPACE (the
   screen's keybed changes with it). While a name is typed SHIFT is only this: SHIFT + a button does nothing else (no
   snapshots, undo, settings or views), but **SHIFT + F1 clears** the name.
-- **PRESETS (or KNOB 4, or KNOB 2) right rolls a new name, every detent, for ever** (P1.5z): mostly namesizer pairs, now and
+- **PRESETS (or KNOB 4, or KNOB 2) right rolls a new name, every detent, for ever** (P1.5z; on SAVE PRESET with
+  REPLACE offered PRESETS chooses NEW / REPLACE instead): mostly namesizer pairs, now and
   then a made-up word (phonic nonsense like NIRE, cosmic words like FM-GX) and, about one time in five, one of the
   sound's own names (BRIGHT PLUCK, WARM PING ...). A neon die tumbles in beside each new one and lands. The name
   shown is the name, selected again (the sparkle stays).
@@ -1176,8 +1186,10 @@ bright).
   signs, SPACE; at the end of the name it adds one), to fix one letter without looking for its key.
 - **F1** deletes the character before the cursor (it drops away in orange; a selected name: all of it); **SHIFT +
   F1** clears.
-- **SAVE** confirms (SAVE PRESET: saves NEW; F2 REPLACE where offered; a project: its name kept). **HOME** cancels
-  (SAVE PRESET: closed; a project's name: back to the project page, the old name kept).
+- **F2** confirms (SAVE PRESET: saves the chosen, NEW or REPLACE; a project's or a track's name: kept; 2026-11-13, it
+  was SAVE). **HOME** cancels (SAVE PRESET: closed; a project's name: back to the project page, the old name kept).
+  **SAVE** on SAVE PRESET goes on to the PROJECT (the name typed is dropped); in a project's or a track's name it does
+  nothing.
 
 ### Sounds from a computer (P1.5r)
 
@@ -1198,15 +1210,16 @@ bright).
   destinations each) comes into the eight slots, the first eight that FIZZ has a destination for; how the Digitone
   II stores the depth is still a guess, the note over the screen says so.
 
-## How do I manage projects? (SHIFT + SAVE)
+## How do I manage projects? (SAVE: PROJECT)
 
-- **SHIFT + SAVE** (it was SEQ tapped; SEQ tapped is TOOLS now) shows the **project**: its number and name, its 64 patterns (a
-  bubble for each one written, the playing one bright), the flash in use and the pool's count.
+- **SAVE** clicked (from SAVE PRESET, or when the PROJECT was the SAVE page used last; SHIFT + SAVE always) shows the
+  **project**: its number and name, its 64 patterns (a bubble for each one written, the playing one bright), the
+  flash in use and the pool's count. **F2** (lit) **saves the project** now: PROJECT SAVED (as SAVE held).
 - **SELECT** or **SHIFT + SAVE again**: the **projects**, W1..W8 (the current one champagne). A W chooses one; **F2** loads it
   (an empty one starts a new project). **F1 + W** picks a project, **another W** copies it there (onto a project: that
   W turns orange, the same W again replaces it). **B11 + W** deletes one (the one you work on: a blank project in
-  its place). **B10** names the current project (on the keybed, as above: SAVE keeps it, HOME the old one).
-- **F1** or **HOME** leaves.
+  its place). **B10** names the current project (on the keybed, as above: F2 keeps it, HOME the old one).
+- **F1** or **HOME** leaves; **SAVE** clicked goes to SAVE PRESET.
 
 ## Not built yet
 

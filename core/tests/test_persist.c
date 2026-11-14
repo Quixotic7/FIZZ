@@ -162,19 +162,19 @@ static void pages_test(void)
     }
     CHECK(qd_view_screen(G) == QD_SCR_SAVE && G->ui.ty.spark && G->ui.ty.sel && !strcmp(G->ui.ty.name, nm) &&
               G->ui.sv.replace < 0, "SAVE: SAVE PRESET, a suggested name (%s), no REPLACE (a factory sound)", nm);
-    btap(QD_B_SAVE);
+    btap(QD_B_OCTUP);
     CHECK(!strcmp(LIB(G, 0)->name, nm) && !memcmp(LIB(G, 0)->patch, G->model.t[3].patch, sizeof LIB(G, 0)->patch) &&
               LIB(G, 0)->preset >= QD_PRESET_MINE0 && G->model.t[3].preset == LIB(G, 0)->preset &&
               !G->model.t[3].edited && !G->ui.latch && G->ui.tk == QD_TK_SAVED,
-          "SAVE again: a NEW MY preset (place 1, its own id), the track plays it, not edited; SAVED");
+          "F2: a NEW MY preset (place 1, its own id), the track plays it, not edited; SAVED");
     G->model.t[3].patch[QD_QP_HARM] = 900;              /* edited, then SAVE: REPLACE offered */
     G->model.t[3].edited = 1;
     p_run(20);
     btap(QD_B_SAVE);
     CHECK(G->ui.sv.replace == 0 && !strcmp(G->ui.ty.name, nm), "edited, SAVE: REPLACE offered (its "
           "name kept)");
-    btap(QD_B_OCTUP);                                   /* (P1.5v: F2 chooses REPLACE, SAVE does it) */
-    btap(QD_B_SAVE);
+    knob(QD_K_PRESETS, 1);                              /* (2026-11-13: PRESETS chooses REPLACE, F2 does it) */
+    btap(QD_B_OCTUP);
     CHECK(LIB(G, 0)->patch[QD_QP_HARM] == 900 && LIB(G, 0)->preset == G->model.t[3].preset &&
               !G->model.t[3].edited && !LIB(G, 1)->name[0], "F2: replaced (the same id), nothing new");
     /* the browser on MY presets: load it onto another track */
@@ -215,12 +215,43 @@ static void pages_test(void)
     CHECK(qd_view_screen(G) == QD_SCR_NAME && G->ui.ty.sel && !strcmp(G->ui.ty.name, G->per.pname[2]),
           "B10: the project's name, selected");
     wtap(6), black(0), black(8), wtap(2);               /* R A I N */
-    btap(QD_B_SAVE);
-    CHECK(!strcmp(G->per.pname[2], "RAIN") && qd_view_screen(G) == QD_SCR_PRJ, "R, A, I, N, SAVE: the project named "
+    btap(QD_B_OCTUP);
+    CHECK(!strcmp(G->per.pname[2], "RAIN") && qd_view_screen(G) == QD_SCR_PRJ, "R, A, I, N, F2: the project named "
           "(%s), the project page", G->per.pname[2]);
     btap(QD_B_HOME);
     CHECK(!G->ui.latch, "HOME: back");
     CHECK(G->per.prj_st.c.erases_noisy == 0, "no erase while sounding");
+
+    /* 2026-11-13 (owner): SAVE held: the project written now, PROJECT SAVED; playing: SAVING until it is written */
+    p_run(3000);
+    qd_step_on(qd_proj_pat(&G->proj, G->seq.cur), 5, 3);
+    G->model.t[0].patch[QD_QP_HARM] = 333;
+    G->model.t[0].edited = 1;
+    p_run(60);
+    CHECK(qd_persist_dirty(G), "(an edit, not written yet)");
+    bt(QD_B_SAVE, 1);
+    p_run(QD_SAVE_HOLD_MS + 5);
+    CHECK(!qd_persist_dirty(G) && !qd_persist_save_busy(G) && G->ui.cf_on && !strcmp(G->ui.cf_big, "PROJECT SAVED") &&
+              !G->ui.latch, "stopped, SAVE held: written at once, PROJECT SAVED");
+    bt(QD_B_SAVE, 0);
+    p_run(QD_CONFIRM_MS + 20);
+    qd_app_play(G);
+    p_run(200);
+    qd_step_on(qd_proj_pat(&G->proj, G->seq.cur), 6, 3);
+    G->model.t[0].patch[QD_QP_HARM] = 444;
+    p_run(60);
+    bt(QD_B_SAVE, 1);
+    p_run(QD_SAVE_HOLD_MS + 5);
+    bt(QD_B_SAVE, 0);
+    CHECK(qd_persist_dirty(G) && qd_persist_save_busy(G) && G->ui.pj.saving && !strcmp(G->ui.cf_big, "SAVING"),
+          "playing, SAVE held: SAVING (written by the frame)");
+    for (k = 0; k < 2000 && G->ui.pj.saving; k++)
+        p_run(1);
+    CHECK(!G->ui.pj.saving && !qd_persist_dirty(G) && k < 1400 && !strcmp(G->ui.cf_big, "PROJECT SAVED") &&
+              G->ui.cf_on && G->per.prj_st.c.erases_noisy == 0,
+          "then PROJECT SAVED once written (%d ms, before the autosave's debounce would be done), no erase", k);
+    qd_app_stop(G);
+    p_run(QD_CONFIRM_MS + 20);
 }
 
 /* P1.5t: a 0.6 flash: its library slots become MY presets (ids, kinds), its pool stays as it was (its factory copies

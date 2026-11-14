@@ -252,10 +252,10 @@ int render_p15w(const char *out)
         run(20);
     }
     btap(QD_B_SAVE);
-    btap(QD_B_OCTUP);
+    turn(QD_K_PRESETS, 1);
     run(400);
-    shot("replace", "SAVE, F2: REPLACE LEAD X", 0);
-    btap(QD_B_SAVE);
+    shot("replace", "SAVE, PRESETS: REPLACE LEAD X", 0);
+    btap(QD_B_OCTUP);
     run(1500);
     turn(QD_K_PRESETS, 1);                              /* 3 the POOL after: the new LEAD X */
     black(8), black(8);

@@ -15,9 +15,9 @@
  *                beside it); left: back through the last ten seen (stopping at the oldest; right then forward through
  *                them first). The one shown is the name, selected again
  *   F1           deletes the character before the cursor (a selected name: all of it); SHIFT + F1 clears
- *   SAVE         confirms (SAVE PRESET: its choice, NEW or REPLACE; a project's name: kept); F2 (SAVE PRESET, REPLACE
- *                offered) switches NEW / REPLACE (P1.5v); HOME cancels (SAVE PRESET: closed; a project's name: back to
- *                the project page)
+ *   F2           confirms (2026-11-13; it was SAVE): SAVE PRESET its choice, NEW or REPLACE (PRESETS turns it where
+ *                REPLACE is offered; it was F2, P1.5v); a name: kept. HOME cancels (SAVE PRESET: closed; a project's
+ *                name: back to the project page). SAVE: on SAVE PRESET the PROJECT (ctl_lib.c), in a name nothing
  * While a name is typed SHIFT is the signs' layer: SHIFT + a button does nothing else (P1.5b / P1.5c's shortcuts:
  * snapshots, undo, the views, the settings), SHIFT + F1 clears. */
 
@@ -245,6 +245,9 @@ int qd_type_knob(qd_app_t *a, int knob, int d)
             a->ui.sv.src = (uint8_t)(d > 0);
             qd_sv_start(a);
         }
+    } else if (knob == QD_K_PRESETS && a->ui.latch == QD_LATCH_SAVE && a->ui.sv.replace >= 0) {   /* 2026-11-13 (owner):
+                                                         * REPLACE offered: PRESETS turns NEW / REPLACE (F2 saves) */
+        a->ui.sv.choice = d > 0;
     } else if (knob == QD_K_PRESETS || knob == QD_K_4 || knob == QD_K_2) {   /* P1.5z: names rolled, endless; left: the
                                                          * last ten (KNOB 2: the settings page's knob that opened it) */
         ty_roll(a, d);
@@ -283,23 +286,24 @@ int qd_type_button(qd_app_t *a, int button, int down)
         }
         u->oct_eaten &= (uint8_t)~1u;
         return 1;
-    case QD_B_OCTUP:                                    /* F2: NEW / REPLACE (where offered) */
-        if (down && save && u->sv.replace >= 0)
-            u->sv.choice ^= 1;
-        u->oct_eaten &= (uint8_t)~2u;
-        return 1;
-    case QD_B_SAVE:                                     /* SAVE: confirmed (SAVE PRESET: the choice) */
-        if (down) {
-            if (save && u->sv.choice && u->sv.replace >= 0) {
-                qd_sv_replace(a);
-            } else if (save) {
-                qd_sv_new(a);
-            } else {
-                name_keep(a);
-                name_back(a);
-            }
+    case QD_B_OCTUP:                                    /* F2: confirmed (SAVE PRESET: the choice; 2026-11-13: it was
+                                                         * SAVE) */
+        if (!down) {
+            u->oct_eaten &= (uint8_t)~2u;
+        } else if (save && u->sv.choice && u->sv.replace >= 0) {
+            qd_sv_replace(a);
+        } else if (save) {
+            qd_sv_new(a);
+        } else {
+            name_keep(a);
+            name_back(a);
         }
+        if (down)
+            u->oct_eaten |= 2u;                         /* (held on: no layer until let go) */
         return 1;
+    case QD_B_SAVE:                                     /* SAVE PRESET: SAVE the pages' (to the PROJECT); a name's:
+                                                         * nothing (the name stays as typed) */
+        return !save;
     case QD_B_HOME:                                     /* HOME: cancelled (SAVE PRESET: b_home closes it) */
         if (save)
             return 0;
