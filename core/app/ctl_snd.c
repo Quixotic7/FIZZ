@@ -509,7 +509,9 @@ void qd_snd_lfo_key(qd_app_t *a, int n, int down)
     if (u->snd_lk != n + 1)
         return;
     u->snd_lk = 0;
-    if (!u->snd_lk_used) {                              /* a tap: the LFO's page, again its WAVE page, again back */
+    if (!u->snd_lk_used && a->ms - u->snd_lk_ms < QD_TAP_MS) {   /* a quick click: the LFO's page, again its WAVE
+                                                         * page, again back (2026-11-13, owner: held is the mapping,
+                                                         * never the page) */
         const int p0 = snd_lfo_page(n);
         u->snd_page = u->snd_page == p0 ? p0 + 1 : p0;
         u->snd_knob = -1;
@@ -741,8 +743,8 @@ void qd_snd_mod_key(qd_app_t *a, int down)
     if (u->snd_lk != 4)
         return;
     u->snd_lk = 0;
-    if (!u->snd_lk_used)
-        qd_snd_black(a, 0);                             /* (a tap: B1's group, its next page) */
+    if (!u->snd_lk_used && a->ms - u->snd_lk_ms < QD_TAP_MS)
+        qd_snd_black(a, 0);                             /* (a quick click: B1's group, its next page; held: never) */
 }
 void qd_snd_mod_src(qd_app_t *a, int w)
 {

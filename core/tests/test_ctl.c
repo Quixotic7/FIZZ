@@ -10475,6 +10475,27 @@ static void g_bank_kept(void)
           A.ui.sound_bank + 1);
 }
 
+/* 2026-11-13 (owner): the sound editor's LFO keys (B6..B8) and B1: a quick click the page; held (the mapping) never */
+static void g_lfo_hold(void)
+{
+    int pg, ok;
+    start();
+    btap(QD_B_SOUND);
+    pg = A.ui.snd_page;
+    kdown(BK(B6));
+    run(QD_TAP_MS + 200);
+    kup(BK(B6));
+    run(20);
+    ok = A.ui.snd_page == pg;
+    kdown(BK(B1));
+    run(QD_TAP_MS + 200);
+    kup(BK(B1));
+    run(20);
+    ok &= A.ui.snd_page == pg;
+    black(B6);
+    CHECK(ok && A.ui.snd_page != pg, "B6 / B1 held and let go, nothing turned: the page stays; B6 clicked: LFO 1's page");
+}
+
 /* 2026-11-13 (owner): VEL on the step keyboard, ALGORITHM scrolling: the step's own W flashes once (every mode), then
  * the W keys the selected step's velocity */
 static void g_vel_scroll(void)
@@ -10820,6 +10841,7 @@ int main(void)
         {"2026-11-13: VEL on the step keyboard, ALGORITHM scrolling", g_vel_scroll},
         {"2026-11-13: the selection kept across every mode", g_sel_kept},
         {"2026-11-13: SOUND's bank kept", g_bank_kept},
+        {"2026-11-13: the LFO keys held: never the page", g_lfo_hold},
         {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
