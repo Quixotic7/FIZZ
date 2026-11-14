@@ -1,6 +1,6 @@
 # FIZZ release notes
 
-The firmware releases for the M-VAVE FM-1, newest first, written for testers. Install them from
+The firmware releases for the M-VAVE FM-1, newest first, written for players. Install them from
 [the install page](https://quixotic7.github.io/FIZZ/install/) and tell us how it goes on
 [Discord](https://discord.gg/emf6DmZ9V). `firmware/release.py` turns the "Unreleased" section into the next release:
 its text becomes the release's notes on the install page and on GitHub.
@@ -9,7 +9,7 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
-The FM-1's USB port can now be the host of a USB-MIDI keyboard or synth: FIZZ plays without a computer.
+FIZZ's first release that is not a beta. The FM-1's USB port can now be the host of a USB-MIDI keyboard or synth: FIZZ plays without a computer.
 
 - **USB HOST** (every package): hold HOME for the settings and turn SELECT to page 3, then KNOB 1 to ON. A USB-MIDI
   keyboard or controller plugged into the FM-1 then plays FIZZ exactly as MIDI from a computer does (notes, CCs,
@@ -18,7 +18,8 @@ The FM-1's USB port can now be the host of a USB-MIDI keyboard or synth: FIZZ pl
 - While USB HOST is on there is no computer on the port: no USB audio, no Manager, no updates over USB. Turn it OFF,
   or switch the unit off and on: USB HOST is never saved, so every start is the usual USB connection to a computer.
   Unplugging the device lets go of the notes it held.
-- Not in the Bluetooth package (no room for it there).
+- The unit's own start, update and safe-mode screens now use the small typeface (that made the room for USB HOST in the
+  Bluetooth package).
 
 ## 0.12.0-beta.19 (2026-11-14)
 
