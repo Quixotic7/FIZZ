@@ -1143,6 +1143,7 @@ int qd_rec_key_note(const struct qd_app *a, int key);   /* the keyboard's note o
 /* ---- ctl_leds.c */
 struct qd_leds;
 void qd_ctl_leds(const struct qd_app *a, struct qd_leds *out);
+void qd_ctl_no_room(struct qd_app *a);   /* the locks' NO ROOM confirm */
 void qd_ctl_sounding(const struct qd_app *a, uint8_t *notes);   /* the selected track's notes sounding (128) */
 /* 2026-11-13 (owner): one key-light rule on every page: key held or its note n sounding (notes[n] & 1): lit; else the
  * scale's root, a note of the scale, out of it */

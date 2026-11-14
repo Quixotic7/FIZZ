@@ -454,7 +454,7 @@ int qd_auto_put(qd_app_t *a, int id, int value)
     qd_undo_hint(a, QD_UK_REC);                         /* (one undo level: the take's) */
     s = auto_step_now(a);
     if (qd_lock_set(p, t, s, id, value) == QD_EFULL) {
-        qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+        qd_ctl_no_room(a);
         return 1;
     }
     if (!qd_step_is_on(qd_step(p, t, s)))               /* an empty step: a ghost (a LOCK trig) holds it */

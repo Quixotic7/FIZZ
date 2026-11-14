@@ -661,7 +661,8 @@ static void k_step(qd_app_t *a, int key, int w, int down, int vel)
 
 static int step_of(const qd_app_t *a, int w) { return a->ui.page[a->sel] * QD_PAGE + w; }
 
-static void no_room(qd_app_t *a) { qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024"); }
+void qd_ctl_no_room(qd_app_t *a) { qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024"); }
+#define no_room qd_ctl_no_room
 
 /* F1 + W (§8b 2.1): the first W of an F1 hold copies its step, every later W pastes it (the hold's edits one undo
  * level). As Form's F1 copy, it loads F2's hand: the next F2 hold's first W drops it */
@@ -1298,6 +1299,15 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
  * (The tracks screen of the clocks is retired: its LENGTH and RATE are F3's, LIMIT and SWING the track settings',
  * its mutes SEL's) */
 /* 2026-10-25: SHIFT + FX held is FILL (the FILL / NOT FILL conditions), at once, while both are down */
+/* FX, MIX, EDIT: their page over the step view (not from idle) */
+static void page_btn(qd_app_t *a, void (*open)(qd_app_t *))
+{
+    if (a->ui.mode == QD_MODE_IDLE)
+        return;
+    if (a->ui.mode != QD_MODE_STEP)
+        set_mode(a, QD_MODE_STEP);
+    open(a);
+}
 static void b_tracks(qd_app_t *a, int down)
 {
     if (down) {
@@ -1311,15 +1321,8 @@ static void b_tracks(qd_app_t *a, int down)
         a->ui.arp_fill = 0;
         qd_seq_fill(&a->seq, 0);
     } else if (a->ui.tracks_tap) {
-        const int keys = a->ui.mode == QD_MODE_KEYS && !a->ui.rec;   /* (2026-10-26, the owner: from the live keys,
-                                                         * the effects' keyboard stays on, as EDIT's) */
         a->ui.tracks_tap = 0;
-        if (a->ui.mode == QD_MODE_IDLE)
-            return;
-        if (a->ui.mode != QD_MODE_STEP)
-            set_mode(a, QD_MODE_STEP);
-        (void)keys;
-        qd_fx_button(a);                                /* (2026-11-13, owner: the selection kept) */
+        page_btn(a, qd_fx_button);                      /* (2026-11-13, owner: the selection kept) */
     }
 }
 
@@ -1327,11 +1330,8 @@ static void b_tracks(qd_app_t *a, int down)
  * the track settings and the global settings now; its PAGE + W pages are SELECT's and F1's) */
 static void b_page(qd_app_t *a, int down)
 {
-    if (!down || a->ui.mode == QD_MODE_IDLE)
-        return;
-    if (a->ui.mode != QD_MODE_STEP)
-        set_mode(a, QD_MODE_STEP);
-    qd_mix_button(a);
+    if (down)
+        page_btn(a, qd_mix_button);
 }
 
 static void b_shift(qd_app_t *a, int down)
@@ -1862,14 +1862,8 @@ int qd_ctl_seq_map(const qd_app_t *a)
  * more); from another screen (the keyboard, the tracks) it opens over the step view */
 static void b_snd(qd_app_t *a, int down)
 {
-    int keys;
-    if (!down || a->ui.mode == QD_MODE_IDLE)
-        return;
-    keys = a->ui.mode == QD_MODE_KEYS && !a->ui.rec;    /* P1.5b: from the keyboard, its keyboard stays on */
-    if (a->ui.mode != QD_MODE_STEP)
-        set_mode(a, QD_MODE_STEP);
-    (void)keys;
-    qd_snd_button(a);                                   /* (2026-11-13, owner: the selection kept) */
+    if (down)
+        page_btn(a, qd_snd_button);                     /* (2026-11-13, owner: the selection kept) */
 }
 
 /* the buttons by role (PLAN §8b; what is not built yet: the sound editor, the mix, saving) */

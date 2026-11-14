@@ -601,7 +601,7 @@ static void snd_pair(qd_app_t *a, int d, int fine)
             const int c = snd_pair_step(b1, b2, d, fine);
             if (qd_lock_set(qd_ctl_pat(a), a->sel, s, QD_QP_RB1, c / SND_NRCB) == QD_EFULL ||
                 qd_lock_set(qd_ctl_pat(a), a->sel, s, QD_QP_RB2, c % SND_NRCB) == QD_EFULL) {
-                qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+                qd_ctl_no_room(a);
                 return;
             }
         }
@@ -643,7 +643,7 @@ static void snd_put(qd_app_t *a, int id, int v)
         int i;
         for (i = 0; i < u->nheld; i++)
             if (qd_lock_set(qd_ctl_pat(a), a->sel, u->held[i], id, v) == QD_EFULL) {
-                qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+                qd_ctl_no_room(a);
                 return;
             }
         return;

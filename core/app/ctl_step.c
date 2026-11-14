@@ -805,7 +805,7 @@ static int lock_all(qd_app_t *a, int id, int d)
             ok = 0;
     }
     if (!ok)
-        qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+        qd_ctl_no_room(a);
     return ok;
 }
 
@@ -818,7 +818,7 @@ void qd_step_lock_fine(qd_app_t *a, int id, int d)
         const int s = u->held[i];
         const int base = qd_lock_get(CPAT(a), a->sel, s, id, &v) ? v : qd_step_base(a, a->sel, s, id);
         if (qd_lock_set(PAT(a), a->sel, s, id, base + d) == QD_EFULL) {
-            qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+            qd_ctl_no_room(a);
             return;
         }
     }
