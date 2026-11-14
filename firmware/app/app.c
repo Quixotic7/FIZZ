@@ -2316,6 +2316,11 @@ static void fz_hold_ms(uint32_t ms)      /* a message left on the screen a momen
 #endif
 }
 
+/* fm1-base's own screens' text (APP_SYS_TEXT, device/sys_text.c): every face its small one */
+static int32_t app_sys_h(int face) { (void)face; return FONT_S.h; }
+static int32_t app_sys_w(int face, const char *s) { (void)face; return text_w(&FONT_S, s); }
+static void app_sys_text(int32_t x, int32_t y, int face, const char *s, uint16_t c) { (void)face; cv_text(x, y, &FONT_S, s, c); }
+
 static void fz_message(const char *a, const char *b)   /* fm1-base's face on black: FIZZ cannot draw */
 {
     lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -2755,7 +2760,12 @@ static int fz_pull(uint32_t a, uint8_t *buf, uint32_t n)
 
 static uint32_t fz_xdata_write(uint32_t off, uint32_t len, uint32_t crc)   /* 0 done, else FZER's code */
 {
+#if QD_PKG_BLE && !defined(PLAT_HOST)
+    static uint8_t buf[512] __attribute__((section(".fz_nidata")));   /* (2026-11-14: the Bluetooth unit's NOINIT, for
+                                                                        * USB HOST's RAM; written before it is read) */
+#else
     static uint8_t buf[512];
+#endif
     uint32_t a, tr[3];
     const uint32_t end = off + ((len + 3u) & ~3u) + 12u;
     for (a = off & ~0xFFFu; a < end; a += 0x1000u)

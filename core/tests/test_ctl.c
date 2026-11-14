@@ -3910,14 +3910,14 @@ static void g_ble_settings(void)
     settings_open();
     qd_view_menu(&A, &mv);
     CHECK(A.ui.latch == QD_LATCH_SET && !A.ui.set_page && !mv.set_page, "HOME held: the settings, page 1");
-    turn(QD_K_SELECT, 2);
+    turn(QD_K_SELECT, 2 + QD_USB_HOST);                 /* (2026-11-14: USB HOST's page before it) */
     qd_view_menu(&A, &mv);
     qd_ctl_labels(&A, &lb);
-    CHECK(A.ui.set_page == 2 && mv.set_page == 2 && mv.ble_on && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "BLUETOOTH") &&
+    CHECK(A.ui.set_page == 2 + QD_USB_HOST && mv.set_page == 2 + QD_USB_HOST && mv.ble_on && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "BLUETOOTH") &&
               !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_2], "STATUS") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_SELECT], "PAGE"),
           "SELECT: page 3, BLUETOOTH ON (its labels)");
     turn(QD_K_SELECT, 1);
-    CHECK(A.ui.set_page == 2, "SELECT on: page 3 still (three pages)");
+    CHECK(A.ui.set_page == 2 + QD_USB_HOST, "SELECT on: the last page still");
     turn(QD_K_2, 1), turn(QD_K_3, 1), turn(QD_K_4, -1);
     CHECK(qd_app_ble_on(&A) && A.ui.follow && !A.ui.boost && A.ui.clk_out && A.ui.cc_out && !A.ui.home_lock,
           "KNOB 2..4 on page 3: nothing (page 1's and 2's values as they were)");
@@ -3936,7 +3936,7 @@ static void g_ble_settings(void)
           "changed), the setting untouched");
     qd_app_ble_state(&A, 9);
     CHECK(A.ui.ble_st == 2, "a state past 2: CONNECTED");
-    turn(QD_K_SELECT, -2);
+    turn(QD_K_SELECT, -2 - QD_USB_HOST);
     turn(QD_K_1, -1);
     qd_ctl_labels(&A, &lb);
     CHECK(!A.ui.set_page && !A.ui.follow && qd_app_ble_on(&A) && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "FOLLOW"),
@@ -3970,7 +3970,9 @@ static void g_usbh_settings(void)
               !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_SELECT], "PAGE"),
           "SELECT twice: page 3, USB HOST OFF (its labels)");
     turn(QD_K_SELECT, 1);
-    CHECK(A.ui.set_page == 2 + QD_PKG_BLE, "SELECT on: page 3 the last (no Bluetooth page here)");
+    CHECK(A.ui.set_page == 2 + QD_PKG_BLE, "SELECT on: page 3 the last (the Bluetooth package: its page 4)");
+    if (QD_PKG_BLE)
+        turn(QD_K_SELECT, -1);
     h0 = qd_view_frame_hash(&A);
     qd_app_usb_host_state(&A, 1);
     h1 = qd_view_frame_hash(&A);

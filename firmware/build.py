@@ -159,11 +159,13 @@ DEFS += [f"-D{d}" for d in EXTRA]
 if BLE_PKG:
     DEFS.append("-DQD_PKG_BLE=1")                # (the core's Bluetooth profile: core/qd_config.h)
     DEFS = [d if not d.startswith("-DFZ_FB_LO=") else f"-DFZ_FB_LO={BLE_FB_LO}u" for d in DEFS]
-# USB HOST (2026-11-14; fm1.toml usb_host, PLAYING.md "USB host"): the USB package's (and its simulator's and browser
-# build's) alone. The Bluetooth package and the single-core one have no room for it (fm1-base's host: ~3.4 KB of
-# flash, 432 B of RAM; they have 224 B and 2.4 KB free): FM1B_USB_HOST=0 for them, and the core's QD_USB_HOST with it
-# (no SETTINGS page 3). FM1B_USB_HOST=1 in the environment builds it in anyway (a measure, FZ_MEASURE=1)
-USB_HOST = os.environ.get("FM1B_USB_HOST", "0" if BLE_PKG or SINGLE else "1") == "1"
+# USB HOST (2026-11-14; fm1.toml usb_host, PLAYING.md "USB host"): every package's (fm1-base's host: ~3.4 KB of flash,
+# 432 B of RAM; FIZZ's side ~1.4 KB). The Bluetooth package had 240 B of its slot and 160 B of RAM free, the single-core
+# one 2.4 KB: the room is fm1-base's FONT_B (8.7 KB with its tables), no longer linked (app.h APP_SYS_TEXT: fm1-base's
+# own screens in its small face, the one FIZZ's messages use), and for the RAM the blob writer's 512 B buffer in the
+# Bluetooth unit's NOINIT (app.c fz_xdata_write). FM1B_USB_HOST=0 in the environment leaves it out (the core's
+# QD_USB_HOST with it: no SETTINGS page 3)
+USB_HOST = os.environ.get("FM1B_USB_HOST", "1") == "1"   # (2026-11-14: every package, FONT_B gone)
 os.environ["FM1B_USB_HOST"] = "1" if USB_HOST else "0"
 DEFS.append(f"-DQD_USB_HOST={int(USB_HOST)}")
 if EXTRA:
@@ -221,10 +223,8 @@ if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does n
 # the project page's drawing helpers; the history's recall (qd_hist_recall_k, 88 B) back in the slot for the balance
 BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)",
           "*/o2/build_units_c_ctl_latch.o(.text.qd_msnd_engine .text.side_keep .text.qd_trk_engine "
-          ".text.qd_trk_engine_set .text.qd_msnd_put .text.qd_msnd_take .text.qd_side_clear "
-          ".text.qd_pc_white .text.qd_pc_ms .text.qd_pc_up .text.qd_pc_layer .text.pc_do .text.pc_run)",
-          "*/o2/build_units_c_ctl.o(.text.b_seq .text.qd_ctl_seq_page .text.qd_ctl_home_view)",
-          "*/o2/build_units_c_quad_voice.o(.text.qd_quad_side_pack .text.qd_quad_side_unpack .text.qd_msnd_over)",
+          ".text.qd_trk_engine_set .text.qd_msnd_put .text.qd_msnd_take .text.qd_side_clear)",   # (2026-11-14: PATTERNS' F1 / F2 and SEQ's click back in the slot, which FONT_B's 8.7 KB left room
+          #    in: USB HOST's settings page is ui_layer.o's, the blob 780 B over with it)
           "*/o2/build_units_c_app.o(.text.qd_app_fm_auto .text.qd_undo_forget_pat)", "*(.fzx2.*)"]
 BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-10) .. and single functions of other units the other way, into the second blob (sections renamed .fzx2.*;

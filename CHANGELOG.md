@@ -11,7 +11,7 @@ its text becomes the release's notes on the install page and on GitHub.
 
 The FM-1's USB port can now be the host of a USB-MIDI keyboard or synth: FIZZ plays without a computer.
 
-- **USB HOST** (the USB package): hold HOME for the settings and turn SELECT to page 3, then KNOB 1 to ON. A USB-MIDI
+- **USB HOST** (every package): hold HOME for the settings and turn SELECT to page 3, then KNOB 1 to ON. A USB-MIDI
   keyboard or controller plugged into the FM-1 then plays FIZZ exactly as MIDI from a computer does (notes, CCs,
   clock and transport), and FIZZ's MIDI OUT (MIDI tracks, clock, CCs) goes to the device. STATUS says WAITING,
   CONNECTED or NOT MIDI. The FM-1 gives the port no power: use a powered hub or a powered USB-C OTG adapter.

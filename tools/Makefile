@@ -63,8 +63,9 @@ HDRS := $(ROOT)/core/gfx/qd_fb_pal.h $(ROOT)/core/qd_config.h $(ROOT)/core/gfx/q
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
 OUT := $(ROOT)/core/tests/out
-# 2026-11-14: USB HOST (core/qd_config.h QD_USB_HOST) as the USB package has it: every profile but the Bluetooth package's
-USBH_DEF := $(if $(findstring QD_PKG_BLE,$(PROFILE)),,-DQD_USB_HOST=1)
+# 2026-11-14: USB HOST (core/qd_config.h QD_USB_HOST) as every package has it (the Bluetooth package's too: its
+# SETTINGS page 3, BLUETOOTH page 4)
+USBH_DEF := -DQD_USB_HOST=1
 WARN := -std=c99 -Wall -Wextra -Wpedantic $(PROFILE) $(USBH_DEF) $(GFX_DEF)
 SAN := -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all
 SAN_ENGINE := -O2 -g -fsanitize=address,signed-integer-overflow -fno-sanitize-recover=all

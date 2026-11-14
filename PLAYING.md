@@ -1150,12 +1150,12 @@ SELECT turns the pages (the dots at the top):
 - Page 2, **HOME**: **KNOB 1 HOME VIEW** chooses the Home view (STEPS, EDIT, GEEK OUT; the three drawn small, the
   chosen one lit; 2026-11-13: the PIANO ROLL is SEQ's page, a saved PIANO ROLL comes back as EDIT), **KNOB 2 LOCK** on / off: locked, HOME clicks no longer cycle the views,
   HOME always brings you back to that view (a padlock under it). Saved with the other settings.
-- Page 3 (the USB package): **KNOB 1 USB HOST** on / off (the USB mark, struck through when OFF), and its state
+- Page 3: **KNOB 1 USB HOST** on / off (the USB mark, struck through when OFF), and its state
   (KNOB 2's row, shown only): OFF, WAITING (no device yet), CONNECTED, or NOT MIDI (a device that is not USB-MIDI, or
   a low-speed one). Never saved: OFF at every start. Below, "USB host".
-- Page 3 (the Bluetooth package): **BLUETOOTH** on / off and its state.
+- Page 4 (the Bluetooth package; 2026-11-14: it was page 3): **BLUETOOTH** on / off and its state.
 
-### USB host (the USB package)
+### USB host
 
 The FM-1's USB-C port can be the host of a USB-MIDI keyboard, controller or synth, with no computer:
 
