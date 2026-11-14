@@ -326,7 +326,7 @@ void ui_layer_draw(const ui_layer_t *v)
 }
 
 /* ---------------------------------------------------------------- SEQ: the patterns (line.html s13) */
-void ui_patterns_draw(const ui_patterns_t *v)
+FZ_COLD void ui_patterns_draw(const ui_patterns_t *v)
 {
     static const char *const LAUNCH[4] = {"END", "BAR", "BEAT", "NOW"};
     static const char *const BANK[4] = {"A", "B", "C", "D"};
@@ -456,7 +456,7 @@ static void shift_keys(const ui_shift_t *v)
     }
 }
 
-void ui_shift_draw(const ui_shift_t *v)
+FZ_COLD void ui_shift_draw(const ui_shift_t *v)
 {
     static const char *const BADGE[3] = {"S", "P", "A"};
     const int t = v->track < 1 ? 0 : (v->track - 1) % UI_NTRACK;
@@ -674,7 +674,7 @@ void ui_auto_cue(int k, float since, float t)
 /* P1.5b: LFO held alone: the latch mode. Two drawings side by side, the chosen one lit in LFO's colour: VALUES (a step
  * selected, its value on the black keys: a bar of ten, one lit) and MODES (the black keys as the hold modes' colours,
  * the knobs turning the step's value) */
-void ui_lmode_draw(int mode, float t)
+FZ_COLD void ui_lmode_draw(int mode, float t)
 {
     int side, i;
     (void)t;
@@ -718,7 +718,7 @@ static void ble_rune(float x, float y, float h, qd_rgb col)
                          x - w, y + h * 0.5f};
     ui_P(a, 6, col, 1.8f, 0, QD_NONE);
 }
-static __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /* (noinline: in the Bluetooth package's second blob, not with ui_menu_draw in the app slot) */
+static FZ_COLD __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /* (noinline: in the Bluetooth package's second blob, not with ui_menu_draw in the app slot) */
 {
     static const char *const ST[3] = {"OFF", "WAITING", "CONNECTED"};
     const int st = v->ble_st < 0 || v->ble_st > 2 ? 0 : v->ble_st;
@@ -756,7 +756,7 @@ static void padlock(float cx, float cy, int shut, qd_rgb col)   /* its shackle (
     ui_RR(cx - 4.f, cy - (shut ? 6.f : 10.f), 8.f, 10.f, 4.f, col, 1.8f, QD_NONE);
     ui_RR(cx - 6.5f, cy - 1.f, 13.f, 10.f, 2.f, QD_NONE, 1.f, col);
 }
-static __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /* (noinline: the Bluetooth package's second
+static FZ_COLD __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /* (noinline: the Bluetooth package's second
                                                          * blob, as menu_set2) */
 {
     static const char *const VN[4] = {"PIANO ROLL", "STEPS", "EDIT", "GEEK OUT"};   /* (2026-11-11: OVERVIEW is SEL's) */
@@ -945,7 +945,7 @@ static void menu_trk(const ui_menu_t *v)
         ui_O(18.f, TRK_Y(v->last), 12.f, KCOL[v->last], 1.2f, QD_NONE);
 }
 
-void ui_menu_draw(const ui_menu_t *v)
+FZ_COLD void ui_menu_draw(const ui_menu_t *v)
 {
     if (v->kind == UI_MENU_REC)
         menu_rec(v);

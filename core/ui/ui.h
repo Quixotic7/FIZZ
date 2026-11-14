@@ -32,6 +32,14 @@ extern "C" {
 #define UI_G3 0x26262du
 extern const qd_rgb UI_K[4];
 
+/* (2026-11-13) a screen drawn seldom (menus, browser, TOOLS, ...): optimised for size, whatever its unit's flags
+ * (clang's minsize: what -Oz is, function by function), so its unit can stay at -Os for the screens drawn often */
+#if defined(__clang__)
+#define FZ_COLD __attribute__((minsize))
+#else
+#define FZ_COLD __attribute__((cold))
+#endif
+
 #define UI_TAU 6.28318530718f
 #define UI_PI 3.14159265359f
 float ui_ease(float x);                 /* smoothstep on 0..1, clamped (line.html's ease) */

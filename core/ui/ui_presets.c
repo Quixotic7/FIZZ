@@ -91,7 +91,7 @@ static void pr_head(const char *title, qd_rgb col, const char *right, int track,
 }
 
 /* a preset as a cassette: its envelope in its kind's colour in the label, the name big, its marks */
-static void pr_cassette(float x, float y, float w, float h, const ui_preset_t *p, qd_rgb col, float t, int dashed,
+FZ_COLD static void pr_cassette(float x, float y, float w, float h, const ui_preset_t *p, qd_rgb col, float t, int dashed,
                         const char *label)
 {
     int j, k;
@@ -153,7 +153,7 @@ static void pr_red_x(float x, float y, float w, float h)
 }
 
 /* the list as a rolodex: two neighbours above and below, the chosen big, where in the list on the right */
-static void pr_rollo(const ui_browse_t *v, qd_rgb col)
+FZ_COLD static void pr_rollo(const ui_browse_t *v, qd_rgb col)
 {
     static const int D[4] = {-2, -1, 1, 2};
     const float dy = v->roll > 0.f ? lb_ease(v->roll) * 14.f * (float)(v->dir < 0 ? -1 : 1) : 0.f;
@@ -201,7 +201,7 @@ static void pr_rollo(const ui_browse_t *v, qd_rgb col)
     }
 }
 
-void ui_browse_draw(const ui_browse_t *v)
+FZ_COLD void ui_browse_draw(const ui_browse_t *v)
 {
     char right[16];
     right[0] = 0;
@@ -384,7 +384,7 @@ void ui_browse_draw(const ui_browse_t *v)
 }
 
 /* ---------------------------------------------------------------- LOADED, BACK, SAVED */
-void ui_pfx_draw(int kind, const ui_preset_t *s, const ui_preset_t *own, int track, float u, float t)
+FZ_COLD void ui_pfx_draw(int kind, const ui_preset_t *s, const ui_preset_t *own, int track, float u, float t)
 {
     const qd_rgb tc = UI_TRACK_PAL[(track - 1) & 7];
     ui_RR(0.f, 0.f, 240.f, 240.f, 0.f, QD_NONE, 1.f, UI_BG);

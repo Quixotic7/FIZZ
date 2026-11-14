@@ -76,7 +76,7 @@ static void lb_cassette(float x, float y, float w, float h, const ui_libtile_t *
 }
 
 /* P1.5r: a sound imported over SysEx: its cassette dropping in, its reels turning, the slot it went to, "imported" */
-void ui_import_draw(const char *name, int pool, int slot, float t)
+FZ_COLD void ui_import_draw(const char *name, int pool, int slot, float t)
 {
     const qd_rgb col = pool ? UI_POOL_COL : UI_LIB_COL;
     const float drop = t < 0.25f ? (1.f - lb_ease(t / 0.25f)) * -40.f : 0.f;
@@ -120,7 +120,7 @@ static void prj_dots(float x, int page)
         ui_O(x + (float)i * 9.f, 13.f, 2.6f, i == page ? QD_NONE : UI_G1, 1.f, i == page ? UI_K3 : QD_NONE);
 }
 
-void ui_prj_draw(const ui_prj_t *v)
+FZ_COLD void ui_prj_draw(const ui_prj_t *v)
 {
     static const char *const BANK[4] = {"A", "B", "C", "D"};
     char n[16];

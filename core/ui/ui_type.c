@@ -192,7 +192,7 @@ static void ty_ideas(const ui_type_t *v)
     }
 }
 
-void ui_type_draw(const ui_type_t *v)
+FZ_COLD void ui_type_draw(const ui_type_t *v)
 {
     ui_T(v->title, 8.f, 17.f, 12.f, 600, 1.f, UI_LIB_COL, QD_LEFT);
     if (v->track)

@@ -19,7 +19,7 @@ static void tl_alpha(float a)                           /* (a part of the alpha 
 #define tl_line qd_line                           /* (a line: qd_gfx's own) */
 
 /* each tool as a little picture, centred at x, y */
-void ui_tools_icon(int i, float x, float y, int on)
+FZ_COLD void ui_tools_icon(int i, float x, float y, int on)
 {
     const qd_rgb col = on ? UI_K3 : UI_G2;
     const float lw = on ? 1.8f : 1.5f;
@@ -100,7 +100,7 @@ void ui_tools_icon(int i, float x, float y, int on)
 }
 
 /* the scope: PAGE one block, TRACK a long lane, PATTERN the lanes */
-void ui_tools_scope_icon(int sc, float x, float y, qd_rgb col, float s)
+FZ_COLD void ui_tools_scope_icon(int sc, float x, float y, qd_rgb col, float s)
 {
     qd_save();
     qd_translate(x, y);
@@ -611,7 +611,7 @@ static void tl_pages(const ui_tools_t *v)
     }
 }
 
-void ui_tools_draw(const ui_tools_t *v)
+FZ_COLD void ui_tools_draw(const ui_tools_t *v)
 {
     tl_head(v);
     if (v->tool != QD_TL_LENGTH)                        /* (LENGTH draws the pages itself) */
@@ -635,7 +635,7 @@ void ui_tools_draw(const ui_tools_t *v)
 static const char *const TL_MSG[9] = {"KEPT", "REVERTED", "NO UNDO", "COPIED", "PASTED", "CLEAR?", "CLEARED",
                                        "TOO BIG", "FULL"};
 static const qd_rgb TL_MSGC[9] = {UI_K2, UI_K4, UI_KSEL, UI_K2, UI_K2, UI_RED, UI_K4, UI_KSEL, UI_KSEL};
-void ui_tools_pop(int kind, int msg, int tool, int scope, int page)
+FZ_COLD void ui_tools_pop(int kind, int msg, int tool, int scope, int page)
 {
     int k;
     if (kind == 3) {                                    /* RANDOM's knob turned: what it sets, in its colour, over the
