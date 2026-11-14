@@ -14,6 +14,12 @@ its text becomes the release's notes on the install page and on GitHub.
 - The PIANO ROLL in COND, TRIG, FUNC, SLIDE and SOUND is now a 4 x 4 grid of big boxes, a row a beat: conditions as
   rings and names, padlocks and ties, function icons with arrows to where each jump lands, slides as a rising curve,
   and sound locks as their number and name in the sound's own colour.
+- **SAVE is a page button**: a click opens the SAVE page you used last, and clicks turn between **SAVE PRESET** and
+  **PROJECT**. In the sound editor with a step selected, a click still opens SAVE PRESET for that step's sound.
+- **Hold SAVE** (half a second) to save the project now: a big green tick says **PROJECT SAVED** (playing, SAVING
+  first, about half a second). **F2 on the PROJECT page** does the same. The project still saves by itself too.
+- **F2 saves** on SAVE PRESET (SAVE no longer does), and **F2 keeps** a project's or a track's name. NEW or REPLACE
+  is chosen with **PRESETS**.
 
 ## 0.12.0-beta.18 (2026-11-13)
 

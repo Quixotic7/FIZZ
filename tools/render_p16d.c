@@ -316,9 +316,9 @@ int render_p16d(const char *out)
     black(6), wtap(4), black(0), black(3), black(4);    /* G P A D E .. */
     run(300);
     shot("trkname", "KNOB 2: TRACK NAME, typed", 1);
-    btap(QD_B_SAVE);
+    btap(QD_B_OCTUP);
     run(300);
-    shot("trknamed", "SAVE: the name kept (typed: a kind keeps it)", 1);
+    shot("trknamed", "F2: the name kept (typed: a kind keeps it)", 1);
     home();
     /* 16..19: the kinds' icons where the names show */
     bdown(QD_B_PATTERN);

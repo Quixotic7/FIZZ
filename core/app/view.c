@@ -2684,6 +2684,10 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
             qd_alpha(al);
             ui_word_band(w);
             qd_restore();
+        } else if (al > 0.f && u->cf_col == QD_CF_TICK) {   /* (2026-11-13: PROJECT SAVED: a big tick over it) */
+            overlay_begin(al);
+            ui_saved_draw(u->cf_big, (float)d / 1000.f);
+            qd_restore();
         } else if (al > 0.f) {
             overlay_begin(al);
             ui_confirm_draw(u->cf_big, u->cf_small, u->cf_col ? u->cf_col : UI_K3);

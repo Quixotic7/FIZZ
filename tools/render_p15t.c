@@ -345,7 +345,7 @@ int render_p15t(const char *out, const char *mocks)
     turn(QD_K_ALGO, 7);                                 /* 13 naming */
     run(300);
     shot("name", ".. naming it yourself");
-    btap(QD_B_OCTDN);
+    btap(QD_B_HOME);
     run(200);
     {                                                   /* 14 from DARK BASS (one of MY presets), edited: REPLACE */
         qd_track_t *t = &A.model.t[3];
@@ -360,7 +360,7 @@ int render_p15t(const char *out, const char *mocks)
     btap(QD_B_SAVE);
     run(300);
     shot("replace", ".. or REPLACE one of MY presets");
-    btap(QD_B_OCTDN);
+    btap(QD_B_HOME);
     run(200);
     {
         qd_track_t *t = &A.model.t[3];                  /* 15 saved */
@@ -370,7 +370,7 @@ int render_p15t(const char *out, const char *mocks)
     }
     btap(QD_B_SAVE);
     run(100);
-    btap(QD_B_SAVE);
+    btap(QD_B_OCTUP);
     run(850);
     shot("saved", "Saved");
     run(1000);
