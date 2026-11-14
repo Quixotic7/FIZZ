@@ -86,6 +86,17 @@ $(B)/render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
+# the tour (tools/tour.c): the app headless playing a script of gestures (shots, film, wav, store images) into
+# $(B)/tour; SONG: C files linked in for its song command (fizz_tour_song), tools/demo_song.c when there
+SONG ?= $(wildcard demo_song.c)
+ifneq ($(strip $(SONG)),)
+vpath %.c $(sort $(dir $(SONG)))
+endif
+tour: $(B)/tour
+$(B)/tour: $(B)/tour.o $(addprefix $(B)/,$(notdir $(SONG:.c=.o))) $(CORE_OBJ) $(PVG_OBJ)
+	$(CC) -o $@ $^ -lm
+.PHONY: tour
+
 # P2.4: the core's per-ms tick and its frames timed at the device's sizes (make PROFILE=-DQD_DEVICE B=build/dev
 # build/dev/tick_bench)
 $(B)/tick_bench: $(B)/tick_bench.o $(CORE_OBJ) $(PVG_OBJ)

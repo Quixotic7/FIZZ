@@ -1,0 +1,9 @@
+reset
+wait 300
+tap HOME
+wait 300
+project 2 new
+name SUNFADE
+song
+wait 300
+store sunfade.bin

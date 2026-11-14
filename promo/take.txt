@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: MPL-2.0
+# The promo's two takes (from promo/build: ../../tools/build/tour ../take.txt .): the idle title, then 30 s of the
+# demo song SUNFADE (tools/demo_song.c; promo/build/sunfade.bin is its project, made by promo/song.txt). The film's
+# time is the video's time. A bar is 2.857 s (84 BPM); the chain A01 (one bar) A02 A03 A04 A05 A07:
+# 2.86 the beat, 8.57 the bell and the piano, 14.29 the melody, 20.00 everything, 25.71 the outro.
+wait 3300
+film idle.rgb
+wait 3000
+
+load sunfade.bin 2
+wait 500
+tap HOME
+wait 300
+# the drums' PIANO ROLL left in SOUND (B10 held: the mode), so SEQ comes back to it
+tap SEL
+wait 200
+tapkey B1
+wait 200
+tap SEQ
+wait 200
+tap SEQ
+wait 200
+tap SEQ
+wait 300
+key B10 down
+wait 600
+key B10 up
+wait 300
+tap HOME
+wait 300
+# the pad's sound editor left on FILTER
+tap SEL
+wait 200
+tapkey B3
+wait 200
+tap EDIT
+wait 300
+knob SELECT 5
+wait 300
+tap HOME
+wait 300
+tap SEL
+wait 200
+tapkey B1
+wait 500
+chain 1 2 3 4 5 7
+film take.rgb
+wav take.wav
+play
+mark intro
+# 0 .. 2.86 A01: OVERVIEW (the title lies over it)
+wait 2840
+mark overview
+# 2.86 .. 5.71 A02's first bar: OVERVIEW, the beat in
+wait 2850
+# 5.71 .. 8.57: the drums' sound locks (SEQ: the PIANO ROLL in SOUND)
+tap SEQ
+mark locks
+wait 2520
+# 8.57 .. 11.43 A03: the pad's sound editor, its algorithm
+hold 140
+tap SEL
+tapkey B3
+tap EDIT
+knob SELECT -5
+mark editor
+wait 2680
+# 11.43 .. 14.29: its FILTER, FREQ turned down and up again
+hold 200
+knob SELECT 5
+mark filter
+wait 300
+knob K1 -14
+wait 500
+knob K1 -10
+wait 500
+knob K1 24
+wait 100
+# 14.29 .. 17.14 A04: the sends (the cat), the pad's chorus and reverb turned
+tap FX
+mark sends
+wait 600
+knob K1 12
+wait 500
+knob K4 10
+wait 900
+# 17.14 .. 20.00: the reverb's room
+hold 200
+knob SELECT 4
+mark reverb
+wait 800
+knob K1 8
+wait 1860
+# 20.00 .. 22.86 A05: the mixer
+tap ENV
+mark mix
+wait 2800
+# 22.86 .. 25.71: the presets
+tap REC
+mark presets
+wait 500
+knob PRESETS 1
+wait 420
+knob PRESETS 1
+wait 420
+knob PRESETS 1
+wait 420
+knob PRESETS 1
+wait 420
+knob PRESETS 1
+wait 450
+# 25.71 .. 30 A07: OVERVIEW again, the outro
+tap HOME
+tap SEL
+mark outro
+wait 6000
+mark end
