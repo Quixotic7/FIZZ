@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.18 (2026-11-13)
+
 One design language across the pages: ALGORITHM selects steps everywhere, the selection, SOUND's bank and the octave stay put as you move around, and MIDI FX, TOOLS and FUNC are redone to match.
 
 - **SHIFT's button blinks while it is stuck** (after a quick click).

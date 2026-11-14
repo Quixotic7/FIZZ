@@ -1,7 +1,59 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.17",
+  "latest": "0.12.0-beta.18",
   "releases": [
+    {
+      "version": "0.12.0-beta.18",
+      "date": "2026-11-13",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "d52a70fd4a0e586284aa5e25030ad06cc015ca9f",
+      "fm1base": "934e40d846d84e76e9c428d37b74bccb6192c823",
+      "notes": "One design language across the pages: ALGORITHM selects steps everywhere, the selection, SOUND's bank and the octave stay put as you move around, and MIDI FX, TOOLS and FUNC are redone to match.\n\n- **SHIFT's button blinks while it is stuck** (after a quick click).\n- **SOUND, LIVE**: the screen names the sound you play, not only its number.\n- **NOTE, LIVE on the step keyboard**: the screen shows the notes you play (and their chord), a second after too.\n- **A selected step keeps the scale's roots lit** on the keys and on the screen's keyboard.\n- **A stuck SHIFT + HOME, FX, ENV or EDIT** ends SHIFT and goes there; if you're already there, nothing else changes (no next view or page).\n- **The sound editor: ALGORITHM selects steps** as on the Home views (fully left: LIVE; LFO the lock). Each page's fifth value is on **PRESETS** now (the filter machine, AMP's mode, the delays, VOICE's priority, MOD's slot); a page without one: PRESETS turns KNOB 1's value. **RATIO**: ALGO on KNOB 1, the ratios C, A, B on KNOB 2..4, MIX on PRESETS.\n- **The keyboard page, B11's STEPS**: the white keys are the steps (the row up top, with the playhead), and the keybed gives way to an orange grid of B1..B10, the keys that play, the scale's roots marked (on their LEDs too).\n- **SAVE in the sound editor with a step selected** saves that step's sound (its sound lock, or the track's, with its locks): a magenta STEP chip says so; KNOB 4 switches between the TRACK's sound and the STEP's. The track's sound stays as it is: program a kit's pieces on steps and save each one out.\n- **B11 is one state everywhere**: the Home views' step selection opens REC's keyboard page in STEPS (white keys the steps, B1..B10 the notes), their step keyboard opens it on the full keyboard, and B11 on the keyboard page changes it for the Home views too. In STEPS, **B1..B10 play the scale from its root** (B1 the root; a 7-note scale: B8 the next one).\n- **One look for a selected step**: the sound editor has no frame for the track's sound and the Home views' step frame for a step; its head is the page's name alone (white for a step) with the page's steps under it; the keys' strip is gone (the keys' LEDs and B11's breath show it). The keyboard page shows the same frame when a step is selected.\n- **The MIDI FX screen's knobs, as everywhere**: ALGORITHM selects steps (fully left: LIVE), PRESETS the track's group (with steps selected: their MIDI FX). **Hold a slot's key** for the effects' list: KNOB 1 changes the slot's effect, KNOB 2 moves it along the rail (dropped when you let go); the foot shows EFFECT and MOVE.\n- **The sound editor's LFO keys (B6..B8) and B1**: only a quick click changes the page; holding one (the mapping) and letting go never takes you to its page.\n- **The selection stays put across every mode**: steps selected with ALGORITHM or the step lock's W keys stay selected through HOME, FX, MIX, SOUND, REC (the keyboard page), MIDI FX, TOOLS, the settings and the browser. Only you end it: ALGORITHM fully left, LFO, B11 + F1 (TOOLS: a B11 click). HOME on the Home view with a selection now changes the view as a plain click does.\n- **SOUND's bank is remembered, globally**: selecting a step (with a sound lock or not, any lock mode) or another hold mode and back never moves the bank; only OCT- / OCT+ in SOUND (or turning a step's sound into another bank) changes it.\n- **One octave everywhere**: NOTE's entry octave (OCT on a selected step) and the keyboard's octave are now the same setting, so changing it in one place carries to the other. Its range is now four octaves each way (the keyboard's was two).\n- **FUNC redrawn**: the page's 16 steps as a row (the step filled, trigs as dots) with the function drawn as the playhead's route over it: RESTART back to step 1, REVERSE / FORWARD the flow turning, FLIP both ways, JUMP an arc to its target (another page: that page's row), LEAP the hops, the random ones dashed arcs under a die. The function's name sits centred over the picture, no longer in the corner.\n- **ALGORITHM's step flash in every hold mode**: scrolling steps flashes the step's white key once, the value modes too; the selected step's value lights after.\n- **TOOLS in the same language as the other pages**: SELECT changes the tool, ALGORITHM selects steps (one at a time; fully left: nothing selected), PRESETS the target (SELECTED STEPS, PAGE, TRACK, PATTERN). The W keys still add and remove steps; **tap a step twice** for that step alone. Selecting steps never changes the target: it stays what you chose. Pages: B11 + B1..B8. **A B11 click clears the selection** (it never turns the white keys into a keyboard in TOOLS). After an F1 / F2 paste, the steps you pasted are selected when you let go. Hold OCT- / OCT+ for the step view's copy / cut and paste; a quick click of OCT+ keeps the change, **OCT- undoes** (a change not yet kept is reverted; otherwise the last change is undone, as SHIFT + F1).\n- **MIDI FX follows the selected step**: with a step selected (ALGORITHM), the screen shows and edits that step's group (OFF shows OFF; PRESETS changes it), with the step frame, the step keyboard on too. The black keys stay the slots. **Hold a step's W key** (with a step selected or not) and the black keys set the held steps' group: B1 OFF, B2..B6 groups 1..5, B11 TRACK, lit to show the step's; the other black keys do nothing then. A step no longer stays stuck held when ALGORITHM turns while its key is down. The group popup shows after a moment held (a quick click shows none; a black-key shortcut at once) and closes the moment you let go of the W keys, with a step selected too. **The MIDI FX screen follows B11's one global state**: the step keyboard on opens it on KEYS, the step selection on STEPS; a B11 click there changes it everywhere, and ARP closes it back to the page it opened over.\n- **Same rules on every page**: a short white-key press waits a moment (250 ms) on the mixer and the effects too, so a tap no longer locks a value at once; turning the step lock on brings back your last selection on every page; opening a page keeps the lock and clears any popup; clearing says one message, and every \"press twice\" confirm gives up after 2 seconds.\n- **One look for the keys**: one rule lights the keys and one blink rate everywhere; every step row shows the playhead.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI and USB audio",
+          "fwsc": {
+            "path": "0.12.0-beta.18/fizz.fwsc",
+            "bytes": 1042099,
+            "sha256": "b68b63a4b0a36b940b8d5bc22d23afb68c4221797ed784820c30628d381653eb"
+          },
+          "data": {
+            "path": "0.12.0-beta.18/fizz-xdata.bin",
+            "bytes": 91896,
+            "sha256": "3a2f44cfafa5568c28b57f753865c93c360af352ed1457a907351ec13cdeb4ab",
+            "crc32": 329661788
+          }
+        },
+        {
+          "name": "fizz-ble",
+          "kind": "ble",
+          "label": "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+          "projects": 4,
+          "presets": 128,
+          "fwsc": {
+            "path": "0.12.0-beta.18/fizz-ble.fwsc",
+            "bytes": 1042154,
+            "sha256": "69ced0051c5a170b7ea52ffafce8aca297b686fa8e3d6cad5e536a8314c60ef2"
+          },
+          "data": {
+            "path": "0.12.0-beta.18/fizz-ble-xdata.bin",
+            "bytes": 85824,
+            "sha256": "55cbcc6ba83c4201209f348210997a42222d9b7ba7347c0626671fa24ab8014c",
+            "crc32": 2448442007,
+            "at": 946176
+          },
+          "data2": {
+            "path": "0.12.0-beta.18/fizz-ble-xdata2.bin",
+            "bytes": 97956,
+            "sha256": "2e7ec3577e008b675ae00560396e31903407412356e0fcbf7ea4abcac27db966",
+            "crc32": 3332861522,
+            "at": 618496
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.17",
       "date": "2026-11-13",
