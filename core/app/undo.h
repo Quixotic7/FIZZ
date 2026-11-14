@@ -120,13 +120,18 @@ void qd_undo_close(struct qd_app *a);
 void qd_undo_hint(struct qd_app *a, int kind);   /* what the open gesture is (the first hint wins) */
 int qd_undo_step(struct qd_app *a, int dir);   /* -1 undo, +1 redo: the level's kind, -1 none */
 int qd_undo_count(const struct qd_app *a, int dir);   /* levels there to undo (-1) / redo (+1) */
+void qd_undo_forget_pat(struct qd_app *a, int k);   /* pattern k changed outside the levels: its levels forgotten */
 /* P2.1: a pool slot (QD_UNDO_RPOOL, 1..128) or a library slot (QD_UNDO_RLIB, 0..255) about to change: kept as it was
  * for the open gesture (the device's log; the host: nothing, its whole copies) */
 void qd_undo_snd(struct qd_app *a, int region, int slot);
 /* P2.1: the snapshot (0) or the pattern clipboard (1): the active pattern stored (0: no room, the device's), put back
  * onto the active pattern (0: none) */
-int qd_hist_store(struct qd_app *a, int which);
+#define qd_hist_store(a, which) qd_hist_store_k(a, which, (a)->seq.cur)
 int qd_hist_recall(struct qd_app *a, int which);
+/* 2026-11-13: .. pattern k's (in RAM) stored, put back onto pattern k (in RAM; its used flag as stored): the PATTERNS
+ * page's F1 / F2 copy, cut and paste */
+int qd_hist_store_k(struct qd_app *a, int which, int k);
+int qd_hist_recall_k(struct qd_app *a, int which, int k);
 /* T1 (docs/TRACK-TOOLS-PLAN.md §2): the open gesture's pattern back as it was (its "before": the host's copy, the
  * device's compressed one in the log): 1; 0: no gesture, or its before not kept (the device's log too small: then a
  * change cannot be previewed live). qd_undo_can_revert: the same test, nothing changed */

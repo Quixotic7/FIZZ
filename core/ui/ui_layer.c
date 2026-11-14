@@ -34,8 +34,6 @@
 
 #include "ui.h"
 
-#define SOLO_COL 0xffd23fu
-
 static const char *const DOT = " \xc2\xb7 ";          /* " · " */
 static const char *const DASH = "\xe2\x80\x93";        /* "–" */
 
@@ -168,7 +166,7 @@ static void f2(const ui_layer_t *v)
 }
 
 /* ---------------------------------------------------------------- F3: the page's range and the rate */
-static void f3(const ui_layer_t *v)
+static FZ_COLD void f3(const ui_layer_t *v)   /* (2026-11-13: drawn seldom, still: minsize) */
 {
     const int pg = v->page < 0 ? 0 : v->page > 7 ? 7 : v->page;
     const int st = v->pstart[pg] > 15 ? 15 : v->pstart[pg];
@@ -237,77 +235,11 @@ static void f3(const ui_layer_t *v)
     ui_keymap(k, KM_Y, KM_H);
 }
 
-/* ---------------------------------------------------------------- SEL: the tracks (s17's speakers) */
-static void speaker(float x, float y, qd_rgb col, int on, int mute)
-{
-    const float a[8] = {x - 10.f, y - 5.f, x - 4.f, y - 5.f, x - 4.f, y + 5.f, x - 10.f, y + 5.f};
-    const float b[8] = {x - 4.f, y - 5.f, x + 3.f, y - 11.f, x + 3.f, y + 11.f, x - 4.f, y + 5.f};
-    int i;
-    ui_P(a, 4, col, 1.3f, 1, QD_NONE);
-    ui_P(b, 4, col, 1.3f, 0, QD_NONE);
-    if (mute) {
-        line2(x + 8.f, y - 5.f, x + 16.f, y + 5.f, UI_K4, 1.5f);
-        line2(x + 16.f, y - 5.f, x + 8.f, y + 5.f, UI_K4, 1.5f);
-        return;
-    }
-    for (i = 0; i < 2; i++) {
-        qd_save();
-        qd_alpha(on ? 1.f : 0.35f + 0.1f * (float)i);
-        qd_arc(x + 3.f, y, i ? 12.f : 7.f, -0.75f, 0.75f, col, 1.3f);
-        qd_restore();
-    }
-}
-
-/* a name as big as fits in w (12 px, squeezed no narrower than 0.7) */
-static void name_fit(const char *s, float cx, float y, float w, qd_rgb col)
-{
-    const float tw = ui_TW(s, 12.f, 600, 0.5f);
-    if (tw <= w) {
-        ui_T(s, cx, y, 12.f, 600, 0.5f, col, QD_CENTER);
-        return;
-    }
-    qd_save();
-    qd_translate(cx, y);
-    qd_scale(w / tw < 0.7f ? 0.7f : w / tw, 1.f);
-    ui_T(s, 0.f, 0.f, 12.f, 600, 0.5f, col, QD_CENTER);
-    qd_restore();
-}
-
-static void tracks(const ui_layer_t *v)
-{
-    ui_kkey_t k[11];
-    int i;
-
-    for (i = 0; i < UI_NTRACK; i++) {                   /* (six tracks: three a row, 80 px each) */
-        const float x = 40.f + (float)(i % 3) * 80.f, y = 56.f + (float)(i / 3) * 72.f;
-        const int mute = (v->mute >> i) & 1, solo = (v->solo >> i) & 1, sel = i == v->sel;
-        if (sel)
-            ui_RR(x - 36.f, y - 24.f, 72.f, 70.f, 6.f, UI_K3, 1.5f, QD_NONE);
-        speaker(x - 2.f, y, mute ? UI_G2 : UI_K3, v->flash[i] != 0, mute);
-        ui_T(NUM[i], x, y + 28.f, 12.f, 600, 0.f, mute ? UI_G2 : UI_K3, QD_CENTER);
-        name_fit(v->tname[i] ? v->tname[i] : "", x, y + 42.f, 68.f, mute ? UI_G2 : sel ? UI_K3 : UI_G1);
-        if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind */
-            ui_kind_icon(ui_track_kind(i + 1), x - 24.f, y - 13.f, 1.f, mute ? UI_G2 : UI_PK_COL[ui_track_kind(i + 1)]);
-        if (solo) {                                     /* soloed: an S in a ring, blinking */
-            ui_O(x + 24.f, y - 14.f, 8.f, SOLO_COL, 1.2f, v->blink ? SOLO_COL : QD_NONE);
-            ui_T("S", x + 24.f, y - 9.5f, 12.f, 700, 0.f, v->blink ? UI_BG : SOLO_COL, QD_CENTER);
-        }
-    }
-    keys_clear(k);
-    for (i = 0; i < UI_NTRACK; i++) {
-        k[i].num = i + 1;
-        k[i].lit = i == v->sel;
-        k[i].col = (v->mute >> i) & 1 ? UI_G2 : UI_K3;
-    }
-    k[10].icon = UI_IC_CLEAR, k[10].col = UI_K4, k[10].dim = !(v->mute || v->solo);
-    ui_keymap(k, KM_Y, KM_H);
-}
-
 void ui_layer_draw(const ui_layer_t *v)
 {
-    static const char *const T[4] = {"F1 \xc2\xb7 PAGES", "F2 \xc2\xb7 CUT & PASTE", "F3 \xc2\xb7 RANGE & RATE",
-                                     "SEL \xc2\xb7 TRACKS"};
-    const int l = v->layer < 1 ? 1 : v->layer > 4 ? 4 : v->layer;
+    static const char *const T[3] = {"F1 \xc2\xb7 PAGES", "F2 \xc2\xb7 CUT & PASTE", "F3 \xc2\xb7 RANGE & RATE"};
+    const int l = v->layer < 1 ? 1 : v->layer > 3 ? 3 : v->layer;   /* (2026-11-13: SEL's track map, retired
+                                                         * 2026-11-11, gone) */
     if (l == 3 && v->latched) {                         /* P1.3d: a latched menu: a back arrow top right (OCT-) */
         ui_head_track(T[l - 1], v->track, "", UI_K3);
         ui_RR(180.f, 4.f, 24.f, 17.f, 4.f, UI_K3, 1.2f, QD_NONE);
@@ -319,10 +251,8 @@ void ui_layer_draw(const ui_layer_t *v)
         f1(v);
     else if (l == 2)
         f2(v);
-    else if (l == 3)
-        f3(v);
     else
-        tracks(v);
+        f3(v);
 }
 
 /* ---------------------------------------------------------------- SEQ: the patterns (line.html s13) */
@@ -361,7 +291,25 @@ FZ_COLD void ui_patterns_draw(const ui_patterns_t *v)
             ui_O(x, y, 6.5f, UI_G1, 1.2f, UI_BG);
         else
             ui_O(x, y, 1.5f, QD_NONE, 1.f, UI_G2);
+        if (v->layer && k == (v->layer == 1 ? v->src : v->last))   /* (F1's copy, F2's last W: ringed) */
+            ui_O(x, y, 10.f, v->layer == 2 && v->last_act == 1 ? UI_K4 : UI_K2, 1.4f, QD_NONE);
     }
+    if (v->layer == 2) {                                /* F2: the hand, a card with its pattern (dashed: empty) */
+        static const float DSH[2] = {3.f, 3.f};
+        qd_save();
+        if (!v->loaded)
+            qd_dash(DSH, 2);
+        ui_RR(12.f, 134.f, 60.f, 28.f, 5.f, v->loaded ? UI_K3 : UI_G2, 1.4f, QD_NONE);
+        qd_restore();
+        if (v->loaded && v->hand >= 0) {
+            n[0] = BANK[(v->hand >> 4) & 3][0], n[1] = (char)('0' + ((v->hand & 15) + 1) / 10);
+            n[2] = (char)('0' + ((v->hand & 15) + 1) % 10), n[3] = 0;
+            ui_T(n, 42.f, 154.f, 16.f, 500, 0.f, UI_K3, QD_CENTER);
+        }
+    }
+    if (v->layer)                                       /* what the next W does */
+        ui_icon(v->layer == 1 ? (v->src < 0 ? UI_IC_COPY : UI_IC_PASTE) : v->next_paste ? UI_IC_PASTE : UI_IC_CUT,
+                98.f, 148.f, 1.6f, v->layer == 2 && !v->next_paste ? UI_K4 : UI_K2);
     for (i = 0; i < 4; i++) {                           /* the banks (SEQ + B1..B4): the one shown boxed */
         const float x = 148.f + (float)i * 22.f, y = 134.f;
         const int on = i == bank, has = (v->bank_used >> i) & 1u;
@@ -748,8 +696,8 @@ static FZ_COLD __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /*
 #endif
 
 /* 2026-11-10 (owner): SETTINGS' page 2, HOME, on the track settings' grid (TRK_Y: four rows 53.25 px apart, the value
- * 26 px at the right): KNOB 1 HOME VIEW (its name), KNOB 2 LOCK (ON / OFF, a padlock shut or open); under them the five
- * Home views as five little screens in HOME's order, the chosen one lit in KNOB 1's colour; unlocked an arrow along
+ * 26 px at the right): KNOB 1 HOME VIEW (its name), KNOB 2 LOCK (ON / OFF, a padlock shut or open); under them the three
+ * Home views (2026-11-13) as little screens in HOME's order, the chosen one lit in KNOB 1's colour; unlocked an arrow along
  * them (HOME clicks go round), locked the padlock over the chosen one */
 static void padlock(float cx, float cy, int shut, qd_rgb col)   /* its shackle (open: lifted), its body */
 {
@@ -759,8 +707,9 @@ static void padlock(float cx, float cy, int shut, qd_rgb col)   /* its shackle (
 static FZ_COLD __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /* (noinline: the Bluetooth package's second
                                                          * blob, as menu_set2) */
 {
-    static const char *const VN[4] = {"PIANO ROLL", "STEPS", "EDIT", "GEEK OUT"};   /* (2026-11-11: OVERVIEW is SEL's) */
-    const int hv = v->home_view < 0 || v->home_view > 3 ? 0 : v->home_view;
+    static const char *const VN[3] = {"STEPS", "EDIT", "GEEK OUT"};   /* (2026-11-11: OVERVIEW is SEL's; 2026-11-13:
+                                                         * the PIANO ROLL SEQ's) */
+    const int hv = v->home_view < 0 || v->home_view > 2 ? 1 : v->home_view;
     int k, i;
     for (k = 0; k < 2; k++) {
         const float y = 40.f + (float)k * 53.25f, vy = y + 30.f;
@@ -772,21 +721,20 @@ static FZ_COLD __attribute__((noinline)) void menu_home(const ui_menu_t *v)   /*
         if (k == 1)
             padlock(232.f - (w > 150.f ? 150.f : w) - 18.f, vy - 9.f, v->home_lock, col);
     }
-    for (k = 0; k < 4; k++) {                           /* the four views, small: a few bars each (x, y, w, h) */
-        static const uint8_t TH[4][6][4] = {
-            {{5, 24, 7, 4}, {13, 18, 7, 4}, {21, 26, 7, 4}, {29, 12, 6, 4}},                  /* PIANO ROLL: notes */
+    for (k = 0; k < 3; k++) {                           /* the three views, small: a few bars each (x, y, w, h) */
+        static const uint8_t TH[3][6][4] = {
             {{5, 6, 30, 4}, {5, 13, 30, 12}, {5, 28, 30, 4}},                                 /* STEPS: a row open */
             {{11, 5, 18, 18}, {5, 29, 30, 6}},                                                /* EDIT: the picture, the row */
             {{6, 26, 5, 8}, {14, 20, 5, 14}, {22, 14, 5, 20}, {30, 8, 5, 26}},                /* GEEK OUT: meters */
         };
-        const float x = 22.f + (float)k * 52.f, y = 160.f;
+        const float x = 48.f + (float)k * 52.f, y = 160.f;
         const qd_rgb c = k == hv ? KCOL[0] : UI_G2;
         ui_RR(x, y, 40.f, 40.f, 5.f, c, k == hv ? 2.f : 1.2f, QD_NONE);
         for (i = 0; i < 6 && TH[k][i][2]; i++)
             ui_RR(x + TH[k][i][0], y + TH[k][i][1], TH[k][i][2], TH[k][i][3], 1.f, QD_NONE, 1.f, c);
     }
     if (v->home_lock)                                   /* locked: the padlock under the chosen one */
-        padlock(42.f + (float)hv * 52.f, 214.f, 1, KCOL[1]);
+        padlock(68.f + (float)hv * 52.f, 214.f, 1, KCOL[1]);
     else                                                /* HOME clicks go round */
         ui_icon(UI_IC_RIGHT, 120.f, 216.f, 2.f, UI_G1);
 }

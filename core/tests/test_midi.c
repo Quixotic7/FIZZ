@@ -142,8 +142,7 @@ static void start(void)                                 /* a fresh unit, the ste
     run(30);
     qd_app_key(&A, QD_WHITE_KEY[4], 0, 0);
     run(10);
-    bup(QD_B_MIX);
-    btap(QD_B_MIX);
+    bup(QD_B_MIX);                                      /* (2026-11-13: a peek: closed on release) */
     run(10);
 }
 static void cc(int ch, int n, int v)                    /* ch 1..16 */

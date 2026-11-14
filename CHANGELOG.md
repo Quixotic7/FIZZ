@@ -20,6 +20,10 @@ its text becomes the release's notes on the install page and on GitHub.
   first, about half a second). **F2 on the PROJECT page** does the same. The project still saves by itself too.
 - **F2 saves** on SAVE PRESET (SAVE no longer does), and **F2 keeps** a project's or a track's name. NEW or REPLACE
   is chosen with **PRESETS**.
+- **SEQ is a page button with three pages: TOOLS, PATTERNS and the PIANO ROLL.** From anywhere else a SEQ click opens the one you used last (TOOLS after power-on); on one of them a click goes to the next, round. HOME leaves them for your Home view, so HOME / SEQ flips between the two. SEQ is lit on its pages.
+- **Holding SEQ is a quick peek at the patterns**: choose a pattern or a bank while you hold it, and you're back where you were when you let go (it no longer stays open: click SEQ to PATTERNS for that).
+- **Copy, cut and paste whole patterns on PATTERNS with F1 / F2**, as you do steps: F1 + a pattern copies it, every other pattern you press while F1 is held gets it; F2 + a pattern picks it up (its slot empties) and drops it on the next empty one. B1..B4 change the bank meanwhile. A paste on, or a cut of, the pattern you are on can be undone (SHIFT + F1); on other patterns it can't.
+- **The PIANO ROLL moved from HOME to SEQ.** HOME's views are now STEPS, EDIT and GEEK OUT; the settings' HOME VIEW offers those three (a saved PIANO ROLL comes back as EDIT). The roll itself works as before; EDIT, ENV, FX or ARP opened over it go back to it with their own key, to your Home view with HOME.
 
 ## 0.12.0-beta.18 (2026-11-13)
 

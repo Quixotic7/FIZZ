@@ -646,6 +646,10 @@ typedef struct {
     int blink;
     int launch;                         /* the launch mode (seq.h QD_LAUNCH_*: END BAR BEAT NOW), ALGORITHM's */
     const char *launch_name;
+    /* 2026-11-13, PATTERNS + F1 / F2 (as the steps' pictures): the layer held (1 F1, 2 F2; 0 none); F1's copy (ringed
+     * green; -1); F2's last W (ringed: CUT orange, PASTE green; -1) and the hand: a card with its pattern's name (-1:
+     * another's copy; empty: dashed), the next W's icon */
+    int layer, src, last, last_act, hand, loaded, next_paste;
 } ui_patterns_t;
 void ui_patterns_draw(const ui_patterns_t *v);
 
@@ -713,7 +717,7 @@ typedef struct {
     int engine;                         /* .. (e): ENGINE, 0 FM TONE, 1 FM+MIDI (2026-11-10), 2 MIDI */
     int clk_out, cc_out;                /* SETTINGS: FIZZ MIDI (c): CLOCK OUT, CC OUT */
     int set_page;                       /* SETTINGS: the page (2026-11-10: 1 HOME; the Bluetooth package: 2 BLUETOOTH) */
-    int home_view, home_lock;           /* .. HOME: the Home view (0 PIANO ROLL, 1 STEPS, 2 EDIT, 3 GEEK OUT, 4 OVERVIEW),
+    int home_view, home_lock;           /* .. HOME: the Home view (2026-11-13: 0 STEPS, 1 EDIT, 2 GEEK OUT),
                                          * LOCK */
 #if QD_PKG_BLE
     int ble_on, ble_st;                 /* .. BLUETOOTH ON / OFF, its state: 0 OFF, 1 WAITING, 2 CONNECTED */

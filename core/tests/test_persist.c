@@ -1002,6 +1002,84 @@ static void paging_test(void)
           (unsigned)A.proj.pat_saves);
 }
 
+/* 2026-11-13 (owner): the PATTERNS page's F1 / F2 on the flash (the device's sizes: the patterns out of RAM read in
+ * and written by the store's rules): F1 copies A05 onto A10; F2 cuts the demo's A02 and drops it on A11; playing, F2
+ * cuts A10 (no erase while sounding); after a restart each as left */
+static int pat_ons(const qd_pattern_t *P)             /* its trigs, every track */
+{
+    int t, s, n = 0;
+    for (t = 0; t < QD_PAT_NTRACK; t++)
+        for (s = 0; s < QD_NSTEP; s++)
+            n += qd_step_is_on(qd_step(P, t, s));
+    return n;
+}
+static void pc_patterns(void)                         /* SEQ clicks to PATTERNS */
+{
+    int i;
+    for (i = 0; i < 4 && qd_ctl_seq_page(G) != QD_SEQ_PATTERNS; i++)
+        btap(QD_B_MIX);
+}
+static void pc_hold(int f, int down)
+{
+    bt(f, down);
+    p_run(down ? QD_TAP_MS + 10 : 20);
+}
+static void pat_copy_test(void)
+{
+    static qd_pattern_t demo2;
+    int n2;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(G);
+    p_run(50);
+    qd_pat_default(&A.proj, 1, &demo2);
+    n2 = pat_ons(&demo2);
+    btap(QD_B_HOME);                                    /* (the press that wakes does nothing else) */
+    bt(QD_B_MIX, 1);                                    /* (SEQ held + W5: A05, a peek) */
+    p_run(30);
+    wtap(4);
+    bt(QD_B_MIX, 0);
+    p_run(100);
+    wtap(0);
+    wtap(3);
+    CHECK(A.seq.cur == 4 && qd_step_is_on(qd_step(qd_proj_cpat(&A.proj, 4), 0, 3)) && n2 > 0,
+          "2026-11-13: A05 with two trigs (the demo's A02: %d)", n2);
+    pc_patterns();
+    pc_hold(QD_B_OCTDN, 1);
+    wtap(4);
+    wtap(9);
+    p_run(300);
+    pc_hold(QD_B_OCTDN, 0);
+    pc_hold(QD_B_OCTUP, 1);                             /* (a tap: F1's copy left F2 holding) */
+    pc_hold(QD_B_OCTUP, 0);
+    pc_hold(QD_B_OCTUP, 1);
+    wtap(1);
+    p_run(300);
+    wtap(10);
+    p_run(300);
+    pc_hold(QD_B_OCTUP, 0);
+    CHECK(A.ui.pc_job < 0 && pat_ons(qd_proj_cpat(&A.proj, 9)) == 2 && !qd_proj_used(&A.proj, 1) &&
+              pat_ons(qd_proj_cpat(&A.proj, 1)) == 0 && pat_ons(qd_proj_cpat(&A.proj, 10)) == n2 && A.seq.cur == 4,
+          "F1: A05 onto A10; F2: the demo's A02 cut, dropped on A11 (A05 still the active one)");
+    qd_app_play(&A);
+    run_audio(&A, 300);
+    pc_hold(QD_B_OCTUP, 1);
+    wtap(9);
+    run_audio(&A, 600);
+    pc_hold(QD_B_OCTUP, 0);
+    run_audio(&A, 2000);
+    CHECK(A.seq.playing && A.seq.cur == 4 && !qd_proj_used(&A.proj, 9) && A.per.prj_st.c.erases_noisy == 0,
+          "playing: F2 cuts A10 (A05 plays on; no erase while sounding)");
+    qd_app_stop(&A);
+    run_audio(&A, 50);
+    qd_persist_flush(&A);
+    boot(&B);
+    CHECK(pat_ons(qd_proj_cpat(&B.proj, 4)) == 2 && !qd_proj_used(&B.proj, 9) && !qd_proj_used(&B.proj, 1) &&
+              pat_ons(qd_proj_cpat(&B.proj, 1)) == 0 && pat_ons(qd_proj_cpat(&B.proj, 10)) == n2 &&
+              qd_proj_used(&B.proj, 10),
+          "a restart: A05 as it was, A10 cut, A02 empty (not the demo again), A11 the demo's A02");
+}
+
 /* P2.1: the pool's and MY presets' sounds paged (at the device's sizes QD_SND_RAM of them in RAM, the rest in the
  * store): 200 presets stored, 100 pool slots referencing them, tags set, one replaced (its references follow), one
  * deleted with its references; read back in another order: each as it was; a restart from the flash: the same */
@@ -1862,7 +1940,7 @@ int main(void)
         qd_app_sysex(&A, f, n);
         CHECK(!strcmp(LIB(&A, 99)->name, "SX KEEP"), "a SysEx import into LIBRARY 100");
     }
-    A.ui.view = QD_VIEW_STEPS;                          /* (P1.5s: the user's view kept) */
+    qd_ctl_set_view(&A, QD_VIEW_STEPS);                 /* (P1.5s: the user's view kept) */
     qd_persist_flush(&A);
     boot(&B);
     CHECK(B.ui.view == QD_VIEW_STEPS, "a restart: the view kept (STEPS; P1.5s)");
@@ -1875,17 +1953,30 @@ int main(void)
         static uint8_t b[QDS_MAXREC];
         int len;
         B.ui.home_lock = 1;
-        B.ui.view = QD_VIEW_ROLL;                       /* (2026-11-11: OVERVIEW is SEL's, never saved as the view) */
+        qd_ctl_set_view(&B, QD_VIEW_EDIT);
+        qd_ctl_set_view(&B, QD_VIEW_ROLL);              /* (2026-11-11: OVERVIEW is SEL's, never saved as the view;
+                                                         * 2026-11-13: nor SEQ's PIANO ROLL: the Home view under it) */
         qd_persist_flush(&B);
         boot(&A);
         len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
-        CHECK(A.ui.home_lock && A.ui.view == QD_VIEW_ROLL && len > 0 && b[len - 1] == 3,
-              "a restart: the Home view (PIANO ROLL) and its LOCK kept (the last byte %d)", len > 0 ? b[len - 1] : -1);
+        CHECK(A.ui.home_lock && A.ui.view == QD_VIEW_EDIT && A.ui.hview == QD_VIEW_EDIT && len > 0 &&
+                  b[6] == QD_VIEW_EDIT && b[len - 1] == 3,
+              "a restart on the roll: the Home view (EDIT) and its LOCK kept (the last byte %d)", len > 0 ? b[len - 1] : -1);
         b[len - 1] = 1;
         qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
         qd_store_flush(&A.per.prj_st);
         boot(&B);
-        CHECK(!B.ui.home_lock && B.ui.view == QD_VIEW_ROLL, "a record from before the LOCK: unlocked, the view kept");
+        CHECK(!B.ui.home_lock && B.ui.view == QD_VIEW_EDIT, "a record from before the LOCK: unlocked, the view kept");
+        b[6] = QD_VIEW_ROLL;                            /* (a record from before 2026-11-13 with the PIANO ROLL: EDIT) */
+        qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+        qd_store_flush(&B.per.prj_st);
+        boot(&A);
+        CHECK(A.ui.view == QD_VIEW_EDIT && A.ui.hview == QD_VIEW_EDIT, "2026-11-13: a saved PIANO ROLL comes back as EDIT");
+        b[6] = QD_VIEW_STEPS;
+        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+        qd_store_flush(&A.per.prj_st);
+        boot(&B);
+        CHECK(B.ui.view == QD_VIEW_STEPS && B.ui.hview == QD_VIEW_STEPS, ".. a saved STEPS as STEPS");
         b[6] = QD_VIEW_OVERVIEW;                        /* (a record from 1ad69a7 with OVERVIEW as its view: EDIT) */
         qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
         qd_store_flush(&B.per.prj_st);
@@ -1896,6 +1987,7 @@ int main(void)
     pool_browse_test();
     pages_test();
     paging_test();
+    pat_copy_test();
     sound_paging_test();
     isr_paging_test();
     foreign_test();
