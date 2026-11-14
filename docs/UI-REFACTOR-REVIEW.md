@@ -209,6 +209,46 @@ Stages 1 + 2 should free about 4.5–5.5 KB per package. That covers stage 4's i
 
 ## 6. Flash free, step by step
 
+Bytes free after each step, from `firmware/build.py`'s size report (built in a clean checkout of the commit). The main
+session's own commits landed in between (2e0a43e, 030dab5, d3b868a, 067c579, 11a3ea7, 8b3851c: MIDI FX, TOOLS, B11),
+so a row's change is not all the refactor's.
+
 | step | USB | Bluetooth (slot / blob 2) | single-core |
 |---|---|---|---|
 | before (fb1eb96) | 32 | 80 / 20 | 20 |
+| fc9f002, the dead takeovers (1.1) | 3,056 | 2,720 / 20 | 2,836 |
+| 6387727, one line helper, ui_cat, ui_ease (1.2, 1.3) | 7,328 | 3,096 / 216 | 4,276 |
+| 53fc27b, noinline helpers (view's cat, the lane's, persist's) | 9,552 | 3,912 / 368 | 6,308 |
+| bbad86f, the drawing back at -Os (with 37a3ea8, 97ad083, 6395425 before it) | 7,520 | 576 / 280 | 2,756 |
+| 4088a89, the last commit of this round | **8,096** | **1,040 / 336** | **3,332** |
+
+## 7. Status (2026-11-13, end of the first round)
+
+`make -C tools test` passes at 4088a89 ("all passed (host and device sizes, the device's drawing too)").
+
+Done, each step checked as in §5 (the same test hashes, every screen pixel-identical, all three packages built):
+- 1.1 the dead takeovers; 1.2 `qd_line` for the nine line helpers; 1.3 `ui_cat`, `ui_ease`, `UI_TRACK_PAL`;
+  1.4 `ui_step_frame()`; 1.8 the screens' dead fields and the controls' dead code (SEL held's map, F1 + B9's
+  leftovers, `QD_TK_LMODE`, `qd_lib_ms`); 1.7 the knob table on the key table's predicates; 2.1 `qd_sel_mask()`.
+- New since the review: **noinline** on the small static helpers -Os had copied into every caller (view.c's `cat`
+  alone ~1.2 KB; ~4 KB in all), found by listing the statics with several callers and no section of their own in the
+  link map. And **FZ_COLD** (ui.h: clang's `minsize`) on the screens drawn seldom, which the toolchain's clang 4.0.1
+  honours per function (the browser at -Os + minsize: 3,650 B against 3,634 at -Oz).
+- Stage 4: every drawing unit back at -Os on all three packages (bbad86f); the controls (`ctl*`, `clip`, `chord`)
+  stay at -Oz, and the idle screen on Bluetooth. OVERVIEW's model back in the Bluetooth slot.
+- The `ksteps` bug (2579fb9): read on the keyboard page only. It had no visible effect: SHIFT + W in the step view
+  does nothing through the later rows either way. Test added.
+
+Not done (the main session works in ctl.c, ctl_mfx.c, ctl_tools.c, view*.c and the tests; further work goes on the
+`ui-refactor` branch and is rebased onto master):
+- 1.5 `ui_T_fit` (11 sites that differ in detail, ~200 B), 1.6 EDIT's head value written twice, 1.9 / 1.10 / 1.11.
+- Stage 2 beyond `qd_sel_mask`: `qd_selection` / `qd_sel_t`, `qd_page_open`, the takeovers' lifetime table,
+  `ui_row_t`, `qd_key_st`, the TOOLS knob table.
+- Stage 3: the owner's decisions (§4).
+- Frame times on the unit: the main session runs a drawbench of the Home views and the sound editor with its next
+  flash.
+- Two render_frames runs hang at master (the full run after `p13f-steps-stopped`, and `--only t1`); the screens
+  were compared with the 42 `--only` parts that finish.
+
+How to find more of the same: `noinline` where the map shows a static with several callers and no section
+(`.text.NAME`) of its own; FZ_COLD before moving a drawing unit back to -Oz.
