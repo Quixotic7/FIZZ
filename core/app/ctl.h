@@ -291,7 +291,6 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
  * PRESETS the track's preset (layout A, hard-wired 2026-10-25: the B..D experiments are gone). With a finger on a
  * step: KNOB_JOB, the sound lock on PRESETS. */
 enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_NKR };
-int qd_ctl_sel_map(const struct qd_app *a);
 int qd_ctl_seq_map(const struct qd_app *a);
 int qd_ctl_seq_page(const struct qd_app *a);   /* 2026-11-13: SEQ's page on screen (QD_SEQ_*), -1 none */
 int qd_ctl_home_view(const struct qd_app *a);  /* .. the Home view HOME goes back to (QD_VIEW_*) */
