@@ -532,9 +532,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
                                                          * foot: the selection (F1: its copy's step), the playhead) */
         const int st = a->seq.playing ? qd_seq_track_step(&a->seq, t) : -1;
         if (v->b11) {
-            for (i = 0; i < u->nheld; i++)
-                if (u->held[i] / QD_PAGE == u->page[t])
-                    v->b11_sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+            v->b11_sel = qd_sel_mask(u, u->page[t]);
         } else if (u->f1_copied && u->f1_src >= 0 && u->f1_src / QD_PAGE == u->page[t]) {
             v->b11_sel = (uint16_t)(1u << (u->f1_src % QD_PAGE));
         }
@@ -859,9 +857,7 @@ static void draw_keys(qd_app_t *a)
         v.row = 1;
         for (i = 0; i < 16; i++)
             v.page_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, a->sel, pg + i));
-        for (i = 0; i < u->nheld; i++)
-            if (u->held[i] / QD_PAGE == pg / QD_PAGE)
-                v.sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        v.sel = qd_sel_mask(u, pg / QD_PAGE);
         v.ksteps = u->ksteps;
         v.framed = u->nheld > 0;
         if (u->ksteps)                                  /* (2026-11-13, owner: the black keys that play, by the note
@@ -1617,9 +1613,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         const int ps = a->seq.playing ? qd_seq_track_step(&a->seq, a->sel) : -1;
         for (i = 0; i < QD_PAGE; i++)
             v->row_trig |= (uint16_t)(qd_step_is_on(qd_step(P, a->sel, pg0 + i)) << i);
-        for (i = 0; i < u->nheld; i++)
-            if (u->held[i] / QD_PAGE == pg0 / QD_PAGE)
-                v->row_sel |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        v->row_sel = qd_sel_mask(u, pg0 / QD_PAGE);
         v->row_play = ps >= 0 && ps / QD_PAGE == pg0 / QD_PAGE ? ps % QD_PAGE : -1;
     }
     for (i = 0; i < QD_SND_NPAGE; i++)
@@ -2754,9 +2748,7 @@ __attribute__((noinline)) void qd_view_ov(qd_app_t *a, ui_ov_t *v)   /* (noinlin
     qd_pat_name(a->seq.cur, v->pattern);
     v->page = page;
     v->sel = a->sel;
-    for (i = 0; i < u->nheld; i++)
-        if (u->held[i] / QD_PAGE == page)
-            v->held |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+    v->held = qd_sel_mask(u, page);
     {   /* 2026-11-11 (owner): what the black keys do, and since when (the tracks' sweep, the mode's band) */
         qd_ui_t *w = &a->ui;
         const int st = qd_ctl_ov_keys(a) == QD_OVK_TRACKS ? QD_OVK_TRACKS : QD_OVK_MODES;

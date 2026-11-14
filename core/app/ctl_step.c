@@ -257,17 +257,23 @@ void qd_step_cursor_page(qd_app_t *a)
     held_add(a, pg * QD_PAGE + (ts->pstart[pg] < QD_PAGE ? ts->pstart[pg] : 0), -1);
 }
 
+uint16_t qd_sel_mask(const qd_ui_t *u, int page)
+{
+    uint16_t m = 0;
+    int i;
+    for (i = 0; i < u->nheld; i++)
+        if (u->held[i] / QD_PAGE == page)
+            m |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+    return m;
+}
+
 void qd_step_latch(qd_app_t *a, int on)                 /* (2026-10-26, the owner: it starts EMPTY; the cursor seeds it) */
 {
     qd_ui_t *u = &a->ui;
-    int i;
     if (u->slatch && u->nheld) {                        /* 2026-11-13 (owner): the selection let go is kept (its first
                                                          * step's page) for LFO to bring back */
         u->lsel_pg = (uint8_t)(u->held[0] / QD_PAGE);
-        u->lsel_mask = 0;
-        for (i = 0; i < u->nheld; i++)
-            if (u->held[i] / QD_PAGE == u->lsel_pg)
-                u->lsel_mask |= (uint16_t)(1u << (u->held[i] % QD_PAGE));
+        u->lsel_mask = qd_sel_mask(u, u->lsel_pg);
     }
     qd_step_release_all(a);
     a->ui.slatch = on != 0;

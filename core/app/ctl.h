@@ -1089,6 +1089,7 @@ void qd_step_default_reset(struct qd_app *a, int m);
 int qd_step_default_initial(const struct qd_app *a, int m);
 void qd_step_latch_restore(struct qd_app *a);   /* 2026-11-13: LFO's lock on: the last selection back (else step 1) */
 void qd_step_latch(struct qd_app *a, int on);   /* P1.3d: the step latch (LFO) on / off */
+uint16_t qd_sel_mask(const qd_ui_t *u, int page);   /* 2026-11-13: the selected (held) steps on page (bit s) */
 void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the last step edited, else the page's first) */
 void qd_step_cursor(struct qd_app *a, int d);   /* ALGORITHM: the latch's one selection on the page shown (2026-11-10) */
 void qd_step_b11_select(struct qd_app *a, int w);   /* 2026-11-10: B11 held + W: the latch's selection */
