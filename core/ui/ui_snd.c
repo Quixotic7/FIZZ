@@ -851,7 +851,7 @@ static void sd_glow(const float *p, int n, int close, qd_rgb col, float lw)   /*
         qd_restore();
     }
 }
-static float sd_hash(int k) { const float h = sinf((float)k * 127.1f) * 43758.5f; return h - floorf(h); }
+static __attribute__((noinline)) float sd_hash(int k) { const float h = sinf((float)k * 127.1f) * 43758.5f; return h - floorf(h); }
 
 /* the dice: two tumbling, their faces flicking, settling as u reaches 1 */
 static void sd_dice(float u, float t)

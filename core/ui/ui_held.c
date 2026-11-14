@@ -307,7 +307,7 @@ static void n_circ(float x, float y, float r, qd_rgb col, float lw)   /* P2.6d: 
     rd_pt(x, y, &X, &Y);
     qd_circle(X, Y, r * rd_k, col, rd_lw(lw), QD_NONE);
 }
-static void n_seg(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
+static __attribute__((noinline)) void n_seg(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 {
     const float p[4] = {x0, y0, x1, y1};
     n_line(p, 2, col, lw);

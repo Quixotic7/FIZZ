@@ -47,7 +47,7 @@ static const qd_rgb PAL[8] = {UI_K1, UI_K2, UI_K3, UI_K4, 0xff3ca0u, UI_KSEL, 0x
 #define WD_FSTAG 0.6f
 #define WD_FADE 0.9f                                    /* .. fading over this: all gone by 10.36 s */
 
-static float hash01(uint32_t a, uint32_t b, uint32_t c)
+static __attribute__((noinline)) float hash01(uint32_t a, uint32_t b, uint32_t c)
 {
     uint32_t h = a * 0x9E3779B1u ^ (b + 0x7F4A7C15u) * 0x85EBCA77u ^ (c + 0x165667B1u) * 0xC2B2AE3Du;
     h ^= h >> 15;

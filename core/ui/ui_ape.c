@@ -108,7 +108,7 @@ static void ap_line(const float *xy, int n, qd_rgb col, float lw)
         qd_line_to(xy[2 * i], xy[2 * i + 1]);
     ap_glow_path(col, lw);
 }
-static void ap_line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
+static __attribute__((noinline)) void ap_line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 {
     const float p[4] = {x0, y0, x1, y1};
     ap_line(p, 2, col, lw);

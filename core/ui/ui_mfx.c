@@ -21,7 +21,7 @@ const qd_rgb UI_MFX_COL[11] = {0x8d8d96u, 0x3f8cffu, 0xff2d45u, 0xff8268u, 0xff6
 static float mf_clamp(float x, float a, float b) { return x < a ? a : x > b ? b : x; }
 #define mf_ease ui_ease
 static float mf_lerp(float a, float b, float u) { return a + (b - a) * u; }
-static float mf_hash(float n)
+static __attribute__((noinline)) float mf_hash(float n)
 {
     const float s = sinf(n * 127.1f + 311.7f) * 43758.5453f;
     return s - floorf(s);
@@ -45,7 +45,7 @@ static void mf_Pd(const float *p, int n, qd_rgb c, float lw, float a, float on, 
     ui_P(p, n, c, lw, 0, QD_NONE);
     qd_restore();
 }
-static void mf_L(float x0, float y0, float x1, float y1, qd_rgb c, float lw, float a)
+static __attribute__((noinline)) void mf_L(float x0, float y0, float x1, float y1, qd_rgb c, float lw, float a)
 {
     const float p[4] = {x0, y0, x1, y1};
     mf_P(p, 2, c, lw, a);
