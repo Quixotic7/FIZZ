@@ -215,4 +215,3 @@ int qd_lib_oct(qd_app_t *a, int d, int down)
     }
 }
 
-void qd_lib_ms(qd_app_t *a) { (void)a; }

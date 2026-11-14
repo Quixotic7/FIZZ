@@ -2607,14 +2607,6 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
     }
     if (u->lmode_open) {                                /* P1.5h: LFO held: the latch mode's screen, while held */
         ui_lmode_draw(u->lmode, secs(a->ms));
-    } else if (u->tk == QD_TK_LMODE) {                  /* P1.5b: the latch mode switched (over every screen) */
-        const uint32_t d = a->ms - u->tk_ms;
-        const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
-        if (al > 0.f) {
-            overlay_begin(al);
-            ui_lmode_draw(u->lmode, secs(a->ms));
-            qd_restore();
-        }
     } else if (!qd_view_overlay(a)) {
         /* (none; P1.3r: EDIT's top is the pop-up: no takeover band, picture or picker over it) */
     } else if (u->tk == UI_TK_TOOL) {                   /* T1: a tool's name over its picture (~0.8 s), the scope */

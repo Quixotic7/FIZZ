@@ -189,7 +189,6 @@ struct qd_app;
 #define QD_PAGE_HOLD_MS 400u           /* F1 + a page key held this long: the page in / out of the loop */
 #define QD_SEL_HOLD_MS 400u            /* SEL + W1..W8 held this long: solo (a tap: mute) */
 #define QD_SEQ_HOLD_MS 400u            /* SEQ + W held this long: the pattern at once (a tap: queued) */
-#define QD_CLEAR_HOLD_MS 600u          /* F1 + B9 held this long: the track cleared (a tap: the page) */
 #define QD_PLAY_HOLD_MS 400u           /* P1.3x: PLAY held this long: F3 (a tap plays / stops on its release) */
 #define QD_HOME_HOLD_MS 500u           /* 2026-11-10 (owner): HOME held this long: the global settings (a click: the
                                         * Home view, the next one) */
@@ -229,7 +228,6 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_LOADED 106               /* P1.5t: the browser's F2: the preset onto the track, "LOADED" */
 #define QD_TK_BACK 107                 /* .. its F1 / HOME: the track's own sound back, "BACK" */
 #define QD_TK_SAVED 108                /* .. SAVE PRESET done: into MY presets, "SAVED" */
-#define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
 #define QD_ARP_HOLD_MS 400u            /* P1.6d: ARP held this long (T1b: the arp on / off; a tap: the MIDI FX screen) */
 #define QD_TOOL_POP_MS 800u            /* T1: a tool's name pops up this long (its last 300 ms a fade) */
 #define QD_TK_MFX_STEP 110             /* P1.6c: a held step's MIDI FX (TRIG's KNOB 2, B4..B10) */
@@ -524,8 +522,7 @@ typedef struct {
     int pg_taps[8];                    /* .. it was a tap (2: and this press came within QD_CLICK_MS: a double) */
     int pg_range;                      /* F1: a range was made: no taps until the page keys are up */
     int pg_copied;                     /* F1: the page copied this hold (-1 none): B1..B8 paste it */
-    uint32_t b9_t0;                    /* F1: B9's press .. */
-    int b9_down, b9_done;              /* .. down; held long enough: the track cleared */
+    int b9_down;                       /* F1: B9 down (its release clears the page) */
     int f1_copied;                     /* F1: a step copied this hold: the next W pastes it */
     int f2_loaded, f2_holding;         /* F2: Form's seqF2Loaded_ / seqF2Holding_ (the hand) */
     int f2_last_w, f2_last_act;        /* F2: the last W and what it did (1 CUT, 2 PASTE): the map shows it */
@@ -997,7 +994,6 @@ void qd_name_open(struct qd_app *a, int target, int proj);
 void qd_lib_key(struct qd_app *a, int key, int w, int b, int down, int vel);
 int qd_lib_knob(struct qd_app *a, int knob, int d);
 int qd_lib_oct(struct qd_app *a, int d, int down);   /* 1 taken */
-void qd_lib_ms(struct qd_app *a);
 /* ---- ctl_presets.c (P1.5t): the library browser, SAVE PRESET */
 void qd_br_turn(struct qd_app *a, int d);        /* PRESETS, nothing held: the browser opened / moved */
 void qd_br_track(struct qd_app *a, int t);   /* P1.5z: SHIFT + SELECT: the preview put back, track t browsed */
