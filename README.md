@@ -75,3 +75,5 @@ GPL-3.0-only). Until L1 (2026-10-23) FIZZ was GPL-3.0-only; Felucca's code was r
   vendored in `third_party/plutovg` with FIZZ's changes listed in `third_party/README.md`.
 - Type: [Inter Tight](https://github.com/rsms/inter) (SIL Open Font License 1.1).
 - The sequencer's controls owe a lot to the OMX-27 Form sequencer and to Elektron's machines.
+
+You can also try FIZZ in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
