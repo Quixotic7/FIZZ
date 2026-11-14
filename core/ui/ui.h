@@ -206,7 +206,6 @@ typedef struct {
     int last;                           /* the knob turned last (0..3, -1) */
     const void *lane;                   /* SENDS (2026-10-26): the page's row at the foot (a ui_lane_t; 0: none) .. */
     int keys;                           /* .. the keyboard on (REC): the keys as plain cells instead .. */
-    uint16_t keys_down;                 /* .. the W keys down (bit w) .. */
     uint8_t kst[16];                    /* .. each W key as the sound editor's: 0 out, 1 in the scale, 2 a root; +4 sounding */
     float beat;                         /* .. seconds since the selected track's step was heard (-1: not following) .. */
     float flash;                        /* .. seconds since REVERB reached 100 % (-1: below it) */
@@ -386,9 +385,7 @@ int ui_fn_icon(int func);               /* P1.3w: a step function's icon (UI_IC_
                                          * P1.5d: no frame round it any more); no mode uses it */
 #define UI_STEP_FRAME 0xf03cffu         /* P1.5d (the frames the other way round): the frame round a held step's screen
                                          * (or the latch's selection's) in the sequencer */
-#define UI_SND_FRAME_TRACK 0x8a3412u    /* P1.5d: the sound editor's frame, the track's sound (nothing held): dark orange */
 #define UI_MIDI_HEAD 0xee3cffu          /* FIZZ MIDI (e): the MIDI track editor's MIDI (magenta) */
-#define UI_SND_FRAME_STEP 0xff6a2cu     /* .. a step held or selected (its locks): bright orange (UI_K4) */
 extern const qd_rgb UI_LFO_COL[3];      /* P1.5k: LFO 1, 2, 3's colours (their marks, the mapping's takeover) */
 extern const qd_rgb UI_TRACK_PAL[8];    /* P1.3y: each track's colour (its big picture) */
 void ui_icon(int id, float cx, float cy, float s, qd_rgb col);   /* about 12 x 12 px at s 1, centred */
@@ -601,13 +598,11 @@ typedef struct {
     uint8_t pstart[8], pend[8];
     int play_page;                      /* -1: stopped */
     uint8_t trig[8][16];                /* 1: a trig on that page's step */
-    int can_undo, step_clip;            /* undo held; a step copied */
-    int shift;                          /* (unused since P1.3c) */
+    int can_undo;                       /* undo held */
     int page_copied;                    /* F1: the page copied this hold (-1 none): B1..B8 paste it */
     int f1_copied;                      /* F1: a step copied this hold (the next W pastes it) */
     int f1_src;                         /* P1.6h: .. from this step (0..127, -1): ringed in its page's cell */
-    int clip_step;                      /* .. the step in the clipboard (1..128; 0 none) */
-    int clip_nnote;                     /* .. its notes (the card's little roll), its trig */
+    int clip_nnote;                     /* .. the step in the clipboard: its notes (the card's little roll), its trig */
     uint8_t clip_note[6];
     int clip_type;
     /* layer 4, SEL held (P1.3c): the eight tracks (B1..B8 select): selected, muted (W1..W8), soloed (W9..W16).
@@ -617,20 +612,14 @@ typedef struct {
     uint8_t mute, solo;
     const char *tname[UI_NTRACK];
     uint8_t flash[UI_NTRACK];                   /* a trig just now */
-    int held_track;                     /* (unused since P1.3c) */
-    int page_clip;                      /* a page in the clipboard */
     int hand;                           /* F2: holding a step (Form's "holding"), else empty-handed */
     int hand_loaded;                    /* F2: the hand has grabbed this hold (Form's "loaded") */
-    uint8_t page_on[16];                /* F2: the edited page's steps (1 a trig) */
     int last_w;                         /* F2: the last W pressed (-1), and what it did: 1 CUT, 2 PASTE */
     int last_act;
     /* F3: the page's range (W: its end; W a + W b: start..end) and the rate (B1..B9); SELECT: tempo, swing */
-    int rate;                           /* QD_RATE_* */
-    int rate_idx;                       /* its place on B1..B9 (-1: not a quick pick) */
     int rate_val, rate_type;            /* P1.3c: the rate as a note value (0 1/2 .. 4 1/32; KNOB 1) and its type (0
                                          * normal, 1 dotted, 2 triplet; KNOB 2); KNOB 3 / 4 the page's start / end */
     const char *rate_val_name;          /* "1/16" */
-    const char *rate_names[9];
     int bpm, swing;
     int anchor;                         /* F3: the W held first (-1 none) */
     int latched;                        /* P1.3d: F3 is a latched menu: "OCT\xe2\x88\x92 EXIT" on the map */
@@ -731,8 +720,8 @@ void ui_menu_draw(const ui_menu_t *v);
 
 /* ---- P1.4a: the sound editor (ui_snd.c, built through ui_layer.c): a page of FM TONE as one big drawing, KNOB 1..4's
  * values in cells along the foot (their colours; P1.5b: a lock a chip), ALGORITHM's value (where the page has one) at
- * the top right in its pink badge. The track's sound (nothing held): the TRACK colour in the head, P1.5d a dark orange
- * frame (UI_SND_FRAME_TRACK); a step held: "STEP n", a bright orange frame (UI_SND_FRAME_STEP), and under each locked
+ * the top right in its pink badge. The track's sound (nothing held): no frame; a step selected: "STEP n", the
+ * magenta step frame (ui_step_frame, as every screen), and under each locked
  * value the track's left behind (grey, dashed).
  *   ALGO      the four operators (C A B1 B2 in KNOB 1..4's colours, each with its wave at its ratio) wired by the
  *             algorithm: the modulators above what they modulate (arrows, dots running along), the feedback
@@ -773,8 +762,6 @@ typedef struct ui_snd {
     float ratio[4];                     /* .. the operators' ratios */
     int pv[3];                          /* LFO: its WAVE, TRIG, FADE (P1.5k); LFOSHAPE: its SPEED, DEPTH */
     uint8_t lockany[5];                 /* P1.5b: no step held: some step of the track locks it (an outlined chip) */
-    int keys;                           /* P1.5b: the keyboard on: 1 SCALE (16 keys: the scale), 2 FULL (27) */
-    uint8_t kst[27];                    /* .. each key: 0 out of the scale, 1 in it, 2 a root; +4 sounding */
     uint8_t pair[5];                    /* P1.5i: a ratio pair (RATIO B): txt the fast hand (B2) over den (B1) */
     char den[5][8];
     int has_mix, mix;                   /* P1.5i: RATIO's MIX (-64 X .. 63 Y): the outputs' balance in the drawing */

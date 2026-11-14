@@ -519,7 +519,6 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default) { fill_held_at(
 /* ---------------------------------------------------------------- the layer maps, SHIFT's map --- */
 static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
 {
-    static const char *RN[1];
     const qd_ui_t *u = &a->ui;
     const int t = a->sel;
     const qd_pattern_t *P = qd_ctl_cpat(a);
@@ -555,8 +554,6 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
         for (s = 0; s < QD_PAGE; s++)
             v->trig[i][s] = (uint8_t)qd_step_is_on(qd_step(P, t, i * QD_PAGE + s));
     v->can_undo = qd_clip_can_undo(&u->clip, a->seq.cur, t);
-    v->step_clip = u->clip.st.valid;
-    v->shift = qd_ctl_shift(a);
     v->page_copied = u->pg_copied;
     v->f1_copied = u->f1_copied;
     v->f1_src = u->f1_copied ? u->f1_src : -1;          /* P1.6h: where F1's copy came from */
@@ -571,8 +568,6 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->hand_loaded = u->f2_loaded;
     v->last_w = u->f2_last_w;
     v->last_act = u->f2_last_act;
-    for (s = 0; s < QD_PAGE; s++)
-        v->page_on[s] = (uint8_t)qd_step_is_on(qd_step(P, t, u->page[t] * QD_PAGE + s));
     v->sel = t;
     v->mute = a->seq.mute;
     v->solo = a->seq.solo;
@@ -582,11 +577,6 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
         if (qd_seq_track_pat(&a->seq, i)->trk[i].mute)
             v->mute |= (uint8_t)(1u << i);
     }
-    v->held_track = -1;
-    v->page_clip = u->clip.pg.valid;
-    v->rate = qd_tset_rate(ts);
-    v->rate_idx = -1;
-    (void)RN;
     v->rate_val = ts->rbase;
     v->rate_type = ts->rtype;
     v->rate_val_name = qd_rate_val_name(v->rate_val);
