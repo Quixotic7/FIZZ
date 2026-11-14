@@ -2,7 +2,7 @@
 # The promo's two takes (from promo/build: ../../tools/build/tour ../take.txt .): the idle title, then 30 s of the
 # demo song SUNFADE (tools/demo_song.c; promo/build/sunfade.bin is its project, made by promo/song.txt). The film's
 # time is the video's time. A bar is 2.727 s (88 BPM); the chain A01 (one bar) A02 A03 A04 A05 A07:
-# 2.73 the beat, 8.18 the stabs, 13.64 the sweep, 19.09 the drop, 24.55 the outro.
+# 2.73 the beat, 8.18 the arps, 13.64 the sweep, 19.09 the drop, 24.55 the outro.
 wait 3300
 film idle.rgb
 wait 3000
@@ -63,22 +63,26 @@ tap SEL
 tapkey B3
 tap EDIT
 mark editor
-wait 2690
-# 10.91 .. 13.64: the delay, the stabs thrown into it
+wait 2630
+# 10.91 .. 13.64: the reverb, the black hole
+hold 200
 tap FX
-mark delay
-wait 2530
+knob SELECT 2
+mark reverb
+wait 2540
 # 13.64 .. 16.36 A04: the pad's FILTER, swept by its locks
 hold 200
 tap EDIT
 knob SELECT 5
 mark filter
-wait 2630
-# 16.36 .. 19.09: the reverb, the black hole
+wait 2510
+# 16.36 .. 19.09: the arp's MIDI FX group (ARP: the MIDI FX screen)
 hold 200
-tap FX
-knob SELECT 2
-mark reverb
+tap HOME
+tap SEL
+tapkey B4
+tap ARP
+mark midifx
 wait 2690
 # 19.09 .. 21.82 A05: the mixer
 tap ENV

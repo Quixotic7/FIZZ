@@ -4,13 +4,13 @@
 /* FIZZ's demo song, "SUNFADE", and the preset pack (tools/fizz_pack.h), made through the editing API as the panel
  * would make them (tools/tour.c's song hook: `song` in a tour script; `song pack` stores the presets only).
  *
- * 88 BPM, swing 57 %. D minor, two bars a pattern (the intro one): Dm(add9) a bar, Bb(add9) a bar.
+ * 88 BPM, swing 57 %. D phrygian, two bars a pattern (the intro one): Dm a bar, Eb a bar.
  *   T1 DRUMS   the beat on one track: every kick, snare and hat a sound lock of the pool's kit (1..10 DUST,
  *              11..20 TAPE, 21..30 808), DRIVE locked on the kicks and snares, the hats' rolls ratchets
  *   T2 808     808 BASS (mono, slides)
- *   T3 PAD     AURORA: a chord a bar, its filter locked step by step (the sweeps)
- *   T4 STABS   HAZY BELL: a few notes thrown into the delay
- *   T5 DRONE   DEEP SEA: D and A under everything, into the reverb
+ *   T3 PAD     OLD FILM: a chord a bar, its filter locked step by step (the sweeps)
+ *   T4 ARP     TOY PIANO: a held chord through MIDI FX group 1 (a random-walk arp, lanes of 7 and 5, RANDOM, CHANCE)
+ *   T5 BELLS   HAZY BELL: three notes through group 2 (a slow random arp with rests)
  *   T6 PERC    the clap under the snare, a rim into the delay, the hiss, the crash
  * The effects: a ping-pong delay on dotted eighths, and the reverb as a black hole (SIZE 127, a very long tail).
  * A01 INTRO  A02 BEAT  A03 STABS  A04 SWEEP  A05 DROP  A06 BREAK  A07 OUTRO  A08 808 */
@@ -109,9 +109,9 @@ static void drum(qd_pattern_t *p, int t, int s, int kit, int k, int vel, int len
         qd_lock_set(p, t, s, QD_LK_REVERB, 44);
 }
 
-/* ---- the parts (two bars: steps 0..31). D minor: Dm(add9) a bar, Bb(add9) a bar */
+/* ---- the parts (two bars: steps 0..31). D phrygian: Dm a bar, Eb over it a bar */
 enum { LS24 = 13, LS32 = 14 };
-static const uint8_t CH[2][4] = {{50, 57, 64, 65}, {46, 53, 60, 62}};
+static const uint8_t CH[2][4] = {{38, 50, 57, 65}, {39, 51, 58, 67}};
 
 static void lock_trig(qd_pattern_t *p, int t, int s, int id, int v)
 {
@@ -134,13 +134,14 @@ static void pad(qd_pattern_t *p, int vel, int f0, int f1, int bars)
         lock_trig(p, T_PAD, s, QD_QP_FREQ, f0 + (f1 - f0) * s / (bars * 16 - 2));
 }
 
-/* the drone: D and A under everything */
+/* the bells: three notes held two bars, for the slow arp (MIDI FX group 2) */
 static void drone(qd_pattern_t *p, int vel)
 {
-    static const uint8_t N[2] = {38, 45};
+    static const uint8_t N[3] = {74, 77, 81};
     qd_track_set_length(p, T_BELL, 32);
-    p->trk[T_BELL].limit = 2;
-    chord(p, T_BELL, 0, N, 2, vel, LS32, 0);
+    p->trk[T_BELL].limit = 3;
+    p->trk[T_BELL].mfx = 2;
+    chord(p, T_BELL, 0, N, 3, vel, LS32, 0);
 }
 
 static void bass(qd_pattern_t *p, int drop)
@@ -155,38 +156,35 @@ static void bass(qd_pattern_t *p, int drop)
     qd_step_set_trig(p, T_BA, 14, QD_TRIG_TIE);
     if (drop)
         return;                                         /* (the build: the second bar without it) */
-    note(p, T_BA, 16, 34, 118, LS6);                    /* Bb */
-    note(p, T_BA, 23, 34, 100, L1);
-    note(p, T_BA, 25, 34, 110, LS3);
+    note(p, T_BA, 16, 39, 118, LS6);                    /* Eb */
+    note(p, T_BA, 23, 39, 100, L1);
+    note(p, T_BA, 25, 39, 110, LS3);
     note(p, T_BA, 30, 36, 98, LS2);                     /* .. C, back to the D */
     qd_step_set_trig(p, T_BA, 30, QD_TRIG_TIE);
 }
 
-/* the stabs: a few bell notes thrown into the delay */
+/* the arp: a chord held a bar, Dm7 then Ebmaj7; MIDI FX group 1 plays it (a random walk, its lanes of seven and
+ * five steps turning against the bar, octaves and velocities thrown, one note in eight dropped) */
 static void stabs(qd_pattern_t *p, int vel)
 {
+    static const uint8_t A[2][4] = {{62, 65, 69, 72}, {63, 67, 70, 74}};
     qd_track_set_length(p, T_LEAD, 32);
-    p->trk[T_LEAD].limit = 3;
+    p->trk[T_LEAD].limit = 4;
     p->trk[T_LEAD].swing = 1;
-    note(p, T_LEAD, 3, 69, vel, LS2);
-    note(p, T_LEAD, 6, 74, vel * 84 / 100, LS2);
-    note(p, T_LEAD, 19, 77, vel * 96 / 100, LS2);
-    note(p, T_LEAD, 22, 76, vel * 80 / 100, LS2);
-    note(p, T_LEAD, 27, 72, vel * 78 / 100, LS2);
-    qd_step_set_cond(p, T_LEAD, 27, qd_cond_ab(2, 2));
-    qd_lock_set(p, T_LEAD, 22, QD_LK_DELAY, 127);
+    p->trk[T_LEAD].mfx = 1;
+    chord(p, T_LEAD, 0, A[0], 4, vel, LS16, 0);
+    chord(p, T_LEAD, 16, A[1], 4, vel, LS16, 0);
 }
 
 /* THE BEAT, all on one track: every kick, snare and hat a sound lock of the kit */
 static void kick(qd_pattern_t *p, int s, int kit, int vel)
 {
     drum(p, T_DR, s, kit, KICK, vel, L2);
-    qd_lock_set(p, T_DR, s, QD_QP_DRIVE, 64);
+    qd_lock_set(p, T_DR, s, QD_LK_LEVEL, 124);
 }
 static void snare(qd_pattern_t *p, int s, int kit, int vel)
 {
     drum(p, T_DR, s, kit, SNARE, vel, L2);
-    qd_lock_set(p, T_DR, s, QD_QP_DRIVE, 56);
     qd_lock_set(p, T_DR, s, QD_LK_REVERB, 34);
 }
 static void hat(qd_pattern_t *p, int s, int kit, int vel, int roll)
@@ -247,7 +245,8 @@ static void perc(qd_pattern_t *p, int kit, int full)
     qd_step_set_cond(p, T_HAT, 10, qd_cond_ab(1, 2));
     drum(p, T_HAT, 22, kit, RIM, 70, L4);
     qd_lock_set(p, T_HAT, 22, QD_LK_DELAY, 127);
-    drum(p, T_HAT, 25, KIT_TAPE, CRASH, 88, LS6);       /* (the tape kit's tenth: TAPE HISS, a swell) */
+    drum(p, T_HAT, 1, KIT_TAPE, CRASH, 70, LS12);       /* (the tape kit's tenth: TAPE HISS: the tape's breath) */
+    drum(p, T_HAT, 17, KIT_TAPE, CRASH, 74, LS12);
     if (full) {
         drum(p, T_HAT, 0, kit, CRASH, 84, LS8);
         qd_step_set_cond(p, T_HAT, 0, QD_COND_1ST);
@@ -262,9 +261,9 @@ static void sounds(qd_app_t *a, qd_pattern_t *p)
 {
     tsound(a, p, T_DR, "DUST KICK", KIT_DUST + KICK);
     tsound(a, p, T_BA, "808 BASS", P_BASS);
-    tsound(a, p, T_PAD, "AURORA", P_PAD);
-    tsound(a, p, T_LEAD, "HAZY BELL", P_BELL);
-    tsound(a, p, T_BELL, "DEEP SEA", P_DRONE);
+    tsound(a, p, T_PAD, "OLD FILM", P_PAD);
+    tsound(a, p, T_LEAD, "TOY PIANO", P_BELL);
+    tsound(a, p, T_BELL, "HAZY BELL", P_DRONE);
     tsound(a, p, T_HAT, "DUST CLAP", KIT_DUST + CLAP);
     p->bpm = 88;
     p->swing = 57;
@@ -273,15 +272,15 @@ static void sounds(qd_app_t *a, qd_pattern_t *p)
 
 int fizz_tour_song(qd_app_t *a, int argc, char **argv)
 {
-    static const char *const POOL[] = {"808 BASS", "AURORA", "HAZY BELL", "DEEP SEA", "HAZE", "SUB", "MUSIC BOX",
+    static const char *const POOL[] = {"808 BASS", "OLD FILM", "TOY PIANO", "HAZY BELL", "HAZE", "SUB", "MUSIC BOX",
                                        "WIND", "TAPE PAD", "GAMELAN"};
     /* level, chorus, delay, reverb, pan */
     static const struct { uint8_t level, chorus, delay, reverb; int8_t pan; } MIX[QD_NTRACK] = {
-        {112, 0, 4, 12, 0}, {104, 0, 0, 0, 0}, {101, 50, 30, 96, 0}, {105, 30, 104, 90, 8}, {94, 30, 20, 110, 0},
+        {106, 0, 4, 12, 0}, {105, 0, 0, 0, 0}, {100, 50, 30, 96, 0}, {103, 30, 96, 84, 10}, {104, 30, 60, 110, -12},
         {110, 0, 30, 40, 0}};
     enum { DDIV = 8 };                                  /* the delay's note value: dotted eighths */
-    static const char *const TNAME[QD_NTRACK] = {"DRUMS", "808", "PAD", "STABS", "DRONE", "PERC"};
-    static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_PAD, QD_PK_KEYS, QD_PK_FX, QD_PK_DRUMS};
+    static const char *const TNAME[QD_NTRACK] = {"DRUMS", "808", "PAD", "ARP", "BELLS", "PERC"};
+    static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_PAD, QD_PK_PLUCK, QD_PK_KEYS, QD_PK_DRUMS};
     qd_pattern_t *p;
     int i, n, t;
     if (argc > 1 && !strcmp(argv[1], "fx")) {           /* (the effects' values, for the log) */
@@ -336,12 +335,36 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
     qd_fx_set(QD_FXP_RSIZE, 127), qd_fx_set(QD_FXP_RDECAY, 112), qd_fx_set(QD_FXP_RDAMP, 44), qd_fx_set(QD_FXP_RMOD, 84);
     qd_fx_set(QD_FXP_RPRE, 30), qd_fx_set(QD_FXP_RLOW, 84);
 
+    {   /* the generative arps: MIDI FX groups 1 (the ARP track) and 2 (the BELLS) */
+        static const int8_t MOD1[7] = {QD_AL_PLAY, QD_AL_PLAY, QD_AL_REST, QD_AL_PLAY, QD_AL_HI, QD_AL_PLAY, QD_AL_TIE};
+        static const int8_t TR1[5] = {0, 0, 12, 0, -12};
+        static const int8_t MOD2[5] = {QD_AL_PLAY, QD_AL_REST, QD_AL_PLAY, QD_AL_LO, QD_AL_REST};
+        qd_mfx_slot_t *m = a->proj.mfx[0].slot;
+        qd_mfx_slot_init(&m[0], QD_MFX_ARP);
+        m[0].v[QD_MA_PAT] = QD_AP_ROTH, m[0].v[QD_MA_RATE] = 9, m[0].v[QD_MA_RANGE] = 2, m[0].v[QD_MA_MODE] = QD_AM_ON;
+        m[0].v[QD_MA_MLEN] = 7, m[0].v[QD_MA_TLEN] = 5;
+        memcpy(m[0].lane[0], MOD1, sizeof MOD1), memcpy(m[0].lane[1], TR1, sizeof TR1);
+        qd_mfx_slot_init(&m[1], QD_MFX_RANDOM);
+        m[1].v[QD_MD_VEL] = 36, m[1].v[QD_MD_OCT] = 1, m[1].v[QD_MD_CHANCE] = 30;
+        qd_mfx_slot_init(&m[2], QD_MFX_CHANCE);
+        m[2].v[QD_MC_CHANCE] = 88;
+        m = a->proj.mfx[1].slot;
+        qd_mfx_slot_init(&m[0], QD_MFX_ARP);
+        m[0].v[QD_MA_PAT] = QD_AP_RAND, m[0].v[QD_MA_RATE] = 6, m[0].v[QD_MA_RANGE] = 2, m[0].v[QD_MA_MODE] = QD_AM_ON;
+        m[0].v[QD_MA_MLEN] = 5;
+        memcpy(m[0].lane[0], MOD2, sizeof MOD2);
+        qd_mfx_slot_init(&m[1], QD_MFX_CHANCE);
+        m[1].v[QD_MC_CHANCE] = 80;
+    }
+
     /* A01 INTRO (one bar): the drone, the pad opening, a hiss and a fill into the beat */
     p = qd_proj_pat(&a->proj, 0);
     sounds(a, p);
     pad(p, 84, 3800, 7600, 1);
     drone(p, 78);
     qd_track_set_length(p, T_BELL, 16);
+    stabs(p, 64);
+    qd_track_set_length(p, T_LEAD, 16);
     qd_track_set_length(p, T_HAT, 16);
     drum(p, T_HAT, 7, KIT_TAPE, CRASH, 100, LS8);
     qd_track_set_length(p, T_DR, 16);
@@ -426,9 +449,7 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
     qd_track_set_length(p, T_DR, 32);
     kick(p, 0, KIT_DUST, 116);
     qd_lock_set(p, T_DR, 0, QD_LK_REVERB, 120);
-    qd_track_set_length(p, T_LEAD, 32);
-    note(p, T_LEAD, 6, 74, 84, LS2);
-    qd_lock_set(p, T_LEAD, 6, QD_LK_DELAY, 127);
+    stabs(p, 70);
 
     /* A08 808: the same beat on the 808 kit and the SUB, TAPE PAD's chords */
     p = qd_proj_pat(&a->proj, 7);
