@@ -4,19 +4,22 @@
 /* FIZZ's demo song, "SUNFADE", and the preset pack (tools/fizz_pack.h), made through the editing API as the panel
  * would make them (tools/tour.c's song hook: `song` in a tour script; `song pack` stores the presets only).
  *
- * 84 BPM, swing 58 %. Two bars a pattern (the intro one), four chords: Fmaj7, G6, Em7, Am9 (half a bar each).
- *   T1 DRUMS   kick, snare, rim, tom: sound locks of the pool's kit (1..10 DUST, 11..20 TAPE, 21..30 808)
- *   T2 BASS    DUST BASS (mono, glides)
- *   T3 PAD     TAPE PAD: the chords
- *   T4 LEAD    WOW LEAD's melody, or TAPE PIANO's off-beat stabs (the track's sound is the pattern's)
- *   T5 BELL    HAZY BELL: six notes of E minor pentatonic over twelve steps, turning against the bar
- *   T6 HATS    hats, shaker, clap, hiss: the kit again
- * A01 INTRO  A02 BEAT  A03 KEYS  A04 LEAD  A05 FULL  A06 BREAK  A07 OUTRO  A08 808 */
+ * 88 BPM, swing 57 %. D minor, two bars a pattern (the intro one): Dm(add9) a bar, Bb(add9) a bar.
+ *   T1 DRUMS   the beat on one track: every kick, snare and hat a sound lock of the pool's kit (1..10 DUST,
+ *              11..20 TAPE, 21..30 808), DRIVE locked on the kicks and snares, the hats' rolls ratchets
+ *   T2 808     808 BASS (mono, slides)
+ *   T3 PAD     AURORA: a chord a bar, its filter locked step by step (the sweeps)
+ *   T4 STABS   HAZY BELL: a few notes thrown into the delay
+ *   T5 DRONE   DEEP SEA: D and A under everything, into the reverb
+ *   T6 PERC    the clap under the snare, a rim into the delay, the hiss, the crash
+ * The effects: a ping-pong delay on dotted eighths, and the reverb as a black hole (SIZE 127, a very long tail).
+ * A01 INTRO  A02 BEAT  A03 STABS  A04 SWEEP  A05 DROP  A06 BREAK  A07 OUTRO  A08 808 */
 #include <stdio.h>
 #include <string.h>
 
 #include "app.h"
 #include "fizz_pack.h"
+#include "qd_fx.h"
 
 enum { L8 = 0, L4, L2, L34, L1, L15, LS2, LS3, LS4, LS6, LS8, LS12, LS16 };
 enum { T_DR, T_BA, T_PAD, T_LEAD, T_BELL, T_HAT };
@@ -106,160 +109,198 @@ static void drum(qd_pattern_t *p, int t, int s, int kit, int k, int vel, int len
         qd_lock_set(p, t, s, QD_LK_REVERB, 44);
 }
 
-/* ---- the parts (two bars: steps 0..31) */
-static const uint8_t CH[4][4] = {{53, 57, 60, 64}, {55, 59, 62, 64}, {52, 55, 59, 62}, {57, 60, 64, 71}};
+/* ---- the parts (two bars: steps 0..31). D minor: Dm(add9) a bar, Bb(add9) a bar */
+enum { LS24 = 13, LS32 = 14 };
+static const uint8_t CH[2][4] = {{50, 57, 64, 65}, {46, 53, 60, 62}};
 
-static void pad(qd_pattern_t *p, int vel)
+static void lock_trig(qd_pattern_t *p, int t, int s, int id, int v)
 {
-    int c;
-    qd_track_set_length(p, T_PAD, 32);
-    p->trk[T_PAD].limit = 4;
-    for (c = 0; c < 4; c++)
-        chord(p, T_PAD, c * 8, CH[c], 4, vel, LS8, 2);
+    if (qd_step_type(p, t, s) == QD_TRIG_NONE) {
+        qd_step_on(p, t, s);
+        qd_step_set_trig(p, t, s, QD_TRIG_LOCK);
+    }
+    qd_lock_set(p, t, s, id, v);
 }
 
-static void bass(qd_pattern_t *p)
+/* the pad: a chord a bar, held; its filter locked from f0 to f1 over the bars (every second step: a sweep) */
+static void pad(qd_pattern_t *p, int vel, int f0, int f1, int bars)
+{
+    int c, s;
+    qd_track_set_length(p, T_PAD, bars * 16);
+    p->trk[T_PAD].limit = 5;
+    for (c = 0; c < bars; c++)
+        chord(p, T_PAD, c * 16, CH[c & 1], 4, vel, LS16, 4);
+    for (s = 0; s < bars * 16; s += 2)
+        lock_trig(p, T_PAD, s, QD_QP_FREQ, f0 + (f1 - f0) * s / (bars * 16 - 2));
+}
+
+/* the drone: D and A under everything */
+static void drone(qd_pattern_t *p, int vel)
+{
+    static const uint8_t N[2] = {38, 45};
+    qd_track_set_length(p, T_BELL, 32);
+    p->trk[T_BELL].limit = 2;
+    chord(p, T_BELL, 0, N, 2, vel, LS32, 0);
+}
+
+static void bass(qd_pattern_t *p, int drop)
 {
     qd_track_set_length(p, T_BA, 32);
     p->trk[T_BA].limit = 1;
     p->trk[T_BA].swing = 1;
-    note(p, T_BA, 0, 29, 114, LS4);                     /* F */
-    note(p, T_BA, 6, 41, 88, L1);
-    note(p, T_BA, 7, 29, 102, L1);
-    note(p, T_BA, 8, 31, 110, LS3);                     /* G */
-    note(p, T_BA, 11, 31, 84, L1);
-    note(p, T_BA, 14, 43, 90, L15);
-    note(p, T_BA, 16, 28, 114, LS4);                    /* E */
-    note(p, T_BA, 22, 40, 86, L1);
-    note(p, T_BA, 23, 28, 100, L1);
-    note(p, T_BA, 24, 33, 110, LS3);                    /* A */
-    note(p, T_BA, 27, 33, 86, L1);
-    note(p, T_BA, 30, 31, 96, LS2);                     /* .. down through G to the F */
+    note(p, T_BA, 0, 38, 118, LS6);                     /* D */
+    note(p, T_BA, 9, 38, 104, L1);
+    note(p, T_BA, 10, 38, 110, LS3);
+    note(p, T_BA, 14, 41, 98, LS2);                     /* .. up to F, a slide */
+    qd_step_set_trig(p, T_BA, 14, QD_TRIG_TIE);
+    if (drop)
+        return;                                         /* (the build: the second bar without it) */
+    note(p, T_BA, 16, 34, 118, LS6);                    /* Bb */
+    note(p, T_BA, 23, 34, 100, L1);
+    note(p, T_BA, 25, 34, 110, LS3);
+    note(p, T_BA, 30, 36, 98, LS2);                     /* .. C, back to the D */
     qd_step_set_trig(p, T_BA, 30, QD_TRIG_TIE);
 }
 
-static void bell(qd_pattern_t *p, int oct, int vel)
+/* the stabs: a few bell notes thrown into the delay */
+static void stabs(qd_pattern_t *p, int vel)
 {
-    static const uint8_t N[6] = {76, 71, 79, 74, 69, 71};
-    static const uint8_t V[6] = {96, 70, 88, 74, 82, 64};
-    int k;
-    qd_track_set_length(p, T_BELL, 12);                 /* three beats against four */
-    p->trk[T_BELL].limit = 3;
-    for (k = 0; k < 6; k++)
-        note(p, T_BELL, k * 2, N[k] + oct, V[k] * vel / 100, LS2);
-}
-
-static void lead(qd_pattern_t *p)
-{
-    qd_track_set_length(p, T_LEAD, 32);
-    p->trk[T_LEAD].limit = 1;
-    note(p, T_LEAD, 0, 76, 104, LS3);
-    note(p, T_LEAD, 4, 74, 92, LS2);
-    note(p, T_LEAD, 6, 72, 96, LS2);
-    note(p, T_LEAD, 8, 71, 104, LS4);
-    note(p, T_LEAD, 12, 67, 90, LS2);
-    note(p, T_LEAD, 14, 69, 96, LS2);
-    note(p, T_LEAD, 16, 71, 104, LS6);
-    note(p, T_LEAD, 22, 67, 88, LS2);
-    note(p, T_LEAD, 24, 69, 102, LS6);
-    note(p, T_LEAD, 30, 72, 92, LS2);
-    qd_step_set_cond(p, T_LEAD, 30, qd_cond_ab(2, 2));  /* the pick-up every other pass */
-}
-
-static void piano(qd_pattern_t *p)
-{
-    static const uint8_t ST[4][3] = {{69, 72, 76}, {71, 74, 76}, {67, 71, 74}, {72, 76, 79}};
-    int c;
     qd_track_set_length(p, T_LEAD, 32);
     p->trk[T_LEAD].limit = 3;
     p->trk[T_LEAD].swing = 1;
-    for (c = 0; c < 4; c++) {
-        chord(p, T_LEAD, c * 8 + 3, ST[c], 3, 66, LS2, 1);
-        if (c & 1) {
-            chord(p, T_LEAD, c * 8 + 6, ST[c], 3, 50, L1, 0);
-            qd_step_set_cond(p, T_LEAD, c * 8 + 6, qd_cond_ab(1, 2));
-        }
-    }
+    note(p, T_LEAD, 3, 69, vel, LS2);
+    note(p, T_LEAD, 6, 74, vel * 84 / 100, LS2);
+    note(p, T_LEAD, 19, 77, vel * 96 / 100, LS2);
+    note(p, T_LEAD, 22, 76, vel * 80 / 100, LS2);
+    note(p, T_LEAD, 27, 72, vel * 78 / 100, LS2);
+    qd_step_set_cond(p, T_LEAD, 27, qd_cond_ab(2, 2));
+    qd_lock_set(p, T_LEAD, 22, QD_LK_DELAY, 127);
 }
 
+/* THE BEAT, all on one track: every kick, snare and hat a sound lock of the kit */
+static void kick(qd_pattern_t *p, int s, int kit, int vel)
+{
+    drum(p, T_DR, s, kit, KICK, vel, L2);
+    qd_lock_set(p, T_DR, s, QD_QP_DRIVE, 64);
+}
+static void snare(qd_pattern_t *p, int s, int kit, int vel)
+{
+    drum(p, T_DR, s, kit, SNARE, vel, L2);
+    qd_lock_set(p, T_DR, s, QD_QP_DRIVE, 56);
+    qd_lock_set(p, T_DR, s, QD_LK_REVERB, 34);
+}
+static void hat(qd_pattern_t *p, int s, int kit, int vel, int roll)
+{
+    drum(p, T_DR, s, kit, HAT, vel, L4);
+    qd_lock_set(p, T_DR, s, QD_LK_PAN, (s & 2) ? 16 : -10);
+    if (roll)
+        qd_step_set_ratchet(p, T_DR, s, roll, QD_RAMP_UP);
+}
 static void beat(qd_pattern_t *p, int kit, int full)
 {
+    static const uint8_t SOFT[] = {1, 5, 11, 13, 17, 19, 21, 27};
+    int i;
     qd_track_set_length(p, T_DR, 32);
     p->trk[T_DR].limit = 4;
     p->trk[T_DR].swing = 1;
-    drum(p, T_DR, 0, kit, KICK, 122, L2);
-    drum(p, T_DR, 4, kit, SNARE, 116, L2);
-    drum(p, T_DR, 7, kit, KICK, 96, L2);
-    drum(p, T_DR, 10, kit, KICK, 112, L2);
-    drum(p, T_DR, 12, kit, SNARE, 118, L2);
-    drum(p, T_DR, 15, kit, RIM, 54, L4);
-    drum(p, T_DR, 16, kit, KICK, 122, L2);
-    drum(p, T_DR, 19, kit, KICK, 88, L2);
-    drum(p, T_DR, 20, kit, SNARE, 116, L2);
-    drum(p, T_DR, 23, kit, RIM, 46, L4);
-    qd_step_set_cond(p, T_DR, 23, qd_cond_ab(2, 2));
-    drum(p, T_DR, 26, kit, KICK, 110, L2);
-    drum(p, T_DR, 28, kit, SNARE, 120, L2);
-    if (full) {
-        drum(p, T_DR, 30, kit, TOM, 84, L2);
-        drum(p, T_DR, 31, kit, SNARE, 70, L4);
+    kick(p, 0, kit, 124);
+    hat(p, 2, kit, 84, 0);
+    kick(p, 3, kit, 98);
+    snare(p, 4, kit, 120);
+    hat(p, 6, kit, 78, 0);
+    hat(p, 7, kit, 58, 0);
+    hat(p, 8, kit, 86, 0);
+    kick(p, 9, kit, 110);
+    kick(p, 10, kit, 104);
+    snare(p, 12, kit, 122);
+    hat(p, 14, kit, 82, 0);
+    drum(p, T_DR, 15, kit, OPEN, 86, LS2);
+    kick(p, 16, kit, 124);
+    hat(p, 18, kit, 84, 0);
+    snare(p, 20, kit, 120);
+    hat(p, 22, kit, 78, 0);
+    kick(p, 23, kit, 100);
+    hat(p, 24, kit, 70, 2);
+    kick(p, 25, kit, 112);
+    hat(p, 26, kit, 82, 0);
+    snare(p, 28, kit, 124);
+    hat(p, 29, kit, 74, 3);
+    hat(p, 30, kit, 86, full ? 4 : 0);
+    snare(p, 31, kit, 66);
+    if (full)
         qd_step_set_ratchet(p, T_DR, 31, 2, QD_RAMP_UP);
-    }
+    for (i = 0; i < (int)sizeof SOFT; i++)
+        hat(p, SOFT[i], kit, 46 + (i & 1) * 6, 0);
 }
 
-static void hats(qd_pattern_t *p, int kit, int full)
+/* the sixth track: the clap under the snare, a rim into the delay, a hiss into the bar, the crash */
+static void perc(qd_pattern_t *p, int kit, int full)
 {
-    static const uint8_t V[8] = {88, 60, 78, 58, 86, 62, 76, 66};
     int s;
     qd_track_set_length(p, T_HAT, 32);
     p->trk[T_HAT].limit = 3;
     p->trk[T_HAT].swing = 1;
-    for (s = 0; s < 32; s += 2)
-        drum(p, T_HAT, s, kit, HAT, V[(s / 2) & 7], L4);
-    drum(p, T_HAT, 3, kit, HAT, 44, L4);                /* the swung ghosts */
-    drum(p, T_HAT, 11, kit, HAT, 48, L4);
-    drum(p, T_HAT, 19, kit, HAT, 44, L4);
-    drum(p, T_HAT, 14, kit, OPEN, 84, LS2);
-    drum(p, T_HAT, 30, kit, OPEN, 88, LS2);
-    drum(p, T_HAT, 12, kit, CLAP, 96, L2);              /* under the snare */
-    drum(p, T_HAT, 28, kit, CLAP, 104, L2);
+    for (s = 4; s < 32; s += 8)
+        drum(p, T_HAT, s, kit, CLAP, s == 28 ? 108 : 96, L2);
+    drum(p, T_HAT, 10, kit, RIM, 84, L4);
+    qd_lock_set(p, T_HAT, 10, QD_LK_DELAY, 120);
+    qd_step_set_cond(p, T_HAT, 10, qd_cond_ab(1, 2));
+    drum(p, T_HAT, 22, kit, RIM, 70, L4);
+    qd_lock_set(p, T_HAT, 22, QD_LK_DELAY, 127);
+    drum(p, T_HAT, 25, KIT_TAPE, CRASH, 88, LS6);       /* (the tape kit's tenth: TAPE HISS, a swell) */
     if (full) {
-        drum(p, T_HAT, 5, kit, SHAKER, 60, L2);
-        drum(p, T_HAT, 13, kit, SHAKER, 64, L2);
-        drum(p, T_HAT, 21, kit, SHAKER, 60, L2);
-        drum(p, T_HAT, 27, kit, HAT, 70, L4);
-        qd_step_set_ratchet(p, T_HAT, 27, 3, QD_RAMP_UP);
-        drum(p, T_HAT, 0, kit, CRASH, 80, LS8);
+        drum(p, T_HAT, 0, kit, CRASH, 84, LS8);
         qd_step_set_cond(p, T_HAT, 0, QD_COND_1ST);
+        drum(p, T_HAT, 13, kit, SHAKER, 64, L2);
+        drum(p, T_HAT, 17, kit, SHAKER, 60, L2);
     }
 }
 
 /* every pattern's tracks: the song's sounds (pool numbers 31..) */
-enum { P_BASS = 31, P_PAD, P_BELL, P_LEAD, P_PIANO, P_HAZE, P_BOX, P_VOX, P_SUB, P_KALIMBA };
-static void sounds(qd_app_t *a, qd_pattern_t *p, int lead_is_piano)
+enum { P_BASS = 31, P_PAD, P_BELL, P_DRONE, P_HAZE, P_SUB, P_BOX, P_WIND, P_TAPEPAD, P_GAMELAN };
+static void sounds(qd_app_t *a, qd_pattern_t *p)
 {
     tsound(a, p, T_DR, "DUST KICK", KIT_DUST + KICK);
-    tsound(a, p, T_BA, "DUST BASS", P_BASS);
-    tsound(a, p, T_PAD, "TAPE PAD", P_PAD);
-    tsound(a, p, T_LEAD, lead_is_piano ? "TAPE PIANO" : "WOW LEAD", lead_is_piano ? P_PIANO : P_LEAD);
-    tsound(a, p, T_BELL, "HAZY BELL", P_BELL);
-    tsound(a, p, T_HAT, "DUST HAT", KIT_DUST + HAT);
-    p->bpm = 84;
-    p->swing = 58;
+    tsound(a, p, T_BA, "808 BASS", P_BASS);
+    tsound(a, p, T_PAD, "AURORA", P_PAD);
+    tsound(a, p, T_LEAD, "HAZY BELL", P_BELL);
+    tsound(a, p, T_BELL, "DEEP SEA", P_DRONE);
+    tsound(a, p, T_HAT, "DUST CLAP", KIT_DUST + CLAP);
+    p->bpm = 88;
+    p->swing = 57;
     p->used = 1;
 }
 
 int fizz_tour_song(qd_app_t *a, int argc, char **argv)
 {
-    static const char *const POOL[] = {"DUST BASS", "TAPE PAD", "HAZY BELL", "WOW LEAD", "TAPE PIANO", "HAZE",
-                                       "MUSIC BOX", "VOX HUM", "SUB", "KALIMBA"};
+    static const char *const POOL[] = {"808 BASS", "AURORA", "HAZY BELL", "DEEP SEA", "HAZE", "SUB", "MUSIC BOX",
+                                       "WIND", "TAPE PAD", "GAMELAN"};
+    /* level, chorus, delay, reverb, pan */
     static const struct { uint8_t level, chorus, delay, reverb; int8_t pan; } MIX[QD_NTRACK] = {
-        {110, 0, 0, 14, 0}, {108, 0, 0, 4, 0}, {96, 55, 20, 75, 0}, {102, 30, 42, 55, 8}, {107, 45, 44, 70, -10},
-        {110, 0, 6, 10, 0}};
-    static const char *const TNAME[QD_NTRACK] = {"DRUMS", "BASS", "PAD", "LEAD", "BELL", "HATS"};
-    static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_PAD, QD_PK_LEAD, QD_PK_KEYS, QD_PK_DRUMS};
+        {112, 0, 4, 12, 0}, {104, 0, 0, 0, 0}, {101, 50, 30, 96, 0}, {105, 30, 104, 90, 8}, {94, 30, 20, 110, 0},
+        {110, 0, 30, 40, 0}};
+    enum { DDIV = 8 };                                  /* the delay's note value: dotted eighths */
+    static const char *const TNAME[QD_NTRACK] = {"DRUMS", "808", "PAD", "STABS", "DRONE", "PERC"};
+    static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_PAD, QD_PK_KEYS, QD_PK_FX, QD_PK_DRUMS};
     qd_pattern_t *p;
     int i, n, t;
+    if (argc > 1 && !strcmp(argv[1], "fx")) {           /* (the effects' values, for the log) */
+        static const char *const FN[] = {"DTIME", "DDIV", "DSPREAD", "DRATIO", "DFDBK", "DSYNC", "DMODE", "DTONE", "DWOW",
+            "RSIZE", "RDAMP", "RDECAY", "RPRE", "RMOD", "RLOW", "RWIDTH", "CWIDTH", "FLOW", "FHIGH", "FSLOPE", "FON",
+            "CRATE", "CDEPTH", "RMODE", "ORDER", "RDRY"};
+        for (i = 0; i <= 12; i++) {
+            char b[16];
+            printf("ddiv %d = %s\n", i, qd_fx_text(QD_FXP_DDIV, i, b));
+        }
+        for (i = 0; i < (int)(sizeof FN / sizeof FN[0]); i++) {
+            int lo, hi, d;
+            char b[16], b1[16], b2[16];
+            qd_fx_range(i, &lo, &hi, &d);
+            printf("fx %-8s %d (%s)  range %d (%s) .. %d (%s)\n", FN[i], qd_fx_get(i), qd_fx_text(i, qd_fx_get(i), b), lo,
+                   qd_fx_text(i, lo, b1), hi, qd_fx_text(i, hi, b2));
+        }
+        return 0;
+    }
     n = pack_store(a);
     if (n < 0) {
         fprintf(stderr, "song: MY PRESETS is full\n");
@@ -288,108 +329,120 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
         strncpy(a->model.t[t].name, TNAME[t], sizeof a->model.t[t].name - 1);
         a->model.t[t].kind = TKIND[t], a->model.t[t].named = 1;
     }
+    /* the effects: a ping-pong delay on dotted eighths that keeps going, and the black hole (the reverb at its
+     * largest, a very long tail, the delay's echoes falling into it) */
+    qd_fx_set(QD_FXP_DSYNC, 1), qd_fx_set(QD_FXP_DDIV, DDIV), qd_fx_set(QD_FXP_DMODE, 1), qd_fx_set(QD_FXP_DFDBK, 84);
+    qd_fx_set(QD_FXP_DTONE, 58), qd_fx_set(QD_FXP_DWOW, 40);
+    qd_fx_set(QD_FXP_RSIZE, 127), qd_fx_set(QD_FXP_RDECAY, 112), qd_fx_set(QD_FXP_RDAMP, 44), qd_fx_set(QD_FXP_RMOD, 84);
+    qd_fx_set(QD_FXP_RPRE, 30), qd_fx_set(QD_FXP_RLOW, 84);
 
-    /* A01 INTRO (one bar): the first two chords and the bell; the tape kit's hats, a hiss and a fill into the beat */
+    /* A01 INTRO (one bar): the drone, the pad opening, a hiss and a fill into the beat */
     p = qd_proj_pat(&a->proj, 0);
-    sounds(a, p, 1);
-    qd_track_set_length(p, T_PAD, 16);
-    p->trk[T_PAD].limit = 4;
-    chord(p, T_PAD, 0, CH[0], 4, 82, LS8, 3);
-    chord(p, T_PAD, 8, CH[1], 4, 82, LS8, 3);
-    bell(p, 0, 96);
+    sounds(a, p);
+    pad(p, 84, 3800, 7600, 1);
+    drone(p, 78);
+    qd_track_set_length(p, T_BELL, 16);
     qd_track_set_length(p, T_HAT, 16);
-    p->trk[T_HAT].swing = 1;
-    for (i = 4; i < 16; i += 2)
-        drum(p, T_HAT, i, KIT_TAPE, HAT, 50 + i * 2, L4);
-    drum(p, T_HAT, 9, KIT_TAPE, CRASH, 96, LS6);        /* (the tape kit's tenth: TAPE HISS, a swell) */
+    drum(p, T_HAT, 7, KIT_TAPE, CRASH, 100, LS8);
     qd_track_set_length(p, T_DR, 16);
-    drum(p, T_DR, 12, KIT_DUST, TOM, 90, L2);
-    drum(p, T_DR, 14, KIT_DUST, SNARE, 84, L2);
-    drum(p, T_DR, 15, KIT_DUST, SNARE, 100, L4);
-    qd_step_set_ratchet(p, T_DR, 15, 2, QD_RAMP_UP);
+    p->trk[T_DR].swing = 1;
+    hat(p, 8, KIT_DUST, 60, 0);
+    hat(p, 10, KIT_DUST, 70, 0);
+    kick(p, 11, KIT_DUST, 96);
+    hat(p, 12, KIT_DUST, 78, 2);
+    snare(p, 13, KIT_DUST, 90);
+    snare(p, 14, KIT_DUST, 104);
+    snare(p, 15, KIT_DUST, 116);
+    qd_step_set_ratchet(p, T_DR, 15, 3, QD_RAMP_UP);
     p->master = 16;
 
-    /* A02 BEAT: the kit, the bass, the chords */
+    /* A02 BEAT: the kit, the 808, the pad half shut */
     p = qd_proj_pat(&a->proj, 1);
-    sounds(a, p, 1);
+    sounds(a, p);
     beat(p, KIT_DUST, 0);
-    hats(p, KIT_DUST, 0);
-    bass(p);
-    pad(p, 84);
+    perc(p, KIT_DUST, 0);
+    bass(p, 0);
+    pad(p, 84, 4600, 6200, 2);
+    drone(p, 70);
 
-    /* A03 KEYS: .. the bell and the piano's stabs */
+    /* A03 STABS: .. the bell thrown into the delay, the pad a little wider */
     p = qd_proj_pat(&a->proj, 2);
-    sounds(a, p, 1);
+    sounds(a, p);
     beat(p, KIT_DUST, 0);
-    hats(p, KIT_DUST, 0);
-    bass(p);
-    pad(p, 84);
-    bell(p, 0, 100);
-    piano(p);
+    perc(p, KIT_DUST, 0);
+    bass(p, 0);
+    pad(p, 86, 5200, 7400, 2);
+    drone(p, 70);
+    stabs(p, 100);
 
-    /* A04 LEAD: .. the melody */
+    /* A04 SWEEP: the build. The pad's filter all the way up, the bass out of the second bar, the rolls */
     p = qd_proj_pat(&a->proj, 3);
-    sounds(a, p, 0);
-    beat(p, KIT_DUST, 0);
-    hats(p, KIT_DUST, 0);
-    bass(p);
-    pad(p, 84);
-    bell(p, 0, 92);
-    lead(p);
-
-    /* A05 FULL: everything, the fill, the shaker, the crash on the first pass, the bell an octave up */
-    p = qd_proj_pat(&a->proj, 4);
-    sounds(a, p, 0);
+    sounds(a, p);
     beat(p, KIT_DUST, 1);
-    hats(p, KIT_DUST, 1);
-    bass(p);
-    pad(p, 90);
-    bell(p, 12, 84);
-    lead(p);
+    perc(p, KIT_DUST, 0);
+    bass(p, 1);
+    pad(p, 90, 4200, 11200, 2);
+    for (i = 0; i < 32; i += 2)
+        qd_lock_set(p, T_PAD, i, QD_QP_RESO, 4400 + i * 90);
+    drone(p, 74);
+    stabs(p, 92);
+    drum(p, T_HAT, 17, KIT_TAPE, CRASH, 110, LS12);     /* the long hiss up to the drop */
 
-    /* A06 BREAK: the tape kit, no bass; HAZE under the melody */
+    /* A05 DROP: everything, the pad open, the crash, the shaker */
+    p = qd_proj_pat(&a->proj, 4);
+    sounds(a, p);
+    beat(p, KIT_DUST, 1);
+    perc(p, KIT_DUST, 1);
+    bass(p, 0);
+    pad(p, 92, 9800, 6800, 2);
+    drone(p, 74);
+    stabs(p, 104);
+
+    /* A06 BREAK: the tape kit at half time, no bass; HAZE and the stabs */
     p = qd_proj_pat(&a->proj, 5);
-    sounds(a, p, 0);
+    sounds(a, p);
     tsound(a, p, T_PAD, "HAZE", P_HAZE);
     tsound(a, p, T_DR, "TAPE KICK", KIT_TAPE + KICK);
-    tsound(a, p, T_HAT, "TAPE HAT", KIT_TAPE + HAT);
-    pad(p, 86);
-    lead(p);
-    bell(p, 0, 80);
+    pad(p, 86, 6000, 8800, 2);
+    drone(p, 80);
+    stabs(p, 96);
     qd_track_set_length(p, T_DR, 32);
     p->trk[T_DR].swing = 1;
-    drum(p, T_DR, 0, KIT_TAPE, KICK, 110, L2);
-    drum(p, T_DR, 10, KIT_TAPE, KICK, 96, L2);
-    drum(p, T_DR, 12, KIT_TAPE, RIM, 90, L2);
-    drum(p, T_DR, 16, KIT_TAPE, KICK, 110, L2);
-    drum(p, T_DR, 28, KIT_TAPE, RIM, 96, L2);
-    drum(p, T_DR, 30, KIT_TAPE, PERC, 70, L2);
-    qd_track_set_length(p, T_HAT, 32);
-    p->trk[T_HAT].swing = 1;
+    kick(p, 0, KIT_TAPE, 112);
+    drum(p, T_DR, 8, KIT_TAPE, RIM, 92, L2);
+    qd_lock_set(p, T_DR, 8, QD_LK_DELAY, 120);
+    kick(p, 10, KIT_TAPE, 96);
+    kick(p, 16, KIT_TAPE, 112);
+    drum(p, T_DR, 24, KIT_TAPE, SNARE, 100, L2);
+    qd_lock_set(p, T_DR, 24, QD_LK_REVERB, 110);
     for (i = 2; i < 32; i += 4)
-        drum(p, T_HAT, i, KIT_TAPE, i % 8 == 6 ? SHAKER : HAT, 62, L4);
+        hat(p, i, KIT_TAPE, 60, i == 30 ? 3 : 0);
 
-    /* A07 OUTRO: the chords, the bell, one kick */
+    /* A07 OUTRO: the drone, the pad closing, one kick into the black hole */
     p = qd_proj_pat(&a->proj, 6);
-    sounds(a, p, 1);
-    tsound(a, p, T_BELL, "MUSIC BOX", P_BOX);
-    pad(p, 76);
-    bell(p, 12, 80);
+    sounds(a, p);
+    pad(p, 80, 7600, 2600, 2);
+    drone(p, 80);
     qd_track_set_length(p, T_DR, 32);
-    drum(p, T_DR, 0, KIT_TAPE, KICK, 108, L2);
+    kick(p, 0, KIT_DUST, 116);
+    qd_lock_set(p, T_DR, 0, QD_LK_REVERB, 120);
+    qd_track_set_length(p, T_LEAD, 32);
+    note(p, T_LEAD, 6, 74, 84, LS2);
+    qd_lock_set(p, T_LEAD, 6, QD_LK_DELAY, 127);
 
-    /* A08 808: the same song on the 808 kit and the SUB */
+    /* A08 808: the same beat on the 808 kit and the SUB, TAPE PAD's chords */
     p = qd_proj_pat(&a->proj, 7);
-    sounds(a, p, 1);
+    sounds(a, p);
     tsound(a, p, T_BA, "SUB", P_SUB);
-    tsound(a, p, T_BELL, "KALIMBA", P_KALIMBA);
+    tsound(a, p, T_PAD, "TAPE PAD", P_TAPEPAD);
+    tsound(a, p, T_LEAD, "GAMELAN", P_GAMELAN);
     tsound(a, p, T_DR, "808 KICK", KIT_808 + KICK);
-    tsound(a, p, T_HAT, "808 HAT", KIT_808 + HAT);
+    tsound(a, p, T_HAT, "808 CLAP", KIT_808 + CLAP);
     beat(p, KIT_808, 1);
-    hats(p, KIT_808, 1);
-    bass(p);
-    pad(p, 84);
-    bell(p, 0, 96);
-    piano(p);
+    perc(p, KIT_808, 1);
+    bass(p, 0);
+    pad(p, 84, 6000, 8200, 2);
+    drone(p, 66);
+    stabs(p, 96);
     return 0;
 }

@@ -29,17 +29,18 @@ BLUE, GREEN, ORANGE, PINK, LIME, VIOLET = (0x3D, 0x7B, 0xFF), (0x2E, 0xD5, 0x8A)
 # (from s, line 1, line 2, line 2's colour): the take's marks (promo/take.txt)
 CAPS = [
     (0.00, "FIZZ", "An FM groovebox for the FM-1", BLUE),
-    (2.86, "Six tracks", "16 voices of four-operator FM", ORANGE),
-    (5.71, "Sound locks", "A whole kit on one track", GREEN),
-    (8.57, "8 algorithms", "A deep sound editor", PINK),
-    (11.43, "Filters. Envelopes.", "Three LFOs a voice", BLUE),
-    (14.29, "Chorus. Delay. Reverb.", "Sends on every track", ORANGE),
-    (20.00, "Mix it", "Levels, mutes, solos", GREEN),
-    (22.86, "101 new presets", "Five drum kits. Pads. Bells.", LIME),
-    (25.71, "USB host", "Bluetooth MIDI", VIOLET),
-    (27.90, "FIZZ", "Free. Open source.", PINK),
+    (2.73, "Six tracks", "16 voices of four-operator FM", ORANGE),
+    (5.45, "Sound locks", "Kick, snare, hat: one track", GREEN),
+    (8.18, "8 algorithms", "A deep sound editor", PINK),
+    (10.91, "Delay throws", "Ping-pong, synced, on any step", ORANGE),
+    (13.64, "Lock any step", "Filter sweeps, written in", BLUE),
+    (16.36, "Black hole reverb", "A 38 second tail", VIOLET),
+    (19.09, "Mix it", "Levels, mutes, solos", GREEN),
+    (21.82, "101 new presets", "Five drum kits. Pads. Bells.", LIME),
+    (24.55, "USB host", "Bluetooth MIDI", VIOLET),
+    (27.50, "FIZZ", "Free. Open source.", PINK),
 ]
-TITLE_END, CARD = 2.86, 27.90
+TITLE_END, CARD = 2.73, 27.50
 
 
 def font(weight, size):

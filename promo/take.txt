@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
 # The promo's two takes (from promo/build: ../../tools/build/tour ../take.txt .): the idle title, then 30 s of the
 # demo song SUNFADE (tools/demo_song.c; promo/build/sunfade.bin is its project, made by promo/song.txt). The film's
-# time is the video's time. A bar is 2.857 s (84 BPM); the chain A01 (one bar) A02 A03 A04 A05 A07:
-# 2.86 the beat, 8.57 the bell and the piano, 14.29 the melody, 20.00 everything, 25.71 the outro.
+# time is the video's time. A bar is 2.727 s (88 BPM); the chain A01 (one bar) A02 A03 A04 A05 A07:
+# 2.73 the beat, 8.18 the stabs, 13.64 the sweep, 19.09 the drop, 24.55 the outro.
 wait 3300
 film idle.rgb
 wait 3000
@@ -28,14 +28,14 @@ key B10 up
 wait 300
 tap HOME
 wait 300
-# the pad's sound editor left on FILTER
+# the pad selected; the effects left on DELAY
 tap SEL
 wait 200
 tapkey B3
 wait 200
-tap EDIT
+tap FX
 wait 300
-knob SELECT 5
+knob SELECT 2
 wait 300
 tap HOME
 wait 300
@@ -48,70 +48,59 @@ film take.rgb
 wav take.wav
 play
 mark intro
-# 0 .. 2.86 A01: OVERVIEW (the title lies over it)
-wait 2840
+# 0 .. 2.73 A01: OVERVIEW (the title lies over it)
+wait 2710
 mark overview
-# 2.86 .. 5.71 A02's first bar: OVERVIEW, the beat in
-wait 2850
-# 5.71 .. 8.57: the drums' sound locks (SEQ: the PIANO ROLL in SOUND)
+# 2.73 .. 5.45 A02's first bar: OVERVIEW, the beat in
+wait 2720
+# 5.45 .. 8.18: the drums' sound locks (SEQ: the PIANO ROLL in SOUND)
 tap SEQ
 mark locks
-wait 2520
-# 8.57 .. 11.43 A03: the pad's sound editor, its algorithm
+wait 2540
+# 8.18 .. 10.91 A03: the pad's sound editor, its algorithm
 hold 140
 tap SEL
 tapkey B3
 tap EDIT
-knob SELECT -5
 mark editor
-wait 2680
-# 11.43 .. 14.29: its FILTER, FREQ turned down and up again
+wait 2690
+# 10.91 .. 13.64: the delay, the stabs thrown into it
+tap FX
+mark delay
+wait 2530
+# 13.64 .. 16.36 A04: the pad's FILTER, swept by its locks
 hold 200
+tap EDIT
 knob SELECT 5
 mark filter
-wait 300
-knob K1 -14
-wait 500
-knob K1 -10
-wait 500
-knob K1 24
-wait 100
-# 14.29 .. 17.14 A04: the sends (the cat), the pad's chorus and reverb turned
-tap FX
-mark sends
-wait 600
-knob K1 12
-wait 500
-knob K4 10
-wait 900
-# 17.14 .. 20.00: the reverb's room
+wait 2630
+# 16.36 .. 19.09: the reverb, the black hole
 hold 200
-knob SELECT 4
+tap FX
+knob SELECT 2
 mark reverb
-wait 800
-knob K1 8
-wait 1860
-# 20.00 .. 22.86 A05: the mixer
+wait 2690
+# 19.09 .. 21.82 A05: the mixer
 tap ENV
 mark mix
-wait 2800
-# 22.86 .. 25.71: the presets
+wait 2680
+# 21.82 .. 24.55: the presets
 tap REC
 mark presets
 wait 500
 knob PRESETS 1
-wait 420
+wait 400
 knob PRESETS 1
-wait 420
+wait 400
 knob PRESETS 1
-wait 420
+wait 400
 knob PRESETS 1
-wait 420
+wait 400
 knob PRESETS 1
-wait 450
-# 25.71 .. 30 A07: OVERVIEW again, the outro
+wait 400
+# 24.55 .. 30 A07: OVERVIEW again, the outro
 tap HOME
 tap SEL
 mark outro
-wait 6000
+wait 6500
 mark end
