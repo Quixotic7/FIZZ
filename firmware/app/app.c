@@ -447,12 +447,59 @@ static void fz_bsx_byte(uint32_t c)      /* (the audio interrupt's) */
         fz_bsx_skip = 1, fz_bsx_lost++;
 }
 #endif
+#if QD_USB_HOST && defined(PLAT_HOST)
+/* (USB HOST) the simulator's port (fm1-base's plat_host.c has no host: OFF always): a script's "fzusbh connect | nomidi |
+ * gone" plays the device; the switch, the messages and a session's end as felucca-bsp's chip/usb_host.c gives them
+ * (a mode change or a device gone: plat_usb_lost) */
+static int fz_hu_want, fz_hu_dev, fz_hu_msg, fz_hu_lost, fz_hu_switches;
+static void fz_hu_switch(int on)
+{
+    if (on == fz_hu_want)
+        return;
+    fz_hu_want = on, fz_hu_dev = 0, fz_hu_lost = 1, fz_hu_switches++;
+    fz_hu_msg = on ? USBH_MSG_ON : USBH_MSG_OFF;
+}
+static int fz_hu_take(void)
+{
+    const int m = fz_hu_msg;
+    fz_hu_msg = USBH_MSG_NONE;
+    return m;
+}
+static int fz_hu_lost_take(void)
+{
+    const int l = fz_hu_lost;
+    fz_hu_lost = 0;
+    return l;
+}
+#define plat_usb_host(on) fz_hu_switch(on)
+#define plat_usb_host_state() (!fz_hu_want ? USBH_OFF : fz_hu_dev == 1 ? USBH_CONNECTED : USBH_LOOKING)
+#define plat_usb_host_msg() fz_hu_take()
+#define plat_usb_lost() fz_hu_lost_take()
+#endif
+static void fz_midi_ch(uint32_t pkt)     /* a channel message (CIN 8..14): heard now, its UI part on the main loop */
+{
+    const uint32_t w = fz_mq_w;
+    fz_midi_play((int)(pkt >> 8 & 0xFFu), (int)(pkt >> 16 & 0x7Fu), (int)(pkt >> 24 & 0x7Fu));
+    if (w - fz_mq_r < FZ_MQ) {
+        fz_mq_pkt[w % FZ_MQ] = pkt;
+        fz_mq_ms[w % FZ_MQ] = plat_ms();
+        FZ_BARRIER();
+        fz_mq_w = w + 1u;
+    } else {
+        fz_mq_drops++;
+    }
+}
 static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's queue) */
 {
     uint32_t pkt;
     int port;
+#if QD_USB_HOST
+    if (plat_usb_lost())                 /* (USB HOST: a USB session ended, the device unplugged or the mode changed:
+                                          * the notes MIDI in holds let go, through its own path) */
+        fz_midi_held_off(fz_midi_ch);
+#endif
     while (plat_midi_in(&pkt, &port)) {
-        const uint32_t cin = pkt & 15u, s = pkt >> 8 & 0xFFu, w = fz_mq_w;
+        const uint32_t cin = pkt & 15u, s = pkt >> 8 & 0xFFu;
         fz_midi_pkts++;
 #if QD_PKG_BLE
         if (port == PORT_BLE && cin >= 4u && cin <= 7u) {   /* (a SysEx's bytes; a CIN 5 not F7: system common) */
@@ -471,15 +518,7 @@ static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's que
             if (s == 0xF8u || s == 0xFAu || s == 0xFBu || s == 0xFCu)
                 fz_midi_play((int)s, 0, 0);
         } else if (cin >= 8u && cin <= 14u) {
-            fz_midi_play((int)s, (int)(pkt >> 16 & 0x7Fu), (int)(pkt >> 24 & 0x7Fu));   /* (heard now) */
-            if (w - fz_mq_r < FZ_MQ) {   /* (its UI part on the main loop) */
-                fz_mq_pkt[w % FZ_MQ] = pkt;
-                fz_mq_ms[w % FZ_MQ] = plat_ms();
-                FZ_BARRIER();
-                fz_mq_w = w + 1u;
-            } else {
-                fz_mq_drops++;
-            }
+            fz_midi_ch(pkt);
         }
     }
 }
@@ -1612,12 +1651,38 @@ static uint32_t fz_led_t;                /* (plat_ms of the last look) */
 #if QD_PKG_BLE
 static void fz_ble_look(void);
 #endif
+#if QD_USB_HOST
+/* USB HOST (the USB package; PLAYING.md "USB host"): SETTINGS' switch to fm1-base (plat_usb_host: the port a host, or
+ * a device again; never saved, so every power-on is a device, which a computer and the installers find), and the port's
+ * state back to the page: 0 waiting, 1 a USB-MIDI device connected, 2 what is on the port is not MIDI or is low-speed
+ * (until it goes, or the switch). The device's MIDI comes in as USB's (PORT_USB: fz_midi_isr, as a computer's), and
+ * MIDI OUT's TO_USB goes to it (fz_midi_out). While the port is a host there is no computer: no USB audio, no SysEx
+ * (the Manager, fizz_xdata.py), no update over USB; OFF or a restart gives the port back */
+static void fz_usbh_look(void)
+{
+    static uint8_t applied, bad;
+    const int on = fz_usb_host_on(), m = plat_usb_host_msg();
+    if (on != applied) {
+        applied = (uint8_t)on;
+        bad = 0;
+        plat_usb_host(on);
+    }
+    if (m == USBH_MSG_NOMIDI || m == USBH_MSG_LOW)
+        bad = 1;
+    else if (m != USBH_MSG_NONE)
+        bad = 0;
+    fz_usb_host_state(plat_usb_host_state() == USBH_CONNECTED ? 1 : bad ? 2 : 0);
+}
+#endif
 static void fz_lights(void)              /* (FIZZ's state read, the interrupts on: a light a moment early or late) */
 {
     uint8_t k[NKEYS], b[NB], g;
     uint32_t i, lit_b = 0, lit_k = 0, mid_b = 0, mid_k = 0, dim_b = 0, dim_k = 0;
 #if QD_PKG_BLE
     fz_ble_look();                       /* (every 10 ms, with the lights) */
+#endif
+#if QD_USB_HOST
+    fz_usbh_look();                      /* (every 10 ms, with the lights: the main loop's, as plat_usb_host wants) */
 #endif
     fz_led_t = plat_ms();
     FZ_PH(FZ_PH_LIGHTS);
@@ -2966,6 +3031,12 @@ int app_expect(const char *what, int *got)
         *got = fz_safe;
     else if (!strcmp(what, "fz_midi_drops"))
         *got = (int)fz_mq_drops;
+#if QD_USB_HOST && defined(PLAT_HOST)
+    else if (!strcmp(what, "fz_usbh"))   /* (USB HOST: the port a host, as fz_usbh_look applied the switch) */
+        *got = fz_hu_want;
+    else if (!strcmp(what, "fz_usbh_switches"))
+        *got = fz_hu_switches;
+#endif
     else
         return fz_expect(what, got);
     return 1;
@@ -2985,6 +3056,17 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         fz_host_sync_done = (uint64_t)plat_ms() * 44100u / 1000u / 128u * 128u;
         return 1;
     }
+#if QD_USB_HOST && defined(PLAT_HOST)
+    if (!strcmp(cmd, "fzusbh")) {        /* fzusbh connect | nomidi | gone: USB HOST's device (while the switch is on) */
+        if (fz_hu_want && !strcmp(a, "connect"))
+            fz_hu_dev = 1, fz_hu_msg = USBH_MSG_MIDI;
+        else if (fz_hu_want && !strcmp(a, "nomidi"))
+            fz_hu_dev = 2, fz_hu_msg = USBH_MSG_NOMIDI;
+        else if (fz_hu_want && !strcmp(a, "gone"))
+            fz_hu_lost = fz_hu_dev == 1, fz_hu_dev = 0, fz_hu_msg = USBH_MSG_LOST;
+        return 1;
+    }
+#endif
     if (!strcmp(cmd, "fzdrawbench")) {   /* (the drawing bench, as DRWB) */
 #ifdef QD_GFX_FB
         fz_draw_bench();
