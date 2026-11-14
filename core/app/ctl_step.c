@@ -141,7 +141,9 @@ static void held_add(qd_app_t *a, int s, int key)
         u->held_played = 0;
         u->note_keys = 0;
         u->entry_n = 0;
-        u->sound_bank = r.sound > 0 ? (r.sound - 1) / 10 : 0;   /* SOUND: the bank holding the step's sound */
+        if (r.sound > 0)                                /* SOUND: the bank holding the step's sound (2026-11-13, owner:
+                                                         * no lock: the bank kept, never back to the first) */
+            u->sound_bank = (r.sound - 1) / 10;
         u->sel_panel = u->latch == QD_LATCH_MIX || u->latch == QD_LATCH_FX;   /* (P1.6h: made there or not) */
     }
     u->held[u->nheld] = s;
@@ -1325,9 +1327,9 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
 void qd_step_oct(qd_app_t *a, int d)                    /* (2026-10-26: nothing held too: the track's black keys) */
 {
     qd_ui_t *u = &a->ui;
-    if (u->hmode == UI_F_NOTE) {
+    if (u->hmode == UI_F_NOTE) {                        /* (2026-11-13, owner: one octave, the keyboard's too) */
         const int from = u->entry_oct;
-        u->entry_oct = clampi(u->entry_oct + d, -1, 8);
+        qd_ctl_set_oct(a, a->oct + d);
         qd_ctl_octave(a, UI_OCT_NOTE, from, u->entry_oct);
     } else if (u->hmode == UI_F_SOUND) {
         const int last = (a->proj.nsound - 1) / 10, from = u->sound_bank;

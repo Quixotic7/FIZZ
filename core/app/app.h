@@ -70,8 +70,8 @@ extern "C" {
 #define QD_METRO_LVL 60                /* P1.5c: the click's level, % (SHIFT + B7 held + a knob) */
 #define QD_BPM_DEFAULT 122             /* line.html's BPM */
 #define QD_BEAT_LED_MS 80              /* PLAY's green LED: lit this long from each beat */
-#define QD_OCT_MIN (-2)
-#define QD_OCT_MAX 2
+#define QD_OCT_MIN (-4)                /* 2026-11-13: one octave for the keyboard and NOTE's entry (0 .. 8) */
+#define QD_OCT_MAX 4
 #define QD_PICKER_MS 1000              /* the picker stays this long after the last detent .. */
 #define QD_PICKER_FADE_MS 120          /* .. then fades back over this long (PLAN.md §9a rule 5) */
 #ifndef QD_VOICES

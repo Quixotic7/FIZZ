@@ -22,8 +22,9 @@
 
 #include "ui.h"
 
-static const char *const OCT[5] = {"OCT -2", "OCT -1", "OCT 0", "OCT +1", "OCT +2"};
-static const char *oct_name(int o) { return OCT[o < -2 ? 0 : o > 2 ? 4 : o + 2]; }
+static const char *const OCT[9] = {"OCT -4", "OCT -3", "OCT -2", "OCT -1", "OCT 0", "OCT +1", "OCT +2", "OCT +3",
+                                    "OCT +4"};
+static const char *oct_name(int o) { return OCT[o < -4 ? 0 : o > 4 ? 8 : o + 4]; }
 
 #define cat ui_cat                               /* (the kit's) */
 

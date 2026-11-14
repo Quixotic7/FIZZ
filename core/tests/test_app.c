@@ -155,9 +155,9 @@ static void t_keys(void)
     qd_app_key(&A, 0, 0, 0);
     run(5, 0);
     CHECK(!sounding(0, 65), "the key's own note released after the octave changed");
-    tap_button(QD_B_OCTDN), tap_button(QD_B_OCTDN), tap_button(QD_B_OCTDN);
-    CHECK(A.oct == QD_OCT_MIN, "OCT- clamps at -2 (%d)", A.oct);
-    tap_button(QD_B_OCTUP), tap_button(QD_B_OCTUP);
+    tap_button(QD_B_OCTDN), tap_button(QD_B_OCTDN), tap_button(QD_B_OCTDN), tap_button(QD_B_OCTDN), tap_button(QD_B_OCTDN);
+    CHECK(A.oct == QD_OCT_MIN, "OCT- clamps at -4 (%d)", A.oct);
+    tap_button(QD_B_OCTUP), tap_button(QD_B_OCTUP), tap_button(QD_B_OCTUP), tap_button(QD_B_OCTUP);
     /* TRACKS + white key 3 selects track 3 and plays nothing */
     qd_app_button(&A, QD_B_TRACKS, 1);
     qd_app_key(&A, 4, 1, 100);                          /* A3: the third white key */

@@ -90,6 +90,7 @@ static void run(uint32_t n)
     }
 }
 static int keys_compat = 1, rec_from = -1;   /* (the REC shim's, below) */
+static int tok;                                         /* (a test's spare flag) */
 static void fresh(void)
 {
     qd_app_init(&A);
@@ -1473,6 +1474,9 @@ static void g_octave(void)
     wrel(0);
     CHECK(!half_period(F1), "nothing held: OCT- / OCT+ are F1 / F2, no octave shown");
     btap(QD_B_REC);                                     /* the keyboard */
+    CHECK(A.oct == -2 && near(half_period(F1), QD_OCT_BLINK2_MS),
+          "the keyboard: NOTE's octave (2026-11-13: one octave, -2: OCT- faster)");
+    btap(F2), btap(F2);
     CHECK(!half_period(F1) && !half_period(F2), "the keyboard at 0: no blink");
     btap(F2);
     CHECK(A.ui.tk == UI_TK_OCTAVE && A.ui.oct_kind == UI_OCT_KEYS && near(half_period(F2), QD_OCT_BLINK1_MS),
@@ -2871,7 +2875,9 @@ static void g_step_latch(void)
     run(10);
     CHECK(A.sel == 1 && A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 0, "track 2: step 1 selected");
     btap(QD_B_HOME);
-    CHECK(!A.ui.slatch && !A.ui.nheld, "HOME: off");
+    CHECK(A.ui.slatch && A.ui.nheld == 1, "HOME: kept (2026-11-13, owner: only the user ends it)");
+    btap(LFO);
+    CHECK(!A.ui.slatch && !A.ui.nheld, "LFO: off");
 }
 
 /* ---- P1.3e (§8b 2.2: editing a track's default, six notes, the quiet KNOB 4, HOME's views) */
@@ -3090,9 +3096,9 @@ static void g_home(void)
     btap(LFO);
     wtap(4);
     CHECK(A.ui.slatch && qd_view_screen(&A) == QD_SCR_HELD, "the step latch, step 5 selected: its screen");
-    btap(QD_B_HOME);
+    btap(LFO);                                          /* (2026-11-13: HOME no longer ends the selection: LFO) */
     CHECK(!A.ui.slatch && !A.ui.nheld && A.ui.view == QD_VIEW_STEPS && qd_view_screen(&A) == QD_SCR_LANE,
-          "HOME: the latch ended and STEPS in the same press");
+          "LFO: the latch ended, STEPS");
     btap(QD_B_REC);
     btap(QD_B_HOME);
     CHECK(A.ui.mode == QD_MODE_STEP && A.ui.view == QD_VIEW_STEPS, "from the keyboard: HOME back to STEPS (the last)");
@@ -3235,8 +3241,8 @@ static void g_cursor(void)
     wtap(7);
     CHECK(A.ui.nheld == 1 && A.ui.held[0] == 7 && qd_view_screen(&A) == QD_SCR_HELD,
           "a W in the latch selects as before (its held screen)");
-    btap(QD_B_HOME);
-    CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_STEPS, "HOME ends the latch");
+    btap(LFO);
+    CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_STEPS, "LFO ends the latch (2026-11-13: HOME keeps it)");
     shome();
     shome_wrap();
     CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME on (P2.11: past the Geek Out pages): the PIANO ROLL");
@@ -3297,8 +3303,8 @@ static void g_edit(void)
     qd_view_edit(&A, &h, &l);
     CHECK(A.ui.slatch && qd_view_screen(&A) == QD_SCR_EDIT && !h.is_default && h.step == A.ui.held[0] + 1,
           "ALGORITHM: the cursor's step in EDIT (step %d)", h.step);
-    btap(QD_B_HOME);
-    CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_EDIT, "HOME: the latch ended, EDIT still");
+    btap(LFO);
+    CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_EDIT, "LFO: the latch ended, EDIT still (2026-11-13: HOME keeps it)");
     shome_wrap();
     turn(QD_K_1, 2);
     CHECK(A.ui.view == QD_VIEW_ROLL && qd_view_overlay(&A), "the PIANO ROLL: the takeover as before");
@@ -4080,7 +4086,7 @@ static void beat_by_panel(void)
     black(B4);
     btap(QD_B_MUTE);
     /* P1.3y: the cursor: ALGORITHM (no finger on a step) turns the latch on (2026-11-10: from the page's step 1),
-     * twelve on: step 12; LFO held + B8: FUNC (the latch kept); B8: LEAP +2 (an empty step: a trig); HOME ends the
+     * twelve on: step 12; LFO held + B8: FUNC (the latch kept); B8: LEAP +2 (an empty step: a trig); LFO ends the
      * latch */
     turn(QD_K_ALGO, 12);
     bdown(LFO);
@@ -4090,6 +4096,7 @@ static void beat_by_panel(void)
     run(10);
     black(B8);
     btap(QD_B_HOME);
+    btap(LFO);                                          /* (2026-11-13: HOME keeps the lock; LFO ends it) */
     /* P1.3e: the NOTE key held, a three-note default chord by KNOB 1 / 2, then B11 resets it (one note again); step 9's
      * sixth note on ALGORITHM (D5); the track's velocity on the quiet KNOB 4 (95) */
     kdown(BK(B1));
@@ -5446,7 +5453,9 @@ static void g_p16d_sends(void)
               fv.locked[3],
           "DELAY's SEND -4: the step's lock (%d)", LK(0, 4, QD_LK_DELAY));
     btap(QD_B_HOME);
-    CHECK(!A.ui.slatch, "HOME: the latch off");
+    tok = A.ui.slatch;
+    btap(LFO);
+    CHECK(tok && !A.ui.slatch, "HOME: the latch kept (2026-11-13); LFO: off");
     btap(QD_B_TRACKS);
     wtap(3);
     CHECK(A.sel == 0 && !A.ui.nheld, "nothing held: SENDS' W4 is a step (2026-10-26: it picks no track)");
@@ -6349,6 +6358,7 @@ static void g_p16h_mixlock(void)
     btap(LFO);
     CHECK(A.ui.slatch && !A.ui.nheld && A.ui.latch == QD_LATCH_MIX, "LFO again: on, the mix open, nothing selected yet");
     btap(QD_B_HOME);
+    btap(LFO);                                          /* (2026-11-13: HOME keeps the lock; LFO ends it) */
     btap(QD_B_PAGE);
     kdown(WK(5)), run(20);
     qd_view_mix(&A, &mv);
@@ -6504,6 +6514,7 @@ static void g_p16g_misc(void)
     {   /* the latch off again, an LFO on FREQ: the editor shows FREQ as heard, moving (and only following) */
         int seen[8], ns = 0, j, moved = 0;
         btap(QD_B_HOME);
+        btap(LFO);                                      /* (2026-11-13: HOME keeps the lock; LFO ends it) */
         btap(QD_B_SOUND);
         qd_player_live_edit(&A.player, 0, QD_QP_LFO(0, QD_QL_DEST), (int16_t)qd_quad_dest_of(QD_QP_FREQ, 0));
         qd_player_live_edit(&A.player, 0, QD_QP_LFO(0, QD_QL_DEPTH), 3200);
@@ -9509,7 +9520,8 @@ static void g_keys_b11(void)
     /* leaving the keyboard ends its selection */
     CHECK(A.ui.slatch && A.ui.nheld == 1, "a selection");
     btap(QD_B_HOME);
-    CHECK(A.ui.mode == QD_MODE_STEP && !A.ui.slatch && !A.ui.nheld, "HOME: the step view, LIVE");
+    CHECK(A.ui.mode == QD_MODE_STEP && A.ui.slatch && A.ui.nheld == 1,
+          "HOME: the step view, the selection kept (2026-11-13, owner)");
 }
 
 /* 2026-11-10 (owner): one B11 design language on every page where step locks are: the sound editor, the mix, the
@@ -9627,6 +9639,7 @@ static void g_b11_pages(void)
     CHECK(ok && qd_tools_sel_mask(&A) == 0x12, "TOOLS: the same, the selection (%#x; 2026-11-13: the scope the user's)",
           qd_tools_sel_mask(&A));
     btap(QD_B_HOME);
+    btap(LFO);                                          /* (2026-11-13: HOME keeps the selection; LFO ends it) */
     /* HOME: a click's keys drawn along the foot (the orange keys), every view */
     black(B11);
     CHECK(qd_snd_keys(&A) && qd_view_screen(&A) == QD_SCR_LANE && !A.ui.slatch, "HOME: a click, the keys");
@@ -10404,6 +10417,64 @@ static void g_mfx_b11_global(void)
 }
 
 
+/* 2026-11-13 (owner): the selection (ALGORITHM's, or the lock's W keys) stays across every mode; only the user ends it */
+static void g_sel_kept(void)
+{
+    static const int BT[6] = {QD_B_TRACKS, QD_B_REC, QD_B_SOUND, QD_B_PAGE, QD_B_KEYS, QD_B_MIX};
+    int i, ok = 1, bad = -1;
+    start();
+    keys_compat = 0;
+    turn(QD_K_ALGO, 3);
+    for (i = 0; i < 6; i++) {
+        btap(BT[i]);
+        run(QD_ARP_HOLD_MS);
+        if (!(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2) && bad < 0)
+            bad = i;
+        btap(QD_B_HOME);
+        if (!(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2) && bad < 0)
+            bad = 10 + i;
+    }
+    ok = bad < 0;
+    turn(QD_K_ALGO, -16);
+    btap(LFO);                                          /* (the lock: the last selection back, step 3) */
+    kdown(WK(0)), kdown(WK(4)), run(30), kup(WK(0)), kup(WK(4)), run(30);   /* (together: both selected) */
+    {
+        const int n0 = A.ui.nheld;
+        uint16_t m0 = 0, m1 = 0;
+        for (i = 0; i < n0; i++)
+            m0 |= (uint16_t)(1u << A.ui.held[i]);
+        for (i = 0; i < 6; i++) {
+            btap(BT[i]);
+            run(QD_ARP_HOLD_MS);
+            btap(QD_B_HOME);
+        }
+        for (i = 0; i < A.ui.nheld; i++)
+            m1 |= (uint16_t)(1u << A.ui.held[i]);
+        ok &= n0 >= 2 && (m0 & 0x11u) == 0x11u && m1 == m0 && A.ui.nheld == n0;
+    }
+    CHECK(ok && A.ui.slatch,
+          "ALGORITHM's step 3, then the lock's W1 + W5: kept through FX, REC, SOUND, MIX, MIDI FX, TOOLS and HOME (%d)", bad);
+    btap(LFO);
+    CHECK(!A.ui.slatch && !A.ui.nheld, "LFO: the user ends it");
+}
+
+/* 2026-11-13 (owner): SOUND's bank remembered: another hold mode and back, a step without a sound lock selected */
+static void g_bank_kept(void)
+{
+    int b0;
+    start();
+    A.ui.lmode = QD_LMODE_MODES;
+    mode(M_SOUND);
+    turn(QD_K_ALGO, 2);
+    btap(F2), btap(F2);
+    b0 = A.ui.sound_bank;
+    mode(M_VEL);
+    mode(M_SOUND);
+    turn(QD_K_ALGO, 3);
+    CHECK(b0 > 0 && A.ui.sound_bank == b0, "SOUND, bank %d; VEL and back, another step (no lock): bank %d", b0 + 1,
+          A.ui.sound_bank + 1);
+}
+
 /* 2026-11-13 (owner): VEL on the step keyboard, ALGORITHM scrolling: the step's own W flashes once (every mode), then
  * the W keys the selected step's velocity */
 static void g_vel_scroll(void)
@@ -10747,6 +10818,8 @@ int main(void)
         {"2026-11-13: B11 one state: the Home views and the keyboard page", g_b11_global},
         {"2026-11-13: the MIDI FX screen's knobs", g_mfx_knobs},
         {"2026-11-13: VEL on the step keyboard, ALGORITHM scrolling", g_vel_scroll},
+        {"2026-11-13: the selection kept across every mode", g_sel_kept},
+        {"2026-11-13: SOUND's bank kept", g_bank_kept},
         {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},

@@ -285,6 +285,14 @@ void qd_ctl_octave(qd_app_t *a, int kind, int from, int to)
     qd_ctl_takeover(a, UI_TK_OCTAVE, 0, to >= from ? 1 : -1, 0, -1);
 }
 
+/* 2026-11-13 (owner): one octave, global: the keyboard's shift and NOTE's entry octave move together (the entry
+ * octave QD_ENTRY_OCT + the shift) */
+void qd_ctl_set_oct(qd_app_t *a, int oct)
+{
+    a->oct = clampi(oct, QD_OCT_MIN, QD_OCT_MAX);
+    a->ui.entry_oct = QD_ENTRY_OCT + a->oct;
+}
+
 int qd_ctl_oct_offset(const qd_app_t *a, int *shown)
 {
     const qd_ui_t *u = &a->ui;
@@ -344,9 +352,10 @@ static void set_mode(qd_app_t *a, int mode)
     if (mode != QD_MODE_STEP || u->mode == QD_MODE_KEYS) {   /* (2026-11-10: leaving the keyboard: its selection
                                                          * ends) */
         if (mode != QD_MODE_STEP)
-            qd_latch_close(a);                          /* (P1.3d: F3's latch and the step latch end with it) */
-        u->slatch = 0;
-        qd_step_release_all(a);
+            qd_latch_close(a);                          /* (P1.3d: F3's latch ends with it) */
+        if (!u->slatch)                                 /* (2026-11-13, owner: the step lock's selection stays across
+                                                         * every mode; only steps held by a finger are let go) */
+            qd_step_release_all(a);
     }
     if (mode == QD_MODE_KEYS)                           /* (2026-11-13, owner: B11's state is one, global: the Home
                                                          * views' step keyboard (ekeys) the full keyboard here, their
@@ -1314,9 +1323,8 @@ static void b_tracks(qd_app_t *a, int down)
             return;
         if (a->ui.mode != QD_MODE_STEP)
             set_mode(a, QD_MODE_STEP);
-        qd_fx_button(a);
-        if (keys && qd_fx_open(a))
-            a->ui.slatch = 0;
+        (void)keys;
+        qd_fx_button(a);                                /* (2026-11-13, owner: the selection kept) */
     }
 }
 
@@ -1381,8 +1389,8 @@ void qd_ctl_set_view(qd_app_t *a, int v) { set_view(a, v); }
 static int home_away(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
-    return u->mode != QD_MODE_STEP || u->latch || u->slatch || u->nheld || u->wk_down || (u->seq_used & 2) ||
-           u->ov_back >= 0;
+    return u->mode != QD_MODE_STEP || u->latch || (u->nheld && !u->slatch) || u->wk_down || (u->seq_used & 2) ||
+           u->ov_back >= 0;                             /* (2026-11-13: the step lock's selection is no reason) */
 }
 static void home_back(qd_app_t *a)
 {
@@ -1392,15 +1400,16 @@ static void home_back(qd_app_t *a)
     u->ov_back = -1;
     if (u->latch == QD_LATCH_BROWSE) {                  /* P1.5t: the browser: a cancel (BACK shows), to the view */
         qd_br_home(a);
-        u->slatch = 0;
-        qd_step_release_all(a);
+        if (!u->slatch)                                 /* (2026-11-13, owner: the selection kept) */
+            qd_step_release_all(a);
         set_mode(a, QD_MODE_STEP);
         return;
     }
     qd_latch_close(a);
     u->seq_used = 0;                                    /* the latched patterns closed */
-    u->slatch = 0;
-    qd_step_release_all(a);
+    if (!u->slatch)                                     /* (2026-11-13, owner: the step lock's selection kept: only
+                                                         * ALGORITHM fully left, LFO or B11 + F1 end it) */
+        qd_step_release_all(a);
     u->tk = QD_TK_NONE;
     u->cf_on = 0;
     set_mode(a, QD_MODE_STEP);
@@ -1440,8 +1449,8 @@ static void home_hold(qd_app_t *a)
         set_mode(a, QD_MODE_STEP);
     if (u->latch)
         qd_latch_close(a);
-    u->slatch = 0;
-    qd_step_release_all(a);
+    if (!u->slatch)
+        qd_step_release_all(a);
     qd_latch_open(a, QD_LATCH_SET);                     /* (2026-11-11, owner: it opens on the page it was left on) */
 }
 
@@ -1613,8 +1622,8 @@ static void b_rec(qd_app_t *a, int down)
             }
             if (u->mode != QD_MODE_STEP)
                 set_mode(a, QD_MODE_STEP);
-            u->slatch = 0;
-            qd_step_release_all(a);
+            if (!u->slatch)
+                qd_step_release_all(a);
             qd_latch_open(a, QD_LATCH_REC);
             u->rec_page = 0;
         }
@@ -1721,7 +1730,7 @@ static void b_oct(qd_app_t *a, int d, int down)
                         qd_step_oct(a, d);
                     } else {
                         const int from = a->oct;
-                        a->oct = clampi(a->oct + d, QD_OCT_MIN, QD_OCT_MAX);
+                        qd_ctl_set_oct(a, a->oct + d);
                         qd_ctl_octave(a, UI_OCT_KEYS, from, a->oct);
                     }
                 }
@@ -1772,7 +1781,7 @@ static void b_oct(qd_app_t *a, int d, int down)
                 qd_rec_cursor(a, -1);
         } else {
             const int from = a->oct;
-            a->oct = clampi(a->oct + d, QD_OCT_MIN, QD_OCT_MAX);
+            qd_ctl_set_oct(a, a->oct + d);
             qd_ctl_octave(a, UI_OCT_KEYS, from, a->oct);
         }
         return;
@@ -1785,7 +1794,7 @@ static void b_oct(qd_app_t *a, int d, int down)
             qd_app_midi_out_panic(a);                   /* (FIZZ MIDI (c): MIDI OUT's notes too) */
         } else {
             const int from = a->oct;
-            a->oct = clampi(a->oct + d, QD_OCT_MIN, QD_OCT_MAX);
+            qd_ctl_set_oct(a, a->oct + d);
             qd_ctl_octave(a, UI_OCT_KEYS, from, a->oct);
         }
         return;
@@ -1872,9 +1881,8 @@ static void b_snd(qd_app_t *a, int down)
     keys = a->ui.mode == QD_MODE_KEYS && !a->ui.rec;    /* P1.5b: from the keyboard, its keyboard stays on */
     if (a->ui.mode != QD_MODE_STEP)
         set_mode(a, QD_MODE_STEP);
-    qd_snd_button(a);
-    if (keys && qd_snd_open(a))
-        a->ui.slatch = 0;
+    (void)keys;
+    qd_snd_button(a);                                   /* (2026-11-13, owner: the selection kept) */
 }
 
 /* the buttons by role (PLAN §8b; what is not built yet: the sound editor, the mix, saving) */

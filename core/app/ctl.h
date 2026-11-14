@@ -1044,7 +1044,8 @@ int qd_ctl_mkey(const struct qd_app *a);
 int qd_ctl_mkey_shown(const struct qd_app *a);   /* P1.3d: QD_KJ_* of a knob (QD_K_SELECT, QD_K_1..4) in a hold mode */
 /* 2026-11-10 (owner): the mode keys B1..B7 NOTE..COND, B8 FUNC, B9 TRIG / SLIDE, B10 SOUND; B11 the hold key */
 int qd_ctl_key_mode(const struct qd_app *a, int b);   /* the mode black key b shows (B9: the one in use or last), -1 */
-int qd_ctl_mode_key(int m);                           /* .. the key of mode m */
+int qd_ctl_mode_key(int m);
+void qd_ctl_set_oct(struct qd_app *a, int oct);       /* 2026-11-13: the one octave (the keyboard's, NOTE's entry) */                           /* .. the key of mode m */
 int qd_ctl_b11(const struct qd_app *a);               /* B11 held as the hold key (the step view, no menu) */
 int qd_ctl_b11_free(const struct qd_app *a);          /* .. B11 pressed now would be the hold key (no other job) */
 void qd_ctl_select_track(struct qd_app *a, int t);

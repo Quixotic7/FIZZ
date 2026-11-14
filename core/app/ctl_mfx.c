@@ -355,8 +355,8 @@ void qd_mfx_rec(qd_app_t *a)
     if (u->mode == QD_MODE_KEYS) {
         u->mode = QD_MODE_STEP;
     } else {
-        u->slatch = 0;                                  /* (into the keyboard: the latch ends, as anywhere) */
-        qd_step_release_all(a);
+        if (!u->slatch)                                 /* (2026-11-13, owner: the selection kept) */
+            qd_step_release_all(a);
         u->mode = QD_MODE_KEYS;
     }
     u->ekeys = u->mode == QD_MODE_KEYS;                 /* (B11's one global state) */
