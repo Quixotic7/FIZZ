@@ -449,6 +449,9 @@ Steps:
 - **A copy is the whole step**: its notes and values, its locks (sound, LEVEL, PAN and the sends), its sound and its
   MIDI FX.
 
+Patterns: on SEQ's **PATTERNS** page F1 + W and F2 + W copy, cut and paste whole patterns the same way (How do I
+change patterns?).
+
 Pages and tracks (hold **F1**):
 
 - **F1 + B9**: clear the page. **F2 + B9 twice** (the first press arms it, B9 blinking; the second within 2 s clears):
@@ -610,6 +613,17 @@ Undo and redo of everything (P1.5c):
 - **SEQ + ALGORITHM**: when a tapped pattern comes in: **END** (the end of the playing pattern, the default), **BAR**
   (the next bar), **BEAT** (the next beat) or **NOW**.
 - Stopped, a pattern is chosen at once.
+- **Copy, cut and paste patterns on PATTERNS** (2026-11-13), as the steps (below): **F1 + W** copies the first pattern
+  you press and pastes it on every other W you press while F1 is held; **F2 + W** is the pick-up and drop (the first
+  W is cut into your hand and its slot empties; an empty slot gets your hand pasted; a full one alternates paste over,
+  cut). **B1..B4** still change the bank while F1 or F2 is held, so a pattern can go to another bank. The copy is the
+  whole pattern: its steps, locks, track settings, the six tracks' sounds, tempo and swing. The map rings the copied
+  pattern (green) or F2's last one (orange cut, green paste); with F2 held a card shows what's in your hand and an
+  icon what the next W does. Nothing switches patterns meanwhile. F1 / F2 tapped on PATTERNS do nothing (no octave);
+  **SHIFT + F1 / F2** stay undo / redo. **Undo**: a paste on, or a cut of, the pattern you are on is an undo level;
+  on any other pattern it is not (and that pattern's older undo levels are dropped). The hand is the same pattern
+  copy as SHIFT + B4 / B5's. It works while playing; on the unit a pattern that is not in memory is read in first
+  (a moment; another W meanwhile does nothing), and a pattern too big for the copy says PATTERN too big.
 
 ## How do I change speed, tempo and swing?
 

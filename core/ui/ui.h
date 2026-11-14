@@ -643,6 +643,10 @@ typedef struct {
     int blink;
     int launch;                         /* the launch mode (seq.h QD_LAUNCH_*: END BAR BEAT NOW), ALGORITHM's */
     const char *launch_name;
+    /* 2026-11-13, PATTERNS + F1 / F2 (as the steps' pictures): the layer held (1 F1, 2 F2; 0 none); F1's copy (ringed
+     * green; -1); F2's last W (ringed: CUT orange, PASTE green; -1) and the hand: a card with its pattern's name (-1:
+     * another's copy; empty: dashed), the next W's icon */
+    int layer, src, last, last_act, hand, loaded, next_paste;
 } ui_patterns_t;
 void ui_patterns_draw(const ui_patterns_t *v);
 

@@ -547,6 +547,27 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
             qd_track_from_tsound(&a->model.t[t], &qd_proj_pat(&a->proj, l->pat)->snd[t]);
 }
 
+/* 2026-11-13: pattern k changed outside the levels (the PATTERNS page's paste or cut on a pattern not the active one):
+ * the levels of it, and every older one, forgotten (their differences no longer apply to it); the redo levels too */
+void qd_undo_forget_pat(qd_app_t *a, int k)
+{
+    qd_hist_t *u = &a->undo;
+    int i, last = -1;
+    for (i = 0; i < u->n; i++)
+        if (u->lvl[i].pat == k)
+            last = i;
+    if (last >= u->pos) {
+        u->used = u->pos ? u->lvl[u->pos - 1].off + u->lvl[u->pos - 1].len : 0u;
+        u->n = u->pos;
+        last = -1;
+        for (i = 0; i < u->n; i++)
+            if (u->lvl[i].pat == k)
+                last = i;
+    }
+    while (last-- >= 0)
+        undo_drop_oldest(u);
+}
+
 int qd_undo_step(qd_app_t *a, int dir)
 {
     qd_hist_t *u = &a->undo;
@@ -647,10 +668,10 @@ int qd_undo_room(qd_app_t *a)
 int qd_undo_count(const qd_app_t *a, int dir) { return dir < 0 ? a->undo.pos : a->undo.n - a->undo.pos; }
 
 /* ---------------------------------------------------------------- the snapshot, the pattern clipboard */
-int qd_hist_store(qd_app_t *a, int which)
+int qd_hist_store_k(qd_app_t *a, int which, int k)
 {
     qd_hist_t *h = &a->undo;
-    const qd_pattern_t *P = qd_proj_cpat(&a->proj, a->seq.cur);
+    const qd_pattern_t *P = qd_proj_cpat(&a->proj, k);
 #ifdef QD_UNDO_SLOTS
     {   /* P2.1: compressed. P2.1c: at the log's top (the clipboard's bytes last, the snapshot's under them, the open
          * gesture's region under those, moved with them); the oldest levels make room; none: not taken */
@@ -700,17 +721,17 @@ int qd_hist_store(qd_app_t *a, int which)
     if (!which)
         h->snap_ok = 1;
     else
-        h->pclip_ok = 1;
+        h->pclip_ok = 1, a->ui.pc_hand = (int8_t)k;   /* (2026-11-13: PATTERNS' hand shows where it came from) */
     return 1;
 }
 
-int qd_hist_recall(qd_app_t *a, int which)
+int qd_hist_recall_k(qd_app_t *a, int which, int k)
 {
     qd_hist_t *h = &a->undo;
     qd_pattern_t *P;
     if (!(which ? h->pclip_ok : h->snap_ok))
         return 0;
-    P = qd_proj_pat(&a->proj, a->seq.cur);
+    P = qd_proj_pat(&a->proj, k);
 #ifdef QD_UNDO_SLOTS
     if (!which)
         zr_unpack(h->pool + QD_UNDO_POOL - h->keep, h->snap_len, (uint8_t *)P, sizeof *P);
@@ -719,6 +740,12 @@ int qd_hist_recall(qd_app_t *a, int which)
 #else
     *P = which ? h->pclip : h->snap;
 #endif
-    P->used = 1;
+    return 1;
+}
+int qd_hist_recall(qd_app_t *a, int which)
+{
+    if (!qd_hist_recall_k(a, which, a->seq.cur))
+        return 0;
+    qd_proj_pat(&a->proj, a->seq.cur)->used = 1;
     return 1;
 }

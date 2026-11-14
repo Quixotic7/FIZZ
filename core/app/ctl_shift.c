@@ -26,6 +26,93 @@ static void pat_reload(qd_app_t *a)                   /* the tracks' sounds from
     a->snd_pat = a->seq.cur;
 }
 
+/* 2026-11-13 (owner): the PATTERNS page's F1 / F2, as the steps' (ctl.c k_f1_white, k_f2_white): F1 + W the first
+ * pattern copied into the hand, the next ones pasted; F2 + W Form's pick-up / drop: not loaded, a cut (the slot
+ * emptied); loaded: an empty slot pasted, a full one pasted over while holding, else cut. The hand is the pattern
+ * clipboard (SHIFT + B4 / B5's: compressed in the undo log on the unit; a pattern too big for it: "too big", nothing
+ * cut). The active pattern's paste or cut is one undo level; another's is not (its older levels are forgotten). A
+ * pattern out of RAM (the unit keeps two) waits for the prefetch (pc_job), one at a time: a W meanwhile does nothing */
+enum { PC_COPY = 1, PC_CUT, PC_PASTE };
+int qd_pc_layer(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    const int dn = ((a->buttons_held >> QD_B_OCTDN) & 1u) && !(u->oct_eaten & 1u);
+    const int up = ((a->buttons_held >> QD_B_OCTUP) & 1u) && !(u->oct_eaten & 2u);
+    if (!(u->seq_used & 2) || u->mode == QD_MODE_IDLE || qd_ctl_shift(a) || dn == up)
+        return 0;
+    return dn ? 1 : 2;
+}
+static void pc_do(qd_app_t *a, int op, int k)
+{
+    const int cur = k == a->seq.cur;
+    if (op != PC_PASTE) {
+        if (!qd_hist_store_k(a, 1, k)) {
+            qd_ctl_confirm(a, "PATTERN", "too big");
+            a->ui.pc_src = -1;
+            return;
+        }
+        if (op == PC_COPY)
+            return;
+    }
+    if (cur)
+        qd_undo_hint(a, op == PC_CUT ? QD_UK_CLEAR : QD_UK_PASTE);
+    else
+        qd_undo_forget_pat(a, k);
+    if (op == PC_CUT)
+        qd_pat_init(qd_proj_pat(&a->proj, k));
+    else
+        qd_hist_recall_k(a, 1, k);
+    if (cur)
+        pat_reload(a);
+    a->edit_gen++;
+}
+static void pc_run(qd_app_t *a, int op, int k)
+{
+    if (k == a->seq.cur || qd_proj_resident(&a->proj, k)) {
+        pc_do(a, op, k);
+    } else {
+        a->ui.pc_job = (int8_t)k;
+        a->ui.pc_op = (int8_t)op;
+    }
+}
+void qd_pc_ms(qd_app_t *a)
+{
+    const int k = a->ui.pc_job;
+    if (k >= 0 && qd_proj_resident(&a->proj, k)) {
+        a->ui.pc_job = -1;
+        pc_do(a, a->ui.pc_op, k);
+    }
+}
+int qd_pc_white(qd_app_t *a, int k)
+{
+    qd_ui_t *u = &a->ui;
+    const int l = qd_pc_layer(a);
+    int op;
+    if (!l)
+        return 0;
+    if (u->pc_job >= 0)
+        return 1;
+    if (l == 1) {
+        op = u->pc_src < 0 ? PC_COPY : PC_PASTE;
+        if (op == PC_COPY)
+            u->pc_src = (int8_t)k, u->pc_hold = 1;      /* (Form: a copy loads the hand, the next F2 pastes) */
+    } else {
+        op = !a->undo.pclip_ok || (qd_proj_used(&a->proj, k) && !u->pc_hold) ? PC_CUT : PC_PASTE;
+        u->pc_hold = op == PC_CUT;
+        u->pc_last = (int8_t)k, u->pc_act = (int8_t)(op == PC_CUT ? 1 : 2);
+    }
+    pc_run(a, op, k);
+    return 1;
+}
+void qd_pc_up(qd_app_t *a, int d)
+{
+    qd_ui_t *u = &a->ui;
+    if (d < 0)
+        u->pc_src = -1;                                 /* (F1 let go: its copy stays in the hand) */
+    else
+        u->pc_hold = 0, u->pc_last = -1;                /* (F2 let go: the hand stays loaded, not holding) */
+}
+
 /* SHIFT + F1 / F2: undo / redo */
 void qd_shift_undo(qd_app_t *a, int dir)
 {

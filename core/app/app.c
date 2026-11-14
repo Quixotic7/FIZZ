@@ -682,6 +682,7 @@ static void ms_lock1(qd_app_t *a)
         if (!a->seq.playing)
             qd_app_tempo(a, qd_seq_bpm(&a->seq));
     }
+    qd_pc_ms(a);                                        /* (2026-11-13: PATTERNS' copy / cut / paste, its pattern in) */
     LKP(1);
     qd_app_sounds(a);
     LKP(2);

@@ -2633,6 +2633,130 @@ static void g_banks(void)
     btap(QD_B_PLAY);
 }
 
+/* 2026-11-13 (owner): the PATTERNS page's F1 / F2, as the steps': F1 + W copies the first pattern and pastes it on
+ * every other W; F2 + W Form's pick-up / drop (cut, paste); B1..B4 change the bank meanwhile; the active pattern's cut
+ * or paste is one undo level, playing too; SHIFT + F1 stays undo; F1 / F2 tapped there: no octave */
+static qd_pattern_t pc_tmp;
+static int pat_same(int x, int y)                       /* (a copy first: the unit's two slots) */
+{
+    pc_tmp = *qd_proj_cpat(&A.proj, x);
+    return !memcmp(&pc_tmp, qd_proj_cpat(&A.proj, y), sizeof pc_tmp);
+}
+static int pat_on(int k, int t, int s) { return qd_step_is_on(qd_step(qd_proj_cpat(&A.proj, k), t, s)); }
+static void to_patterns(void)
+{
+    int i;
+    for (i = 0; i < 4 && qd_ctl_seq_page(&A) != QD_SEQ_PATTERNS; i++) {
+        btap(QD_B_MIX);
+        run(10);
+    }
+}
+static void fhold(int f)                                /* F1 / F2 down past a tap */
+{
+    bdown(f);
+    run(QD_TAP_MS + 10);
+}
+static void undo1(void)                                 /* SHIFT + F1 */
+{
+    bdown(SHIFT);
+    btap(F1);
+    bup(SHIFT);
+    run(20);
+}
+static void g_pat_copy(void)
+{
+    int oct, eo;
+#if QD_PAT_RAM < QD_NPAT
+    printf("    (the device's sizes: a pattern out of RAM waits for the flash's writes; none here: test_persist's)\n");
+    return;
+#endif
+    start();                                            /* (A05, empty) */
+    wtap(0);
+    wtap(5);
+    CHECK(A.seq.cur == 4 && pat_on(4, 0, 0) && pat_on(4, 0, 5), "A05: two trigs");
+    to_patterns();
+    oct = A.oct, eo = A.ui.entry_oct;
+    btap(F1);
+    btap(F2);
+    CHECK(qd_ctl_seq_page(&A) == QD_SEQ_PATTERNS && A.oct == oct && A.ui.entry_oct == eo && !A.ui.latch,
+          "PATTERNS: F1, F2 tapped: no octave, no F3, PATTERNS stays");
+    fhold(F1);
+    CHECK(qd_view_screen(&A) == QD_SCR_SEQ && qd_pc_layer(&A) == 1, "F1 held: the patterns still, F1's layer");
+    ktap(WK(4), 30);
+    CHECK(A.undo.pclip_ok && A.ui.pc_src == 4 && A.ui.pc_hand == 4 && A.seq.cur == 4 && qd_seq_queued(&A.seq) < 0,
+          "F1 + W5: A05 copied (ringed, in the hand), no pattern change");
+    ktap(WK(6), 30);
+    ktap(WK(7), 30);
+    run(20);
+    CHECK(pat_same(4, 6) && pat_same(4, 7) && A.seq.cur == 4 && qd_seq_queued(&A.seq) < 0, "W7, W8: A07, A08 pasted");
+    black(B2);
+    ktap(WK(0), 30);
+    run(20);
+    CHECK(A.ui.seq_bank == 1 && pat_same(4, 16), "F1 + B2: bank B; W1: B01 pasted (across banks)");
+    bup(F1);
+    run(10);
+    CHECK(A.ui.pc_src < 0 && A.undo.pclip_ok, "F1 let go: the copy stays in the hand");
+    fhold(F2);
+    CHECK(qd_pc_layer(&A) == 2, "F2 held: its layer");
+    ktap(WK(1), 30);
+    run(20);
+    CHECK(pat_same(4, 17) && A.ui.pc_act == 2, "F2 + W2 (B02 empty): F1's copy pasted");
+    ktap(WK(0), 30);
+    run(20);
+    CHECK(!qd_proj_used(&A.proj, 16) && !pat_on(16, 0, 0) && A.ui.pc_hand == 16 && A.ui.pc_act == 1 && A.ui.pc_hold,
+          "W1 (B01 full, empty-handed): cut into the hand, B01 empty");
+    ktap(WK(4), 30);
+    run(20);
+    CHECK(pat_same(4, 20) && A.ui.pc_act == 2 && !A.ui.pc_hold, "W5 (B05 empty): pasted");
+    ktap(WK(1), 30);
+    run(20);
+    CHECK(!qd_proj_used(&A.proj, 17) && A.ui.pc_hold, "W2 (B02 full, empty-handed): cut");
+    ktap(WK(4), 30);
+    run(20);
+    CHECK(pat_same(4, 20) && A.ui.pc_act == 2, "W5 (B05 full, holding): pasted over");
+    black(B1);
+    bup(F2);
+    run(10);
+    fhold(F2);
+    ktap(WK(4), 30);
+    run(20);
+    CHECK(A.seq.cur == 4 && !qd_proj_used(&A.proj, 4) && !R(0, 0).on && !R(0, 5).on,
+          "F2 again, W5 (the active A05, full): cut, the pattern blank");
+    bup(F2);
+    run(10);
+    undo1();
+    CHECK(R(0, 0).on && R(0, 5).on && qd_proj_used(&A.proj, 4), "SHIFT + F1: the cut undone (A05 back)");
+    CHECK(A.ui.pc_src < 0 && qd_ctl_seq_page(&A) == QD_SEQ_PATTERNS && pat_same(4, 20),
+          "SHIFT + F1 on PATTERNS: undo, no copy; A05 as before");
+    fhold(F1);
+    ktap(WK(8), 30);
+    ktap(WK(4), 30);
+    run(20);
+    bup(F1);
+    run(10);
+    CHECK(!R(0, 0).on && pat_same(8, 4), "F1: the empty A09 copied, pasted onto the active A05 (blank)");
+    undo1();
+    CHECK(R(0, 0).on && R(0, 5).on, "SHIFT + F1: the paste undone");
+    btap(F2);                                           /* (F1's copy left F2 holding: a tap lets go) */
+    btap(QD_B_PLAY);
+    run(300);
+    fhold(F2);
+    ktap(WK(6), 30);
+    ktap(WK(9), 30);
+    run(20);
+    CHECK(A.seq.playing && A.seq.cur == 4 && !qd_proj_used(&A.proj, 6) && pat_same(4, 9),
+          "playing: F2 + W7 cut, W10 pasted (A05 plays on)");
+    ktap(WK(4), 30);
+    run(200);
+    CHECK(A.seq.playing && A.seq.cur == 4 && !R(0, 0).on, "W5: the playing pattern cut (it plays on, blank)");
+    ktap(WK(4), 30);
+    run(200);
+    CHECK(A.seq.playing && R(0, 0).on && R(0, 5).on, "W5 again (empty, the hand loaded): pasted back");
+    bup(F2);
+    btap(QD_B_PLAY);
+    btap(QD_B_HOME);
+}
+
 /* the stopped preview: a held step sounds (notes, velocity, sound, locks, mix, the track's limit), re-struck by an
  * edit, released with its key; several together; nothing while playing; nothing written */
 static const qd_pool_voice_t *voice_of(int note)        /* the gated voice of track 1 on note */
@@ -10905,6 +11029,7 @@ int main(void)
         {"P1.3d: the knob layout, nothing held (defaults)", g_knobs_default},
         {"P1.3y: nothing held: FX + ALGORITHM the track", g_plock_track},
         {"P1.3d: SEQ + B1..B4 banks", g_banks},
+        {"2026-11-13: PATTERNS + F1 / F2: copy, cut, paste", g_pat_copy},
         {"P1.3d: the stopped preview", g_preview},
         {"P1.3d: F3 latched: open, use, OCT- / HOME close", g_f3_latch},
         {"P1.3d/f: the step latch (LFO), selection by gesture", g_step_latch},

@@ -3005,11 +3005,13 @@ void qd_persist_snd_work(qd_app_t *a)
 void qd_persist_prefetch(qd_app_t *a)
 {
     const qd_seq_t *s = &a->seq;
-    int need[4], n = 0, i, wait = 0;
+    int need[5], n = 0, i, wait = 0;
     a->proj.pat_fb = (int8_t)s->cur;                    /* (the playing one first: it may take a pinned slot) */
     need[n++] = s->cur;
     if (a->ui.pat_wait >= 0)
         need[n++] = a->ui.pat_wait;                     /* (2026-10-26: stopped, the one chosen: read in first) */
+    if (a->ui.pc_job >= 0)
+        need[n++] = a->ui.pc_job;                       /* (2026-11-13: PATTERNS' F1 / F2 on it) */
     if (s->sw_pat >= 0)
         need[n++] = s->sw_pat;
     if (s->nchain > 1)

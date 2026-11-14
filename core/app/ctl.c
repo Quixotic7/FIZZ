@@ -187,6 +187,7 @@ void qd_ctl_init(qd_app_t *a)
     u->mkey = -1;
     u->seq_bank = QD_PAT_START / 16;
     u->pat_wait = -1;
+    u->pc_src = u->pc_hand = u->pc_last = u->pc_job = -1;   /* (2026-11-13: PATTERNS' F1 / F2) */
     u->tl.scope = QD_TS_TRACK;                          /* T1: TOOLS starts on ROTATE, the track */
     u->tl.opage = 0xFF;
     for (i = 0; i < QD_PAT_NTRACK; i++)
@@ -591,6 +592,8 @@ static void k_pattern(qd_app_t *a, int key, int w, int down, int vel)
         u->seq_down &= (uint16_t)~bit;
         return;
     }
+    if (qd_pc_white(a, u->seq_bank * 16 + w))           /* (2026-11-13: PATTERNS + F1 / F2: copy, cut, paste) */
+        return;
     u->seq_down |= bit;
     u->seq_done &= (uint16_t)~bit;
     u->seq_t0[w] = a->ms;
@@ -1709,6 +1712,10 @@ static void b_oct(qd_app_t *a, int d, int down)
             qd_step_b11_reset(a);
         return;
     }
+    if (!down)
+        qd_pc_up(a, d);
+    else if ((u->seq_used & 2) && u->mode != QD_MODE_IDLE)
+        return;                                         /* (2026-11-13: PATTERNS: F1 / F2 its copy, cut, paste) */
     if (qd_mfx_oct(a, d, down))                         /* P1.6c: the MIDI FX screen: F1 / F2 held + B copy / move
                                                          * (P1.6h: no close; STEPS goes on here: the step layers) */
         return;

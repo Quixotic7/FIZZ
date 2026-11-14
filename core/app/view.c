@@ -568,14 +568,6 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->last_w = u->f2_last_w;
     v->last_act = u->f2_last_act;
     v->sel = t;
-    v->mute = a->seq.mute;
-    v->solo = a->seq.solo;
-    for (i = 0; i < QD_NTRACK; i++) {
-        v->tname[i] = a->model.t[i].name;
-        v->flash[i] = (uint8_t)qd_ctl_trig_flash(a, i);
-        if (qd_seq_track_pat(&a->seq, i)->trk[i].mute)
-            v->mute |= (uint8_t)(1u << i);
-    }
     v->rate_val = ts->rbase;
     v->rate_type = ts->rtype;
     v->rate_val_name = qd_rate_val_name(v->rate_val);
@@ -1219,6 +1211,9 @@ static void draw_patterns(const qd_app_t *a)
     v.blink = (a->ms / QD_BLINK_MS) % 2u == 0;
     v.launch = a->proj.launch;
     v.launch_name = qd_launch_name(a->proj.launch);
+    v.layer = qd_pc_layer(a);                           /* (2026-11-13: F1 / F2's copy, cut and paste) */
+    v.src = a->ui.pc_src, v.last = a->ui.pc_last, v.last_act = a->ui.pc_act;
+    v.loaded = a->undo.pclip_ok, v.hand = a->ui.pc_hand, v.next_paste = v.loaded && a->ui.pc_hold;
     ui_patterns_draw(&v);
 }
 
@@ -1428,8 +1423,6 @@ int qd_view_screen(const qd_app_t *a)
     const qd_ui_t *u = &a->ui;
     if (u->mode != QD_MODE_IDLE && qd_ctl_seq_map(a))   /* (P1.5a: after a hold, or a key: a tap is the project) */
         return QD_SCR_SEQ;
-    if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
-        return QD_SCR_SEL;
     if (qd_ctl_shift(a) && !u->shift_used && qd_ctl_shift_page(a))
         return QD_SCR_SHIFT;                            /* 2026-11-10 (owner): SHIFT held alone, the same screen over
                                                          * every page (the keyboard, the sound editor ..) */
@@ -2533,10 +2526,6 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         break;
     case QD_SCR_TOOLS:                                  /* T1: the track tools */
         draw_tools(a);
-        break;
-    case QD_SCR_SEL:                                    /* printed SEL held: the tracks */
-        fill_layer(a, &yv, 4);
-        ui_layer_draw(&yv);
         break;
     case QD_SCR_SHIFT:
         fill_shift(a, &sv);

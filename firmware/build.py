@@ -206,11 +206,16 @@ if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does n
 # blob two sectors shorter). Balance (2026-10-27): the slot ~4.4 KB free, the first blob ~1.5 KB, the second ~2.3 KB
 # 2026-11-10: and ENGINE's side and FM+MIDI's main-loop functions (their own sections: -ffunction-sections), 1.3 KB:
 # the switch, a load's side, the 1 ms sync's (qd_app_sounds, in the locked ms: the main loop), REC + AUTOMATION's send
+# 2026-11-13 (SEQ's pages, PATTERNS' copy / cut / paste: ~0.9 KB in the slot, which had 192 B): those main-loop
+# functions too (PATTERNS' F1 / F2, the pattern undo's forget, SEQ's click); the blob paid for them with SEL's retired
+# track map (ui_layer.o's tracks(), ~1.2 KB, gone)
 BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)",
           "*/o2/build_units_c_ctl_latch.o(.text.qd_msnd_engine .text.side_keep .text.qd_trk_engine "
-          ".text.qd_trk_engine_set .text.qd_msnd_put .text.qd_msnd_take .text.qd_side_clear)",
+          ".text.qd_trk_engine_set .text.qd_msnd_put .text.qd_msnd_take .text.qd_side_clear "
+          ".text.qd_pc_white .text.qd_pc_ms .text.qd_pc_up .text.qd_pc_layer .text.pc_do .text.pc_run)",
+          "*/o2/build_units_c_ctl.o(.text.b_seq .text.qd_ctl_seq_page .text.qd_ctl_home_view)",
           "*/o2/build_units_c_quad_voice.o(.text.qd_quad_side_pack .text.qd_quad_side_unpack .text.qd_msnd_over)",
-          "*/o2/build_units_c_app.o(.text.qd_app_fm_auto)", "*(.fzx2.*)"]
+          "*/o2/build_units_c_app.o(.text.qd_app_fm_auto .text.qd_undo_forget_pat .text.qd_hist_recall_k)", "*(.fzx2.*)"]
 BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-10) .. and single functions of other units the other way, into the second blob (sections renamed .fzx2.*;
 # main-loop drawing only, noinline in the source): OVERVIEW's model (view.c), ~0.4 KB the slot did not have; the

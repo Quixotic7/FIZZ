@@ -307,6 +307,14 @@ void qd_shift_undo(struct qd_app *a, int dir);
 void qd_shift_black(struct qd_app *a, int b);
 void qd_shift_leds(const struct qd_app *a, uint8_t *key);
 int qd_shift_metro_knob(struct qd_app *a, int knob, int d);   /* SHIFT + B7 held: the click's level */
+/* 2026-11-13 (owner): the PATTERNS page's F1 / F2 (the steps' design): F1 + W the first pattern copied, the next ones
+ * pasted; F2 + W Form's pick-up / drop (cut, paste). The hand is the pattern clipboard (undo.h, SHIFT + B4 / B5's). A
+ * pattern out of RAM waits for it (pc_job: the prefetch reads it in, qd_pc_ms does it). pc_layer: F1 / F2 held there
+ * (1, 2; 0 none) */
+int qd_pc_layer(const struct qd_app *a);
+int qd_pc_white(struct qd_app *a, int k);      /* pattern k's W pressed: 1 taken */
+void qd_pc_up(struct qd_app *a, int d);        /* F1 (-1) / F2 (+1) let go: its state */
+void qd_pc_ms(struct qd_app *a);               /* (the locked ms) a waiting W done once its pattern is in RAM */
 /* P1.5c: the editor's randomise (ctl_snd.c): B9 the page (after the dice), B10 held the sound (after the bottle) */
 #define QD_RND_DICE_MS 600u                /* (the roll) */
 #define QD_RND_PAGE_HOLD_MS 1000u          /* P1.6d: B9 held this long: the page randomised (the dice shake till then) */
@@ -681,6 +689,11 @@ typedef struct {
     qd_sound_t tk_snd, tk_snd2;        /* .. the takeovers' sounds (LOADED: the preset; BACK: the own, the one left) */
     qd_nameui_t nm;                    /* P1.5a: the name editor (a project's) */
     qd_prjui_t pj;                     /* .. the project pages */
+    int8_t pc_src, pc_hand;            /* 2026-11-13, PATTERNS + F1 / F2: F1's copy this hold (-1); the pattern the hand
+                                        * (the pattern clipboard) came from .. */
+    uint8_t pc_hold;                   /* .. F2 holding (Form's) */
+    int8_t pc_last, pc_act;            /* .. F2's last W (pattern) and what it did (1 CUT, 2 PASTE) */
+    int8_t pc_job, pc_op;              /* .. a W whose pattern is out of RAM (-1 none), its operation */
     uint32_t seq_ms;                   /* P1.5a: SEQ went down (its map after QD_TAP_MS, or once used) .. */
     int seq_used;                      /* .. a key or a knob used it (its release is no tap) */
     uint32_t sel_ms;                   /* P1.3y: SEL went down (its map after QD_TAP_MS, or once a key is used) .. */
