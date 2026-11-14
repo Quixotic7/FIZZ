@@ -710,11 +710,16 @@ typedef struct {
     int mout;                           /* .. FIZZ MIDI (c): MIDI OUT (0 OFF, 1..16) */
     int engine;                         /* .. (e): ENGINE, 0 FM TONE, 1 FM+MIDI (2026-11-10), 2 MIDI */
     int clk_out, cc_out;                /* SETTINGS: FIZZ MIDI (c): CLOCK OUT, CC OUT */
-    int set_page;                       /* SETTINGS: the page (2026-11-10: 1 HOME; the Bluetooth package: 2 BLUETOOTH) */
+    int set_page;                       /* SETTINGS: the page (2026-11-10: 1 HOME; the USB package: 2 USB HOST; the
+                                         * Bluetooth package: 2 BLUETOOTH) */
     int home_view, home_lock;           /* .. HOME: the Home view (2026-11-13: 0 STEPS, 1 EDIT, 2 GEEK OUT),
                                          * LOCK */
 #if QD_PKG_BLE
     int ble_on, ble_st;                 /* .. BLUETOOTH ON / OFF, its state: 0 OFF, 1 WAITING, 2 CONNECTED */
+#endif
+#if QD_USB_HOST
+    int usbh_on, usbh_st;               /* .. 2026-11-14: USB HOST ON / OFF, the port's state while ON: 0 WAITING,
+                                         * 1 CONNECTED, 2 NOT MIDI */
 #endif
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;

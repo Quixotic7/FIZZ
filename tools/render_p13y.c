@@ -309,6 +309,28 @@ int render_p13y(const char *out)
     turn(QD_K_SELECT, -1);
 #endif
     btap(QD_B_HOME);
+#if QD_USB_HOST
+    bdown(QD_B_HOME);                                   /* (2026-11-14: HOME held, the settings; SELECT: page 3) */
+    run(QD_HOME_HOLD_MS + 60);
+    bup(QD_B_HOME);
+    run(20);
+    turn(QD_K_SELECT, 2);
+    run(60);
+    shot("set-usbh-off", "SELECT: page 3, USB HOST OFF (every power-on)");
+    turn(QD_K_1, 1);
+    run(60);
+    shot("set-usbh-wait", "KNOB 1: USB HOST ON, WAITING (no device yet)");
+    qd_app_usb_host_state(&A, 1);
+    run(60);
+    shot("set-usbh-conn", "a USB-MIDI keyboard plugged in: CONNECTED");
+    qd_app_usb_host_state(&A, 2);
+    run(60);
+    shot("set-usbh-nomidi", "a device that is not USB-MIDI: NOT MIDI");
+    qd_app_usb_host_state(&A, 0);
+    turn(QD_K_1, -1);
+    turn(QD_K_SELECT, -2);
+    btap(QD_B_HOME);
+#endif
     /* SHIFT's map */
     bdown(QD_B_FUNC);
     run(150);

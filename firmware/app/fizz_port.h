@@ -45,6 +45,12 @@ void fz_flash_stats_reset(void);
 int fz_sysex_peek_port(void);
 int fz_ble_on(void);
 void fz_ble_state(int st);
+/* (USB HOST, the USB package: core/qd_config.h QD_USB_HOST) SETTINGS' USB HOST (1 on; 0 before FIZZ is up), the port's
+ * state the page shows (0 waiting, 1 a device connected, 2 a device not MIDI), and MIDI in's notes still held, each
+ * as its NOTE OFF packet (CIN 8) through put (a USB session ended: plat_usb_lost) */
+int fz_usb_host_on(void);
+void fz_usb_host_state(int st);
+void fz_midi_held_off(void (*put)(uint32_t pkt));
 void fz_sx_mark(uint32_t ms);          /* a FIZZ frame (semantic or the store's bulk) came now (qd_sx_t.rx_ms) */
 uint32_t fz_sx_last(void);             /* .. when the last one did (0 none) */
 int fz_sx_bulk(void);                  /* a LIST / DUMP-all or a STORE job running (the transfer pacing) */

@@ -747,6 +747,38 @@ static void ble_test(void)
 }
 #endif
 
+#if QD_USB_HOST
+/* 2026-11-14, USB HOST: never saved. ON, the settings and a pattern flushed, a restart: OFF; the settings record the same
+ * bytes with it ON as OFF (the other settings kept as they were) */
+static void usbh_test(void)
+{
+    static uint8_t b[QDS_MAXREC], c[QDS_MAXREC];
+    int len, len2;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    CHECK(!qd_app_usb_host_on(&A), "a blank flash: USB HOST OFF");
+    A.ui.clk_out = 0, A.ui.boost = 1;
+    run(&A, 20);
+    CHECK(qd_persist_flush(&A), "flushed (USB HOST OFF)");
+    len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
+    A.ui.usbh_on = 1, A.ui.usbh_st = 1;
+    A.ui.cc_out = 0;                                    /* (a change, so the record is written again) */
+    run(&A, 20);
+    CHECK(qd_persist_flush(&A), "flushed (USB HOST ON)");
+    A.ui.cc_out = 1;
+    run(&A, 20);
+    CHECK(qd_persist_flush(&A), "flushed (CC OUT back)");
+    len2 = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), c, sizeof c);
+    CHECK(len > 5 && len == len2 && !memcmp(b, c, (size_t)len), "the settings record: the same bytes with USB HOST ON");
+    boot(&B);
+    CHECK(!qd_app_usb_host_on(&B) && !B.ui.usbh_st && !B.ui.clk_out && B.ui.boost && B.ui.cc_out,
+          "a restart: USB HOST OFF (never saved), the other settings kept");
+    printf("  USB HOST: never saved, OFF at every start\n");
+}
+#endif
+
 /* FIZZ MIDI (e): a MIDI sound (quad_voice.h QD_MSND_*) through the records: a pattern's track sound as a copy and by
  * reference ('P' 6), MY PRESETS ('S' 5), its slots' locks (0..127); the FM TONE sounds around it stay FM TONE; a blob
  * of an older FIZZ (version 5, version 6 without the mark) reads FM TONE; a bad MIDI blob reads as no blob (INIT);
@@ -2009,6 +2041,9 @@ int main(void)
     midi_out_test();
 #if QD_PKG_BLE
     ble_test();
+#endif
+#if QD_USB_HOST
+    usbh_test();
 #endif
     msnd_test();
 #ifdef QD_DEVICE

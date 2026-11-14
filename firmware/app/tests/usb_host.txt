@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: MPL-2.0
+# USB HOST (the USB package; firmware/build.py --host: fizz_host): SETTINGS page 3 (HOME held, then SELECT twice).
+# USB HOST ON / OFF and the port's state, read-only; never saved (a restart: OFF). ON asks fm1-base for the host
+# (app.c fz_usbh_look: plat_usb_host; here the simulator's model of it, "fzusbh"); the device's MIDI comes in as USB's
+# and plays the selected track; the device gone lets its notes go (plat_usb_lost); MIDI OUT goes to USB, the device.
+# Shots of the page for the owner.
+#   firmware/app/build/host/fizz_host firmware/app/tests/usb_host.txt OUT
+expect fz_up 1
+wait 300
+expect fz_usbh 0
+expect fz_usbh_on 0
+tap HOME
+wait 300
+press HOME
+wait 700
+release HOME
+wait 300
+turn SELECT 2
+wait 300
+shot usbh-off.png
+# KNOB 1: ON, the port asked to be a host, WAITING
+turn K1 1
+wait 300
+expect fz_usbh_on 1
+expect fz_usbh 1
+expect fz_usbh_st 0
+shot usbh-waiting.png
+# a USB-MIDI keyboard: CONNECTED; its notes play as USB MIDI in does (held while held)
+fzusbh connect
+wait 300
+expect fz_usbh_st 1
+shot usbh-connected.png
+midi USB 90 3C 64
+midi USB 90 40 64
+wait 100
+expect fz_midi_held 2
+midi USB 80 40 00
+wait 50
+expect fz_midi_held 1
+# unplugged with a key down: the note lets go, the port waits again
+fzusbh gone
+wait 100
+expect fz_midi_held 0
+expect fz_usbh_st 0
+# something not MIDI on the port: NOT MIDI
+fzusbh nomidi
+wait 300
+expect fz_usbh_st 2
+shot usbh-notmidi.png
+fzusbh connect
+wait 300
+expect fz_usbh_st 1
+# MIDI OUT (CLOCK OUT on: the default) goes to USB, the device: PLAY sends START
+tap HOME
+wait 300
+out
+tap PLAY
+wait 300
+expect_out USB FA 00 00
+tap PLAY
+wait 300
+# OFF: the port a device again, the page OFF
+press HOME
+wait 700
+release HOME
+wait 300
+turn K1 -1
+wait 300
+expect fz_usbh 0
+expect fz_usbh_on 0
+expect fz_usbh_switches 2
+shot usbh-off-again.png
+turn K1 1
+wait 300
+expect fz_usbh 1
+# a restart: OFF (never saved), the port a device
+tap HOME
+wait 1500
+reboot
+wait 1500
+expect fz_up 1
+expect fz_usbh_on 0
+expect fz_usbh 0

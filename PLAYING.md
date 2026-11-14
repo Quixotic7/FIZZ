@@ -1150,7 +1150,32 @@ SELECT turns the pages (the dots at the top):
 - Page 2, **HOME**: **KNOB 1 HOME VIEW** chooses the Home view (STEPS, EDIT, GEEK OUT; the three drawn small, the
   chosen one lit; 2026-11-13: the PIANO ROLL is SEQ's page, a saved PIANO ROLL comes back as EDIT), **KNOB 2 LOCK** on / off: locked, HOME clicks no longer cycle the views,
   HOME always brings you back to that view (a padlock under it). Saved with the other settings.
+- Page 3 (the USB package): **KNOB 1 USB HOST** on / off (the USB mark, struck through when OFF), and its state
+  (KNOB 2's row, shown only): OFF, WAITING (no device yet), CONNECTED, or NOT MIDI (a device that is not USB-MIDI, or
+  a low-speed one). Never saved: OFF at every start. Below, "USB host".
 - Page 3 (the Bluetooth package): **BLUETOOTH** on / off and its state.
+
+### USB host (the USB package)
+
+The FM-1's USB-C port can be the host of a USB-MIDI keyboard, controller or synth, with no computer:
+
+1. Connect the device through **a powered USB hub, or a powered USB-C OTG adapter** (one with its own power input):
+   the FM-1 gives the port no 5 V, so a bus-powered keyboard on a plain OTG cable stays dark. A second FM-1 (any
+   firmware) works on a plain USB-C cable.
+2. **Hold HOME**, turn **SELECT** to page 3, turn **KNOB 1** to **ON**. STATUS says WAITING, then CONNECTED once the
+   device answers (a device that never answers stays WAITING; it takes up to about 3 seconds of tries, while the
+   screen waits and the sound plays on).
+3. Play: the device's notes, CCs and clock reach FIZZ exactly as MIDI from a computer does (the selected track, the
+   keyboard page and recording, MIDI clock and transport in). FIZZ's MIDI OUT (the MIDI tracks, CLOCK OUT, CC OUT)
+   goes to the device.
+
+- Full-speed USB-MIDI 1.0 devices, directly or behind one hub. No SysEx from the device, no low-speed devices (NOT
+  MIDI).
+- While USB HOST is on there is **no computer on the port**: no USB audio, no Manager, no `fizz_xdata.py`, no updates
+  over USB. **Turn it OFF** (the port is a device again a second later) **or switch the unit off and on**: it is never
+  saved. REC held at power-on (update mode) is as always.
+- Unplugging the device, or turning USB HOST off, lets go of the notes MIDI in holds (the TRS jack's too: FIZZ does
+  not keep where a note came from).
 
 ## The maps
 

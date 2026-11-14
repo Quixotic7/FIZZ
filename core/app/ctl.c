@@ -2275,7 +2275,8 @@ static int k_menu(qd_app_t *a, int knob, int d)
                                                          * 2026-10-27, the Bluetooth package: page 3 KNOB 1 BLUETOOTH
                                                          * ON / OFF (the port applies it: app.h qd_app_ble_on), KNOB 2
                                                          * its state (shown)) */
-            u->set_page = (uint8_t)clampi(u->set_page + d, 0, QD_PKG_BLE ? 2 : 1);
+            u->set_page = (uint8_t)clampi(u->set_page + d, 0, 1 + QD_USB_HOST + QD_PKG_BLE);   /* (2026-11-14: the
+                                                         * USB package's page 3 USB HOST) */
             return 1;
         }
         if (u->set_page == 1) {                         /* 2026-11-10 (owner): HOME: KNOB 1 the Home view (PIANO ROLL,
@@ -2293,6 +2294,15 @@ static int k_menu(qd_app_t *a, int knob, int d)
                 u->menu_knob = knob - QD_K_1;
             return 1;
         }
+#if QD_USB_HOST
+        if (u->set_page == 2) {                         /* 2026-11-14: page 3, KNOB 1 USB HOST ON / OFF (the port
+                                                         * applies it: app.h qd_app_usb_host_on), KNOB 2 its state
+                                                         * (shown); never saved */
+            if (knob == QD_K_1)
+                u->usbh_on = d > 0;
+            return 1;
+        }
+#endif
 #if QD_PKG_BLE
         if (u->set_page) {
             if (knob == QD_K_1)

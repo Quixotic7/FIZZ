@@ -458,6 +458,23 @@ void fz_ble_state(int st)
         qd_app_ble_state(&fz_app, st);
 }
 #endif
+#if QD_USB_HOST
+int fz_usb_host_on(void) { return fz_up && qd_app_usb_host_on(&fz_app); }
+void fz_usb_host_state(int st)
+{
+    if (fz_up)
+        qd_app_usb_host_state(&fz_app, st);
+}
+/* (the audio interrupt's, as MIDI in: app.c fz_midi_isr) FIZZ keeps no note's source, so the TRS jack's notes go too */
+void fz_midi_held_off(void (*put)(uint32_t pkt))
+{
+    uint32_t c, n;
+    for (c = 0; c < QD_MIDI_REMOTE; c++)
+        for (n = 0; n < 128u; n++)
+            if (fz_app.midi_on[c][n])
+                put(8u | (0x80u | c) << 8 | n << 16);
+}
+#endif
 void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }
 /* (P2.10, core 7fe3ea0) the clock in its two halves: what the audio side shares, under the lock, coalesced over the ms
  * since; then without the lock, the persist looks, the store's next job, SysEx's labels, a ms at a time */
@@ -818,6 +835,21 @@ int fz_expect(const char *what, int *got)
     const qd_app_t *a = &fz_app;
     if (!strcmp(what, "fz_up"))
         *got = fz_up;
+#ifdef PLAT_HOST
+    else if (!strcmp(what, "fz_midi_held")) {         /* MIDI in's notes held (app.h midi_on: channel, note) */
+        int c, n;
+        *got = 0;
+        for (c = 0; c < QD_MIDI_REMOTE; c++)
+            for (n = 0; n < 128; n++)
+                *got += a->midi_on[c][n] != 0;
+    }
+#if QD_USB_HOST
+    else if (!strcmp(what, "fz_usbh_on"))              /* SETTINGS' USB HOST, the state its page shows */
+        *got = a->ui.usbh_on;
+    else if (!strcmp(what, "fz_usbh_st"))
+        *got = a->ui.usbh_st;
+#endif
+#endif
     else if (!strcmp(what, "fz_mode"))                 /* 0 idle, 1 the step view, 2 keys, 3 tracks (ctl.h QD_MODE_*) */
         *got = a->ui.mode;
     else if (!strcmp(what, "fz_view"))                 /* 0 PIANO ROLL, 1 STEPS, 2 EDIT (ctl.h QD_VIEW_*) */

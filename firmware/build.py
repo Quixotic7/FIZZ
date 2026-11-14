@@ -159,6 +159,13 @@ DEFS += [f"-D{d}" for d in EXTRA]
 if BLE_PKG:
     DEFS.append("-DQD_PKG_BLE=1")                # (the core's Bluetooth profile: core/qd_config.h)
     DEFS = [d if not d.startswith("-DFZ_FB_LO=") else f"-DFZ_FB_LO={BLE_FB_LO}u" for d in DEFS]
+# USB HOST (2026-11-14; fm1.toml usb_host, PLAYING.md "USB host"): the USB package's (and its simulator's and browser
+# build's) alone. The Bluetooth package and the single-core one have no room for it (fm1-base's host: ~3.4 KB of
+# flash, 432 B of RAM; they have 224 B and 2.4 KB free): FM1B_USB_HOST=0 for them, and the core's QD_USB_HOST with it
+# (no SETTINGS page 3). FM1B_USB_HOST=1 in the environment builds it in anyway (a measure, FZ_MEASURE=1)
+USB_HOST = os.environ.get("FM1B_USB_HOST", "0" if BLE_PKG or SINGLE else "1") == "1"
+os.environ["FM1B_USB_HOST"] = "1" if USB_HOST else "0"
+DEFS.append(f"-DQD_USB_HOST={int(USB_HOST)}")
 if EXTRA:
     DEFS.append('-DFZ_DEFINES="' + ",".join(EXTRA) + '"')
 if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out, and
@@ -434,6 +441,54 @@ OVERLAY = {
          "    *p = sx_frames[sx_fr % SX_SLOTS];\n    *n = sx_lens[sx_fr % SX_SLOTS];\n"),
         ("    RING_PUBLISH();                                     /* done with the frame before the ISR may refill it */\n    sx_ready = 0;\n",
          "    RING_PUBLISH();                                     /* done with the frame before the ISR may refill it */\n    sx_fr++;\n"),
+    ],
+    # USB HOST (fm1.toml usb_host; FIZZ's settings, PLAYING.md "USB host"): felucca-bsp's host, usb.c's neighbour (the
+    # copy of usb.c above finds this copy). (1) Host entry drops the SysEx frames waiting: FIZZ's two slots above, not
+    # sx_ready (the pinned host still names it: felucca-bsp 5b0879b's fix, for its own queue). (2) RemoteFM1's
+    # felucca-bsp 0007 (2026-11-08, the owner's; found on an FM-1 with ChoralRoot): Host Off undoes what host mode wrote
+    # (DEVCTL's session, EP1's types, the address, a reset left on POWER) and keeps the port off the bus a second, or a
+    # computer saw nothing on the port until a power cycle. (3) RemoteFM1's 0009: a 50 ms root reset; a device that does
+    # not answer at all is reset again with the recovery doubled (100..1600 ms, five tries, ~3.3 s of the main loop at
+    # most), and NOT MIDI only for one that answered (a second FM-1 on a plain cable: not MIDI without it)
+    "bsp/chip/usb_host.c": [
+        ("            sx_collect = sx_ready = sx_busy = 0;\n",
+         "            sx_collect = sx_busy = 0;\n            sx_fr = sx_fw;                              /* (FIZZ: the frames waiting dropped) */\n"),
+        ("#define UH_MAX_ERRORS 16u\n",
+         "#define UH_MAX_ERRORS 16u\n#define UH_ROOT_TRIES 5u                                /* (FIZZ, RemoteFM1 0009) */\n"),
+        ("    uint8_t seen, next_addr, dev, tried;\n",
+         "    uint8_t seen, next_addr, dev, tried;\n"
+         "    uint8_t answered;                                   /* (RemoteFM1 0009) the root's device answered */\n"),
+        ("    r = uh_ctl(0, 0x80, 6, 0x0100, 0, 8, d8, 8);        /* GET_DESCRIPTOR(device), first 8 bytes */\n"
+         "    if (r < 8)\n        return 0;\n",
+         "    r = uh_ctl(0, 0x80, 6, 0x0100, 0, 8, d8, 8);        /* GET_DESCRIPTOR(device), first 8 bytes */\n"
+         "    if (r < 8)\n        return 0;\n    if (!depth)\n        uh.answered = 1;\n"),
+        ("    uh.hub_addr = 0;\n}\n\n/* a device is on the line: reset the bus and find the MIDI endpoint */\n",
+         "    uh.hub_addr = 0;\n}\n\n"
+         "/* (FIZZ, RemoteFM1 0007) host -> device: undo what host mode wrote and the device driver never writes */\n"
+         "static void uh_host_down(void)\n{\n    sie_wr(S_DEVCTL, 0);\n    sie_wr(S_INDEX, 1);\n    sie_wr(S_TXTYPE, 0);\n"
+         "    sie_wr(S_TXINTERVAL, 0);\n    sie_wr(S_RXTYPE, 0);\n    sie_wr(S_RXINTERVAL, 0);\n    sie_wr(S_TXCSR2, 0);\n"
+         "    sie_wr(S_RXCSR1, 0x10u);                            /* (flush) */\n    sie_wr(S_INDEX, 0);\n"
+         "    sie_wr(S_FADDR, 0);\n    sie_wr(S_POWER, 0);\n}\n\n"
+         "/* a device is on the line: reset the bus and find the MIDI endpoint */\n"),
+        ("    uh_midi_t m;\n    if (sie_rd(S_DEVCTL) & 0x20u) {",
+         "    uh_midi_t m;\n    uint32_t t;\n    int ok;\n    if (sie_rd(S_DEVCTL) & 0x20u) {"),
+        ("    sie_wr(S_POWER, 0x08u);                             /* bus reset */\n    uh_wait(30);\n"
+         "    sie_wr(S_POWER, 0);\n    uh_wait(30);\n    uh.next_addr = UH_FIRST_ADDR;\n    if (uh_probe(0, &m)) {\n",
+         "    for (t = 0;; t++) {                                 /* (FIZZ, RemoteFM1 0009) */\n"
+         "        sie_wr(S_POWER, 0x08u);                         /* bus reset, 50 ms (USB 2.0 TDRSTR) */\n"
+         "        uh_wait(50);\n        sie_wr(S_POWER, 0);\n"
+         "        uh_wait(100u << t);                             /* 100, 200, 400, 800, 1600 ms */\n"
+         "        uh.next_addr = UH_FIRST_ADDR;\n        uh.answered = 0;\n"
+         "        if ((ok = uh_probe(0, &m)) || uh.answered || t + 1u == UH_ROOT_TRIES)\n            break;\n    }\n"
+         "    if (ok) {\n"),
+        ("        if (!uh.tried)\n            uh.msg = UH_MSG_NOMIDI;                     /* said once per attach */\n",
+         "        if (!uh.tried && uh.answered)\n            uh.msg = UH_MSG_NOMIDI;                     /* said once per attach"
+         " (FIZZ: for one that answered) */\n"),
+        ("            RING_PUBLISH();\n            fm1_usb_off();\n            usb_retry_ms = now - 1000u;"
+         "                 /* usb_retry makes the port a device again at once */\n",
+         "            RING_PUBLISH();\n            uh_host_down();                             /* (FIZZ, RemoteFM1 0007) */\n"
+         "            fm1_usb_off();\n            usb_retry_ms = now;                         /* a device a second later:"
+         " a computer sees a clean attach */\n"),
     ],
     # (2026-11-08) the FM-1s with the logo on the front carry a UC25HQ80 (JEDEC 0xB36014), not the Puya P25Q80
     # (0x856014): fm1-base 934e40d took the unit for unknown (saves in RAM only, no update session). fm1-base 317cb86's

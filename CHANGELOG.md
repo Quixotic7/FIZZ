@@ -9,6 +9,17 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+The FM-1's USB port can now be the host of a USB-MIDI keyboard or synth: FIZZ plays without a computer.
+
+- **USB HOST** (the USB package): hold HOME for the settings and turn SELECT to page 3, then KNOB 1 to ON. A USB-MIDI
+  keyboard or controller plugged into the FM-1 then plays FIZZ exactly as MIDI from a computer does (notes, CCs,
+  clock and transport), and FIZZ's MIDI OUT (MIDI tracks, clock, CCs) goes to the device. STATUS says WAITING,
+  CONNECTED or NOT MIDI. The FM-1 gives the port no power: use a powered hub or a powered USB-C OTG adapter.
+- While USB HOST is on there is no computer on the port: no USB audio, no Manager, no updates over USB. Turn it OFF,
+  or switch the unit off and on: USB HOST is never saved, so every start is the usual USB connection to a computer.
+  Unplugging the device lets go of the notes it held.
+- Not in the Bluetooth package (no room for it there).
+
 ## 0.12.0-beta.19 (2026-11-14)
 
 SAVE and SEQ become page buttons with a click cycle, the PIANO ROLL moves to SEQ and draws five of its modes as a 4 x 4 grid, patterns can be copied and cut with F1 / F2, and waking the unit no longer triggers anything.
