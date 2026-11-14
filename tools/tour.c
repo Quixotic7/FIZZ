@@ -36,7 +36,7 @@
  *     load PATH [N]                the RAM flash read from PATH (a 1 MiB host image: store's, or pack_fizz.mjs image's)
  *                                  and a power-on on it; with N, project slot N loaded after
  *
- * THE SONG HOOK. A C file linked in (make -C tools tour SONG=demo_song.c; tools/demo_song.c is linked by default when
+ * THE SONG HOOK. A C file linked in (make -C tools tour SONG=song_x.c; tools/song_sunfade.c is linked by default when
  * it exists) defines
  *
  *     int fizz_tour_song(qd_app_t *a, int argc, char **argv);    argv[0] "song", then the script line's words

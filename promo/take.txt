@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 # The promo's two takes (from promo/build: ../../tools/build/tour ../take.txt .): the idle title, then 30 s of the
-# demo song SUNFADE (tools/demo_song.c; promo/build/sunfade.bin is its project, made by promo/song.txt). The film's
+# demo song SUNFADE (tools/song_sunfade.c; promo/build/sunfade.bin is its project, made by promo/song.txt). The film's
 # time is the video's time. A bar is 2.727 s (88 BPM); the chain A01 (one bar) A02 A03 A04 A05 A07:
 # 2.73 the beat, 8.18 the arps, 13.64 the sweep, 19.09 the drop, 24.55 the outro.
 wait 3300

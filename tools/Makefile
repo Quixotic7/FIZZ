@@ -87,8 +87,8 @@ render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 # the tour (tools/tour.c): the app headless playing a script of gestures (shots, film, wav, store images) into
-# $(B)/tour; SONG: C files linked in for its song command (fizz_tour_song), tools/demo_song.c when there
-SONG ?= $(wildcard demo_song.c)
+# $(B)/tour; SONG: C files linked in for its song command (fizz_tour_song), tools/song_sunfade.c (the demo song SUNFADE) when there
+SONG ?= $(wildcard song_sunfade.c)
 ifneq ($(strip $(SONG)),)
 vpath %.c $(sort $(dir $(SONG)))
 endif
