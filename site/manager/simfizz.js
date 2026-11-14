@@ -60,6 +60,7 @@ export class SimFizz {
     this.engine = this.createEngine && this.module
       ? await this.createEngine({ sampleRate: this.sampleRate, files: { wasm: this.module }, flash, options: {} }) : null;
     this.cache = { seq: -1, bytes: null };
+    this.touched = null;                              // (the panel's last input, device ms: null asleep, the logo screen)
     if (this.engine) this.run(400);
     return this;
   }
@@ -119,8 +120,16 @@ export class SimFizz {
   // the unit's own panel (the owner's hands): buttons held by their FM-1 labels (FX SEL ENV LFO EDIT GLO HOME SAVE ARP
   // SEQ PLAY REC OCT- OCT+: FIZZ's FX, TRACKS, MIX, LATCH, EDIT, SHIFT, HOME, SOUNDS, FILL, PATTERNS, PLAY, REC, F1, F2)
   // and keys (0..26: the panel's key bits) for a moment, then let go; press(label) one button; selectTrack(t) on OVERVIEW (SEL, its track key, SEL)
+  // FIZZ starts on its logo screen and goes back to it after two minutes untouched, stopped; the press that wakes it
+  // does nothing else (2026-11-13): asleep, a HOME press wakes it first
   panel(buttons = [], keys = [], ms = 40) {
     if (!this.engine) return;
+    const now = this.engine.deviceMs();
+    if ((buttons.length || keys.length) && (this.touched === null || (!this.playing && now - this.touched >= 120000))) {
+      this.touched = now;
+      this.panel(["HOME"]); this.panel([], [], 300);
+    }
+    if (buttons.length || keys.length) this.touched = this.engine.deviceMs();
     const t = this.engine.info().panelTable;
     let b = 0, k = 0;
     for (const l of buttons) { const i = PANEL_BUTTONS.indexOf(l); if (i < 0) throw new Error(`no button ${l}`); b |= 1 << t.btnId[i]; }

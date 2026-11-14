@@ -586,7 +586,10 @@ e.dispose();
       const fr = () => { const out = [], b = u.midiOut(); let sx = null; for (const x of b) { if (x === 0xf0) sx = [x]; else if (sx) { sx.push(x); if (x === 0xf7) { out.push(Uint8Array.from(sx)); sx = null; } } } return out; };
       const pump = (ms) => { const got = []; for (let t = 0; t < ms; t += 5) { run(u, 5); got.push(...fr()); } return got; };
       const turn = (role, n) => { const enc = new Int32Array(7); enc[pp.t.encId[role]] = n * pp.t.encDir[role]; u.setPanel({ keys: pp.keys, buttons: pp.buttons, enc, keyVel: new Uint8Array(27) }); run(u, 60); };
-      const pattern = (k) => { pp.btn("SEQ", true); run(u, 120); tapKey(u, pp, W[k]); pp.btn("SEQ", false); run(u, 300); tapBtn(u, pp, "HOME"); run(u, 300); };
+      // SEQ held + W: the pattern. The previous FIZZ (beta.18) latched the patterns open (HOME closed them); since
+      // 2026-11-13 SEQ held is a peek, let go is back on the Home view, where a HOME click would turn the view
+      const latched = mod === oldMod && /^0\.12\.0-beta\.(1[0-8]|[0-9])(\D|$)/.test(prev.version);
+      const pattern = (k) => { pp.btn("SEQ", true); run(u, 120); tapKey(u, pp, W[k]); pp.btn("SEQ", false); run(u, 300); if (latched) { tapBtn(u, pp, "HOME"); run(u, 300); } };
       const rows = () => u.screen().pixels.slice(180 * 240);
       run(u, 500); tapBtn(u, pp, "HOME"); run(u, 300); fr();
       return { u, pp, fr, pump, turn, pattern, rows };
@@ -600,7 +603,11 @@ e.dispose();
     const stepsOf = [[0, 4], [1, 8, 15], [2, 10]];          // pattern k: its steps (W indices)
     const oldRows = [];
     for (let k = 0; k < 3; k++) { o.pattern(k); for (const w of stepsOf[k]) tapKey(o.u, o.pp, W[w]); run(o.u, 200); oldRows.push(o.rows()); }
-    tapBtn(o.u, o.pp, "ARP"); o.turn(1, 1); o.turn(2, 1); run(o.u, 200); tapBtn(o.u, o.pp, "HOME"); run(o.u, 3000);
+    // the MIDI FX group (since 0.12.0-beta.18: PRESETS the track's group, ALGORITHM the step cursor; a slot's key held +
+    // KNOB 1 its effect): group 1, slot 1 ARP
+    tapBtn(o.u, o.pp, "ARP"); o.turn(2, 1); run(o.u, 200);
+    o.pp.key(1, true); run(o.u, 500); o.turn(3, 1); run(o.u, 200); o.pp.key(1, false); run(o.u, 200);
+    tapBtn(o.u, o.pp, "HOME"); run(o.u, 3000);
     const img = o.u.flash().bytes;
     o.u.dispose();
     // a fresh unit here: what the patterns look like without the old project (the comparison's other side)
