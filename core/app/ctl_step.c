@@ -134,16 +134,12 @@ static void held_add(qd_app_t *a, int s, int key)
     qd_ui_t *u = &a->ui;
     if (u->nheld >= 16)
         return;
-    if (!u->nheld) {                                    /* a new hold */
-        qd_rstep_t r;
-        resolve(a, s, &r);
+    if (!u->nheld) {                                    /* a new hold (2026-11-13, owner: SOUND's bank and the octave
+                                                         * are global: a selection never moves them) */
         u->chord_ms = a->ms - 10000u;
         u->held_played = 0;
         u->note_keys = 0;
         u->entry_n = 0;
-        if (r.sound > 0)                                /* SOUND: the bank holding the step's sound (2026-11-13, owner:
-                                                         * no lock: the bank kept, never back to the first) */
-            u->sound_bank = (r.sound - 1) / 10;
         u->sel_panel = u->latch == QD_LATCH_MIX || u->latch == QD_LATCH_FX;   /* (P1.6h: made there or not) */
     }
     u->held[u->nheld] = s;

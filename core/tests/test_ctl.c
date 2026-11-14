@@ -10461,7 +10461,7 @@ static void g_sel_kept(void)
 /* 2026-11-13 (owner): SOUND's bank remembered: another hold mode and back, a step without a sound lock selected */
 static void g_bank_kept(void)
 {
-    int b0;
+    int b0, ok, oc;
     start();
     A.ui.lmode = QD_LMODE_MODES;
     mode(M_SOUND);
@@ -10471,8 +10471,27 @@ static void g_bank_kept(void)
     mode(M_VEL);
     mode(M_SOUND);
     turn(QD_K_ALGO, 3);
-    CHECK(b0 > 0 && A.ui.sound_bank == b0, "SOUND, bank %d; VEL and back, another step (no lock): bank %d", b0 + 1,
-          A.ui.sound_bank + 1);
+    ok = b0 > 0 && A.ui.sound_bank == b0;
+    qd_step_set_sound(PAT(), 0, 7, 2);                  /* (a step locked to a sound of the first bank) */
+    A.ui.lmode = QD_LMODE_VALUES;
+    btap(LFO);
+    wtap(7);
+    wtap(3);
+    turn(QD_K_ALGO, 1);
+    oc = A.oct;
+    CHECK(ok && A.ui.sound_bank == b0 && A.oct == oc,
+          "SOUND, bank %d; VEL and back, other steps (a first bank's lock too, VALUES, the lock's W keys): bank %d",
+          b0 + 1, A.ui.sound_bank + 1);
+    A.ui.lmode = QD_LMODE_MODES;                        /* (the black keys the modes again) */
+    mode(M_NOTE);
+    btap(F2);                                           /* (NOTE, a step selected: the octave up) */
+    oc = A.oct;
+    wtap(9);
+    turn(QD_K_ALGO, -2);
+    mode(M_SOUND);
+    mode(M_NOTE);
+    CHECK(oc == 1 && A.oct == oc && A.ui.entry_oct == QD_ENTRY_OCT + 1,
+          "NOTE: OCT+ (+1); other steps and another mode and back: still +1 (%d)", A.oct);
 }
 
 /* 2026-11-13 (owner): the sound editor's LFO keys (B6..B8) and B1: a quick click the page; held (the mapping) never */
