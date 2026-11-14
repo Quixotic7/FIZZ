@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.19 (2026-11-14)
+
 SAVE and SEQ become page buttons with a click cycle, the PIANO ROLL moves to SEQ and draws five of its modes as a 4 x 4 grid, patterns can be copied and cut with F1 / F2, and waking the unit no longer triggers anything.
 
 - **B11's steps / keys no longer flip when you change pages**: turning PRESETS on the keyboard page and then pressing EDIT, ENV, FX, SEQ, SAVE, SHIFT + REC or holding PLAY no longer drops you back on the keyboard page under that page (with the white keys playing notes); and the MIDI FX screen, opened with the step keyboard on, no longer shows B11's label (and SHIFT + white keys) the wrong way round.
