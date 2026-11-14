@@ -14,8 +14,8 @@ runs on the FM-1 itself, and the same code plays in the browser.
 - **A mixer and effects**: chorus, delay and reverb with sends per track.
 - **Eight projects** of 64 patterns each, with copy, cut and paste of steps, pages and patterns, and eight levels of
   undo.
-- **Live**: a keyboard page with step and live recording, MIDI in and out, clock, USB audio, and Bluetooth MIDI in the
-  Bluetooth package.
+- **Live**: a keyboard page with step and live recording, MIDI in and out, clock, USB audio, USB host for a USB-MIDI
+  keyboard or synth (the USB package), and Bluetooth MIDI in the Bluetooth package.
 
 ## Get it
 
