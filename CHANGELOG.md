@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0 (2026-11-14)
+
 FIZZ's first release that is not a beta. The FM-1's USB port can now be the host of a USB-MIDI keyboard or synth: FIZZ plays without a computer.
 
 - **USB HOST** (every package): hold HOME for the settings and turn SELECT to page 3, then KNOB 1 to ON. A USB-MIDI
