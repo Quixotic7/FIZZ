@@ -328,10 +328,6 @@ static void l_chnc(const ui_lane_t *v)
 static float gx(int i) { return 4.f + (float)(i & 3) * 59.f; }
 static float gy(int i) { return 35.f + (float)(i >> 2) * 48.f; }
 
-static qd_rgb shade(qd_rgb c, unsigned k)               /* c at k / 256, over black */
-{
-    return ((c >> 16 & 255u) * k >> 8) << 16 | ((c >> 8 & 255u) * k >> 8) << 8 | (c & 255u) * k >> 8;
-}
 static void faint(float a)                              /* .. until qd_restore */
 {
     qd_save();
@@ -427,9 +423,9 @@ static __attribute__((noinline)) FZ_COLD void grid(const ui_lane_t *v)
             col = UI_STEP_GHOST;
         }
         if (own)
-            ui_RR(x, y, GW, GH, 7.f, col, 1.5f, shade(col, 44u));
+            ui_RR(x, y, GW, GH, 7.f, col, 1.5f, QD_NONE);   /* (2026-11-14, owner: the boxes black inside) */
         else
-            ui_RR(x, y, GW, GH, 7.f, UI_G2, 1.f, 0x141418u), col = UI_G1;
+            ui_RR(x, y, GW, GH, 7.f, UI_G2, 1.f, QD_NONE), col = UI_G1;
         if (i == ph) {                                  /* playing: a flash, fading over the step */
             faint(0.24f - 0.2f * (v->pos - (float)ph));
             ui_RR(x, y, GW, GH, 7.f, QD_NONE, 1.f, UI_K3);
@@ -441,20 +437,8 @@ static __attribute__((noinline)) FZ_COLD void grid(const ui_lane_t *v)
                 faint(0.55f);
                 ui_O(cx, cy, 13.f, col, 4.f, QD_NONE);
                 qd_restore();
-            } else if (c->cond[1] == ':') {             /* A:B: B passes round, the A-th lit */
-                const int b = c->cond[2] - '0';
-                const float seg = UI_TAU / (float)(b > 0 ? b : 1);
-                for (k = 0; k < b; k++) {
-                    const int lit = k == c->cond[0] - '1';
-                    const float lw = lit ? 6.f : 4.f, a0 = -UI_PI / 2.f + (float)k * seg + 0.17f + lw / 30.f;
-                    const float sp = seg - 0.34f - lw / 15.f;   /* (round caps: the gap kept) */
-                    if (!lit)
-                        faint(0.32f);
-                    qd_arc(cx, cy, 15.f, a0, a0 + (sp > 0.05f ? sp : 0.05f), col, lw);
-                    if (!lit)
-                        qd_restore();
-                }
-                ui_T(c->cond, cx, cy + 4.5f, 13.f, 700, 0.f, col, QD_CENTER);
+            } else if (c->cond[1] == ':') {             /* A:B (2026-11-14, owner: no ring, the value big) */
+                ui_T(c->cond, cx, cy + 8.5f, 24.f, 700, 0.f, col, QD_CENTER);
             } else {
                 ui_T(c->cond, cx, cy + 6.5f, ui_TW(c->cond, 18.f, 700, 0.f) > 46.f ? 15.f : 18.f, 700, 0.f, col,
                      QD_CENTER);
