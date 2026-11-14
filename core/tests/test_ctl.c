@@ -9966,7 +9966,9 @@ static void g_keys_fixes(void)
     btap(QD_B_PAGE);
     ok &= qd_snd_keys(&A);
     btap(QD_B_MIX);
-    ok &= qd_snd_keys(&A);
+    ok &= A.ui.ekeys && !qd_snd_keys(&A);               /* (2026-11-13: TOOLS always the steps; the flag kept) */
+    black(B11);
+    ok &= A.ui.ekeys;                                   /* (.. a B11 click there: nothing) */
     btap(QD_B_HOME);
     ok &= qd_snd_keys(&A);
     btap(QD_B_HOME);

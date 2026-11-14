@@ -6,8 +6,10 @@
  *
  * THE CONTROLS (the owner's layout, 2026-10-25; 2026-11-10: B11 the hold key, every page's): B1..B5 ROTATE, REVERSE,
  * RANDOM, EUCLID, GRIDS, B6 HUMANIZE / QUANTIZE (again: the other), B7 the scope, B8 LENGTH, B9 STRETCH, B10 CLIP (COPY /
- * PASTE / CLEAR: KNOB 1 picks, OCT+ or B10 does it); PRESETS every tool; B7 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
- * page shown (it stays: no page follow in TOOLS); W1..W16 the page's steps (a press: in / out of the selection, the
+ * PASTE / CLEAR: KNOB 1 picks, OCT+ or B10 does it); 2026-11-13 (owner): SELECT every tool, B7 or PRESETS the scope
+ * (SELECTED STEPS, PAGE, TRACK, PATTERN), ALGORITHM the step cursor (fully left: TRACK), B11 + B1..B8 the page shown
+ * (it stays: no page follow in TOOLS), B11 never the keys; OCT held the step view's F1 / F2, a quick click OCT+ keeps,
+ * OCT- reverts; W1..W16 the page's steps (a press: in / out of the selection, the
  * scope SELECTED; lit as the change makes them, the ghosts dim, the steps that do not play dark); KNOB 1..4 the
  * tool's values. SELECTED + ROTATE moves the selected steps along the track's loop (qd_tl_move). OCT+ keeps, OCT- reverts (it never leaves); HOME (or SEQ tapped, which opens it: T1b) is the way out. TOOLS works on
  * the track selected when it opened (SHIFT + SELECT still changes it: a pending change is kept first).
@@ -362,6 +364,15 @@ static void tl_revert(qd_app_t *a)                    /* OCT-: back to the origi
     tl_pop(a, 2, TLM_REVERTED);
 }
 static void tl_closed(qd_app_t *a) { tl_keep(a); }   /* (HOME, another page: a pending change kept) */
+void qd_tools_keep(qd_app_t *a) { tl_keep(a); }       /* (2026-11-13: F1 / F2's step layers: the change kept first) */
+void qd_tools_oct_click(qd_app_t *a, int d)           /* 2026-11-13 (owner): a quick click: OCT+ keeps, OCT- reverts;
+                                                         * held: the step view's F1 / F2 */
+{
+    if (d > 0)
+        tl_confirm(a);
+    else
+        tl_revert(a);
+}
 
 void qd_tools_screen(qd_app_t *a)
 {
@@ -465,22 +476,24 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
     int ch = 0;
     if (!d)
         return 1;
-    if (knob == QD_K_SELECT) {                          /* the page shown (PAGE's change kept first) */
-        if (T->scope == QD_TS_PAGE)
-            tl_keep(a);
-        qd_ctl_sel_page(a, (tl_page(a) + d % QD_NPAGE + QD_NPAGE) % QD_NPAGE);
-        tl_norm(a);
-        qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);   /* (the eight pages, "PAGE 3": the step view's) */
-        return 1;
-    }
-    if (knob == QD_K_PRESETS) {                         /* the tools, round (a detent a tool) */
+    if (knob == QD_K_SELECT) {                          /* 2026-11-13 (owner): the tools, round (a detent a tool; the
+                                                         * pages: B11 + B1..B8) */
         tl_tool(a, ((T->tool + d) % QD_TL_N + QD_TL_N) % QD_TL_N);
         return 1;
     }
-    if (knob == QD_K_ALGO) {                               /* the scope */
+    if (knob == QD_K_PRESETS) {                         /* 2026-11-13 (owner): the scope, the tool's target */
         const int sc = tl_clamp(T->scope + d, 0, QD_TS_N - 1);
         if (sc != T->scope)
             tl_scope(a, sc);
+        return 1;
+    }
+    if (knob == QD_K_ALGO) {                            /* 2026-11-13 (owner): the step cursor, as everywhere: the
+                                                         * selection one step, SELECTED; fully left LIVE: the track */
+        qd_step_cursor(a, d);
+        if (a->ui.nheld)
+            qd_tools_sel_changed(a);
+        else if (T->scope == QD_TS_SEL)
+            tl_scope(a, QD_TS_TRACK);
         return 1;
     }
     switch (T->tool) {

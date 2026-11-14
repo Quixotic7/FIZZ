@@ -193,7 +193,8 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         leds_pages(a, out, 0);
         return;
     }
-    if (qd_tools_open(a)) {                             /* T1: TOOLS: the tools, the scope, the tracks */
+    if (qd_tools_open(a) && qd_ctl_main_layer(a) == QD_LAYER_NONE) {   /* T1: TOOLS: the tools, the scope, the tracks
+                                                         * (2026-11-13: F1 / F2 held: the step view's layer, below) */
         qd_tools_leds(a, out->key);
         return;
     }

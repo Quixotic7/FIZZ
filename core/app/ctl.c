@@ -91,6 +91,7 @@ int qd_ctl_main_steps(const qd_app_t *a)
     case QD_LATCH_FX: return !qd_snd_keys(a);           /* (2026-10-26: SENDS' keyboard: F1 / F2 the octave) */
     case QD_LATCH_SND: return !u->ekeys;                /* (its keyboard: F1 / F2 the octave) */
     case QD_LATCH_MFX: return !qd_mfx_lane_page(a);     /* (STEPS; an arp lane's W keys are its steps) */
+    case QD_LATCH_TOOLS: return 1;                      /* (2026-11-13, owner: TOOLS' W keys are always the steps) */
     default: return 0;
     }
 }
@@ -996,6 +997,8 @@ static void keys_toggle(qd_app_t *a)
         qd_mfx_rec(a);
         return;
     }
+    if (qd_tools_open(a))                               /* (2026-11-13, owner: TOOLS is always the steps) */
+        return;
     if (u->mode == QD_MODE_KEYS)
         u->ksteps ^= 1, u->ekeys = !u->ksteps;          /* (the keyboard page: its W keys the steps, the screen's
                                                          * keyboard stays) */
@@ -1140,6 +1143,8 @@ static void k_ov_black(qd_app_t *a, int key, int b, int down, int vel)
 static int w_b11(const qd_app_t *a) { return qd_ctl_b11(a); }
 static void k_b11_black(qd_app_t *a, int key, int b, int down, int vel)
 {
+    if (down && b < QD_NPAGE && qd_tools_open(a) && a->ui.tl.scope == QD_TS_PAGE)
+        qd_tools_keep(a);                               /* (2026-11-13: TOOLS' pages here now: PAGE's change kept first) */
     if (b < QD_NPAGE)
         k_f1_black(a, key, b, down, vel);
 }
@@ -1153,7 +1158,23 @@ static void k_b11_white(qd_app_t *a, int key, int w, int down, int vel)
 }
 /* 2026-11-10 (owner): the keyboard page, its W keys the steps (a B11 click): the step view's (tap, hold) */
 static int w_keys_steps(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && a->ui.ksteps && !a->ui.latch; }
-static int w_tools_w(const qd_app_t *a) { return w_tools(a) && !a->ui.ekeys; }
+static int w_tools_w(const qd_app_t *a) { return w_tools(a) && qd_ctl_main_layer(a) == QD_LAYER_NONE; }
+static int w_tools_layer(const qd_app_t *a) { return w_tools(a) && qd_ctl_main_layer(a) != QD_LAYER_NONE; }
+static void k_flayer_white(qd_app_t *a, int key, int w, int down, int vel);
+static void k_main_black(qd_app_t *a, int key, int b, int down, int vel);
+static void k_tools_lw(qd_app_t *a, int key, int w, int down, int vel)   /* (2026-11-13: TOOLS, F1 / F2 held: the
+                                                         * step view's layers, a pending change kept first) */
+{
+    if (down)
+        qd_tools_keep(a);
+    k_flayer_white(a, key, w, down, vel);
+}
+static void k_tools_lb(qd_app_t *a, int key, int b, int down, int vel)
+{
+    if (down)
+        qd_tools_keep(a);
+    k_main_black(a, key, b, down, vel);
+}
 
 typedef struct {
     qd_when_fn when;
@@ -1165,7 +1186,8 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_sel_held, k_sel_white},         /* SEL held: W1..W8 mute, W9..W16 solo */
     {w_shift_white, k_none},           /* 2026-11-10: SHIFT held, the W keys the keys: nothing (as SHIFT + a step) */
     {w_b11, k_b11_white},              /* 2026-11-10: B11 held: the W keys select steps, every page */
-    {w_tools_w, k_tools_white},        /* T1: TOOLS: the page's steps (the keys on: below) */
+    {w_tools_w, k_tools_white},        /* T1: TOOLS: the page's steps (2026-11-13: always; F1 / F2: the layers) */
+    {w_tools_layer, k_tools_lw},
     {w_tracks_held, k_track_select},   /* FX (TRACKS) held: tracks 1..8 (over the pages too) */
     {w_lib, k_lib_white},              /* P1.5a: the sounds page's slots, the projects */
     {w_menu_w, k_none},                /* P1.3y: a settings menu: nothing (the track settings: the steps, below) */
@@ -1192,7 +1214,8 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
     {w_shift_keys, k_shift_black},     /* P1.5c: SHIFT's shortcuts (snapshot, copy / paste, tap, click, double, clear) */
     {w_b11, k_b11_black},              /* 2026-11-10: B11 held: B1..B8 the pages (F1's), every page */
-    {w_tools, k_tools_black},          /* T1: TOOLS: the tools, B7 the scope (B11 the hold key) */
+    {w_tools_w, k_tools_black},        /* T1: TOOLS: the tools, B7 the scope (B11 the hold key) */
+    {w_tools_layer, k_tools_lb},       /* (2026-11-13: F1 / F2 held: the step view's) */
     {w_lib, k_lib_black},              /* P1.5a: the banks, LIBRARY / POOL, NAME, delete */
     {w_main_layer, k_main_black},      /* P1.6h: .. F1 held: its pages, CLEAR, COPY, UNDO (MIDI FX: B9, B11; B1..B8 stay
                                         * the slots); F2: nothing */
@@ -1722,7 +1745,11 @@ static void b_oct(qd_app_t *a, int d, int down)
     if (!down) {
         if (u->oct_tap == d) {                          /* P1.5m: the latch's selection, an OCT tapped (nothing with it):
                                                          * NOTE's octave, SOUND's bank, as for a held step */
-            if (qd_step_kb(a)) {                        /* 2026-11-13 (owner): the step keyboard, a quick click: the
+            if (qd_tools_open(a)) {                     /* 2026-11-13 (owner): TOOLS, a quick click: OCT+ keeps,
+                                                         * OCT- reverts; held: the layers */
+                if (!u->oct_tap_used && a->ms - u->f_ms < QD_TAP_MS)
+                    qd_tools_oct_click(a, d);
+            } else if (qd_step_kb(a)) {                        /* 2026-11-13 (owner): the step keyboard, a quick click: the
                                                          * keys' octave (SOUND: the bank), held: the layer */
                 if (!u->oct_tap_used && a->ms - u->f_ms < QD_TAP_MS) {
                     if (u->hmode == UI_F_SOUND) {
@@ -1801,13 +1828,14 @@ static void b_oct(qd_app_t *a, int d, int down)
         qd_step_oct(a, d);
         return;
     }
-    if ((u->slatch || !u->nheld) && !u->latch && !qd_tools_open(a)) {   /* P1.5m: the latch's selection (2026-10-26: or
-                                                         * nothing held): a tap is its octave / bank (on the release,
-                                                         * qd_ctl_oct_tap), held it is the layer */
+    if (((u->slatch || !u->nheld) && !u->latch) || qd_tools_open(a)) {   /* P1.5m: the latch's selection (2026-10-26:
+                                                         * or nothing held): a tap is its octave / bank (on the release,
+                                                         * qd_ctl_oct_tap), held it is the layer (2026-11-13: TOOLS a
+                                                         * tap keeps / reverts) */
         u->oct_tap = both ? 0 : d;
         u->oct_tap_used = both;
     }
-    if (qd_latch_oct(a, d))                             /* P1.3d: a latched menu: OCT- back, OCT+ confirm (P1.6h: a
+    if (!qd_tools_open(a) && qd_latch_oct(a, d))                             /* P1.3d: a latched menu: OCT- back, OCT+ confirm (P1.6h: a
                                                          * main page none: its F1 / F2 the step view's layers) */
         return;
     if (both) {                                         /* P1.3d: both together open F3, latched (P1.6h: from the step

@@ -385,17 +385,15 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
             const int t = qd_tools_key_tool(i);
             lb_set(o, LB_B(i), t >= 0 ? TN[t] : t == -1 ? "HUMAN/QUAN" : "SCOPE");
         }
-        if (qd_snd_keys(a))
-            lb_notes(a, o, !a->proj.rec_ekeys);
-        else
-            for (i = 0; i < 16; i++)
-                lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
+        for (i = 0; i < 16; i++)                        /* (2026-11-13: always the steps) */
+            lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         for (k = 0; k < 3; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), KL[tool][k]);
         lb_set(o, LB_KNOB(QD_K_4), KL[tool][3]);
-        lb_set(o, LB_KNOB(QD_K_ALGO), "SCOPE");
-        lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
-        lb_set(o, LB_KNOB(QD_K_PRESETS), "TOOL");
+        lb_set(o, LB_KNOB(QD_K_ALGO), "STEP");         /* (2026-11-13, owner: SELECT the tool, ALGORITHM the step
+                                                         * cursor, PRESETS the scope) */
+        lb_set(o, LB_KNOB(QD_K_SELECT), "TOOL");
+        lb_set(o, LB_KNOB(QD_K_PRESETS), "SCOPE");
         lb_set(o, LB_BTN(QD_B_OCTUP), tool == QD_TL_CLIP ? CA[u->tl.v.cl.act % QD_CL_N] : "KEEP");
         lb_set(o, LB_BTN(QD_B_OCTDN), "REVERT");
         lb_set(o, LB_BTN(QD_B_HOME), "CLOSE");

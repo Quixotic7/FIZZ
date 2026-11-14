@@ -913,6 +913,8 @@ void qd_tools_sel_changed(struct qd_app *a);    /* 2026-11-10: the selection cha
 int qd_tools_key_tool(int b);                   /* .. the tool on black key b (-1 B6's two, -2 the scope, -3 none) */
 int qd_tools_tool_key(int t);                   /* .. the black key of tool t */
 int qd_tools_knob(struct qd_app *a, int knob, int d);
+void qd_tools_keep(struct qd_app *a);
+void qd_tools_oct_click(struct qd_app *a, int d);
 void qd_tools_ms(struct qd_app *a);
 void qd_tools_leds(const struct qd_app *a, uint8_t *key);
 int qd_tools_pending(struct qd_app *a);         /* a change pending (live or drawn only) */

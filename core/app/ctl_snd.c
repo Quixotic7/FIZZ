@@ -423,7 +423,7 @@ int qd_snd_keys(const qd_app_t *a)                     /* (2026-11-10: a B11 cli
 {
     const int l = a->ui.latch;
     return a->ui.mode == QD_MODE_STEP && a->ui.ekeys &&
-           (!l || l == QD_LATCH_SND || l == QD_LATCH_FX || l == QD_LATCH_MIX || l == QD_LATCH_TOOLS);
+           (!l || l == QD_LATCH_SND || l == QD_LATCH_FX || l == QD_LATCH_MIX);   /* (2026-11-13: not TOOLS: the steps) */
 }
 int qd_keys_on(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS || qd_snd_keys(a); }
 
