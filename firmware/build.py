@@ -222,10 +222,9 @@ BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
 # (2026-11-11, OVERVIEW's black keys: the tracks' sweep, the mode's band, M / S in ui_ov.c: the second blob 1,020 B
 # over: the SHIFT screen's, the mix's and OVERVIEW's band models (fill_shift, fill_mix, fill_ovband) back in the slot,
 # which ui_held.o and ui_turn.o at -Oz made room for, below)
-BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx", "pr_fill", "fill_shift"]}   # (2026-11-13, the MIDI FX
-                                                         # knobs: 224 B over: the browser's and SHIFT's fills too, the
-                                                         # blob 20 B free; qd_ctl_ov_knob back in the slot: the
-                                                         # blob 28 B over with view.o at -Oz)
+BLE_X2_FN = {"build_units_c_view.o": ["fill_fx", "pr_fill", "fill_shift"]}   # (2026-11-13, the MIDI FX knobs: 224 B
+                                                         # over: the browser's and SHIFT's fills too. 2026-11-13, the
+                                                         # drawing back at -Os: OVERVIEW's model back in the slot)
 # (2026-11-10) units compiled at -Oz, not -Os, on the Bluetooth package: the screens' unit (ui_layer.o: the sound
 # editor, MIDI FX, the browser, the typewriter, the tools, Geek Out, OVERVIEW, the layer and SHIFT screens), main-loop
 # drawing logic only (never the audio interrupt, core 1 or under the audio lock; the raster, qd_gfx_fast.o, stays
@@ -238,40 +237,19 @@ BLE_X2_FN = {"build_units_c_view.o": ["qd_view_ov", "fill_fx", "pr_fill", "fill_
 # 1,472 free before them): the idle screen's unit (ui_idle.o, 1,352 B) and the drawing's helpers (ui_kit.o, 1,636 B: the
 # rounded boxes, the text's width, the icons, the keybed; ui_itoa with them, a key's band and labels) at -Oz too; with
 # the value preview merged beside them (272 B over): the picker's, the octave map's and the mixer pages' units too
-BLE_OZ = {"build_units_c_ui_layer.o", "build_units_c_ui_held.o", "build_units_c_ui_turn.o",
-          "build_units_c_ui_idle.o", "build_units_c_ui_kit.o",
-          "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
-          "build_units_c_view.o",   # (2026-11-13, the step keyboard's second round: 1,040 B over; the views' models)
-          # (2026-11-13, round 3, the owner's OK: the controls' step and keys units: ~2 KB over)
-          "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",
-          # (2026-11-13, the editor's knobs, B11's STEPS grid, SAVE's STEP: 992 B over; the controls' main unit and the
-          # preview, no drawing: 80 B free. ui_lane.o alone would do, but it draws the Home views' lanes)
-          "build_units_c_ctl.o", "build_units_c_ctl_preview.o",
-          "build_units_c_ui_keys.o",   # (2026-11-13, B11 one state, B1..B10 the scale: 16 B over; the keyboard page's
-          # drawing, 192 B smaller)
-          "build_units_c_clip.o", "build_units_c_chord.o",   # (2026-11-13, the editor's step row, the keyboard page's
-          # frame: 80 B over; the clipboard and the notes' and chords' names, main loop only: 64 B free)
-          *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
-USB_OZ = {"build_units_c_ui_layer.o",   # (2026-11-13: the held screens back at -Os: -Oz made the EDIT view ~15 ms a frame
-          # slower playing (87 vs 72 ms, unit); the cold units at -Oz in their place: the idle screen, the pickers, the
-          # octave map, the mix's pages, the keys' recording and latch code)
-          "build_units_c_ui_idle.o", "build_units_c_ui_picker.o", "build_units_c_ui_octave.o",
-          "build_units_c_ctl_rec.o", "build_units_c_ctl_latch.o",   # (not ui_tracks.o: it draws the Home views' rows
-          # and the mix; at -Oz every Home view drew ~10 ms slower, drawbench on the unit)
-          "build_units_c_ctl_step.o", "build_units_c_ui_turn.o",   # (2026-11-13: the editor's knobs, the B11 STEPS
-          # grid, SAVE's STEP: 624 B over; the step controls, no drawing, and the takeovers' bands, as on Bluetooth)
-          "build_units_c_clip.o", "build_units_c_chord.o",   # (2026-11-13, the MIDI FX screen following the step: 112
-          # B over; the clipboard and the notes' names, as on Bluetooth)
-          "build_units_c_ctl_preview.o",   # (2026-11-13, the MIDI FX steps' shortcuts: 128 B over; the value
-          # preview's controls, no drawing, as on Bluetooth)
-          "build_units_c_ctl.o"}   # (2026-11-13, MIDI FX keeping B11's global state: 64 B over; the controls' dispatch, no drawing)
-# (2026-11-12, the orange keys' modes: the single-core package's slot 2,476 B over, 1,508 free before: ui_idle.o and
-# ui_kit.o at -Oz there too, as on the Bluetooth package; the USB package keeps ~2.2 KB free without them)
-SINGLE_OZ = USB_OZ | {"build_units_c_ui_held.o", "build_units_c_ui_kit.o",   # (+ the value preview: 316 B over)
-                      "build_units_c_ui_picker.o", "build_units_c_ui_octave.o", "build_units_c_ui_tracks.o",
-                      "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",   # (round 3)
-                      "build_units_c_ctl_preview.o",   # (2026-11-13: SAVE's STEP, B11's STEPS grid: 124 B over)
-                      "build_units_c_ui_keys.o"}   # (.. B11 one state: 12 B over; the keyboard page's drawing)
+# 2026-11-13 (the UI clean-up, docs/UI-REFACTOR-REVIEW.md): the drawing back at -Os on every package (ui_layer.o,
+# ui_held.o, ui_turn.o, ui_idle.o, ui_kit.o, ui_octave.o, ui_tracks.o, ui_keys.o, view.o: what draws or fills a frame);
+# the screens drawn seldom are FZ_COLD in the source (ui.h: minsize, -Oz function by function). The clean-up made the
+# room: the drawing's small helpers out of line (qd_line for the nine line helpers, noinline where -Os had copied a
+# helper into every caller), the dead takeovers gone. Only the controls (no drawing, main loop only) stay at -Oz.
+# ui_picker.o has no caller (the linker drops it). FZ_BLE_OZ=a.o,b.o adds units for a measure (FZ_MEASURE=1)
+OZ_CTL = {"build_units_c_ctl.o", "build_units_c_ctl_rec.o", "build_units_c_ctl_step.o", "build_units_c_ctl_latch.o",
+          "build_units_c_ctl_preview.o", "build_units_c_clip.o", "build_units_c_chord.o"}
+BLE_OZ = OZ_CTL | {"build_units_c_ui_idle.o",   # (the idle screen: nothing played on it; at -Os the slot
+                   # had 192 B left)
+                   *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
+USB_OZ = set(OZ_CTL)
+SINGLE_OZ = set(OZ_CTL)
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
