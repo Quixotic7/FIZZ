@@ -987,13 +987,8 @@ static void latch_toggle(qd_app_t *a)
                                                          * editor takes it: the selection's turns are its p-locks;
                                                          * P1.6h: so do the mix, the effects, the MIDI FX screen) */
     qd_step_latch(a, !a->ui.slatch);
-    if (a->ui.slatch && a->ui.latch == QD_LATCH_MIX)  /* (2026-11-13: the effects now as the step views, below) */
-        qd_step_release_all(a);
-    else if (a->ui.slatch && (!a->ui.latch || a->ui.latch == QD_LATCH_FX || a->ui.latch == QD_LATCH_SND))   /* 2026-11-13
-                                                         * (owner): the step views, the effects, the sound editor: the
-                                                         * last selection back */
-        qd_step_latch_restore(a);                         /* (P1.6h: there it starts empty: the knobs the track's until
-                                                         * W keys select) */
+    if (a->ui.slatch)                                   /* 2026-11-13 (owner): every page: the last selection back */
+        qd_step_latch_restore(a);
 }
 
 /* 2026-11-10 (owner, Elasticat's B11): B11 with nothing else to do is the hold key: held, B1..B8 the pages (F1's), the
@@ -1445,13 +1440,9 @@ static void home_hold(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     u->home_used = 3;
-    if (u->mode != QD_MODE_STEP)
-        set_mode(a, QD_MODE_STEP);
     if (u->latch)
         qd_latch_close(a);
-    if (!u->slatch)
-        qd_step_release_all(a);
-    qd_latch_open(a, QD_LATCH_SET);                     /* (2026-11-11, owner: it opens on the page it was left on) */
+    qd_page_open(a, QD_LATCH_SET, QD_PO_STEP);                     /* (2026-11-11, owner: it opens on the page it was left on) */
 }
 
 /* P1.3d (§8b 2.2): LFO (printed) toggles the step latch: as if a step is always held, a W tap selects (ctl_step.c) */
@@ -1620,11 +1611,7 @@ static void b_rec(qd_app_t *a, int down)
                 u->menu_knob = -1;
                 return;
             }
-            if (u->mode != QD_MODE_STEP)
-                set_mode(a, QD_MODE_STEP);
-            if (!u->slatch)
-                qd_step_release_all(a);
-            qd_latch_open(a, QD_LATCH_REC);
+            qd_page_open(a, QD_LATCH_REC, QD_PO_STEP);
             u->rec_page = 0;
         }
         return;
@@ -2526,6 +2513,10 @@ void qd_ctl_ms(qd_app_t *a)
         a->ms - u->lfo_ms >= QD_LFO_HOLD_MS)
         u->lmode_open = 1;                              /* P1.5h: LFO held alone: the latch mode's screen, while held */
     qd_step_promote_due(a);                             /* a white key down 250 ms: held */
+    if (a->ms - u->arm_ms >= QD_ARM_MS)                 /* 2026-11-13 (owner): every press-twice arm times out */
+        u->mfx_arm = -1, u->pj.armed = -1;
+    if ((u->br.del_armed || u->br.out_armed) && a->ms - u->br.arm_ms >= QD_ARM_MS)
+        u->br.del_armed = u->br.out_armed = 0;
     f1_timers(a);                                       /* F1: a page key held 400 ms, B9 held 600 ms */
     sel_seq_timers(a);                                  /* SEL + W held: solo; SEQ + W held: at once */
     qd_mix_ms(a);                                       /* the mix: B1..B6 held, the mute */

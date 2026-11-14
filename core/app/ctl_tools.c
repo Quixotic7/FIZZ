@@ -377,11 +377,7 @@ void qd_tools_oct_click(qd_app_t *a, int d)           /* 2026-11-13 (owner): a q
 void qd_tools_screen(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
-    if (u->mode != QD_MODE_STEP)
-        qd_ctl_set_mode(a, QD_MODE_STEP);
-    if (!u->slatch)
-        qd_step_release_all(a);
-    qd_latch_open(a, QD_LATCH_TOOLS);
+    qd_page_open(a, QD_LATCH_TOOLS, QD_PO_STEP);
     tl_settle(&u->tl);
     if (u->slatch)                                      /* (the step lock on: the selected steps) */
         u->tl.scope = QD_TS_SEL;

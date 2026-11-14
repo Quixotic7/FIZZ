@@ -107,13 +107,9 @@ void qd_mfx_screen(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     u->mfx_from_keys = u->mode == QD_MODE_KEYS;
-    if (u->mode != QD_MODE_STEP && u->mode != QD_MODE_KEYS)
-        qd_ctl_set_mode(a, QD_MODE_STEP);
+    qd_page_open(a, QD_LATCH_MFX, QD_PO_KEYS);
     u->mode = u->ekeys ? QD_MODE_KEYS : QD_MODE_STEP;   /* (2026-11-13, owner: B11's one global state: the step
                                                          * keyboard KEYS, the step selection STEPS) */
-    if (!u->slatch)                                     /* (P1.6e: the latch's selection kept: STEPS locks it) */
-        qd_step_release_all(a);
-    qd_latch_open(a, QD_LATCH_MFX);
     u->mfx_wheld = 0;
     u->mfx_drop = -1, u->mfx_f1_src = -1;
     u->mfx_slot &= 7;
@@ -294,6 +290,7 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
             qd_ctl_confirm(a, "REMOVED", "");
         } else {
             u->mfx_arm = u->mfx_slot;
+            u->arm_ms = a->ms;
         }
     }
 }

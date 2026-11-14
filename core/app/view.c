@@ -610,7 +610,7 @@ static __attribute__((noinline)) void fill_shift(const qd_app_t *a, ui_shift_t *
     v->snap_ok = a->undo.snap_ok;
     v->pclip_ok = a->undo.pclip_ok;
     v->metro = a->metro;
-    v->armed = u->clr_armed && a->ms - u->clr_ms < 2000u;
+    v->armed = u->clr_armed && a->ms - u->clr_ms < QD_ARM_MS;
 }
 
 /* ---------------------------------------------------------------- the takeovers --- */

@@ -483,7 +483,7 @@ void qd_snd_button(qd_app_t *a)
         qd_latch_close(a);                              /* (2026-11-10: the keys stay as they are, a global flag) */
         return;
     }
-    qd_latch_open(a, QD_LATCH_SND);
+    qd_page_open(a, QD_LATCH_SND, QD_PO_OVER);
     u->snd_knob = -1;
 }
 
