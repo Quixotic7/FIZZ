@@ -119,7 +119,7 @@ void ui_mix_draw(const ui_mix_t *v)
             if (v->locked[k] || v->lockany[k])
                 ui_chip(v->ltxt[k], 98.f + (float)k * 30.f, 18.f, 12.f, 27.f, FK[k], v->locked[k]);
         if (v->step)
-            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+            ui_step_frame();
     }
 }
 
@@ -692,5 +692,5 @@ void ui_fx_draw(const ui_fx_t *v)
             ln(cx - 18.f, 235.f, cx + 18.f, 235.f, FK[k], 2.f);
     }
     if (v->step)                                        /* P1.6d: the step's frame */
-        ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        ui_step_frame();
 }

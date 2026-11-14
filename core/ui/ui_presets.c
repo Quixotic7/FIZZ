@@ -208,7 +208,7 @@ void ui_browse_draw(const ui_browse_t *v)
     if (v->picker) {                                    /* the step's pool picker */
         ui_T(v->title, 8.f, 17.f, 12.f, 600, 1.f, UI_K3, QD_LEFT);
         line2(8.f, 25.f, 232.f, 25.f, UI_G3, 1.f);
-        ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        ui_step_frame();
         if (!v->n) {                                    /* the pool empty: TRACK only */
             pr_cassette(34.f, 60.f, 172.f, 76.f, 0, UI_POOL_COL, v->t, 1, "TRACK");
             pr_tray(98.f, 168.f, UI_POOL_COL, 0.6f);

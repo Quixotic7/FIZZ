@@ -85,6 +85,9 @@ void ui_RR(float x, float y, float w, float h, float r, qd_rgb col, float lw, qd
     qd_rrect(x + lw / 2.f, y + lw / 2.f, w - lw, h - lw, r, col, lw, fill);
 }
 
+/* the magenta frame round the whole screen: a step selected (UI_STEP_FRAME) */
+void ui_step_frame(void) { ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE); }
+
 /* box(c, x, y, n, col): the track's number in a little box, OP-1 style */
 void ui_box(float x, float y, int n, qd_rgb col)
 {

@@ -61,6 +61,7 @@ void ui_idle_word(float t, float *solid, float *parts);
 
 /* ---- the kit's drawings shared by screens (line.html's box, head, keyboard) */
 void ui_box(float x, float y, int n, qd_rgb col);   /* the track's number in a little box */
+void ui_step_frame(void);               /* the magenta frame round the screen: a step selected (UI_STEP_FRAME) */
 /* the top line: [n] left .......... right (n 0: no box) */
 void ui_head(const char *left, const char *right, int n, qd_rgb lcol, qd_rgb rcol);
 float ui_head_x(int n);                 /* P1.6d: where ui_head's left text starts (the track's box, its kind's icon) */

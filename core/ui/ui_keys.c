@@ -157,5 +157,5 @@ void ui_keys_draw(const ui_keys_t *v)
     }
     if (v->framed)                                      /* 2026-11-13 (owner): a step selected: the held step's frame,
                                                          * as on the Home views and in the sound editor */
-        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        ui_step_frame();
 }

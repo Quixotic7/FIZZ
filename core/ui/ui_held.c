@@ -989,7 +989,7 @@ static int held_head(const ui_held_t *v, pal_t *p)
     if (!v->is_default && !v->follow)                   /* P1.5d (the frames the other way round): a held step (or the
                                                          * latch's selection) has the frame, a track's default none
                                                          * (P1.5q: nor the step playing, followed: none held) */
-        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        ui_step_frame();
     if (v->row)                                         /* (2026-11-12: the step row in the words' place) */
         return field;
 

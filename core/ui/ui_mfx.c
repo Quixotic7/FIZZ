@@ -1121,7 +1121,7 @@ void ui_mfx_draw(const ui_mfx_t *v)
     if (!v->g && !((v->f1 || v->f2) && v->fstep)) {
         mf_off(v);
         if (v->steps_frame)
-            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+            ui_step_frame();
         return;
     }
     if (v->g)
@@ -1138,7 +1138,7 @@ void ui_mfx_draw(const ui_mfx_t *v)
         }
         ui_icon(full ? UI_IC_PASTE : v->f1 ? UI_IC_COPY : UI_IC_CUT, 176.f, 130.f, 2.6f, ac);
         if (v->steps_frame)
-            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+            ui_step_frame();
         return;
     }
     if (v->f1 || v->f2) {                               /* P1.6e: F1 / F2 held: what they do (the step view's) */
@@ -1159,7 +1159,7 @@ void ui_mfx_draw(const ui_mfx_t *v)
             ui_icon(UI_IC_CUT, 176.f, 130.f, 2.6f, ac);
         }
         if (v->steps_frame)
-            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+            ui_step_frame();
         return;
     }
     if (v->roll) {                                      /* a slot held (2026-11-13; PRESETS before): the types' rolodex,
@@ -1223,7 +1223,7 @@ void ui_mfx_draw(const ui_mfx_t *v)
     if (ty && v->lift_from < 0)
         mf_foot(v, v->byp_sel ? 0.4f : 1.f);
     if (v->steps_frame)                                 /* P1.6e: STEPS' steps held: the step's frame */
-        ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        ui_step_frame();
 }
 
 /* a held step's MIDI FX: m 0 TRACK (the track's group g), 1 OFF, 2.. a group */
@@ -1232,7 +1232,7 @@ void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char 
     char head[32], n[12];
     const float pulse = 0.5f + 0.5f * sinf(t * 3.f);
     int i;
-    ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+    ui_step_frame();
     head[0] = 0;
     strcat(head, "STEP "), strcat(head, ui_itoa(n, step)), strcat(head, " \xc2\xb7 MIDI FX");
     ui_T(head, 10.f, 19.f, 12.f, 600, 1.f, UI_K3, QD_LEFT);

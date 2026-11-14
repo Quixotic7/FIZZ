@@ -2612,7 +2612,7 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         qd_view_kst(a, kst, 0);
         ui_rec_keys_foot(kst, 1);
         if (scr == QD_SCR_EDIT && hv.row)               /* 2026-11-12 (owner): the lock's frame round the keys too */
-            ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+            ui_step_frame();
     }
     if (u->lmode_open) {                                /* P1.5h: LFO held: the latch mode's screen, while held */
         ui_lmode_draw(u->lmode, secs(a->ms));

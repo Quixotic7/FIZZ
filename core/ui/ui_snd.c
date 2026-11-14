@@ -1042,7 +1042,7 @@ static void sd_midi(const ui_snd_t *v)
     float w;
     int k;
     if (v->step)                                        /* (2026-11-13: as the Home views: a step's frame, none else) */
-        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        ui_step_frame();
     for (k = 0; k < 7; k++)                             /* the seven pages */
         ui_O(12.6f + (float)k * 9.f, 14.f, 2.6f, k == v->ipg ? hc : UI_G2, 1.f, k == v->ipg ? hc : QD_NONE);
     head[0] = 0;
@@ -1104,7 +1104,7 @@ void ui_snd_draw(const ui_snd_t *v)
     /* 2026-11-13 (owner, as the Home views): no frame for the track's sound, the held step's frame for a step's locks;
      * the head the page's name alone (white for a step), the page's steps under it */
     if (v->step)
-        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        ui_step_frame();
     head[0] = 0;
     (void)n;
     cat(head, v->name ? v->name : "");
