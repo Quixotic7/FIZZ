@@ -588,7 +588,7 @@ e.dispose();
       const turn = (role, n) => { const enc = new Int32Array(7); enc[pp.t.encId[role]] = n * pp.t.encDir[role]; u.setPanel({ keys: pp.keys, buttons: pp.buttons, enc, keyVel: new Uint8Array(27) }); run(u, 60); };
       // SEQ held + W: the pattern. The previous FIZZ (beta.18) latched the patterns open (HOME closed them); since
       // 2026-11-13 SEQ held is a peek, let go is back on the Home view, where a HOME click would turn the view
-      const latched = mod === oldMod && /^0\.12\.0-beta\.(1[0-8]|[0-9])(\D|$)/.test(prev.version);
+      const latched = mod === oldMod && /^0\.12\.0-beta\.((1[0-7]|[0-9])(\D|$)|18$)/.test(prev.version);   // (a dev build past beta.18: the peek)
       const pattern = (k) => { pp.btn("SEQ", true); run(u, 120); tapKey(u, pp, W[k]); pp.btn("SEQ", false); run(u, 300); if (latched) { tapBtn(u, pp, "HOME"); run(u, 300); } };
       const rows = () => u.screen().pixels.slice(180 * 240);
       run(u, 500); tapBtn(u, pp, "HOME"); run(u, 300); fr();
@@ -602,6 +602,7 @@ e.dispose();
     pool.forEach((nm, k) => { o.u.midiIn(storeSound({ name: nm, blob: blob(k + 4), pool: true })); o.pump(60); });
     const stepsOf = [[0, 4], [1, 8, 15], [2, 10]];          // pattern k: its steps (W indices)
     const oldRows = [];
+    run(o.u, 1500);                                         // (the pool's "imported" pop-up gone: it fades over the rows)
     for (let k = 0; k < 3; k++) { o.pattern(k); for (const w of stepsOf[k]) tapKey(o.u, o.pp, W[w]); run(o.u, 200); oldRows.push(o.rows()); }
     // the MIDI FX group (since 0.12.0-beta.18: PRESETS the track's group, ALGORITHM the step cursor; a slot's key held +
     // KNOB 1 its effect): group 1, slot 1 ARP
