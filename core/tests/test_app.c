@@ -97,9 +97,11 @@ static void fresh(void)
 }
 static void peaks0(void) { peak_l = peak_r = 0; }
 static void tap_button(int b);
+static void wake_up(void) { tap_button(QD_B_HOME); }   /* (2026-11-13: the press that wakes does nothing else) */
 static void fresh_keys(void)             /* power-on is the idle screen; REC (P1.3b): the keyboard plays the keybed */
 {
     fresh();
+    wake_up();
     tap_button(QD_B_REC);
 }
 static int voices_of(int track)          /* the track's voices held (gate) */
@@ -217,6 +219,7 @@ static void t_screens(void)
 {
     qd_leds_t l;
     fresh();
+    wake_up();
     tap_button(QD_B_REC);
     qd_app_leds(&A, &l);
     CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC's LED lit (its page; 2026-10-25) (P1.6g: lit "
@@ -776,6 +779,7 @@ static void t_patterns(void)
     uint64_t h0, h1;
     uint32_t t0;
     fresh();
+    wake_up();
     qd_seq_select(&A.seq, 1, 0);                        /* A02 (power-on is A01) */
     tap_button(QD_B_PLAY);
     run(500, 0);
@@ -797,8 +801,8 @@ static void t_patterns(void)
                                                          * block after the release) */
     while (A.seq.cur == 1 && now < 10000)
         run(1, 0);
-    CHECK(A.seq.cur == 0 && qd_seq_queued(&A.seq) < 0 && now >= 4815 && now <= 4830,
-          "A01 takes over at the end of A02's master length (at %u ms; PLAY released at 20)", now);
+    CHECK(A.seq.cur == 0 && qd_seq_queued(&A.seq) < 0 && now >= 4855 && now <= 4870,
+          "A01 takes over at the end of A02's master length (at %u ms; PLAY released at 60, after the wake's 40)", now);
     (void)t0;
     qd_app_button(&A, QD_B_MIX, 1);                     /* P1.3c: the key held 400 ms: at the next 16th */
     qd_app_key(&A, WK[2], 1, 100);
@@ -834,6 +838,7 @@ static void t_tracks(void)
     qd_leds_t l;
     int k, n1 = 0;
     fresh();
+    wake_up();
     tap_button(QD_B_TRACKS);
     qd_app_leds(&A, &l);
     CHECK(A.ui.mode == QD_MODE_STEP && A.ui.latch == QD_LATCH_FX && qd_view_screen(&A) == QD_SCR_FX &&
@@ -884,6 +889,7 @@ static void t_along(void)
 {
     int k, peak_with = 0;
     fresh();
+    wake_up();
     tap_button(QD_B_REC);
     tap_button(QD_B_PLAY);
     run(300, 0);
@@ -1015,6 +1021,7 @@ static uint64_t session_seq(void)
 {
     int k;
     fresh();
+    wake_up();
     tap_button(QD_B_PLAY);
     run(700, 0);
     qd_app_button(&A, QD_B_MIX, 1);
@@ -1191,6 +1198,7 @@ static void t_busy(void)
     int k;
     uint32_t own, cross, drops, maxv = 0;
     fresh();
+    wake_up();
     tap_button(QD_B_PLAY);
     for (k = 0; k < 3; k++) {
         qd_seq_select(&A.seq, k, 0);

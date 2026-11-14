@@ -318,10 +318,68 @@ static void g_wake(void)
     CHECK(A.ui.mode == QD_MODE_STEP && R(0, 0).on == on0, "a key wakes to the step view and does nothing else");
     run(QD_IDLE_MS + 10);
     CHECK(A.ui.mode == QD_MODE_IDLE, "two minutes untouched, stopped: idle again");
+    wake();                                             /* (2026-11-13: the press that wakes does nothing else) */
     btap(QD_B_PLAY);
     run(QD_IDLE_MS + 10);
     CHECK(A.ui.mode == QD_MODE_STEP, "playing: no idle");
     btap(QD_B_PLAY);
+}
+
+/* 2026-11-13 (owner): "if we are in screensaver mode then any button press should wake the screensaver then be
+ * consumed": every button (its release too; held, no modifier and no hold) and every knob turn that wakes the unit
+ * does nothing else; pressed again, it does its job */
+static void idle_again(void)                            /* (two minutes untouched, without simulating them) */
+{
+    A.ui.touch_ms = A.ms - QD_IDLE_MS - 1u;
+    run(5);
+}
+static void g_wake_eats(void)
+{
+    static const int BT[] = {QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_MUTE, QD_B_SOUND, QD_B_FUNC, QD_B_HOME,
+                             QD_B_SAVE, QD_B_KEYS, QD_B_MIX, QD_B_PLAY, QD_B_REC, QD_B_OCTDN, QD_B_OCTUP};
+    size_t i;
+    int ok = 1, bad = -1, k;
+    fresh();
+    for (i = 0; i < sizeof BT / sizeof BT[0]; i++) {    /* tapped, and held long (HOME's settings, SEQ's map, REC's
+                                                         * arm, PLAY's F3, ARP's bypass, LFO's screen ..) */
+        for (k = 0; k < 2; k++) {
+            const int view = A.ui.view, mfx = qd_ctl_pat(&A)->trk[0].mfx;
+            idle_again();
+            bdown(BT[i]);
+            run(k ? 1200 : 20);
+            if (BT[i] == QD_B_FUNC)
+                ok &= !qd_ctl_shift(&A);                /* (SHIFT that woke it: no SHIFT layer while held) */
+            bup(BT[i]);
+            run(20);
+            if (!(A.ui.mode == QD_MODE_STEP && !A.ui.latch && A.ui.view == view && !A.seq.playing && !A.ui.rec &&
+                  !qd_ctl_seq_map(&A) && !A.ui.shift_stick && !A.ui.slatch && A.ui.ov_back < 0 && !A.ui.lmode_open &&
+                  qd_ctl_pat(&A)->trk[0].mfx == mfx && A.ui.tk == QD_TK_NONE) &&
+                bad < 0)
+                ok = 0, bad = (int)i * 2 + k;
+        }
+    }
+    CHECK(ok, "every button that wakes the unit (tapped or held) does nothing else (button %d, %s)", bad / 2,
+          bad & 1 ? "held" : "tapped");
+    idle_again();
+    turn(QD_K_ALGO, 1);
+    ok = A.ui.mode == QD_MODE_STEP && !A.ui.slatch;
+    turn(QD_K_ALGO, 1);
+    CHECK(ok && A.ui.slatch, "a knob turn that wakes it: nothing else (ALGORITHM: no cursor); the next turn works");
+    turn(QD_K_ALGO, -16);
+    idle_again();
+    bdown(QD_B_FUNC);                                   /* SHIFT wakes it, still held: another button is a plain one */
+    run(20);
+    btap(QD_B_PATTERN);
+    bup(QD_B_FUNC);
+    run(20);
+    CHECK(A.ui.latch != QD_LATCH_TRK && QD_OV_ON(&A), "SHIFT that woke it is no SHIFT: SEL is OVERVIEW, not SHIFT + SEL");
+    btap(QD_B_HOME);
+    idle_again();
+    btap(QD_B_SOUND);
+    ok = !A.ui.latch;
+    btap(QD_B_SOUND);
+    CHECK(ok && qd_snd_open(&A), "EDIT: the first press wakes, the second opens the editor");
+    btap(QD_B_HOME);
 }
 
 static void g_tap(void)
@@ -10434,6 +10492,130 @@ static void g_mfx_b11_global(void)
 }
 
 
+/* 2026-11-13 (owner's report: "switching between the Step Keyboard mode and Step Selection with B11 can often be
+ * switched when switching modes"): B11's steps / keys is ONE switch; only a B11 click turns it. A walk over every
+ * page-to-page transition, from both states (g_b11_walk) */
+static int pk_keys(void)                                /* the W keys as the player has them now: 1 the keys, 0 the
+                                                         * steps, -1 a page without either (a menu, the browser ..) */
+{
+    const qd_ui_t *u = &A.ui;
+    if (qd_type_open(&A) || qd_lib_open(&A))
+        return -1;
+    if (qd_mfx_open(&A))
+        return u->mode == QD_MODE_KEYS;
+    if (qd_tools_open(&A))
+        return 0;
+    if (u->mode == QD_MODE_KEYS)
+        return u->latch ? -1 : !u->ksteps;
+    if (u->mode == QD_MODE_STEP && (!u->latch || u->latch == QD_LATCH_SND || u->latch == QD_LATCH_FX ||
+                                    u->latch == QD_LATCH_MIX))
+        return qd_snd_keys(&A);
+    return -1;
+}
+enum { PK_EDIT, PK_ENV, PK_FX, PK_ARP, PK_SEQ, PK_SEL, PK_REC, PK_SAVE, PK_TRK, PK_PRJ, PK_SET, PK_BROWSE, PK_HOME,
+       PK_RECSET, PK_F3, PK_LFO, PK_ALGO, PK_N };
+static const char *const PK_NAME[PK_N] = {"EDIT", "ENV", "FX", "ARP", "SEQ", "SEL", "REC", "SAVE", "SHIFT+SEL",
+                                          "SHIFT+SAVE", "HOME held", "PRESETS", "HOME", "SHIFT+REC", "PLAY held",
+                                          "LFO", "ALGORITHM"};
+static const int PK_OWN[PK_N] = {QD_B_SOUND, QD_B_PAGE, QD_B_TRACKS, QD_B_KEYS, QD_B_MIX, QD_B_PATTERN, -1, -1, -1,
+                                 -1, -1, -1, -1, -1, -1, QD_B_MUTE, -1};
+static void pk_open(int p)
+{
+    switch (p) {
+    case PK_EDIT: btap(QD_B_SOUND); break;
+    case PK_ENV: btap(QD_B_PAGE); break;
+    case PK_FX: btap(QD_B_TRACKS); break;
+    case PK_ARP: btap(QD_B_KEYS); break;
+    case PK_SEQ: btap(QD_B_MIX); break;
+    case PK_SEL: btap(QD_B_PATTERN); break;
+    case PK_REC: btap(QD_B_REC); break;
+    case PK_SAVE: btap(QD_B_SAVE); break;
+    case PK_TRK: trkset(); break;
+    case PK_PRJ: bdown(SHIFT), btap(QD_B_SAVE), bup(SHIFT), run(10); break;
+    case PK_SET: settings_open(); break;
+    case PK_BROWSE: turn(QD_K_PRESETS, 1), run(10); break;
+    case PK_RECSET: bdown(SHIFT), btap(QD_B_REC), bup(SHIFT), run(10); break;
+    case PK_F3: bdown(QD_B_PLAY), run(QD_PLAY_HOLD_MS + 20), bup(QD_B_PLAY), run(10); break;
+    case PK_LFO: btap(QD_B_MUTE); break;
+    case PK_ALGO: turn(QD_K_ALGO, 1), run(10); break;
+    default: btap(QD_B_HOME); break;
+    }
+}
+static void pk_check(int want, int *ok, const char **where, const char *when)   /* the W keys as wanted, the
+                                                         * keyboard's flag in step, B11's label saying the other */
+{
+    const int k = pk_keys();
+    const char *l = lab(LBK(10));
+    if (!*ok)
+        return;
+    if ((k >= 0 && !qd_tools_open(&A) && k != want) || (A.ui.mode == QD_MODE_KEYS && A.ui.ksteps != !A.ui.ekeys) ||
+        (A.ui.mode == QD_MODE_KEYS && A.ui.latch && !qd_mfx_open(&A)) ||
+        (k >= 0 && !qd_tools_open(&A) && !strncmp(l, "SEL/", 4) && strcmp(l, k ? "SEL/STEPS" : "SEL/KEYS")))
+        *ok = 0, *where = when;
+}
+/* base: 0 the Home view fresh, 1 the keyboard page seen before (its flag left behind), 2 the pages opened over the
+ * keyboard page; then a first page p, a second q, a B11 click (none, on p, on q), the way back (HOME, q's own key, F1).
+ * The whole matrix (about 12 500 walks, five minutes under the sanitizers) with QD_WALK_FULL=1; by default each pair
+ * of pages once, its click and way back turning with the pair (1734 walks) */
+static void g_b11_walk(void)
+{
+    int s, p, q, back, click, base, bad = 0;
+    const int full = getenv("QD_WALK_FULL") != NULL;
+    for (base = 0; base < 3; base++)
+    for (s = 0; s < 2; s++)
+        for (p = 0; p < PK_N; p++)
+            for (click = 0; click < 3; click++)
+                for (q = 0; q < PK_N; q++)
+                    for (back = 0; back < 3; back++) {
+                        int want = s, k, ok = 1, i;
+                        const char *where = "";
+                        if (back == 1 && PK_OWN[q] < 0)
+                            continue;
+                        if (!full && (click != (p + q + s + base) % 3 ||
+                                      back != (PK_OWN[q] < 0 ? (p + base) % 2 * 2 : (p + 2 * q + base) % 3)))
+                            continue;
+                        start();
+                        keys_compat = 0;
+                        if (base)                               /* (the keyboard page seen once before: its ksteps) */
+                            btap(QD_B_REC), btap(QD_B_HOME);
+                        if (s)
+                            black(B11);
+                        if (base == 2)                          /* (the pages opened over the keyboard page) */
+                            btap(QD_B_REC);
+                        pk_open(p);
+                        pk_check(want, &ok, &where, "on the first page");
+                        k = pk_keys();
+                        if (click == 1 && k >= 0) {
+                            black(B11);
+                            want ^= !qd_tools_open(&A);
+                            pk_check(want, &ok, &where, "after its click");
+                        }
+                        pk_open(q);
+                        pk_check(want, &ok, &where, "on the second page");
+                        k = pk_keys();
+                        if (click == 2 && k >= 0) {
+                            black(B11);
+                            want ^= !qd_tools_open(&A);
+                            pk_check(want, &ok, &where, "after the second page's click");
+                        }
+                        if (back)
+                            btap(back == 1 ? PK_OWN[q] : F1);
+                        pk_check(want, &ok, &where, "after the way back");
+                        for (i = 0; i < 4 && (A.ui.mode != QD_MODE_STEP || A.ui.latch || A.ui.ov_back >= 0); i++)
+                            btap(QD_B_HOME);
+                        pk_check(want, &ok, &where, "back on the Home view");
+                        if (ok && (pk_keys() != want || A.ui.ekeys != want))
+                            ok = 0, where = "back on the Home view";
+                        if (!ok && bad++ < 40)
+                            printf("    flip: base %d, from %s, %s%s, then %s%s%s: %s (mode %d latch %d ekeys %d ksteps %d)\n",
+                                   base, s ? "KEYS" : "STEPS", PK_NAME[p], click == 1 ? " + B11 click" : "", PK_NAME[q],
+                                   click == 2 ? " + B11 click" : "", back == 1 ? ", its own key" : back ? ", F1" : "", where, A.ui.mode, A.ui.latch, A.ui.ekeys,
+                                   A.ui.ksteps);
+                        CHECK(ok, "B11's state kept: from %s, %s%s, %s%s: %s", s ? "KEYS" : "STEPS", PK_NAME[p],
+                              click == 1 ? " + click" : "", PK_NAME[q], click == 2 ? " + click" : "", where);
+                    }
+}
+
 /* 2026-11-13 (owner): the selection (ALGORITHM's, or the lock's W keys) stays across every mode; only the user ends it */
 static void g_sel_kept(void)
 {
@@ -10953,6 +11135,8 @@ int main(void)
         {"2026-11-13: stage 2: a page opened keeps the lock, clears the popup", g_page_open},
         {"2026-11-13: stage 2: the playhead on every step row", g_rows_one},
         {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
+        {"B11 walk: every page to page keeps the steps / keys", g_b11_walk},
+        {"wake: the press or turn that wakes the unit does nothing else", g_wake_eats},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
     };

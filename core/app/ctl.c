@@ -1415,10 +1415,7 @@ static void b_home(qd_app_t *a, int down)
     if (down) {
         u->home_ms = a->ms;
         u->home_used = 0;
-        if (u->home_woke) {                             /* (the press that woke the unit: nothing else) */
-            u->home_woke = 0;
-            u->home_used = 3;
-        } else if (home_away(a)) {                      /* back to the Home view, at once */
+        if (home_away(a)) {                             /* back to the Home view, at once */
             home_back(a);
             u->home_used = 1;
         }
@@ -1906,15 +1903,21 @@ static int stick_menu_shown(const qd_app_t *a, int button)
 void qd_ctl_button(qd_app_t *a, int button, int down)
 {
     if (down) {
+        const int woke = a->ui.mode == QD_MODE_IDLE;
         if (button != QD_B_FUNC)
-            a->ui.home_woke = touch(a) && button == QD_B_HOME;
-        else
-            a->ui.touch_ms = a->ms;
+            touch(a);
+        a->ui.touch_ms = a->ms;
         if (button == QD_B_HOME)
             a->ui.home_used = 3;                        /* (b_home's own press clears it: a press the typewriter
                                                          * takes is no click, no hold) */
-        if (a->ui.mode == QD_MODE_IDLE)
+        if (woke) {                                     /* 2026-11-13 (owner): the press that woke the unit does
+                                                         * nothing else: its release eaten; held, no modifier, no hold
+                                                         * (until pressed again) */
             a->ui.mode = QD_MODE_STEP;
+            a->buttons_held &= ~(1u << button);
+            a->ui.shift_eat |= (uint16_t)(1u << button);
+            return;
+        }
     }
     if (qd_type_open(a) && qd_type_button(a, button, down))
         return;                                         /* P1.5u: a name typed: F1, F2, SAVE, HOME, SHIFT + a button */
@@ -2473,7 +2476,8 @@ void qd_ctl_knob(qd_app_t *a, int knob, int d)
         u->knob_ms[knob] = a->ms ? a->ms : 1u;
         u->knob_dir[knob] = dir;
     }
-    touch(a);
+    if (touch(a))                                       /* 2026-11-13 (owner): the turn that woke the unit: nothing else */
+        return;
     if (held(a, QD_B_FUNC))
         u->shift_unstick |= 2u;                         /* (2026-11-13: SHIFT + a knob: no stick on its release) */
     if (knob == QD_K_SELECT)

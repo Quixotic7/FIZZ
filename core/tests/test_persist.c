@@ -119,7 +119,8 @@ static void pages_test(void)
     memset(FL, 0xFF, sizeof FL);
     boot(G);
     p_run(50);
-    /* the names from the sound: the factory sounds' and the drums' kinds, twelve letters, the same each time */
+    btap(QD_B_HOME);                                    /* (2026-11-13: the press that wakes does nothing else) */
+    /* the names from the sound:the factory sounds' and the drums' kinds, twelve letters, the same each time */
     for (k = 0; k < (int)(sizeof NAMES / sizeof NAMES[0]); k++) {
         int j;
         for (j = 1; j <= G->proj.nsound && strcmp(POOL(&G->proj, j)->name, NAMES[k].name); j++)
@@ -1543,6 +1544,7 @@ static void pool_browse_test(void)
     qd_persist_flush(&A);
     run(&A, 50);
     n0 = locks_to(&A, snare);                           /* (the demos' own too) */
+    btap(QD_B_HOME);                                    /* (2026-11-13: the press that wakes does nothing else) */
     knob(QD_K_PRESETS, 1);
     black(8), black(8);                                 /* B9 twice: the POOL */
     knob(QD_K_PRESETS, -200);

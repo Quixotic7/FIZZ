@@ -436,7 +436,6 @@ typedef struct {
     int mode;                          /* QD_MODE_* */
     int view;                          /* P1.3e: the sequencer's view (QD_VIEW_*): kept for the session */
     uint8_t geek;                      /* the Geek Out page last shown (0: METERS ..): SHIFT + HOME from EDIT goes there */
-    int home_woke;                     /* (the HOME press that woke the unit: it switches nothing) */
     uint32_t home_ms;                  /* 2026-11-10 (owner): HOME went down (held QD_HOME_HOLD_MS: the global settings) .. */
     uint8_t home_used;                 /* .. its press did its job already (a page left, a hold): no click at the release */
     uint8_t home_lock;                 /* .. the global settings' LOCK: HOME always the Home view (no cycling), saved */
@@ -703,7 +702,8 @@ typedef struct {
                                         * press and release, ends it; a hold never sticks) .. */
     uint8_t shift_unstick;             /* .. this press began stuck: its release ends it */
     uint16_t shift_eat;                /* .. 2026-11-13 (owner): stuck, a menu button already shown: its press and
-                                        * release only end SHIFT (bit: the button) */
+                                        * release only end SHIFT; a button that woke the unit: its release (bit: the
+                                        * button) */
     uint32_t shift_ms;                 /* .. the press's time */
     /* the keyboard (ctl_rec.c) */
     int rec;                           /* recording armed in the keyboard (step recording stopped, live playing) */

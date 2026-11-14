@@ -59,8 +59,12 @@ void qd_latch_open(qd_app_t *a, int kind)
 {
     if (kind <= QD_LATCH_NONE || kind >= QD_NLATCH)
         return;
-    if (a->ui.latch && a->ui.latch != kind)
+    if (a->ui.latch && a->ui.latch != kind) {
+        const int m = a->ui.mode;
         qd_latch_close(a);
+        a->ui.mode = m;                                 /* (2026-11-13: another page in its place: the browser's way
+                                                         * back to the keyboard page is not taken, B11's state stays) */
+    }
     a->ui.seq_used &= ~2;                               /* (2026-10-25: the latched patterns map closed by any page) */
     a->ui.latch = kind;
 }
