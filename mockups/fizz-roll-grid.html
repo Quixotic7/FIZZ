@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ Roll Grid</title>
+<!-- FIZZ: the PIANO ROLL's hard-to-read hold modes as a 4 x 4 grid of boxes, a row a beat (the owner, 2026-11-13: "for
+     those hold modes it would be much better to break the 16 steps up into a 4x4 grid of boxes": COND, FUNC, TRIG,
+     SOUND, SLIDE). "Now" is the firmware's own render (tools/render_frames --only roll, render_roll.c, into
+     ref/roll-real-*.png); the proposals draw the same page from ref/roll-data.js (written by the same run) under the
+     real top line (cut from the render). ?shot=MODE-V one canvas at 1x (cond-a), ?sheet=all every mode at 2x,
+     ?sheet=MODE one mode at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 36px 0 0; } p { color: var(--dim); max-width: 900px; }
+.row { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 24px; margin-top: 14px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+.cell .tag { font: 700 12px -apple-system, "Helvetica Neue", Arial; letter-spacing: .08em; color: #bbb; margin-bottom: 6px; }
+.cell .tag.rec { color: #b5e853; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheet h1 { font: 600 22px -apple-system, "Helvetica Neue", Arial; color: #ddd; margin: 0 0 14px; }
+.srow { display: grid; grid-template-columns: repeat(3, 480px); gap: 22px; margin-bottom: 26px; }
+.srow canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; border-radius: 4px; }
+.srow .cap { color: #bbb; font: 600 14px -apple-system, "Helvetica Neue", Arial; margin: 0 0 7px; }
+.srow .cap b { color: #fff; } .srow .cap .rec { color: #b5e853; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the PIANO ROLL's hold modes as a 4 × 4 grid (mock-ups, 2026-11-13)</h1>
+<p>The owner: some hold modes "are impossible to read, for example functions results in super small icons. The sound
+locks is also confusing." For COND, FUNC, TRIG, SOUND and SLIDE the page's 16 steps become 16 boxes, four to a row
+(a row is a beat). Left: the firmware today (its own render). Right: the proposal, one or two takes. The page is the
+same in every screen: DRUMS on A01 playing (the playhead in step 7), the ALGORITHM cursor on step 11.</p>
+<p>One box language for all five: an <strong>empty step</strong> is a dark outline; a <strong>trig on the track's
+value</strong> a grey box with the value grey; a <strong>step with its own value</strong> a box tinted and outlined in
+the mode's colour with the value big. The <strong>playhead</strong> is a red bar along the box's foot (the box flashes
+white as the step plays, as STEPS' cells do); the <strong>cursor / held step</strong> is outlined white, as in STEPS and
+EDIT. The top line and page dashes are the screen's own.</p>
+<div id="modes"></div>
+</main>
+<script src="font_it.js"></script>
+<script src="ref/roll-data.js"></script>
+<script>
+const C = { k3:'#f1f0ea', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d', red:'#ff3448', bg:'#000',
+            own:'#fff0d2', trk:'#63c4d6', ghost:'#a57cff' };
+const MC = { cond:'#ff52c0', func:'#9fe6ff', trig:'#f1f0ea', slide:'#d8c39a', sound:'#b5e853' };   // UI_MODE_COL
+const PK = ['#3f7dff', '#f1f0ea', '#36d6e7', '#9664ff', '#1fd47e', '#ff6a2c', '#ff3ca0'];          // UI_PK_COL
+const F = 'IT';
+const R = window.ROLL, S = R.steps, PLAY = R.play, SEL = R.sel;
+const BW = 55, BH = 44, gx = i => 4 + (i % 4) * 59, gy = i => 35 + Math.floor(i / 4) * 48;
+const cxOf = i => gx(i) + BW / 2, cyOf = i => gy(i) + BH / 2;
+
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 600} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; c.fillStyle = o.col || C.k3;
+  c.textAlign = o.al || 'center'; c.textBaseline = 'alphabetic'; if (o.a != null) c.globalAlpha = o.a;
+  if (o.glow) { c.shadowColor = o.col; c.shadowBlur = o.glow; }
+  c.fillText(s, x, y); const w = c.measureText(s).width; c.restore(); return w;
+}
+function TW(c, s, size, w = 700) { c.save(); c.font = `${w} ${size}px ${F}`; const m = c.measureText(s).width; c.restore(); return m; }
+function L(c, pts, col, lw, a = 1, dash) {
+  c.save(); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round'; if (dash) c.setLineDash(dash);
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function O(c, x, y, r, fill, stroke, lw = 1, a = 1) { c.save(); c.globalAlpha = a; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore(); }
+function RR(c, x, y, w, h, r, fill, a = 1, stroke, lw = 1, dash) {
+  c.save(); c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; if (dash) c.setLineDash(dash); c.stroke(); } c.restore();
+}
+function Q(c, x0, y0, qx, qy, x1, y1, col, lw, a = 1, dash) {
+  c.save(); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; if (dash) c.setLineDash(dash);
+  c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(qx, qy, x1, y1); c.stroke(); c.restore();
+}
+function arc(c, x, y, r, a0, a1, col, lw, a = 1) { c.save(); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'butt'; c.beginPath(); c.arc(x, y, r, a0, a1); c.stroke(); c.restore(); }
+function glow(c, col, b, fn) { c.save(); c.shadowColor = col; c.shadowBlur = b; fn(); c.restore(); }
+
+// ---- the firmware's function icons (core/ui/ui_kit.c ui_icon), at scale s with the strokes k times thicker
+function fnIcon(c, f, cx, cy, s, col, k) {
+  const lw = w => w * k;
+  if (f >= 135) {                                         // LEAP: two hops over three steps
+    O(c, cx - 6 * s, cy + 4 * s, 1.2 * s * 1.3, col); O(c, cx, cy + 4 * s, 1.2 * s * 1.3, col); O(c, cx + 6 * s, cy + 4 * s, 1.2 * s * 1.3, col);
+    arc(c, cx - 3 * s, cy + 3 * s, 3 * s, Math.PI, 2 * Math.PI, col, lw(1.2)); arc(c, cx + 3 * s, cy + 3 * s, 3 * s, Math.PI, 2 * Math.PI, col, lw(1.2));
+  } else if (f >= 7) {                                    // JUMP n: an arc over, landing
+    Q(c, cx - 6 * s, cy + 4 * s, cx - 1 * s, cy - 9 * s, cx + 5 * s, cy + 4 * s, col, lw(1.3));
+    L(c, [cx + 2 * s, cy + 1 * s, cx + 5 * s, cy + 4 * s, cx + 7 * s, cy], col, lw(1.3));
+  } else if (f === 1) {                                   // RESTART: a circular arrow
+    arc(c, cx, cy, 4.5 * s, -Math.PI * 0.2, Math.PI * 1.5, col, lw(1.3));
+    L(c, [cx + 1.5 * s, cy - 1.5 * s, cx + 4.5 * s, cy - 1.5 * s, cx + 4.5 * s, cy - 5 * s], col, lw(1.3));
+  } else if (f === 2 || f === 3) {                        // REVERSE / FORWARD
+    const d = f === 2 ? -1 : 1;
+    L(c, [cx - 5 * s, cy, cx + 5 * s, cy], col, lw(1.4));
+    L(c, [cx + d * 1 * s, cy - 4 * s, cx + d * 5 * s, cy, cx + d * 1 * s, cy + 4 * s], col, lw(1.4));
+  } else if (f === 4) {                                   // FLIP
+    L(c, [cx - 5 * s, cy - 3 * s, cx + 5 * s, cy - 3 * s], col, lw(1.3)); L(c, [cx - 5 * s, cy + 3 * s, cx + 5 * s, cy + 3 * s], col, lw(1.3));
+    L(c, [cx + 2 * s, cy - 6 * s, cx + 5 * s, cy - 3 * s, cx + 2 * s, cy], col, lw(1.3));
+    L(c, [cx - 2 * s, cy, cx - 5 * s, cy + 3 * s, cx - 2 * s, cy + 6 * s], col, lw(1.3));
+  } else if (f === 5 || f === 6) {                        // RANDOM JUMP (three pips) / RANDOM FUNCTION (four)
+    RR(c, cx - 5.5 * s, cy - 5.5 * s, 11 * s, 11 * s, 2.5 * s, null, 1, col, lw(1.2));
+    const p = f === 5 ? [[-2.6, -2.6], [0, 0], [2.6, 2.6]] : [[-2.5, -2.5], [2.5, -2.5], [-2.5, 2.5], [2.5, 2.5]];
+    p.forEach(([a, b]) => O(c, cx + a * s, cy + b * s, 1.1 * s * 1.2, col));
+  }
+}
+
+// ---- the frame: the real top line, the 16 boxes, the playhead, the cursor, the default at the foot
+function frame(c, mode, V) {
+  c.drawImage(IMG[mode], 0, 0, 240, 31, 0, 0, 240, 31);
+  const mc = MC[mode];
+  const st = S.map((s, i) => ({ ...s, i, own: s.on && V.own(s) }));
+  st.forEach(s => {
+    const x = gx(s.i), y = gy(s.i), col = V.boxCol ? V.boxCol(s) : mc;
+    if (!s.on) { RR(c, x + 0.5, y + 0.5, BW - 1, BH - 1, 7, '#09090c', 1, C.g3, 1); return; }
+    if (s.own) { RR(c, x, y, BW, BH, 7, col, 0.17); RR(c, x + 0.75, y + 0.75, BW - 1.5, BH - 1.5, 7, null, 1, col, 1.5, null); }
+    else RR(c, x + 0.5, y + 0.5, BW - 1, BH - 1, 7, '#141418', 1, C.g2, 1);
+    if (s.i === PLAY) RR(c, x, y, BW, BH, 7, '#ffffff', 0.13);          // the pop as it plays (fading)
+  });
+  if (V.under) V.under(c, st);
+  st.forEach(s => { if (s.on) V.draw(c, s, cxOf(s.i), cyOf(s.i), s.own ? (V.valCol ? V.valCol(s) : mc) : C.g1); });
+  if (V.over) V.over(c, st);
+  { const x = gx(PLAY), y = gy(PLAY); glow(c, C.red, 6, () => RR(c, x + 8, y + BH - 5, BW - 16, 3, 1.5, C.red)); }
+  { const x = gx(SEL), y = gy(SEL); RR(c, x - 2, y - 2, BW + 4, BH + 4, 9, null, 1, C.k3, 2); }
+  if (V.foot) T(c, V.foot, 9, 236, { s: 12, w: 600, ls: 0.5, col: C.g1, al: 'left' });
+}
+
+// ---- COND
+const ab = s => { const m = /^(\d):(\d)$/.exec(s.cond); return m ? [+m[1], +m[2]] : null; };
+function condRing(c, s, cx, cy, col) {
+  const p = ab(s);
+  if (!s.cond) { arc(c, cx, cy, 13, 0, Math.PI * 2, col, 4, 0.55); return; }   // ALWAYS: the whole ring, every pass
+  if (p) {
+    const [a, b] = p, seg = Math.PI * 2 / b, gap = 0.34;
+    for (let k = 0; k < b; k++) {
+      const a0 = -Math.PI / 2 + k * seg + gap / 2, a1 = a0 + seg - gap;
+      if (k === a - 1) glow(c, col, 8, () => arc(c, cx, cy, 15, a0, a1, col, 6));
+      else arc(c, cx, cy, 15, a0, a1, col, 4, 0.32);
+    }
+    T(c, `${a}:${b}`, cx, cy + 4.5, { s: 13, w: 700, col });
+    return;
+  }
+  T(c, s.cond, cx, cy + 6.5, { s: TW(c, s.cond, 18) > 46 ? 15 : 18, w: 700, col, glow: 6 });
+}
+function condPips(c, s, cx, cy, col) {
+  const p = ab(s);
+  if (!s.cond) { L(c, [cx - 10, cy, cx + 10, cy], col, 3.5, 0.6); return; }
+  if (p) {
+    const [a, b] = p, w = Math.min(10, 44 / b), x0 = cx - (b * w) / 2;
+    T(c, `${a}:${b}`, cx, cy + 1, { s: 20, w: 700, col, glow: 6 });
+    for (let k = 0; k < b; k++) RR(c, x0 + k * w + 1, cy + 5, w - 2, 8, 2, col, k === a - 1 ? 1 : 0.3);
+    return;
+  }
+  T(c, s.cond, cx, cy + 7, { s: TW(c, s.cond, 20) > 46 ? 16 : 20, w: 700, col, glow: 6 });
+}
+// ---- FUNC
+function funcDraw(c, s, cx, cy, col) {
+  const f = s.func;
+  if (!f) { O(c, cx, cy, 4.5, col, null, 1, 0.8); return; }                   // a trig, no function
+  if (f >= 135) { fnIcon(c, f, cx - 9, cy - 2, 1.7, col, 1.9); const n = f - 135 - 15; T(c, (n < 0 ? '−' : '+') + Math.abs(n), cx + 16, cy + 6, { s: 16, w: 700, col }); return; }
+  if (f >= 7) { fnIcon(c, f, cx - 9, cy + 1, 1.8, col, 1.9); T(c, String(f - 7 + 1), cx + 16, cy + 7, { s: 18, w: 700, col }); return; }
+  glow(c, col, 6, () => fnIcon(c, f, cx, cy, 2.5, col, 1.9));
+}
+function jumpTarget(s) {                                  // the box a JUMP / LEAP lands in on this page (-1: elsewhere)
+  if (s.func >= 135) return (((s.i + s.func - 150) % 16) + 16) % 16;
+  if (s.func >= 7) { const t = s.func - 7; return t < 16 ? t : -1; }
+  return -1;
+}
+function funcArcs(c, st) {                                // over the boxes, on a black halo: source's top to target's
+  st.forEach(s => {
+    if (!s.on) return;
+    const t = jumpTarget(s);
+    if (t < 0) return;
+    const x0 = cxOf(s.i) + 12, y0 = gy(s.i) + 6, x1 = cxOf(t) + 12, y1 = gy(t) + 9;
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1;
+    const bend = Math.max(26, d * 0.3), px = -dy / d * bend, py = dx / d * bend;   // (bulging away from the grid's middle)
+    const out = Math.hypot(mx + px - 120, my + py - 129) > Math.hypot(mx - px - 120, my - py - 129) ? 1 : -1;
+    const qx = mx + out * px, qy = my + out * py;
+    Q(c, x0, y0, qx, qy, x1, y1, '#000', 6);
+    Q(c, x0, y0, qx, qy, x1, y1, MC.func, 2.2, 1, [5, 3.5]);
+    const a = Math.atan2(y1 - qy, x1 - qx), h = 7;
+    c.save(); c.fillStyle = MC.func; c.strokeStyle = '#000'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x1 + Math.cos(a) * 2, y1 + Math.sin(a) * 2);
+    c.lineTo(x1 - Math.cos(a - 0.5) * h, y1 - Math.sin(a - 0.5) * h); c.lineTo(x1 - Math.cos(a + 0.5) * h, y1 - Math.sin(a + 0.5) * h);
+    c.closePath(); c.stroke(); c.fill(); c.restore();
+  });
+}
+// ---- TRIG
+function padlock(c, cx, cy, col, fill = true) {
+  arc(c, cx, cy - 3, 6.5, Math.PI, 2 * Math.PI, col, 3);
+  L(c, [cx - 6.5, cy - 3, cx - 6.5, cy + 1], col, 3); L(c, [cx + 6.5, cy - 3, cx + 6.5, cy + 1], col, 3);
+  RR(c, cx - 10.5, cy, 21, 15, 3, fill ? col : '#000', 1, col, 2);
+  O(c, cx, cy + 6.5, 2.2, fill ? '#000' : col);
+}
+function trigDraw(kind) {
+  return (c, s, cx, cy, col) => {
+    const k = kind ? (s.type === 2 ? C.ghost : s.type === 3 ? C.own : C.own) : col;
+    const cc = s.own || kind ? k : col, a = s.own || !kind ? 1 : 0.55;
+    c.save(); c.globalAlpha = a;
+    if (s.type === 2) padlock(c, cx, cy - 4, cc, !kind);
+    else if (s.type === 3) {
+      O(c, cx + 6, cy + 3, 9, null, cc, 3);
+      const px = cxOf(s.i - 1) + 6;                       // the slur from the note before, over the gap
+      if (s.i % 4) Q(c, px + 6, cy - 5, (px + cx) / 2 + 3, cy - 21, cx + 2, cy - 7, cc, 3);
+    } else glow(c, cc, s.own ? 8 : 0, () => O(c, cx, cy, 10, cc));
+    c.restore();
+  };
+}
+// ---- SOUND
+// a pool sound's own colour, by its number (UI_TRACK_PAL's bright ones, no white, no red): the same sound the same colour
+// on every step. (The library's kind colours were tried first: EP came out KEYS white, the cursor's colour, and PLUCK and
+// CLAV both PLUCK cyan; PK kept for reference)
+const SND_PAL = ['#3f7dff', '#1fd47e', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff', '#b5e853'];
+const sndCol = s => SND_PAL[(s.sound - 1) % 8];
+function soundNum(c, s, cx, cy, col) {
+  if (!s.sound) { O(c, cx, cy, 6, null, col, 2.5, 0.7); return; }
+  T(c, String(s.sound), cx, cy + 3, { s: 24, w: 700, col, glow: 6 });
+  T(c, s.soundName.slice(0, 7), cx, cy + 18, { s: 12, w: 600, col, a: 0.85 });
+}
+function soundName(c, s, cx, cy, col) {
+  if (!s.sound) { O(c, cx, cy, 6, null, col, 2.5, 0.7); return; }
+  const x = gx(s.i), y = gy(s.i), n = String(s.sound), w = Math.max(16, TW(c, n, 12) + 8);
+  RR(c, x + 4, y + 4, w, 15, 4, col); T(c, n, x + 4 + w / 2, y + 16, { s: 12, w: 700, col: '#000' });
+  const nm = s.soundName, sz = Math.max(12, Math.min(17, 17 * 46 / Math.max(1, TW(c, nm, 17))));
+  T(c, nm, cx, cy + 15, { s: sz, w: 700, col, glow: 5 });
+}
+// ---- SLIDE
+function slideDraw(num) {
+  return (c, s, cx, cy, col) => {
+    const x = gx(s.i), y = gy(s.i);
+    if (s.port < 0) { O(c, cx, cy, 5, col, null, 1, 0.75); return; }
+    if (s.port === 0) { O(c, cx, cy, 9, null, col, 2.8); L(c, [cx - 6.5, cy + 6.5, cx + 6.5, cy - 6.5], col, 2.8); return; }   // an OFF lock
+    // pitch over the step: from the note (a dot, low left) up to the next note (the arrow, high right); TIME is how far
+    // across the rise takes (short: a jump at the start; long: a slow climb all the way)
+    const x0 = x + 9, xe = x + BW - 8, y0 = cy + 6, y1 = cy - 10, xr = x0 + (xe - x0) * (0.12 + 0.88 * s.ptime / 127);
+    glow(c, col, 6, () => {
+      c.save(); c.strokeStyle = col; c.lineWidth = 3.2; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); c.moveTo(x0, y0);
+      c.bezierCurveTo(x0 + (xr - x0) * 0.5, y0, x0 + (xr - x0) * 0.5, y1, xr, y1); c.lineTo(xe - 1, y1); c.stroke(); c.restore();
+    });
+    O(c, x0, y0, 4.5, col);
+    L(c, [xe - 6, y1 - 4.5, xe + 1, y1, xe - 6, y1 + 4.5], col, 2.6);
+    if (s.port === 2) { const x2 = num ? xe - 22 : xe; Q(c, x0 - 1, y0 + 6, (x0 + x2) / 2, y0 + 15, x2, y0 + 6, col, 2.4); }   // LEGATO: held on
+    if (num) T(c, String(s.ptime), xe + 1, y + BH - 7, { s: 12, w: 700, col, al: 'right' });
+  };
+}
+// ---- the takes
+const MODES = [
+  { key: 'cond', name: 'COND', real: 'cond', takes: [
+    { id: 'a', title: 'A · rings', rec: 1, V: { own: s => s.condOvr, draw: condRing, foot: 'DEFAULT ALWAYS' },
+      text: 'An A:B as a ring cut into B passes, the A-th lit and glowing, its value inside; a named condition as its value (FILL, PRE, !1ST) big. ALWAYS (the track\'s) a grey whole ring: every pass. Playing, the ring\'s current pass could tick round.' },
+    { id: 'b', title: 'B · value and passes', V: { own: s => s.condOvr, draw: condPips, foot: 'DEFAULT ALWAYS' },
+      text: 'The A:B big (20 px) with its B passes as a row of bars under it, the A-th lit. Plainer; the value reads first.' } ],
+    now: 'Today: an A:B is B circles 6 px across stacked up the column (3:4 reads as four rings), a name its letters stacked one per line (F-I-L-L, !-1-S-T); ALWAYS a 4 px dot.' },
+  { key: 'func', name: 'FUNC', real: 'func', takes: [
+    { id: 'a', title: 'A · big icons', V: { own: s => s.func > 0, draw: funcDraw },
+      text: 'The firmware\'s own icons (ui_kit.c) at 2.5x with strokes twice as thick: REVERSE, RESTART, FLIP, RANDOM JUMP; a JUMP its target\'s number, a LEAP its amount beside the icon at 16 to 18 px. A trig with no function stays a plain grey box.' },
+    { id: 'b', title: 'B · icons and where they land', rec: 1, V: { own: s => s.func > 0, draw: funcDraw, over: funcArcs },
+      text: 'A, and each JUMP / LEAP on this page draws a dashed arc to the box it lands in (a ring there): JUMP 1 from step 9 back to step 1, LEAP +2 from 16 round to 2. A target on another page: the number only.' } ],
+    now: 'Today: one icon per 12 px column at 0.95x (about 10 px), strokes 1.3 px; LEAP\'s three dots and two hops blur into an "m"; a JUMP\'s number and LEAP\'s "+2" stacked digit by digit under the icon.' },
+  { key: 'trig', name: 'TRIG', real: 'trig', takes: [
+    { id: 'a', title: 'A · the mode\'s white', V: { own: s => s.type !== 1, draw: trigDraw(0), foot: 'DEFAULT NOTE' },
+      text: 'NOTE a disc, LOCK a real padlock (shackle and keyhole, 21 px), TIE a ring with the slur coming over from the step before. Steps on the track\'s NOTE grey discs.' },
+    { id: 'b', title: 'B · STEPS\' colours', rec: 1, V: { own: s => s.type !== 1, draw: trigDraw(1), boxCol: s => s.type === 2 ? C.ghost : MC.trig, foot: 'DEFAULT NOTE' },
+      text: 'The same glyphs in the colours STEPS and EDIT already give a step\'s kind: notes warm white, a LOCK (a ghost: no note) violet, outlined; a TIE warm white with its slur. TRIG\'s own white then never clashes with the cursor\'s white outline.' } ],
+    now: 'Today: NOTE a 9 px dot, LOCK a 10 x 8 px filled pill (the "padlock" has no shackle: it reads as a fatter dot), TIE a 13 px slur; at arm\'s length the three are hard to tell apart.' },
+  { key: 'sound', name: 'SOUND', real: 'sound', takes: [
+    { id: 'a', title: 'A · number and name', rec: 1, V: { own: s => s.sound > 0, draw: soundNum, boxCol: sndCol, valCol: sndCol, foot: 'TRACK SOUND ' + R.trackSound },
+      text: 'A sound lock\'s pool number big (24 px) with its name under it (12 px, seven letters), box and text in that sound\'s own colour (by its pool number: the same sound the same colour on every step). A step on the track\'s sound: a grey ring, the track\'s sound named at the foot.' },
+    { id: 'b', title: 'B · name first', V: { own: s => s.sound > 0, draw: soundName, foot: 'TRACK SOUND ' + R.trackSound },
+      text: 'The name big (12 to 17 px, fitted), the pool number as a chip in the corner, all in SOUND\'s lime: one colour for "locked", as the other modes do.' } ],
+    now: 'Today: a 7 px lime dot with the pool number\'s digits stacked under it ("12" reads 1 over 2, like two steps\' numbers); a step on the track\'s sound a 5 px grey ring. No name, no sense of which sound.' },
+  { key: 'slide', name: 'SLIDE', real: 'slide', takes: [
+    { id: 'a', title: 'A · the glide', rec: 1, V: { own: s => s.port >= 0, draw: slideDraw(0) },
+      text: 'The box is the step\'s pitch over time: from the note (a dot) up to the next note (the arrow at the right edge). TIME is how far across the climb takes: 40 rises early, 110 climbs nearly all the way. LEGATO adds a slur under it (the note held on); an OFF lock is a crossed ring; no slide a grey dot.' },
+    { id: 'b', title: 'B · the glide and its TIME', V: { own: s => s.port >= 0, draw: slideDraw(1) },
+      text: 'A, with the TIME as a 12 px value in the box\'s lower right corner, for when the curve alone is not enough.' } ],
+    now: 'Today: a 4 to 13 px diagonal from a 5 px ring; LEGATO\'s slur 2 px under it; TIME only as the diagonal\'s length; an OFF lock a 5 px dot.' },
+];
+const IMG = {};
+const load = (k, src) => new Promise(r => { IMG[k] = new Image(); IMG[k].onload = r; IMG[k].onerror = r; IMG[k].src = src; });
+const ready = Promise.all([...MODES.map(m => load(m.key, `ref/roll-real-${m.real}.png`)),
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]);
+function canvas(scale, cls) { const cv = document.createElement('canvas'); cv.width = 240 * scale; cv.height = 240 * scale; if (cls) cv.className = cls; return cv; }
+function drawTake(cv, m, t, scale) {
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.fillStyle = '#000'; c.fillRect(0, 0, 240, 240); frame(c, m.key, t.V);
+}
+function drawNow(cv, m, scale) { const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(IMG[m.key], 0, 0, 240 * scale, 240 * scale); }
+function sheetRow(host, m) {
+  const row = document.createElement('div'); row.className = 'srow';
+  const cell = (cap, cv) => { const d = document.createElement('div'); const p = document.createElement('div'); p.className = 'cap'; p.innerHTML = cap; d.appendChild(p); d.appendChild(cv); row.appendChild(d); };
+  const n = canvas(2); cell(`<b>${m.name}</b> · now (the firmware)`, n); drawNow(n, m, 2);
+  m.takes.forEach(t => { const cv = canvas(2); cell(`<b>${m.name}</b> · ${t.title}${t.rec ? ' <span class="rec">· recommended</span>' : ''}`, cv); drawTake(cv, m, t, 2); });
+  host.appendChild(row);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const [mk, tid] = q.get('shot').split('-'), m = MODES.find(x => x.key === mk), cv = canvas(1); document.body.appendChild(cv);
+  ready.then(() => tid === 'now' ? drawNow(cv, m, 1) : drawTake(cv, m, m.takes.find(t => t.id === tid), 1));
+} else if (q.has('sheet')) {
+  const which = q.get('sheet');
+  document.body.className = 'sheet';
+  document.getElementById('page').innerHTML = `<h1>FIZZ · PIANO ROLL as a 4 × 4 grid: now vs proposed (2x; DRUMS A01, playhead in step 7, cursor on step 11)</h1><div id="sg"></div>`;
+  ready.then(() => MODES.filter(m => which === 'all' || m.key === which).forEach(m => sheetRow(document.getElementById('sg'), m)));
+} else {
+  ready.then(() => MODES.forEach(m => {
+    const sec = document.createElement('section'); sec.innerHTML = `<h2>${m.name}</h2>`; const row = document.createElement('div'); row.className = 'row';
+    const add = (tag, rec, cv, text) => { const d = document.createElement('div'); d.className = 'cell'; d.innerHTML = `<div class="tag${rec ? ' rec' : ''}">${tag}</div>`; d.appendChild(cv); const p = document.createElement('p'); p.textContent = text; d.appendChild(p); row.appendChild(d); };
+    const n = canvas(2, 'scr'); drawNow(n, m, 2); add('NOW', 0, n, m.now);
+    m.takes.forEach(t => { const cv = canvas(2, 'scr'); drawTake(cv, m, t, 2); add(t.title.toUpperCase() + (t.rec ? ' · RECOMMENDED' : ''), t.rec, cv, t.text); });
+    sec.appendChild(row); document.getElementById('modes').appendChild(sec);
+  }));
+}
+</script>
+</body>
+</html>
