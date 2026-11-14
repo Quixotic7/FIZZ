@@ -501,6 +501,15 @@ void qd_tools_paste_done(qd_app_t *a)                 /* F1 / F2 let go: the ste
     qd_tools_sel_changed(a);
 }
 
+/* the tools whose KNOB 1..4 set the union's bytes 0..3: the tool, then per knob its most and how a detent moves it (0
+ * not a knob; 1 by one; 2 accelerated; 3 by 4, accelerated; 4 by 5; 5 by one at any speed) */
+static const uint8_t TLK[4][9] = {
+    {QD_TL_RANDOM, 100, 2, 12, 2, 64, 2, 100, 2},       /* density %, the notes' spread, the velocity's, chance % */
+    {QD_TL_HUMANIZE, 12, 1, 40, 1, 0, 0, 0, 0},         /* the micro jitter (24ths), the velocity jitter */
+    {QD_TL_GRIDS, 255, 3, 255, 3, 255, 3, 255, 3},      /* X, Y, density, chaos */
+    {QD_TL_QUANTIZE, 100, 4, QD_QG_N - 1, 5, 100, 4, 0, 0},   /* the timing's amount %, the grid, the velocity's % */
+};
+
 int qd_tools_knob(qd_app_t *a, int knob, int d)
 {
     qd_tools_t *T = &a->ui.tl;
@@ -544,46 +553,6 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
             T->v.eu.mode = (uint8_t)m;
         }
         break;
-    case QD_TL_RANDOM: {                                /* KNOB 1 density, 2 notes, 3 velocity, KNOB 4 chance */
-        uint8_t *v = knob == QD_K_1 ? &T->v.rn.dens : knob == QD_K_2 ? &T->v.rn.notes : knob == QD_K_3 ? &T->v.rn.vel
-                   : knob == QD_K_4 ? &T->v.rn.chance : 0;
-        const int mx = knob == QD_K_2 ? 12 : knob == QD_K_3 ? 64 : 100;
-        if (v) {
-            const int n = tl_clamp(*v + qd_ctl_acc(a, d, mx + 1), 0, mx);
-            ch = n != *v;
-            *v = (uint8_t)n;
-            tl_pop(a, 3, knob == QD_K_1 ? 0 : knob == QD_K_2 ? 1 : knob == QD_K_3 ? 2 : 3);   /* (what it sets) */
-        }
-        break;
-    }
-    case QD_TL_HUMANIZE: {                              /* KNOB 1 the micro jitter (24ths), 2 the velocity jitter */
-        uint8_t *v = knob == QD_K_1 ? &T->v.hu.micro : knob == QD_K_2 ? &T->v.hu.vel : 0;
-        if (v) {
-            const int n = tl_clamp(*v + d, 0, knob == QD_K_1 ? 12 : 40);
-            ch = n != *v;
-            *v = (uint8_t)n;
-        }
-        break;
-    }
-    case QD_TL_GRIDS: {                                 /* KNOB 1 X, 2 Y, 3 density, KNOB 4 chaos (0..255) */
-        uint8_t *v = knob == QD_K_1 ? &T->v.gr.x : knob == QD_K_2 ? &T->v.gr.y : knob == QD_K_3 ? &T->v.gr.dens
-                   : knob == QD_K_4 ? &T->v.gr.chaos : 0;
-        if (v) {
-            const int n = tl_clamp(*v + 4 * qd_ctl_acc(a, d, 64), 0, 255);
-            ch = n != *v;
-            *v = (uint8_t)n;
-        }
-        break;
-    }
-    case QD_TL_QUANTIZE: {                              /* KNOB 1 the timing's amount, 2 the grid, 3 the velocity's */
-        uint8_t *v = knob == QD_K_1 ? &T->v.qu.amt : knob == QD_K_2 ? &T->v.qu.grid : knob == QD_K_3 ? &T->v.qu.vel : 0;
-        if (v) {                                        /* (5 % a detent; the grid one a detent) */
-            const int n = knob == QD_K_2 ? tl_clamp(*v + (d > 0 ? 1 : -1), 0, QD_QG_N - 1) : tl_clamp(*v + 5 * d, 0, 100);
-            ch = n != *v;
-            *v = (uint8_t)n;
-        }
-        break;
-    }
     case QD_TL_STRETCH:                                 /* KNOB 2: onto 1..8 pages (0: off); KNOB 1 the ladder's
                                                          * thirteen rungs, one a detent (/4 .. x1 .. x4) */
         if (knob == QD_K_2) {
@@ -611,8 +580,24 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
             a->ui.clr_armed = 0;
         }
         break;
-    default:
+    default: {                                          /* RANDOM, HUMANIZE, GRIDS, QUANTIZE: KNOB n the union's byte n
+                                                         * (TLK) */
+        const int i = knob - QD_K_1;
+        int r;
+        for (r = 0; r < 4 && TLK[r][0] != T->tool; r++)
+            ;
+        if (r < 4 && i >= 0 && i < 4 && TLK[r][2 + 2 * i]) {
+            uint8_t *v = (uint8_t *)&T->v + i;
+            const int mx = TLK[r][1 + 2 * i], how = TLK[r][2 + 2 * i];
+            const int n = tl_clamp(*v + (how == 1 ? d : how == 2 ? qd_ctl_acc(a, d, mx + 1) : how == 3 ? 4 * qd_ctl_acc(a, d, 64)
+                                         : how == 4 ? 5 * d : d > 0 ? 1 : -1), 0, mx);
+            ch = n != *v;
+            *v = (uint8_t)n;
+            if (T->tool == QD_TL_RANDOM)
+                tl_pop(a, 3, i);                        /* (what it sets) */
+        }
         break;
+    }
     }
     if (ch)
         T->flags |= QD_TLF_DIRTY;
