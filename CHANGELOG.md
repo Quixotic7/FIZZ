@@ -9,10 +9,12 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+SAVE and SEQ become page buttons with a click cycle, the PIANO ROLL moves to SEQ and draws five of its modes as a 4 x 4 grid, patterns can be copied and cut with F1 / F2, and waking the unit no longer triggers anything.
+
 - **B11's steps / keys no longer flip when you change pages**: turning PRESETS on the keyboard page and then pressing EDIT, ENV, FX, SEQ, SAVE, SHIFT + REC or holding PLAY no longer drops you back on the keyboard page under that page (with the white keys playing notes); and the MIDI FX screen, opened with the step keyboard on, no longer shows B11's label (and SHIFT + white keys) the wrong way round.
 - **Waking from the FIZZ screen does nothing else**: the button or knob that wakes the unit only wakes it (PLAY no longer starts playback, a knob no longer changes its value). A button held while it wakes is no SHIFT, no HOME hold, no SEQ map, no REC arm until you let go and press it again.
-- The PIANO ROLL in COND, TRIG, FUNC, SLIDE and SOUND is now a 4 x 4 grid of big boxes, a row a beat: conditions as
-  rings and names, padlocks and ties, function icons with arrows to where each jump lands, slides as a rising curve,
+- The PIANO ROLL in COND, TRIG, FUNC, SLIDE and SOUND is now a 4 x 4 grid of big boxes, a row a beat, black inside: conditions as
+  big values and names, padlocks and ties, function icons with arrows to where each jump lands, slides as a rising curve,
   and sound locks as their number and name in the sound's own colour.
 - **SAVE is a page button**: a click opens the SAVE page you used last, and clicks turn between **SAVE PRESET** and
   **PROJECT**. In the sound editor with a step selected, a click still opens SAVE PRESET for that step's sound.
