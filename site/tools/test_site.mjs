@@ -147,11 +147,13 @@ try {
   const tap = async (b) => { await evaluate(`FIZZ.controls.holdBtn(${b}, 4, true)`); await sleep(120); await evaluate(`FIZZ.controls.holdBtn(${b}, 4, false)`); await sleep(150); };
   const tapKey = async (k) => { await evaluate(`FIZZ.controls.holdKey(${k}, 4, true)`); await sleep(120); await evaluate(`FIZZ.controls.holdKey(${k}, 4, false)`); await sleep(150); };
   await tap(6); await tap(11);
+  await tapKey(25);                                  // (2026-11-13: B11's state is global, the step selection: a B11 click for the keys)
   await evaluate("FIZZ.peak()");
   let before = 0; for (let i = 0; i < 5; i++) { before = Math.max(before, await evaluate("FIZZ.peak()")); await sleep(40); }
   await evaluate("FIZZ.controls.holdKey(9, 4, true, 100)");
   let peak = 0; for (let i = 0; i < 12; i++) { await sleep(40); peak = Math.max(peak, await evaluate("FIZZ.peak()")); }
   await evaluate("FIZZ.controls.holdKey(9, 4, false)");
+  await tapKey(25);                                  // (B11 again: the step selection back, for what follows)
   check(peak > 0.002, `REC + D4 through the panel: output peak ${peak.toFixed(4)} (before the key ${before.toFixed(4)})`);
   await tap(11);                                           // (REC again: back to the steps)
   await shot("page-keyboard.png");
@@ -291,11 +293,11 @@ try {
   await shot("labels-fizz.png");
   // P1.6d: ARP tapped, a group (ALGORITHM a click): the MIDI FX screen's labels on the panel
   await evaluate("FIZZ.controls.holdBtn(8, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(8, 4, false)"); await sleep(300);
-  await evaluate("FIZZ.controls.turn(1, 1)");
-  await waitFor("FIZZ.labels.knobs[2].firstChild.textContent === 'EFFECT'", 3000);
+  await evaluate("FIZZ.controls.turn(2, 1)");          // (2026-11-13: PRESETS the group, ALGORITHM the step cursor)
+  await waitFor("FIZZ.labels.keys[1].firstChild.textContent === 'EMPTY'", 3000);
   const mfx = await evaluate("(() => { const L = FIZZ.labels, t = (d) => d.firstChild.textContent; return { algo: t(L.knobs[1]), presets: t(L.knobs[2]), b: [1, 3, 5, 8, 10, 13, 15, 17].map((k) => t(L.keys[k])) }; })()");
   await shot("labels-midifx.png");
-  check(mfx.algo === "GROUP" && mfx.presets === "EFFECT" && mfx.b[0] === "EMPTY" && mfx.b[7] === "SLOT 8",
+  check(mfx.algo === "STEP" && mfx.presets === "GROUP" && mfx.b[0] === "EMPTY" && mfx.b[7] === "SLOT 8",
     `the MIDI FX screen on the panel: ALGORITHM "${mfx.algo}", PRESETS "${mfx.presets}", B1..B8 ${mfx.b.join(" / ")}`);
   // the MIDI FX screen: the panel's W keys read STEP n and REC KEYBOARD; REC tapped: the keyboard page, REC reads
   // RECORD (a second tap would record); HOME: back
@@ -305,7 +307,7 @@ try {
   await evaluate("FIZZ.controls.holdBtn(11, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(11, 4, false)");
   await waitFor("FIZZ.labels.btns[11].firstChild.textContent === 'RECORD'", 3000);
   const keysV = await evaluate(lbl);
-  check(steps.w1 === "STEP 1" && steps.w16 === "STEP 16" && steps.rec === "KEYBOARD" && keysV.rec === "RECORD" && !/^STEP/.test(keysV.w1),
+  check(steps.w1 === "STEP 1" && steps.w16 === "STEP 16" && steps.rec === "KEYBOARD" && keysV.rec === "RECORD",
     `the MIDI FX screen on the panel: the white keys "${steps.w1}" .. "${steps.w16}", REC "${steps.rec}"; REC tapped: the keys "${keysV.w1}" .., REC "${keysV.rec}"`);
   await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
 

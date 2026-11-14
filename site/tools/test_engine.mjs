@@ -103,6 +103,7 @@ let p = new Panel(e);
 run(e, 1000);
 tapBtn(e, p, "HOME");                     // (wakes it from the logo screen to the step view)
 tapBtn(e, p, "REC");
+tapKey(e, p, 25);                         // (2026-11-13: B11's state is global, the step selection: a B11 click for the keys)
 const quiet = run(e, 300);
 const vel = new Uint8Array(27); vel[9] = 100;
 p.keys = 1 << 9; p.set(vel);
@@ -502,12 +503,12 @@ e.dispose();
   tapBtn(e, p, "ARP");
   ls = pump(e, 300).map(decodeLabels).filter(Boolean);
   const none = ls[ls.length - 1];
-  check(none && none.enc[1] === "GROUP", `ARP tapped opens the MIDI FX screen: ALGORITHM "${none && none.enc[1]}" (no group yet: PRESETS "${none && none.enc[6]}")`);
-  { const enc = new Int32Array(7); enc[p.t.encId[1]] = p.t.encDir[1]; e.setPanel({ keys: 0, buttons: 0, enc, keyVel: new Uint8Array(27) }); }
+  check(none && none.enc[1] === "STEP" && none.enc[6] === "GROUP", `ARP tapped opens the MIDI FX screen: ALGORITHM "${none && none.enc[1]}" (2026-11-13: the step cursor; PRESETS "${none && none.enc[6]}", the group)`);
+  { const enc = new Int32Array(7); enc[p.t.encId[2]] = p.t.encDir[2]; e.setPanel({ keys: 0, buttons: 0, enc, keyVel: new Uint8Array(27) }); }
   ls = pump(e, 400).map(decodeLabels).filter(Boolean);
   const mf = ls[ls.length - 1];
   const slots = mf ? BK.slice(0, 8).map((k) => mf.keys[k]) : [];
-  check(mf && mf.enc[1] === "GROUP" && mf.enc[6] === "EFFECT" && slots.every((x) => /^(EMPTY|SLOT [1-8]|[A-Z][A-Z0-9 .+-]*)$/.test(x)),
+  check(mf && mf.enc[1] === "STEP" && mf.enc[6] === "GROUP" && slots.every((x) => /^(EMPTY|SLOT [1-8]|[A-Z][A-Z0-9 .+-]*)$/.test(x)),
     `the MIDI FX screen, a group: ALGORITHM "${mf && mf.enc[1]}", PRESETS "${mf && mf.enc[6]}", B1..B8 ${slots.join(" / ")}`);
   writePng(path.join(OUT, "midi-fx.png"), e.screen().pixels);
   // P1.6e / P1.6f: STEPS / KEYS is one mode with the main view; REC names what a tap switches to. On the MIDI FX screen
@@ -525,9 +526,9 @@ e.dispose();
     tapBtn(e, p, "HOME");
     lr = pump(e, 300).map(decodeLabels).filter(Boolean);
     const back = lr[lr.length - 1];
-    check(recSteps === "KEYBOARD" && w1 === "STEP 1" && w16 === "STEP 16" && held && held.enc[1] === "STEP MFX" &&
-          kb && kb.buttons[13] === "RECORD" && !/^STEP/.test(kb.keys[W[0]]) && back && back.buttons[13] === "KEYBOARD" && back.keys[W[0]] === "STEP 1",
-      `P1.6f: the MIDI FX screen in STEPS: the white keys "${w1}" .. "${w16}", REC "${recSteps}", a step held: ALGORITHM "${held && held.enc[1]}"; REC tapped: the keys "${kb && kb.keys[W[0]]}" .., REC "${kb && kb.buttons[13]}"; HOME: REC "${back && back.buttons[13]}"`);
+    check(recSteps === "KEYBOARD" && w1 === "STEP 1" && w16 === "STEP 16" && held && held.enc[6] === "STEP MFX" &&
+          kb && kb.buttons[13] === "RECORD" && back && back.buttons[13] === "KEYBOARD" && back.keys[W[0]] === "STEP 1",
+      `P1.6f: the MIDI FX screen in STEPS: the white keys "${w1}" .. "${w16}", REC "${recSteps}", a step held: PRESETS "${held && held.enc[6]}"; REC tapped: the keys "${kb && kb.keys[W[0]]}" .., REC "${kb && kb.buttons[13]}"; HOME: REC "${back && back.buttons[13]}"`);
   }
   e.dispose();
   // presets: 3 stored, LIST, DUMP everything, restored into a blank unit, dumped again: the same frames
@@ -620,7 +621,7 @@ e.dispose();
       const patsOk = pats.every((q) => q.old < q.fresh);
       x.u.midiIn(labelsReq(true)); tapBtn(x.u, x.pp, "ARP");
       const lbl = x.pump(400).map(decodeLabels).filter(Boolean).at(-1);
-      const mfxOk = lbl && lbl.keys[1] === "ARP" && lbl.enc[6] === "EFFECT";
+      const mfxOk = lbl && lbl.keys[1] === "ARP" && lbl.enc[6] === "GROUP";   /* (2026-11-13: PRESETS the group) */
       tapBtn(x.u, x.pp, "HOME"); run(x.u, 300); x.pump(100);
       if (fresh8) {                                     // (eight tracks -> six: MY PRESETS kept, the projects fresh)
         const freshOk = !poolOk && pats.every((q) => q.fresh <= q.old);
