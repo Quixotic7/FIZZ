@@ -10383,6 +10383,28 @@ static void g_mfx_b11_global(void)
           "the keyboard page's STEPS: MIDI FX STEPS; ARP: the keyboard page, STEPS");
 }
 
+
+/* 2026-11-13 (owner): VEL on the step keyboard, ALGORITHM scrolling: the W keys the selected step's velocity, no
+ * position flash over them */
+static void g_vel_scroll(void)
+{
+    qd_leds_t l;
+    int s, ok = 1;
+    start();
+    A.ui.lmode = QD_LMODE_MODES;
+    black(B11);
+    mode(M_VEL);
+    for (s = 0; s < 16; s++)
+        qd_step_on(PAT(), 0, s), qd_step_set_vel(PAT(), 0, s, 8 * (15 - s));
+    for (s = 0; s < 4; s++) {
+        turn(QD_K_ALGO, 1);
+        run(20);
+        l = leds();
+        ok &= l.key[WK(14 - s)] == QD_LED_LIT && (s == 14 - s || l.key[WK(s)] != QD_LED_LIT);
+    }
+    CHECK(ok, "VEL, the step keyboard: ALGORITHM steps 1..4: W15..W12 lit (their velocities), the step's own W not");
+}
+
 /* 2026-11-13 (owner): B11's state is one across the Home views and the keyboard page (REC): the Home views' steps are
  * the keyboard page's STEPS (W keys the steps, B1..B10 the scale from its root), their step keyboard its full keys */
 static void g_b11_global(void)
@@ -10703,6 +10725,7 @@ int main(void)
         {"2026-11-13: SAVE a step's sound from the editor", g_save_step},
         {"2026-11-13: B11 one state: the Home views and the keyboard page", g_b11_global},
         {"2026-11-13: the MIDI FX screen's knobs", g_mfx_knobs},
+        {"2026-11-13: VEL on the step keyboard, ALGORITHM scrolling", g_vel_scroll},
         {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
