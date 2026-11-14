@@ -3153,6 +3153,28 @@ static void g_steps_kinds(void)
           ui_steps_fill(UI_C_ON | UI_C_OWN) == QD_NONE, "no fill for a ghost, an off step, a step out of range");
 }
 
+/* 2026-11-13: the FUNC grid's arrows: the box a JUMP / LEAP lands in */
+static void g_jump_to(void)
+{
+    static ui_lane_t l;
+    memset(&l, 0, sizeof l);
+    l.page = 1;
+    l.loop = 2;                                          /* page 2 alone in the loop */
+    l.col[3].on = l.col[4].on = l.col[5].on = l.col[6].on = l.col[7].on = 1;
+    l.col[3].func = UI_FN_JUMP + 16 + 9;                /* JUMP 26: box 9 of page 2 */
+    l.col[4].func = UI_FN_JUMP + 2;                     /* JUMP 3: on page 1, no arrow */
+    l.col[5].func = UI_FN_LEAP + 15 + 13;               /* LEAP +13 from box 5: round to box 2 */
+    l.col[6].func = UI_FN_LEAP + 15 - 2;                /* LEAP -2: box 4 */
+    l.col[7].func = 1;                                  /* RESTART: none */
+    l.col[8].func = UI_FN_JUMP + 16;                    /* (not a trig: none) */
+    CHECK(ui_lane_jump_to(&l, 3) == 9 && ui_lane_jump_to(&l, 4) == -1 && ui_lane_jump_to(&l, 5) == 2 &&
+          ui_lane_jump_to(&l, 6) == 4 && ui_lane_jump_to(&l, 7) == -1 && ui_lane_jump_to(&l, 8) == -1,
+          "the jumps' boxes: %d %d %d %d %d %d", ui_lane_jump_to(&l, 3), ui_lane_jump_to(&l, 4),
+          ui_lane_jump_to(&l, 5), ui_lane_jump_to(&l, 6), ui_lane_jump_to(&l, 7), ui_lane_jump_to(&l, 8));
+    l.loop = 3;                                          /* two pages in the loop: a LEAP off the page has no box */
+    CHECK(ui_lane_jump_to(&l, 5) == -1 && ui_lane_jump_to(&l, 6) == 4, "a LEAP past the page, two pages looping");
+}
+
 /* P1.3s: playing, the playhead outlines no cell (only the selection is outlined): STEPS' open row while step 6
  * pops, the gap left of its cell dark; selected by the cursor, the outline there */
 static void g_play_outline(void)
@@ -10816,6 +10838,7 @@ int main(void)
         {"SHIFT + FX = FILL, SHIFT + ARP = MIDI FX bypass", g_fill_page},
         {"F3 latched: the page keys go straight to their pages", g_f3_pages},
         {"page follow", g_follow},
+        {"the FUNC grid: the box a JUMP / LEAP lands in", g_jump_to},
         {"P1.4b: the track settings, the mix, the effects", g_tracks_screen},
         {"the track settings' W keys, the global key", g_track_keys},
         {"MIDI notes into a held step", g_midi_held},

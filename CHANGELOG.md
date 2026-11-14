@@ -9,6 +9,10 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- The PIANO ROLL in COND, TRIG, FUNC, SLIDE and SOUND is now a 4 x 4 grid of big boxes, a row a beat: conditions as
+  rings and names, padlocks and ties, function icons with arrows to where each jump lands, slides as a rising curve,
+  and sound locks as their number and name in the sound's own colour.
+
 ## 0.12.0-beta.18 (2026-11-13)
 
 One design language across the pages: ALGORITHM selects steps everywhere, the selection, SOUND's bank and the octave stay put as you move around, and MIDI FX, TOOLS and FUNC are redone to match.

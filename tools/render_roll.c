@@ -17,6 +17,10 @@
 #include "quad_voice.h"
 #include "sounds.h"
 #include "ui.h"
+#ifdef __APPLE__
+#include <libproc.h>
+#include <unistd.h>
+#endif
 
 #define NSHOT UI_NFIELD
 static qd_app_t A;
@@ -28,6 +32,26 @@ static char files[NSHOT][32], caps[NSHOT][48];
 static int nshot, failed;
 
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be);   /* render_frames.c's */
+
+/* 2026-11-13: a frame's cost in host instructions (macOS; else 0), the least of three: the unit's ms ~ / 258e3 */
+static double frame_instr(void)
+{
+    double best = 0.;
+#ifdef __APPLE__
+    int r;
+    for (r = 0; r < 3; r++) {
+        struct rusage_info_v4 a, b;
+        proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&a);
+        qd_app_frame(&A, lcd);
+        proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&b);
+        if (!r || (double)(b.ri_instructions - a.ri_instructions) < best)
+            best = (double)(b.ri_instructions - a.ri_instructions);
+    }
+#else
+    qd_app_frame(&A, lcd);
+#endif
+    return best;
+}
 
 static void run(uint32_t n)
 {
@@ -214,7 +238,10 @@ int render_roll(const char *out)
         char path[1024];
         A.ui.hmode = m;                                 /* (the mode set directly: a black key would edit the cursor's
                                                          * step; the frame alone, the playhead where it is) */
-        qd_app_frame(&A, lcd);
+        {
+            const double in = frame_instr();
+            printf("roll %-6s %6.2f M instructions a frame (/258: %5.1f ms)\n", UI_FIELD_NAME[m], in / 1e6, in / 258e3);
+        }
         snprintf(files[nshot], sizeof files[nshot], "roll-%s.png", UI_FIELD_NAME[m]);
         snprintf(caps[nshot], sizeof caps[nshot], "%d  %s", m + 1, UI_FIELD_NAME[m]);
         snprintf(path, sizeof path, "%s/%s", outdir, files[nshot]);
@@ -226,5 +253,40 @@ int render_roll(const char *out)
     dump(p, t, 10);
     if (!failed)
         sheet();
+    /* 2026-11-13, the grid's states (not on the sheet): a selection of several steps (COND), the playhead on FUNC's
+     * JUMP step at its start (the flash, the arrow white), and a white key held (TRIG) */
+    {
+        static const int SEL[3] = {2, 5, 13};
+        char path[1024];
+        const int nh = A.ui.nheld;
+        int h0[16];
+        memcpy(h0, A.ui.held, sizeof h0);
+        for (s = 0; s < 3; s++)
+            A.ui.held[s] = SEL[s];
+        A.ui.nheld = 3;
+        A.ui.hmode = UI_F_COND;
+        qd_app_frame(&A, lcd);
+        snprintf(path, sizeof path, "%s/roll-x-select.png", outdir);
+        failed |= !p13b_write_lcd_png(path, lcd);
+        printf("%s\n", path);
+        memcpy(A.ui.held, h0, sizeof h0);
+        A.ui.nheld = nh;
+        A.ui.hmode = UI_F_FUNC;
+        for (s = 0; s < 20000 && qd_seq_track_step(&A.seq, t) != 8; s++)
+            run(1);
+        qd_app_frame(&A, lcd);
+        snprintf(path, sizeof path, "%s/roll-x-flash.png", outdir);
+        failed |= !p13b_write_lcd_png(path, lcd);
+        printf("%s\n", path);
+        A.ui.hmode = UI_F_TRIG;
+        qd_app_key(&A, QD_WHITE_KEY[13], 1, 100);
+        run(60);
+        qd_app_frame(&A, lcd);
+        snprintf(path, sizeof path, "%s/roll-x-held.png", outdir);
+        failed |= !p13b_write_lcd_png(path, lcd);
+        printf("%s\n", path);
+        qd_app_key(&A, QD_WHITE_KEY[13], 0, 0);
+        run(20);
+    }
     return failed;
 }

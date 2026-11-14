@@ -2,7 +2,8 @@
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* Screen 2, the step view (PLAN.md §8b; mockups/line.html s2's frame): the page edited, drawn as the current hold
- * mode's lane inside the sixteen white keys' outlines.
+ * mode's lane inside the sixteen white keys' outlines (2026-11-13: COND, TRIG, FUNC, SLIDE and SOUND as a 4 x 4 grid
+ * instead: see grid below; the lanes for them here went).
  *
  * The frame, every mode: the top line with the track's box and name, the mode's name small in its colour, the tempo
  * grey and the pattern; under it the eight pages as dashes, each drawn over its own start..end only (a dark hairline
@@ -26,10 +27,6 @@
  *   RATCH  the hits as a ladder of ticks up from the floor, each as wide as its hit's velocity (the ramp); the
  *          default count a dashed line
  *   CHNC   ten dots up the column, as many lit as the chance's tens; the default a dashed line
- *   COND   an A:B as B little circles up the column with the A-th filled, its name over them; another condition
- *          its name's letters stacked; ALWAYS a dot
- *   TRIG   NOTE a dot, LOCK a padlock, TIE a slur from the step before
- *   SOUND  a dot a step (the track's sound grey), a sound lock's pool number under its dot
  *   P-LOCK (P1.3c, B11) the NOTE roll, the steps with p-locks in the padlock's colour, and under each column a padlock
  *          with its lock count (a held step's column outlined white: holding keeps this screen, the knobs lock it)
  * A LOCK step (trigless) in NOTE, VEL, LEN, MICRO and RATCH is a small ring: it plays no note. */
@@ -165,36 +162,6 @@ static void l_note(const ui_lane_t *v)
             ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_SOUND]), y += 4.5f;
         if (c->nlock)
             ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_LOCK_COL);
-    }
-}
-
-/* ---------------------------------------------------------------- SLIDE (2026-10-26): a ramp from the step to the next
- * column (ON: a line; LEGATO: the line and a slur under it, the note going on), as long as the TIME; a dot alone: no
- * slide (an OFF lock: the dot outlined in the mode's colour) */
-static void l_slide(const ui_lane_t *v)
-{
-    const float y = 123.f;
-    int i;
-    for (i = 0; i < 16; i++) {
-        const ui_lcol_t *c = &v->col[i];
-        const float cx = col_x(i) + 6.f;
-        const qd_rgb col = ccol(v, c);
-        if (!c->in_range || !c->on)
-            continue;
-        if (c->port >= 2) {
-            const float gap = 13.5f + (i % 4 == 3 ? 2.f : 0.f), w = 4.f + 9.f * (float)c->ptime / 127.f;
-            const float x1 = cx + (w < gap ? w : gap);
-            line2(cx, y + 5.f, x1, y - 9.f, col, 1.8f);
-            if (c->port == 3) {                         /* LEGATO: the note held on under the ramp */
-                qd_path_begin();
-                qd_move_to(cx - 2.f, y + 8.f);
-                qd_quad_to((cx + x1) / 2.f, y + 15.f, x1 + 1.f, y + 8.f);
-                qd_path_stroke(col, 1.2f);
-            }
-            ui_O(cx, y + 5.f, 2.6f, QD_NONE, 1.f, col);
-        } else {
-            ui_O(cx, y + 5.f, 2.6f, c->port == 1 ? col : QD_NONE, 1.f, c->port == 1 ? QD_NONE : col);
-        }
     }
 }
 
@@ -344,134 +311,247 @@ static void l_chnc(const ui_lane_t *v)
     }
 }
 
-/* ---------------------------------------------------------------- COND: the conditions */
-static int parse_ab(const char *s, int *a, int *b)
+/* ---------------------------------------------------------------- 2026-11-13: COND, TRIG, FUNC, SLIDE and SOUND as a
+ * 4 x 4 grid (mockups/fizz-roll-grid.html, the takes the owner chose): a box a step, a row a beat. An empty step a dark
+ * outline; a trig on the track's value a grey box, its value grey; a step with its own value tinted and outlined in the
+ * mode's colour (SOUND: the sound's own, by its pool number; TRIG's LOCK: STEPS' violet), its value big. The playhead a
+ * red bar along its box's foot (the box flashing white as it plays); held / selected outlined white.
+ *   COND   an A:B a ring cut into B passes, the A-th lit, "A:B" inside; a named condition big; ALWAYS a whole ring
+ *   TRIG   NOTE a disc, LOCK a padlock, TIE a ring with its slur over from the step before (STEPS' colours)
+ *   FUNC   the function's icon big; a JUMP / LEAP its number beside it and a dashed arrow to the box it lands in
+ *          (white while its step plays; a target off the page: none)
+ *   SLIDE  pitch over the step: the note's dot rising to an arrow, TIME how far across the climb takes; LEGATO a slur
+ *          under it; an OFF lock a crossed ring
+ *   SOUND  the pool number big, its name under it */
+#define GW 55.f
+#define GH 44.f
+static float gx(int i) { return 4.f + (float)(i & 3) * 59.f; }
+static float gy(int i) { return 35.f + (float)(i >> 2) * 48.f; }
+
+static qd_rgb shade(qd_rgb c, unsigned k)               /* c at k / 256, over black */
 {
-    if (s[0] >= '1' && s[0] <= '9' && s[1] == ':' && s[2] >= '1' && s[2] <= '9' && !s[3]) {
-        *a = s[0] - '0', *b = s[2] - '0';
-        return 1;
-    }
-    return 0;
+    return ((c >> 16 & 255u) * k >> 8) << 16 | ((c >> 8 & 255u) * k >> 8) << 8 | (c & 255u) * k >> 8;
+}
+static void faint(float a)                              /* .. until qd_restore */
+{
+    qd_save();
+    qd_alpha(qd_get_alpha() * a);
 }
 
-static void l_cond(const ui_lane_t *v)
+int ui_lane_jump_to(const ui_lane_t *v, int i)
 {
-    const float foot = 198.f;
-    int i, a, b, k;
-    for (i = 0; i < 16; i++) {
-        const ui_lcol_t *c = &v->col[i];
-        const float cx = col_x(i) + 6.f;
-        const qd_rgb col = ccol(v, c);
-        if (!c->in_range || !c->on)
-            continue;
-        if (!c->cond[0]) {                              /* ALWAYS */
-            ui_O(cx, foot, 1.8f, QD_NONE, 1.f, col);
-        } else if (parse_ab(c->cond, &a, &b)) {         /* A:B: b circles up the column, the a-th filled */
-            for (k = 0; k < b; k++)                     /* (P1.3v: the circles say it: no 8 px "3:4") */
-                ui_O(cx, foot - (float)k * 11.f, 3.2f, k == a - 1 ? QD_NONE : col, 1.f, k == a - 1 ? col : QD_NONE);
-        } else {                                        /* the name's letters stacked, ending at the foot */
-            const int n = (int)strlen(c->cond);
-            char ch[2];
-            ch[1] = 0;
-            for (k = 0; k < n; k++) {
-                ch[0] = c->cond[k];
-                ui_T(ch, cx, foot + 4.f - (float)(n - 1 - k) * 13.f, 12.f, 600, 0.f, col, QD_CENTER);
-            }
-        }
+    const int f = v->col[i].func;
+    int t;
+    if (!v->col[i].on || f < UI_FN_JUMP)
+        return -1;
+    if (f >= UI_FN_LEAP) {                              /* LEAP n: n on (round the page when it loops alone) */
+        t = i + f - UI_FN_LEAP - 15;
+        if (v->loop == 1u << (v->page & 7))
+            t &= 15;
+    } else {                                            /* JUMP n: the track's step n */
+        t = f - UI_FN_JUMP - v->page * 16;
+    }
+    return t >= 0 && t < 16 && t != i ? t : -1;
+}
+
+/* the dashed arrow from box i's top right to box t's, bulging away from the grid's middle, on a black halo */
+static FZ_COLD void jump_arrow(int i, int t, qd_rgb col)
+{
+    static const float DA[2] = {5.f, 3.5f};
+    const float x0 = gx(i) + 39.5f, y0 = gy(i) + 6.f, x1 = gx(t) + 39.5f, y1 = gy(t) + 9.f;
+    const float mx = (x0 + x1) / 2.f, my = (y0 + y1) / 2.f, dx = x1 - x0, dy = y1 - y0;
+    const float d = hypotf(dx, dy) + 0.01f, b = (d * 0.3f > 26.f ? d * 0.3f : 26.f) / d;
+    float px = -dy * b, py = dx * b, ux, uy, n;
+    int k;
+    if ((mx - 120.f) * px + (my - 129.f) * py < 0.f)
+        px = -px, py = -py;
+    for (k = 0; k < 2; k++) {
+        qd_save();
+        if (k)
+            qd_dash(DA, 2);
+        qd_path_begin();
+        qd_move_to(x0, y0);
+        qd_quad_to(mx + px, my + py, x1, y1);
+        qd_path_stroke(k ? col : UI_BG, k ? 2.2f : 6.f);
+        qd_restore();
+    }
+    ux = x1 - mx - px, uy = y1 - my - py, n = hypotf(ux, uy) + 0.01f;
+    ux = ux / n * 7.f, uy = uy / n * 7.f;               /* the head: 7 px back, 0.5 rad either side */
+    {
+        const float C = 0.8776f, S = 0.4794f;
+        const float a[6] = {x1 + ux * 0.29f, y1 + uy * 0.29f, x1 - ux * C - uy * S, y1 - uy * C + ux * S,
+                            x1 - ux * C + uy * S, y1 - uy * C - ux * S};
+        ui_P(a, 3, UI_BG, 1.5f, 1, col);
     }
 }
 
-/* ---------------------------------------------------------------- TRIG: the icons */
-static void l_trig(const ui_lane_t *v)
+/* a function's icon (ui_kit's) at s, its strokes 1.9 times thicker */
+static void big_icon(int f, float cx, float cy, float s, qd_rgb col)
 {
-    const float y = 123.f;
-    int i;
-    for (i = 0; i < 16; i++) {
-        const ui_lcol_t *c = &v->col[i];
-        const float cx = col_x(i) + 6.f;
-        const qd_rgb col = ccol(v, c);
-        if (!c->in_range || !c->on)
-            continue;
-        if (c->type == 2) {
-            ui_lock(cx - 5.25f, y - 8.f, col, 1.5f);
-        } else if (c->type == 3) {                      /* a slur from the step before */
-            const float x0 = cx - 13.5f - (i % 4 == 0 && i ? 2.f : 0.f);
-            qd_path_begin();
-            qd_move_to(x0, y - 3.f);
-            qd_quad_to((x0 + cx) / 2.f, y - 17.f, cx, y - 3.f);
-            qd_path_stroke(col, 1.5f);
-            ui_O(cx, y, 2.2f, QD_NONE, 1.f, col);
-        } else {
-            ui_O(cx, y, 4.5f, QD_NONE, 1.f, col);
-        }
-    }
+    qd_save();
+    qd_translate(cx, cy);
+    qd_scale(1.9f, 1.9f);
+    ui_icon(ui_fn_icon(f), 0.f, 0.f, s / 1.9f, col);
+    qd_restore();
 }
 
-/* ---------------------------------------------------------------- SOUND: a dot a step, the pool number */
-static void l_sound(const ui_lane_t *v)
+static __attribute__((noinline)) FZ_COLD void grid(const ui_lane_t *v)
 {
-    const float y = 112.f;
+    static const float DOTS[2] = {1.f, 4.f};
+    const int mode = v->mode, ph = v->pos >= 0.f ? (int)v->pos : -1;
+    const qd_rgb mc = UI_MODE_COL[mode];
     char s[12];
-    int i;
+    int i, k;
     for (i = 0; i < 16; i++) {
         const ui_lcol_t *c = &v->col[i];
-        const float cx = col_x(i) + 6.f;
-        const qd_rgb col = c->lit ? UI_K3 : c->sound ? UI_MODE_COL[UI_F_SOUND] : UI_G1;
-        if (!c->in_range || !c->on)
-            continue;
-        if (!c->sound) {
-            ui_O(cx, y, 2.4f, col, 1.2f, QD_NONE);
+        const float x = gx(i), y = gy(i), cx = x + GW / 2.f, cy = y + GH / 2.f;
+        int own = c->ovr;
+        qd_rgb col = mc;
+        if (!c->in_range) {                             /* outside the page's start..end: dotted */
+            qd_save();
+            qd_dash(DOTS, 2);
+            ui_RR(x, y, GW, GH, 7.f, UI_G3, 1.f, QD_NONE);
+            qd_restore();
             continue;
         }
-        ui_O(cx, y, 3.4f, QD_NONE, 1.f, col);
-        ui_itoa(s, c->sound);
-        {   /* P1.3v: its digits stacked down the column, 12 px (was 8 px squeezed) */
-            char ch[2];
-            int k;
-            ch[1] = 0;
-            for (k = 0; s[k]; k++) {
-                ch[0] = s[k];
-                ui_T(ch, cx, y + 20.f + (float)k * 13.f, 12.f, 600, 0.f, col, QD_CENTER);
+        if (!c->on) {
+            ui_RR(x, y, GW, GH, 7.f, UI_G3, 1.f, QD_NONE);   /* (the mockup's near-black fill: not worth its pixels) */
+            continue;
+        }
+        if (mode == UI_F_SOUND) {                       /* a sound its own colour (the track palette less white, and
+                                                         * SOUND's lime) */
+            k = (c->sound - 1) & 7;
+            own = c->sound != 0;
+            col = k == 7 ? mc : UI_TRACK_PAL[k + (k >= 2)];
+        } else if (mode == UI_F_TRIG && c->type == 2) {
+            col = UI_STEP_GHOST;
+        }
+        if (own)
+            ui_RR(x, y, GW, GH, 7.f, col, 1.5f, shade(col, 44u));
+        else
+            ui_RR(x, y, GW, GH, 7.f, UI_G2, 1.f, 0x141418u), col = UI_G1;
+        if (i == ph) {                                  /* playing: a flash, fading over the step */
+            faint(0.24f - 0.2f * (v->pos - (float)ph));
+            ui_RR(x, y, GW, GH, 7.f, QD_NONE, 1.f, UI_K3);
+            qd_restore();
+        }
+        switch (mode) {
+        case UI_F_COND:
+            if (!c->cond[0]) {                          /* ALWAYS: every pass */
+                faint(0.55f);
+                ui_O(cx, cy, 13.f, col, 4.f, QD_NONE);
+                qd_restore();
+            } else if (c->cond[1] == ':') {             /* A:B: B passes round, the A-th lit */
+                const int b = c->cond[2] - '0';
+                const float seg = UI_TAU / (float)(b > 0 ? b : 1);
+                for (k = 0; k < b; k++) {
+                    const int lit = k == c->cond[0] - '1';
+                    const float lw = lit ? 6.f : 4.f, a0 = -UI_PI / 2.f + (float)k * seg + 0.17f + lw / 30.f;
+                    const float sp = seg - 0.34f - lw / 15.f;   /* (round caps: the gap kept) */
+                    if (!lit)
+                        faint(0.32f);
+                    qd_arc(cx, cy, 15.f, a0, a0 + (sp > 0.05f ? sp : 0.05f), col, lw);
+                    if (!lit)
+                        qd_restore();
+                }
+                ui_T(c->cond, cx, cy + 4.5f, 13.f, 700, 0.f, col, QD_CENTER);
+            } else {
+                ui_T(c->cond, cx, cy + 6.5f, ui_TW(c->cond, 18.f, 700, 0.f) > 46.f ? 15.f : 18.f, 700, 0.f, col,
+                     QD_CENTER);
             }
-        }
-    }
-}
-
-/* ---------------------------------------------------------------- FUNC (P1.3w): an icon a step */
-static void l_func(const ui_lane_t *v)
-{
-    const float y = 112.f;
-    char s[12];
-    int i;
-    for (i = 0; i < 16; i++) {
-        const ui_lcol_t *c = &v->col[i];
-        const float cx = col_x(i) + 6.f;
-        const qd_rgb col = c->lit ? UI_K3 : c->func ? UI_MODE_COL[UI_F_FUNC] : UI_G2;
-        if (!c->in_range || !c->on)
-            continue;
-        if (!c->func) {
-            ui_O(cx, y, 1.6f, QD_NONE, 1.f, UI_G2);
-            continue;
-        }
-        ui_icon(ui_fn_icon(c->func), cx, y, 0.95f, col);
-        if (c->func >= UI_FN_JUMP) {                    /* JUMP n: its target's number; LEAP: its n, signed; stacked,
-                                                         * 12 px */
-            int k;
-            char ch[2];
-            ch[1] = 0;
-            if (c->func >= UI_FN_LEAP) {
-                const int n = c->func - UI_FN_LEAP - 15;
+            break;
+        case UI_F_TRIG:
+            col = c->type == 2 ? UI_STEP_GHOST : UI_STEP_OWN;   /* (STEPS' colours, the box says own or not) */
+            if (c->type == 2) {                         /* LOCK: a padlock */
+                qd_arc(cx, cy - 7.f, 6.5f, UI_PI, UI_TAU, col, 3.f);
+                qd_line(cx - 6.5f, cy - 7.f, cx - 6.5f, cy - 3.f, col, 3.f);
+                qd_line(cx + 6.5f, cy - 7.f, cx + 6.5f, cy - 3.f, col, 3.f);
+                ui_RR(cx - 11.5f, cy - 5.f, 23.f, 17.f, 4.f, col, 2.f, UI_BG);
+                ui_O(cx, cy + 2.5f, 2.2f, QD_NONE, 1.f, col);
+            } else if (c->type == 3) {                  /* TIE: a ring, its slur from the step before */
+                ui_O(cx + 6.f, cy + 3.f, 9.f, col, 3.f, QD_NONE);
+                if (i & 3) {
+                    qd_path_begin();
+                    qd_move_to(cx - 47.f, cy - 5.f);
+                    qd_quad_to(cx - 26.5f, cy - 21.f, cx + 2.f, cy - 7.f);
+                    qd_path_stroke(col, 3.f);
+                }
+            } else {
+                ui_O(cx, cy, 10.f, QD_NONE, 1.f, col);
+            }
+            break;
+        case UI_F_FUNC: {
+            const int f = c->func;
+            if (!f) {
+                ui_O(cx, cy, 4.5f, QD_NONE, 1.f, col);
+            } else if (f >= UI_FN_JUMP) {               /* JUMP n: its target's number; LEAP: its n, signed */
+                const int lp = f >= UI_FN_LEAP, n = lp ? f - UI_FN_LEAP - 15 : f - UI_FN_JUMP + 1;
                 s[0] = n < 0 ? '-' : '+';
                 ui_itoa(s + 1, n < 0 ? -n : n);
+                big_icon(f, cx - 9.f, cy + (lp ? -2.f : 1.f), lp ? 1.7f : 1.8f, col);
+                ui_T(s + !lp, cx + 16.f, cy + (lp ? 6.f : 7.f), lp ? 16.f : 18.f, 700, 0.f, col, QD_CENTER);
             } else {
-                ui_itoa(s, c->func - UI_FN_JUMP + 1);
+                big_icon(f, cx, cy, 2.5f, col);
             }
-            for (k = 0; s[k]; k++) {
-                ch[0] = s[k];
-                ui_T(ch, cx, y + 22.f + (float)k * 13.f, 12.f, 600, 0.f, col, QD_CENTER);
+            break;
+        }
+        case UI_F_SLIDE:
+            if (c->port == 1) {                         /* an OFF lock: a crossed ring */
+                ui_O(cx, cy, 9.f, col, 2.8f, QD_NONE);
+                qd_line(cx - 6.5f, cy + 6.5f, cx + 6.5f, cy - 6.5f, col, 2.8f);
+            } else if (c->port) {                       /* ON / LEGATO: the glide, TIME how far across */
+                const float x0 = x + 9.f, xe = x + GW - 8.f, y0 = cy + 6.f, y1 = cy - 10.f;
+                const float xr = x0 + (xe - x0) * (0.12f + 0.88f * (float)(c->ptime > 127 ? 127 : c->ptime) / 127.f);
+                const float xm = (x0 + xr) / 2.f, a[6] = {xe - 6.f, y1 - 4.5f, xe + 1.f, y1, xe - 6.f, y1 + 4.5f};
+                qd_path_begin();
+                qd_move_to(x0, y0);
+                qd_cubic_to(xm, y0, xm, y1, xr, y1);
+                qd_line_to(xe - 1.f, y1);
+                qd_path_stroke(col, 3.2f);
+                ui_O(x0, y0, 4.5f, QD_NONE, 1.f, col);
+                ui_P(a, 3, col, 2.6f, 0, QD_NONE);
+                if (c->port == 3) {                     /* LEGATO: the note held on */
+                    qd_path_begin();
+                    qd_move_to(x0 - 1.f, y0 + 6.f);
+                    qd_quad_to((x0 + xe) / 2.f, y0 + 15.f, xe, y0 + 6.f);
+                    qd_path_stroke(col, 2.4f);
+                }
+            } else {
+                ui_O(cx, cy, 5.f, QD_NONE, 1.f, col);
             }
+            break;
+        default:                                        /* SOUND */
+            if (!c->sound) {                            /* the track's sound */
+                faint(0.7f);
+                ui_O(cx, cy, 6.f, col, 2.5f, QD_NONE);
+                qd_restore();
+                break;
+            }
+            ui_T(ui_itoa(s, c->sound), cx, cy + 3.f, 24.f, 700, 0.f, col, QD_CENTER);
+            if (c->sname) {
+                for (k = 0; k < 7 && c->sname[k]; k++)
+                    s[k] = c->sname[k];
+                s[k] = 0;
+                ui_T(s, cx, cy + 18.f, 12.f, 600, 0.f, col, QD_CENTER);
+            }
+            break;
         }
     }
+    for (i = 0; i < 16 && mode == UI_F_FUNC; i++) {     /* where the jumps land */
+        const int t = ui_lane_jump_to(v, i);
+        if (t >= 0 && v->col[i].in_range)
+            jump_arrow(i, t, i == ph ? UI_K3 : mc);
+    }
+    if (ph >= 0 && ph < 16) {                           /* the playhead: a red bar, glowing */
+        const float x = gx(ph), y = gy(ph) + GH;
+        faint(0.3f);
+        ui_RR(x + 6.f, y - 7.f, GW - 12.f, 7.f, 3.5f, QD_NONE, 1.f, UI_RED);
+        qd_restore();
+        ui_RR(x + 8.f, y - 5.f, GW - 16.f, 3.f, 1.5f, QD_NONE, 1.f, UI_RED);
+    }
+    for (i = 0; i < 16; i++)                            /* held / selected */
+        if (v->col[i].held)
+            ui_RR(gx(i) - 3.f, gy(i) - 3.f, GW + 6.f, GH + 6.f, 10.f, UI_K3, 2.f, QD_NONE);
 }
 
 /* ---------------------------------------------------------------- the lane */
@@ -481,6 +561,10 @@ static void lane(const ui_lane_t *v)
 
     int i;
 
+    if (v->mode >= UI_F_COND) {                         /* COND .. SOUND: the grid (a row a beat) */
+        grid(v);
+        return;
+    }
     for (i = 0; i < 16; i++) {                          /* the keys' outlines */
         const ui_lcol_t *c = &v->col[i];
         if (!c->in_range) {                             /* outside the page's start..end: dark and dotted */
@@ -500,11 +584,6 @@ static void lane(const ui_lane_t *v)
     case UI_F_MICRO: l_micro(v); break;
     case UI_F_RATCH: l_ratch(v); break;
     case UI_F_CHNC: l_chnc(v); break;
-    case UI_F_COND: l_cond(v); break;
-    case UI_F_TRIG: l_trig(v); break;
-    case UI_F_SOUND: l_sound(v); break;
-    case UI_F_FUNC: l_func(v); break;
-    case UI_F_SLIDE: l_slide(v); break;
     default: l_note(v); break;
     }
     if (ph >= 0 && ph < 16) {                           /* the playhead */
@@ -713,7 +792,7 @@ static void def_name(const ui_lane_t *v)
         dashed(x, 219.f, x + 10.f, 219.f, def_col);
         x += 15.f;
     }
-    ui_lab(v->def_label, x, 222.f, def_col, QD_LEFT);
+    ui_lab(v->def_label, x, v->mode >= UI_F_COND ? 236.f : 222.f, def_col, QD_LEFT);   /* (the grid: under it) */
 }
 
 void ui_lane_draw(const ui_lane_t *v)

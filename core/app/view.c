@@ -215,6 +215,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         c->chance = (uint8_t)r.chance;
         cond_short(r.cond, c->cond);
         c->sound = (uint8_t)r.sound;
+        c->sname = r.sound ? qd_sound_name(&a->proj, r.sound) : 0;
         c->nlock = (uint8_t)qd_lock_count(P, t, s);
         c->strum = (uint8_t)r.strum;
         c->func = (uint8_t)r.func;
