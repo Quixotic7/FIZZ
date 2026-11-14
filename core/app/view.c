@@ -610,7 +610,7 @@ static __attribute__((noinline)) void fill_shift(const qd_app_t *a, ui_shift_t *
     v->snap_ok = a->undo.snap_ok;
     v->pclip_ok = a->undo.pclip_ok;
     v->metro = a->metro;
-    v->armed = u->clr_armed && a->ms - u->clr_ms < 2000u;
+    v->armed = u->clr_armed && a->ms - u->clr_ms < QD_ARM_MS;
 }
 
 /* ---------------------------------------------------------------- the takeovers --- */
@@ -864,8 +864,8 @@ static void draw_keys(qd_app_t *a)
         if (u->ksteps)                                  /* (2026-11-13, owner: the black keys that play, by the note
                                                          * each plays (in a scale: snapped): a root marked, held full) */
             for (i = 0; i < 10; i++) {
-                const int k = QD_BLACK_KEY[i];
-                v.bst[i] = (uint8_t)((qd_rec_key_note(a, k) % 12 == rt ? 2 : 1) | ((a->keys_held >> k) & 1u ? 4 : 0));
+                const int k = QD_BLACK_KEY[i], n = qd_rec_key_note(a, k);
+                v.bst[i] = (uint8_t)((n % 12 == rt ? 2 : 1) | ((a->keys_held >> k) & 1u || (v.sounding[n] & 1u) ? 4 : 0));
             }
         v.play = -1;
         if (a->seq.playing) {

@@ -661,7 +661,8 @@ static void k_step(qd_app_t *a, int key, int w, int down, int vel)
 
 static int step_of(const qd_app_t *a, int w) { return a->ui.page[a->sel] * QD_PAGE + w; }
 
-static void no_room(qd_app_t *a) { qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024"); }
+void qd_ctl_no_room(qd_app_t *a) { qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024"); }
+#define no_room qd_ctl_no_room
 
 /* F1 + W (§8b 2.1): the first W of an F1 hold copies its step, every later W pastes it (the hold's edits one undo
  * level). As Form's F1 copy, it loads F2's hand: the next F2 hold's first W drops it */
@@ -987,13 +988,8 @@ static void latch_toggle(qd_app_t *a)
                                                          * editor takes it: the selection's turns are its p-locks;
                                                          * P1.6h: so do the mix, the effects, the MIDI FX screen) */
     qd_step_latch(a, !a->ui.slatch);
-    if (a->ui.slatch && a->ui.latch == QD_LATCH_MIX)  /* (2026-11-13: the effects now as the step views, below) */
-        qd_step_release_all(a);
-    else if (a->ui.slatch && (!a->ui.latch || a->ui.latch == QD_LATCH_FX || a->ui.latch == QD_LATCH_SND))   /* 2026-11-13
-                                                         * (owner): the step views, the effects, the sound editor: the
-                                                         * last selection back */
-        qd_step_latch_restore(a);                         /* (P1.6h: there it starts empty: the knobs the track's until
-                                                         * W keys select) */
+    if (a->ui.slatch)                                   /* 2026-11-13 (owner): every page: the last selection back */
+        qd_step_latch_restore(a);
 }
 
 /* 2026-11-10 (owner, Elasticat's B11): B11 with nothing else to do is the hold key: held, B1..B8 the pages (F1's), the
@@ -1303,6 +1299,15 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
  * (The tracks screen of the clocks is retired: its LENGTH and RATE are F3's, LIMIT and SWING the track settings',
  * its mutes SEL's) */
 /* 2026-10-25: SHIFT + FX held is FILL (the FILL / NOT FILL conditions), at once, while both are down */
+/* FX, MIX, EDIT: their page over the step view (not from idle) */
+static void page_btn(qd_app_t *a, void (*open)(qd_app_t *))
+{
+    if (a->ui.mode == QD_MODE_IDLE)
+        return;
+    if (a->ui.mode != QD_MODE_STEP)
+        set_mode(a, QD_MODE_STEP);
+    open(a);
+}
 static void b_tracks(qd_app_t *a, int down)
 {
     if (down) {
@@ -1316,15 +1321,8 @@ static void b_tracks(qd_app_t *a, int down)
         a->ui.arp_fill = 0;
         qd_seq_fill(&a->seq, 0);
     } else if (a->ui.tracks_tap) {
-        const int keys = a->ui.mode == QD_MODE_KEYS && !a->ui.rec;   /* (2026-10-26, the owner: from the live keys,
-                                                         * the effects' keyboard stays on, as EDIT's) */
         a->ui.tracks_tap = 0;
-        if (a->ui.mode == QD_MODE_IDLE)
-            return;
-        if (a->ui.mode != QD_MODE_STEP)
-            set_mode(a, QD_MODE_STEP);
-        (void)keys;
-        qd_fx_button(a);                                /* (2026-11-13, owner: the selection kept) */
+        page_btn(a, qd_fx_button);                      /* (2026-11-13, owner: the selection kept) */
     }
 }
 
@@ -1332,11 +1330,8 @@ static void b_tracks(qd_app_t *a, int down)
  * the track settings and the global settings now; its PAGE + W pages are SELECT's and F1's) */
 static void b_page(qd_app_t *a, int down)
 {
-    if (!down || a->ui.mode == QD_MODE_IDLE)
-        return;
-    if (a->ui.mode != QD_MODE_STEP)
-        set_mode(a, QD_MODE_STEP);
-    qd_mix_button(a);
+    if (down)
+        page_btn(a, qd_mix_button);
 }
 
 static void b_shift(qd_app_t *a, int down)
@@ -1445,13 +1440,9 @@ static void home_hold(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     u->home_used = 3;
-    if (u->mode != QD_MODE_STEP)
-        set_mode(a, QD_MODE_STEP);
     if (u->latch)
         qd_latch_close(a);
-    if (!u->slatch)
-        qd_step_release_all(a);
-    qd_latch_open(a, QD_LATCH_SET);                     /* (2026-11-11, owner: it opens on the page it was left on) */
+    qd_page_open(a, QD_LATCH_SET, QD_PO_STEP);                     /* (2026-11-11, owner: it opens on the page it was left on) */
 }
 
 /* P1.3d (§8b 2.2): LFO (printed) toggles the step latch: as if a step is always held, a W tap selects (ctl_step.c) */
@@ -1620,11 +1611,7 @@ static void b_rec(qd_app_t *a, int down)
                 u->menu_knob = -1;
                 return;
             }
-            if (u->mode != QD_MODE_STEP)
-                set_mode(a, QD_MODE_STEP);
-            if (!u->slatch)
-                qd_step_release_all(a);
-            qd_latch_open(a, QD_LATCH_REC);
+            qd_page_open(a, QD_LATCH_REC, QD_PO_STEP);
             u->rec_page = 0;
         }
         return;
@@ -1875,14 +1862,8 @@ int qd_ctl_seq_map(const qd_app_t *a)
  * more); from another screen (the keyboard, the tracks) it opens over the step view */
 static void b_snd(qd_app_t *a, int down)
 {
-    int keys;
-    if (!down || a->ui.mode == QD_MODE_IDLE)
-        return;
-    keys = a->ui.mode == QD_MODE_KEYS && !a->ui.rec;    /* P1.5b: from the keyboard, its keyboard stays on */
-    if (a->ui.mode != QD_MODE_STEP)
-        set_mode(a, QD_MODE_STEP);
-    (void)keys;
-    qd_snd_button(a);                                   /* (2026-11-13, owner: the selection kept) */
+    if (down)
+        page_btn(a, qd_snd_button);                     /* (2026-11-13, owner: the selection kept) */
 }
 
 /* the buttons by role (PLAN §8b; what is not built yet: the sound editor, the mix, saving) */
@@ -2526,6 +2507,10 @@ void qd_ctl_ms(qd_app_t *a)
         a->ms - u->lfo_ms >= QD_LFO_HOLD_MS)
         u->lmode_open = 1;                              /* P1.5h: LFO held alone: the latch mode's screen, while held */
     qd_step_promote_due(a);                             /* a white key down 250 ms: held */
+    if (a->ms - u->arm_ms >= QD_ARM_MS)                 /* 2026-11-13 (owner): every press-twice arm times out */
+        u->mfx_arm = -1, u->pj.armed = -1;
+    if ((u->br.del_armed || u->br.out_armed) && a->ms - u->br.arm_ms >= QD_ARM_MS)
+        u->br.del_armed = u->br.out_armed = 0;
     f1_timers(a);                                       /* F1: a page key held 400 ms, B9 held 600 ms */
     sel_seq_timers(a);                                  /* SEL + W held: solo; SEQ + W held: at once */
     qd_mix_ms(a);                                       /* the mix: B1..B6 held, the mute */

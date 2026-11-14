@@ -126,7 +126,7 @@ void qd_shift_black(qd_app_t *a, int b)
             u->clr_armed = 0;
             qd_undo_hint(a, QD_UK_CLEAR);
             qd_clip_clear_track(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel);
-            qd_ctl_confirm(a, "CLEARED", 0);
+            qd_ctl_confirm(a, "TRACK CLEARED", 0);   /* (2026-11-13, owner: one message) */
         } else {
             u->clr_armed = 1;
             u->clr_ms = a->ms;

@@ -5289,6 +5289,12 @@ static void g_p16c_screen(void)
     bdown(SHIFT), btap(F1), bup(SHIFT), run(10);
     CHECK(G->slot[1].type == QD_MFX_CHANCE && G->slot[1].v[QD_MC_CHANCE] == 70, "SHIFT + F1: the removal undone");
     CHECK(qd_view_screen(&A) == QD_SCR_MFX, "(the screen stays)");
+    black(B9);
+    run(QD_ARM_MS + 10);
+    black(B9);
+    CHECK(G->slot[1].type == QD_MFX_CHANCE && A.ui.mfx_arm == 1, "B9, %u ms, B9: the first arm timed out, armed again "
+          "(2026-11-13, owner: every press-twice arm)", QD_ARM_MS);
+    run(QD_ARM_MS + 10);
     bdown(F1), run(10), black(B2), black(B4), black(B6), bup(F1), run(10);
     CHECK(G->slot[3].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_CHANCE && G->slot[5].type == QD_MFX_CHANCE &&
               A.ui.mfx_slot == 5 && qd_view_screen(&A) == QD_SCR_MFX,
@@ -6356,7 +6362,8 @@ static void g_p16h_mixlock(void)
     btap(LFO);
     CHECK(!A.ui.slatch && !A.ui.nheld && A.ui.latch == QD_LATCH_MIX, "LFO there: the latch off, the mix open");
     btap(LFO);
-    CHECK(A.ui.slatch && !A.ui.nheld && A.ui.latch == QD_LATCH_MIX, "LFO again: on, the mix open, nothing selected yet");
+    CHECK(A.ui.slatch && A.ui.nheld == 3 && A.ui.latch == QD_LATCH_MIX,
+          "LFO again: on, the mix open, the last selection back (2026-11-13, owner: every page)");
     btap(QD_B_HOME);
     btap(LFO);                                          /* (2026-11-13: HOME keeps the lock; LFO ends it) */
     btap(QD_B_PAGE);
@@ -6364,8 +6371,12 @@ static void g_p16h_mixlock(void)
     qd_view_mix(&A, &mv);
     CHECK(mv.step && !mv.nsel, "a W just pressed (not yet held): the frame already");
     turn(QD_K_2, 3);
+    CHECK(LK(0, 5, QD_LK_PAN) == -99999, "its first detent before QD_TAP_MS: the track's PAN, no lock (2026-11-13, "
+          "owner: as the sound editor)");
+    run(QD_TAP_MS);
+    turn(QD_K_2, 3);
     qd_view_mix(&A, &mv);
-    CHECK(LK(0, 5, QD_LK_PAN) != -99999 && mv.locked[1] && mv.nsel == 1, "its first detent: PAN's lock, its chip");
+    CHECK(LK(0, 5, QD_LK_PAN) != -99999 && mv.locked[1] && mv.nsel == 1, "held: PAN's lock, its chip");
     kup(WK(5)), run(10);
     btap(QD_B_HOME);
 }
@@ -9222,6 +9233,12 @@ static void g_p16l_labels(void)
               !strcmp(lab(LBK(0)), "PLAY/MOD") && !strcmp(lab(LBK(8)), "DICE") && !strcmp(lab(LBT(QD_B_SOUND)), "CLOSE") &&
               labels_clean(), "the sound editor on FILTER: KNOB 1 %s, KNOB 2 %s, the groups, B9 DICE, EDIT CLOSE",
           lab(LKN(QD_K_1)), lab(LKN(QD_K_2)));
+    black(B11);                                         /* (the editor's keys on, FULL) */
+    A.proj.rec_ekeys = 1;
+    CHECK(qd_snd_keys(&A) && strcmp(lab(LBK(8)), "DICE") && strcmp(lab(LBK(9)), "NEW SOUND"),
+          "FULL: B9 / B10 play notes, named so, not DICE / NEW SOUND (2026-11-13, owner; %s)", lab(LBK(8)));
+    A.proj.rec_ekeys = 0;
+    black(B11);
     btap(QD_B_SOUND);
     btap(QD_B_HOME);
     run(600);
@@ -10494,6 +10511,77 @@ static void g_bank_kept(void)
           "NOTE: OCT+ (+1); other steps and another mode and back: still +1 (%d)", A.oct);
 }
 
+/* 2026-11-13 (owner, stage 2): a W down under QD_TAP_MS is not held yet on the mix either (a knob: the track's value, as
+ * in the sound editor); LFO's lock brings back the last selection on every page, the mix too */
+static void g_w_wait_everywhere(void)
+{
+    int v0, l0, ok;
+    start();
+    btap(QD_B_PAGE);
+    v0 = A.model.t[0].mix.level;
+    kdown(WK(2));
+    run(30);
+    turn(QD_K_1, -10);
+    l0 = LK(0, 2, QD_LK_LEVEL);
+    run(QD_TAP_MS);
+    turn(QD_K_1, -5);
+    CHECK(l0 == -99999 && A.model.t[0].mix.level == v0 - 10 && LK(0, 2, QD_LK_LEVEL) == v0 - 15,
+          "the mix, W3 down 30 ms + KNOB 1: the track's level (%d); held past %u ms: a lock (%d)",
+          A.model.t[0].mix.level - v0, QD_TAP_MS, LK(0, 2, QD_LK_LEVEL));
+    kup(WK(2));
+    run(10);
+    btap(QD_B_HOME);
+    turn(QD_K_ALGO, 3);
+    btap(LFO);
+    ok = !A.ui.slatch;
+    btap(QD_B_PAGE);
+    btap(LFO);
+    CHECK(ok && A.ui.latch == QD_LATCH_MIX && A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2,
+          "ALGORITHM's step 3, LFO off; the mix, LFO: the lock on, step 3 back");
+}
+
+/* 2026-11-13 (owner, stage 2): a page opened keeps the step lock and clears any popup: EDIT, MIDI FX, TOOLS, the
+ * settings too (qd_page_open) */
+static void g_page_open(void)
+{
+    static const int BT[5] = {QD_B_SOUND, QD_B_KEYS, QD_B_MIX, QD_B_TRACKS, QD_B_PAGE};
+    int i, bad = -1;
+    start();
+    keys_compat = 0;
+    for (i = 0; i < 5; i++) {
+        turn(QD_K_ALGO, 3);
+        turn(QD_K_SELECT, 1);
+        if (A.ui.tk != UI_TK_PAGE && bad < 0)
+            bad = 10 + i;
+        btap(BT[i]);
+        if ((A.ui.tk == UI_TK_PAGE || !A.ui.slatch || !A.ui.nheld || !A.ui.latch) && bad < 0)
+            bad = i;
+        btap(QD_B_HOME);
+        turn(QD_K_ALGO, -16);
+    }
+    CHECK(bad < 0, "SELECT's page picker up, the lock on: EDIT, MIDI FX, TOOLS, FX, MIX open with the lock kept and "
+          "the picker gone (%d)", bad);
+}
+
+/* 2026-11-13 (owner, stage 2): every step row shows the playhead, the selected steps blink at one rate: MIDI FX's STEPS
+ * as the step view */
+static void g_rows_one(void)
+{
+    qd_leds_t l;
+    int s, w, ok;
+    start();
+    for (w = 0; w < 16; w++)
+        qd_step_clear(PAT(), 0, w);
+    btap(QD_B_KEYS);
+    btap(QD_B_PLAY);
+    run(300);
+    s = qd_seq_track_step(&A.seq, 0);
+    l = leds();
+    ok = s >= 0 && s < 16 && l.key[WK(s)] == QD_LED_LIT && l.key[WK((s + 8) % 16)] == QD_LED_FAINT;
+    btap(QD_B_PLAY);
+    CHECK(qd_mfx_open(&A) && ok, "MIDI FX's STEPS, playing: the playhead's W key inverted (step %d)", s + 1);
+}
+
 /* 2026-11-13 (owner): the sound editor's LFO keys (B6..B8) and B1: a quick click the page; held (the mapping) never */
 static void g_lfo_hold(void)
 {
@@ -10861,6 +10949,9 @@ int main(void)
         {"2026-11-13: the selection kept across every mode", g_sel_kept},
         {"2026-11-13: SOUND's bank kept", g_bank_kept},
         {"2026-11-13: the LFO keys held: never the page", g_lfo_hold},
+        {"2026-11-13: stage 2: a W waits QD_TAP_MS on the mix; LFO's last selection on every page", g_w_wait_everywhere},
+        {"2026-11-13: stage 2: a page opened keeps the lock, clears the popup", g_page_open},
+        {"2026-11-13: stage 2: the playhead on every step row", g_rows_one},
         {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},

@@ -24,13 +24,7 @@ int qd_lib_open(const qd_app_t *a)
 
 static void lib_open_page(qd_app_t *a, int kind)
 {
-    qd_ui_t *u = &a->ui;
-    if (u->mode != QD_MODE_STEP)
-        qd_ctl_set_mode(a, QD_MODE_STEP);
-    if (!u->slatch)
-        qd_step_release_all(a);
-    u->tk = QD_TK_NONE;
-    qd_latch_open(a, kind);
+    qd_page_open(a, kind, QD_PO_STEP);
 }
 
 /* SAVE (not with SHIFT: P1.5b's) */
@@ -108,6 +102,7 @@ static void prj_white(qd_app_t *a, int w, int down)
             return;
         if (a->per.pexists[w] && p->armed != w) {
             p->armed = w;
+            a->ui.arm_ms = a->ms;
             return;
         }
         qd_proj_copy(a, p->src, w);

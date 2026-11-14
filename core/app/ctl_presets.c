@@ -164,12 +164,7 @@ static void br_open(qd_app_t *a)
     b->ret_latch = u->latch == QD_LATCH_SND || u->latch == QD_LATCH_FX || u->latch == QD_LATCH_MIX ? u->latch
                                                                                                    : QD_LATCH_NONE;
     b->ret_ekeys = (uint8_t)(u->ekeys != 0);            /* (2026-10-26, the owner: back where it was, keys and all) */
-    if (u->mode != QD_MODE_STEP)
-        qd_ctl_set_mode(a, QD_MODE_STEP);
-    if (!u->slatch)
-        qd_step_release_all(a);
-    u->tk = QD_TK_NONE;
-    qd_latch_open(a, QD_LATCH_BROWSE);
+    qd_page_open(a, QD_LATCH_BROWSE, QD_PO_STEP);
     b->t = a->sel;
     qd_track_to_tsound(t, &b->own);
     b->own_mix = t->mix;                                /* (P1.5x: the track's own mix, back on a cancel) */
@@ -587,12 +582,7 @@ void qd_sv_open(qd_app_t *a)
                                                          * owner: the editor, a step selected: its sound) */
     v->src = v->step >= 0;
     v->ret_mode = u->mode;
-    if (u->mode != QD_MODE_STEP)
-        qd_ctl_set_mode(a, QD_MODE_STEP);
-    if (!u->slatch)
-        qd_step_release_all(a);
-    u->tk = QD_TK_NONE;
-    qd_latch_open(a, QD_LATCH_SAVE);
+    qd_page_open(a, QD_LATCH_SAVE, QD_PO_STEP);
     qd_sv_start(a);
 }
 

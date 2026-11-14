@@ -457,8 +457,10 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         if (!qd_snd_keys(a))
             for (i = 0; i < 16; i++)
                 lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
-        lb_set(o, LB_B(8), "DICE");
-        lb_set(o, LB_B(9), "NEW SOUND");
+        if (!qd_snd_keys(a) || !a->proj.rec_ekeys) {    /* (2026-11-13, owner: FULL: B9 / B10 play notes, named so) */
+            lb_set(o, LB_B(8), "DICE");
+            lb_set(o, LB_B(9), "NEW SOUND");
+        }
         lb_set(o, LB_B(10), u->nheld ? "CLR LOCKS" : "");
         for (k = 0; k < 5; k++)
             lb_set(o, LB_KNOB(KN[k]), qd_snd_label(a, u->snd_page, k));

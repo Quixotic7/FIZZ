@@ -48,18 +48,23 @@
 
 static int held(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
 static int blink(const qd_app_t *a, uint32_t half) { return (int)((a->ms / half) & 1u) == 0; }
-/* P1.5n: a slow breath between 60 % and full (QD_LED_BREATH_MS a cycle; full at its start) */
-uint8_t qd_led_breath(uint32_t ms)
+/* a breath from lo up to full over QD_LED_BREATH_MS (full at its start) */
+static __attribute__((noinline)) uint8_t breath(uint32_t ms, float lo)
 {
     const float u = (float)(ms % QD_LED_BREATH_MS) / (float)QD_LED_BREATH_MS;
-    return (uint8_t)(153.f + 102.f * (0.5f + 0.5f * cosf(u * 6.2831853f)) + 0.5f);
+    return (uint8_t)(lo + (255.f - lo) * (0.5f + 0.5f * cosf(u * 6.2831853f)) + 0.5f);
 }
+/* P1.5n: a slow breath between 60 % and full */
+uint8_t qd_led_breath(uint32_t ms) { return breath(ms, 153.f); }
+/* P1.5x: a deeper breath, 30 % .. full (the browser's B2..B8: the chosen preset's tags) */
+uint8_t qd_led_breath_lo(uint32_t ms) { return breath(ms, 77.f); }
 
-/* P1.5x: a deeper breath, 30 % .. full over QD_LED_BREATH_MS (the browser's B2..B8: the chosen preset's tags) */
-uint8_t qd_led_breath_lo(uint32_t ms)
+/* the eleven black keys from a page's own table */
+static __attribute__((noinline)) void put_blacks(qd_leds_t *out, const uint8_t *bk)
 {
-    const float u = (float)(ms % QD_LED_BREATH_MS) / (float)QD_LED_BREATH_MS;
-    return (uint8_t)(77.f + 178.f * (0.5f + 0.5f * cosf(u * 6.2831853f)) + 0.5f);
+    int i;
+    for (i = 0; i < 11; i++)
+        out->key[QD_BLACK_KEY[i]] = bk[i];
 }
 
 /* the notes the selected track sounds (keys held, MIDI notes held, notes waiting for a voice) */
@@ -74,6 +79,15 @@ void qd_ctl_sounding(const qd_app_t *a, uint8_t *notes)
         if (v->pend && !v->pend_off && v->pend_track == a->sel)
             notes[v->pend_note & 127] = 1;
     }
+}
+
+int qd_key_led(const qd_app_t *a, int key, int n, const uint8_t *notes, int sc, int rt)
+{
+    if (((a->keys_held >> key) & 1u) || (n >= 0 && n < 128 && (notes[n] & 1u)))
+        return QD_LED_LIT;
+    if (n < 0 || n >= 128)
+        return QD_LED_OFF;
+    return ((n % 12) + 12) % 12 == rt ? QD_LED_ROOT : qd_scale_has(sc, rt, n) ? QD_LED_SCALE : QD_LED_OFF;
 }
 
 /* track t's last trig within the flash's time */
@@ -98,7 +112,7 @@ static void leds_whites(const qd_app_t *a, qd_leds_t *out)
 {
     const qd_ui_t *u = &a->ui;
     const int page = u->page[a->sel];
-    int w, i;
+    int w;
     for (w = 0; w < 16; w++) {
         const int s = page * QD_PAGE + w;
         uint8_t l = step_level(a, s);
@@ -106,18 +120,32 @@ static void leds_whites(const qd_app_t *a, qd_leds_t *out)
             l = qd_step_is_on(qd_step(qd_ctl_cpat(a), a->sel, s)) ? QD_LED_FAINT : QD_LED_LIT;
         out->key[QD_WHITE_KEY[w]] = l;
     }
+    qd_leds_row(a, out->key, qd_sel_mask(u, page));
+}
+
+/* (MIDI FX's STEPS: the step view's levels, its own W keys held the selection) */
+void qd_leds_steps(const qd_app_t *a, uint8_t *key, uint16_t sel)
+{
+    int w;
+    for (w = 0; w < 16; w++)
+        key[QD_WHITE_KEY[w]] = step_level(a, a->ui.page[a->sel] * QD_PAGE + w);
+    qd_leds_row(a, key, sel);
+}
+
+void qd_leds_row(const qd_app_t *a, uint8_t *key, uint16_t sel)
+{
+    const int page = a->ui.page[a->sel];
+    int w;
     if (a->seq.playing) {                               /* the playhead's key inverts for its step */
         const int s = qd_seq_track_step(&a->seq, a->sel);
         if (s >= 0 && s / QD_PAGE == page) {
             const int k = QD_WHITE_KEY[s % QD_PAGE];
-            out->key[k] = out->key[k] >= QD_LED_MID ? QD_LED_OFF : QD_LED_LIT;
+            key[k] = key[k] >= QD_LED_MID ? QD_LED_OFF : QD_LED_LIT;
         }
     }
-    for (i = 0; i < u->nheld; i++) {                    /* held: a fast blink */
-        const int s = u->held[i];
-        if (s / QD_PAGE == page)
-            out->key[QD_WHITE_KEY[s % QD_PAGE]] = blink(a, QD_FAST_MS) ? QD_LED_LIT : QD_LED_OFF;
-    }
+    for (w = 0; w < 16; w++)                            /* selected: a fast blink */
+        if ((sel >> w) & 1u)
+            key[QD_WHITE_KEY[w]] = blink(a, QD_FAST_MS) ? QD_LED_LIT : QD_LED_OFF;
 }
 
 /* P1.5a (the mock-up's key strips; P1.5t: the browser's are ctl_presets.c's): the name editor and SAVE PRESET (P1.5u:
@@ -203,8 +231,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     } else if (QD_LATCH_PANEL(u->latch)) {              /* P1.4b: the track settings, the mix, the effects */
         uint8_t bk[11];
         qd_panel_leds(a, bk);
-        for (i = 0; i < 11; i++)
-            out->key[QD_BLACK_KEY[i]] = bk[i];
+        put_blacks(out, bk);
         return;                                         /* (2026-10-26: else the W keys stay the steps, as the step
                                                          * view lights them: the mix, every effects page, the track
                                                          * settings) */
@@ -214,8 +241,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     } else if (qd_snd_open(a)) {                        /* P1.4a: the sound editor: its groups, B11 the page's locks */
         uint8_t bk[11];
         qd_snd_leds(a, bk);
-        for (i = 0; i < 11; i++)
-            out->key[QD_BLACK_KEY[i]] = bk[i];
+        put_blacks(out, bk);
         if (u->snd_lk == 4) {                           /* E4: B1 held: W1..W8 the sources, the chosen one lit */
             for (i = 0; i < 16; i++)
                 out->key[QD_WHITE_KEY[i]] = i < QD_MS_N - 1 ? (i + 1 == u->mod_src ? QD_LED_LIT : QD_LED_DIM)
@@ -274,8 +300,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
                                                          * step entry off; on, the hold modes below) */
         uint8_t bk[11];
         qd_panel_leds(a, bk);
-        for (i = 0; i < 11; i++)
-            out->key[QD_BLACK_KEY[i]] = bk[i];
+        put_blacks(out, bk);
         return;
     }
     {   /* the hold modes */
@@ -324,12 +349,13 @@ static void leds_keys(const qd_app_t *a, qd_leds_t *out)
                                                          * B1..B10 by the note each plays, as the screen's grid (a root
                                                          * brighter, held full) */
         int i, sc, rt;
+        uint8_t notes[128];
+        qd_ctl_sounding(a, notes);                      /* (2026-11-13, owner: a note sounding lights its key here too) */
         qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
         leds_whites(a, out);
         for (i = 0; i < 10; i++) {
             const int k = QD_BLACK_KEY[i];
-            out->key[k] = (a->keys_held >> k) & 1u ? QD_LED_LIT : qd_rec_key_note(a, k) % 12 == rt ? QD_LED_ROOT
-                                                                                                  : QD_LED_SCALE;
+            out->key[k] = (uint8_t)qd_key_led(a, k, qd_rec_key_note(a, k), notes, sc, rt);
         }
     }
     if (qd_rec_stepping(a)) {                           /* step recording: the cursor's place blinks */

@@ -462,15 +462,8 @@ void qd_keys_leds(const qd_app_t *a, uint8_t *key)
         } else {
             n = QD_NOTE0 + i + 12 * a->oct;
         }
-        if (((a->keys_held >> i) & 1u) || (n >= 0 && n < 128 && notes[n]))   /* (2026-11-11, owner: a note sounding
-                                                         * lights the key of its own pitch, not every key that plays it) */
-            key[i] = QD_LED_LIT;
-        else if (n >= 0 && n < 128 && ((n % 12) + 12) % 12 == rt)
-            key[i] = QD_LED_ROOT;
-        else if (n >= 0 && n < 128 && qd_scale_has(sc, rt, n))
-            key[i] = QD_LED_SCALE;
-        else
-            key[i] = QD_LED_OFF;
+        key[i] = (uint8_t)qd_key_led(a, i, n, notes, sc, rt);   /* (2026-11-11, owner: a note sounding lights the key
+                                                         * of its own pitch, not every key that plays it) */
     }
 }
 
@@ -483,7 +476,7 @@ void qd_snd_button(qd_app_t *a)
         qd_latch_close(a);                              /* (2026-11-10: the keys stay as they are, a global flag) */
         return;
     }
-    qd_latch_open(a, QD_LATCH_SND);
+    qd_page_open(a, QD_LATCH_SND, QD_PO_OVER);
     u->snd_knob = -1;
 }
 
@@ -608,7 +601,7 @@ static void snd_pair(qd_app_t *a, int d, int fine)
             const int c = snd_pair_step(b1, b2, d, fine);
             if (qd_lock_set(qd_ctl_pat(a), a->sel, s, QD_QP_RB1, c / SND_NRCB) == QD_EFULL ||
                 qd_lock_set(qd_ctl_pat(a), a->sel, s, QD_QP_RB2, c % SND_NRCB) == QD_EFULL) {
-                qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+                qd_ctl_no_room(a);
                 return;
             }
         }
@@ -650,7 +643,7 @@ static void snd_put(qd_app_t *a, int id, int v)
         int i;
         for (i = 0; i < u->nheld; i++)
             if (qd_lock_set(qd_ctl_pat(a), a->sel, u->held[i], id, v) == QD_EFULL) {
-                qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+                qd_ctl_no_room(a);
                 return;
             }
         return;

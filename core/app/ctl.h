@@ -576,6 +576,8 @@ typedef struct {
     int undo_dir, undo_kind;           /* P1.5c: the last undo (-1) / redo (+1), its level's kind (QD_UK_*; -1 none) */
     int clr_armed;                     /* P1.5c: SHIFT + B11 pressed once (the track cleared on the second) .. */
     uint32_t clr_ms;
+    uint32_t arm_ms;                   /* 2026-11-13 (owner): MIDI FX's remove / the project copy armed (QD_ARM_MS, then
+                                        * disarmed, as every press-twice arm; the browser's DELETE? / OUT?: br.arm_ms) */
     uint32_t tap_ms[8];                /* .. SHIFT + B6: the last taps (P1.5z: eight, the takeover's dots) */
     int tap_cont;                      /* the TAP ape: this count began while the TAP screen was still up */
     int ntap;
@@ -1053,6 +1055,11 @@ void qd_ctl_select_track(struct qd_app *a, int t);
 /* ---- ctl_latch.c (P1.3d) */
 void qd_latch_open(struct qd_app *a, int kind);
 void qd_latch_close(struct qd_app *a);
+/* 2026-11-13 (owner): a page opened: the step lock and its selection kept on every page, any popup (takeover) gone.
+ * QD_PO_STEP: the step view under it, steps held by a finger let go; QD_PO_KEYS: the same, the keyboard page kept
+ * (MIDI FX); QD_PO_OVER: the mode as it is (EDIT, the panels) */
+enum { QD_PO_STEP, QD_PO_KEYS, QD_PO_OVER };
+void qd_page_open(struct qd_app *a, int kind, int how);
 int qd_latch_oct(struct qd_app *a, int d);   /* an OCT press (d -1 / +1) with a latch open: 1 taken */
 const qd_latch_t *qd_latch_cur(const struct qd_app *a);   /* the latch open, 0 none */
 
@@ -1136,7 +1143,15 @@ int qd_rec_key_note(const struct qd_app *a, int key);   /* the keyboard's note o
 /* ---- ctl_leds.c */
 struct qd_leds;
 void qd_ctl_leds(const struct qd_app *a, struct qd_leds *out);
+void qd_ctl_no_room(struct qd_app *a);   /* the locks' NO ROOM confirm */
 void qd_ctl_sounding(const struct qd_app *a, uint8_t *notes);   /* the selected track's notes sounding (128) */
+/* 2026-11-13 (owner): one key-light rule on every page: key held or its note n sounding (notes[n] & 1): lit; else the
+ * scale's root, a note of the scale, out of it */
+int qd_key_led(const struct qd_app *a, int key, int n, const uint8_t *notes, int sc, int rt);
+/* 2026-11-13 (owner): a step row's W LEDs on every page: the playhead's key inverted, the selected steps (sel, the page
+ * shown's) blinking at one rate (QD_FAST_MS) */
+void qd_leds_row(const struct qd_app *a, uint8_t *key, uint16_t sel);
+void qd_leds_steps(const struct qd_app *a, uint8_t *key, uint16_t sel);   /* .. the page's steps first (as the step view) */
 int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig flash (80 ms) */
 #define QD_LED_BREATH_MS 1500u
 uint8_t qd_led_breath(uint32_t ms);

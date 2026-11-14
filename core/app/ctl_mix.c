@@ -69,9 +69,8 @@ static void panel_open(qd_app_t *a, int kind)
     /* (2026-10-26, the owner: the latch and its selection stay on every page, as on EDIT: the W keys there select, the
      * knobs lock on the selection; the white keys' LEDs show the steps everywhere now, so nothing locks unseen. P1.6h
      * let a selection go on opening the mix; P1.6d the track settings) */
-    u->tk = QD_TK_NONE;
     u->sel_down &= 0xFFu;                               /* (the mix's black keys: none down) */
-    qd_latch_open(a, kind);
+    qd_page_open(a, kind, QD_PO_OVER);
     u->menu_knob = -1;
 }
 
@@ -313,8 +312,8 @@ int qd_mix_knob(qd_app_t *a, int knob, int d)
     if (id < 0)
         return 1;
     u->menu_knob = knob - QD_K_1;
-    qd_step_promote_all(a);
-    if (u->nheld) {                                     /* P1.6d: a step held (or the latch's selection): locks */
+    if (u->nheld) {                                     /* (2026-11-13, owner: a W down under QD_TAP_MS is not held yet:
+                                                         * the track's value, as the sound editor) */                                     /* P1.6d: a step held (or the latch's selection): locks */
         qd_step_lock_fine(a, id, qd_ctl_acc(a, d, 128));
         return 1;
     }
@@ -387,8 +386,8 @@ int qd_fx_knob(qd_app_t *a, int knob, int d)
     if (c == QD_FXC_SEND || c <= QD_FXC_SENDX(0)) {    /* the selected track's send into this effect (the overview:
                                                          * the cell's) */
         const int fx = c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c;
-        qd_step_promote_all(a);
-        if (u->nheld) {                                 /* P1.6d: a step held (or the latch's selection): locks */
+        if (u->nheld) {                                 /* P1.6d: a step held (or the latch's selection): locks (not a W
+                                                         * down under QD_TAP_MS) */
             qd_step_lock_fine(a, qd_fx_send_id(fx), qd_ctl_acc(a, d, 128));
             return 1;
         }

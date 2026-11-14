@@ -169,6 +169,13 @@ void qd_step_select_toggle(qd_app_t *a, int s)
         held_add(a, s, -1);
 }
 
+/* the band of a step no longer held (the knob's, MIDI FX STEPS') closed */
+static void step_tk_close(qd_ui_t *u)
+{
+    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
+        u->tk = QD_TK_NONE;
+}
+
 void qd_step_release_all(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
@@ -176,8 +183,7 @@ void qd_step_release_all(qd_app_t *a)
     u->wk_down = u->wk_pending = u->wk_target = 0;
     u->note_keys = 0;
     u->scursor = 0;
-    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)                        /* (the band of a step no longer held) */
-        u->tk = QD_TK_NONE;
+    step_tk_close(u);
 }
 
 /* P1.3d (§8b 2.2): the step latch (LFO). On, it is as if a step is always held: the held steps are a selection that
@@ -217,8 +223,7 @@ void qd_step_cursor(qd_app_t *a, int d)
     if (!u->slatch)
         qd_step_latch(a, 1);
     u->nheld = 0;
-    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
-        u->tk = QD_TK_NONE;
+    step_tk_close(u);
     held_add(a, s, -1);
     u->scursor = 1;
     u->wflash = (uint8_t)(s % QD_PAGE + 1);             /* (2026-11-13: the step keyboard: its W key flashes) */
@@ -250,8 +255,7 @@ void qd_step_cursor_page(qd_app_t *a)
     if (!u->slatch || !u->nheld || u->wk_down)
         return;
     u->nheld = 0;
-    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
-        u->tk = QD_TK_NONE;
+    step_tk_close(u);
     held_add(a, pg * QD_PAGE + (ts->pstart[pg] < QD_PAGE ? ts->pstart[pg] : 0), -1);
 }
 
@@ -292,8 +296,7 @@ void qd_step_b11_select(qd_app_t *a, int w)
         u->nheld = 0;
     u->b11_w |= (uint16_t)(1u << w);
     u->scursor = 0;
-    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
-        u->tk = QD_TK_NONE;
+    step_tk_close(u);
     if (held_find(u, s) < 0)
         held_add(a, s, -1);
     qd_ctl_preview_once(a, s);
@@ -461,8 +464,7 @@ void qd_step_white_up(qd_app_t *a, int w)
             a->ms - u->wk_t0[w] < QD_TAP_MS) {
             u->nheld = 0;
             u->note_keys = 0;
-            if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
-                u->tk = QD_TK_NONE;
+            step_tk_close(u);
         }
         return;
     }
@@ -479,8 +481,7 @@ void qd_step_white_up(qd_app_t *a, int w)
         }
     if (!u->nheld) {
         u->note_keys = 0;
-        if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
-            u->tk = QD_TK_NONE;
+        step_tk_close(u);
     }
 }
 
@@ -801,7 +802,7 @@ static int lock_all(qd_app_t *a, int id, int d)
             ok = 0;
     }
     if (!ok)
-        qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+        qd_ctl_no_room(a);
     return ok;
 }
 
@@ -814,7 +815,7 @@ void qd_step_lock_fine(qd_app_t *a, int id, int d)
         const int s = u->held[i];
         const int base = qd_lock_get(CPAT(a), a->sel, s, id, &v) ? v : qd_step_base(a, a->sel, s, id);
         if (qd_lock_set(PAT(a), a->sel, s, id, base + d) == QD_EFULL) {
-            qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+            qd_ctl_no_room(a);
             return;
         }
     }

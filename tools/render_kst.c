@@ -215,6 +215,14 @@ int render_kst(const char *out)
     ktap(BK(10));
     run(300);
     shot("keys-again", "B11 again: KEYS (the keybed as notes)", 1);
+    qd_app_knob(&A, QD_K_ALGO, 3);                      /* (2026-11-13, stage 2: KEYS, a step selected, playing: the
+                                                         * row's playhead as on STEPS) */
+    run(100);
+    btap(QD_B_PLAY);
+    run(1300);
+    shot("keys-play", "KEYS, step 3 selected, playing: the row's playhead", 1);
+    btap(QD_B_PLAY);
+    run(100);
     if (!failed)
         sheet_as("kst-sheet.png", "FIZZ: the keyboard page, B11's KEYS / STEPS (1.5x)");
     return failed;

@@ -65,6 +65,20 @@ void qd_latch_open(qd_app_t *a, int kind)
     a->ui.latch = kind;
 }
 
+void qd_page_open(qd_app_t *a, int kind, int how)
+{
+    qd_ui_t *u = &a->ui;
+    if (how != QD_PO_OVER) {
+        if (u->mode != QD_MODE_STEP && !(how == QD_PO_KEYS && u->mode == QD_MODE_KEYS))
+            qd_ctl_set_mode(a, QD_MODE_STEP);
+        if (!u->slatch)
+            qd_step_release_all(a);
+    }
+    u->tk = QD_TK_NONE;
+    u->tk_hold = 0;
+    qd_latch_open(a, kind);
+}
+
 void qd_latch_close(qd_app_t *a)
 {
     const qd_latch_t *l = qd_latch_cur(a);

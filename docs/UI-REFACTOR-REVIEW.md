@@ -209,6 +209,105 @@ Stages 1 + 2 should free about 4.5–5.5 KB per package. That covers stage 4's i
 
 ## 6. Flash free, step by step
 
+Bytes free after each step, from `firmware/build.py`'s size report (built in a clean checkout of the commit). The main
+session's own commits landed in between (2e0a43e, 030dab5, d3b868a, 067c579, 11a3ea7, 8b3851c: MIDI FX, TOOLS, B11),
+so a row's change is not all the refactor's.
+
 | step | USB | Bluetooth (slot / blob 2) | single-core |
 |---|---|---|---|
 | before (fb1eb96) | 32 | 80 / 20 | 20 |
+| fc9f002, the dead takeovers (1.1) | 3,056 | 2,720 / 20 | 2,836 |
+| 6387727, one line helper, ui_cat, ui_ease (1.2, 1.3) | 7,328 | 3,096 / 216 | 4,276 |
+| 53fc27b, noinline helpers (view's cat, the lane's, persist's) | 9,552 | 3,912 / 368 | 6,308 |
+| bbad86f, the drawing back at -Os (with 37a3ea8, 97ad083, 6395425 before it) | 7,520 | 576 / 280 | 2,756 |
+| 4088a89, the last commit of this round | **8,096** | **1,040 / 336** | **3,332** |
+| master 81d5a54 (the main session's MIDI FX / TOOLS round) | 6,736 | **does not link** (336 over) / 336 | 1,972 |
+| 1545419, stage 2: the W wait, LFO's selection, `qd_page_open`, the arms | 6,944 | 128 over (before the arms) | 2,180 |
+| 62128be, `qd_key_led`, `qd_leds_row` | — | 160 over | — |
+| cef3241, the TOOLS knob table | — | 16 / 336 | — |
+| 3b22e20, `qd_ctl_no_room`, `page_btn`, the LEDs' copies, `step_tk_close` | **7,264** | **208 / 336** | **2,500** |
+
+## 7. Status (2026-11-13, end of the first round)
+
+`make -C tools test` passes at 4088a89 ("all passed (host and device sizes, the device's drawing too)").
+
+Done, each step checked as in §5 (the same test hashes, every screen pixel-identical, all three packages built):
+- 1.1 the dead takeovers; 1.2 `qd_line` for the nine line helpers; 1.3 `ui_cat`, `ui_ease`, `UI_TRACK_PAL`;
+  1.4 `ui_step_frame()`; 1.8 the screens' dead fields and the controls' dead code (SEL held's map, F1 + B9's
+  leftovers, `QD_TK_LMODE`, `qd_lib_ms`); 1.7 the knob table on the key table's predicates; 2.1 `qd_sel_mask()`.
+- New since the review: **noinline** on the small static helpers -Os had copied into every caller (view.c's `cat`
+  alone ~1.2 KB; ~4 KB in all), found by listing the statics with several callers and no section of their own in the
+  link map. And **FZ_COLD** (ui.h: clang's `minsize`) on the screens drawn seldom, which the toolchain's clang 4.0.1
+  honours per function (the browser at -Os + minsize: 3,650 B against 3,634 at -Oz).
+- Stage 4: every drawing unit back at -Os on all three packages (bbad86f); the controls (`ctl*`, `clip`, `chord`)
+  stay at -Oz, and the idle screen on Bluetooth. OVERVIEW's model back in the Bluetooth slot.
+- The `ksteps` bug (2579fb9): read on the keyboard page only. It had no visible effect: SHIFT + W in the step view
+  does nothing through the later rows either way. Test added.
+
+Not done (the main session works in ctl.c, ctl_mfx.c, ctl_tools.c, view*.c and the tests; further work goes on the
+`ui-refactor` branch and is rebased onto master):
+- 1.5 `ui_T_fit` (11 sites that differ in detail, ~200 B), 1.6 EDIT's head value written twice, 1.9 / 1.10 / 1.11.
+- Stage 2 beyond `qd_sel_mask`: `qd_selection` / `qd_sel_t`, `qd_page_open`, the takeovers' lifetime table,
+  `ui_row_t`, `qd_key_st`, the TOOLS knob table.
+- Stage 3: the owner's decisions (§4).
+- Frame times on the unit: the main session runs a drawbench of the Home views and the sound editor with its next
+  flash.
+- Two render_frames runs hang at master (the full run after `p13f-steps-stopped`, and `--only t1`); the screens
+  were compared with the 42 `--only` parts that finish.
+
+How to find more of the same: `noinline` where the map shows a static with several callers and no section
+(`.text.NAME`) of its own; FZ_COLD before moving a drawing unit back to -Oz.
+
+## 8. The owner's decisions for stage 2 (2026-11-13)
+
+When: after the main session's MIDI FX / TOOLS round settles, in one agreed window, with these built in. The three
+commits already on master in those files (2579fb9, 26b826d, 4088a89) stay.
+
+| question | decision |
+|---|---|
+| A short W press (under 250 ms) | **Wait 250 ms everywhere** (the sound editor's way): the mix and the effects no longer take locks at once |
+| The step lock turned on | **Starts with the last selection, on every page** (every way the lock ends saves it; the mix and MIDI FX too) |
+| The LFO button (the owner's words) | "You should only go to the LFO page if quick clicking the LFO button. Holding it is always for assigning and should never bring you back to the LFO page." |
+| Following the step played | **Keep as is** (the keyboard page keeps its own way) |
+| A page opened over the step view | **Keeps the step lock, clears any popup**, every page |
+| Clearing | **One message** for a cleared track; **every press-twice arm times out after 2 s** (DELETE?, OUT?, the MIDI FX remove, the project copy) |
+| A page's own key again | **Keep as is** (multi-page screens step through, single screens close) |
+| The step row's page | **Keep as is** (the sound editor shows the selected step's page) |
+| Blinks and the playhead | **One blink rate and phase for selected steps everywhere; every step row shows the playhead** (mock-ups first) |
+| Key lights | **One rule** (`qd_key_st`): held and sounding keys light alike on every page; FULL's B9 / B10 lit as what they do |
+
+Not asked yet (§4 stage 3): ALGORITHM on the mix, the keyboard page's knobs with a selection, SEQ held + ALGORITHM,
+the foot cells' grid, the step rows' geometry, the step frame's gaps.
+
+## 9. Status (2026-11-13, stage 2's round)
+
+On branch `ui-refactor`, rebased onto master 81d5a54 (the main session's MIDI FX / TOOLS round). Not merged, not
+flashed.
+
+The owner's decisions (§8), built:
+- A W down under QD_TAP_MS is not held yet on the mix and the effects either: a knob then edits the track, as in the
+  sound editor (1545419).
+- LFO's lock brings back the last selection on every page (the mix and MIDI FX started empty). With cae8d69 the
+  selection is already kept across the modes; this covers the lock turned off and on again.
+- `qd_page_open` (ctl_latch.c) replaces the nine page-opening copies: every page keeps the step lock and closes a
+  running takeover (EDIT, MIDI FX, TOOLS and both settings pages left it up). TOOLS still shows its tool's name.
+- One message for a cleared track ("TRACK CLEARED"); MIDI FX's remove, the project copy and the browser's DELETE? /
+  OUT? arms time out after QD_ARM_MS, as the clear arm.
+- One key-light rule, `qd_key_led` (62128be): held or sounding lit, else root / scale / off. MIDI FX's W keys now
+  light while held (with an ARP too); STEPS' B1..B10 light for a note sounding, LEDs and screen.
+- FULL in the sound editor: B9 / B10 play notes (they always did), so they are no longer labelled DICE / NEW SOUND
+  there. Their LEDs already lit as notes.
+- One step-row rule for the W LEDs, `qd_leds_row`: the playhead's key inverted, the selected steps blinking at
+  QD_FAST_MS, on the step view, MIDI FX's STEPS (QD_BLINK_MS before, no playhead) and TOOLS (no playhead before;
+  the owner chose it there too). TOOLS' blink was already in the step view's phase (§4's item 14 was wrong on that).
+- The keyboard page's step row draws the playhead with KEYS too (the owner OKed the mock-up:
+  `docs/ui-review/stage2-keys-playhead.png`; render_kst has a new `keys-play` shot).
+
+Refactors (same behaviour, the determinism hash unchanged): the TOOLS knob table (2.8, 176 B), `qd_ctl_no_room` and
+`page_btn` (1.11), the LEDs' breath and black-key copies (1.9), `step_tk_close`.
+
+Master 81d5a54's Bluetooth package does not link (XIP overflowed by 336 B). This branch fits: see §6. `make -C tools test` passes at 3b22e20.
+
+Not done: `qd_selection` / `qd_sel_t` beyond the mask, the takeovers' lifetime table, `ui_row_t`, `qd_mix_value`, the
+browser's relist pairs, `ui_T_fit`, EDIT's head value; stage 3 (ALGORITHM on the mix, the keyboard page's knobs with
+a selection, SEQ held + ALGORITHM, the foot cells, the step rows' geometry, the step frame).
