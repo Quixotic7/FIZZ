@@ -50,6 +50,16 @@
 #error "qd_config.h: the Bluetooth package (QD_PKG_BLE) is a device build (QD_DEVICE)"
 #endif
 
+/* USB HOST (2026-11-14): SETTINGS' page 3 on the USB package, the USB port the host of a USB-MIDI keyboard or synth
+ * (fm1-base's plat_usb_host; app.h qd_app_usb_host_on). Never saved: off at every power-on. The core keeps and shows
+ * it, the port applies it. firmware/build.py gives 1 to the USB package (its simulator and browser build too) and 0
+ * to the Bluetooth package and the single-core one (no room for the host in their flash); tools/Makefile and
+ * tools/budget 1 but for the Bluetooth package's profile. 0 (the default): FM1VST and the site's FIZZ, which have no
+ * USB port to give */
+#ifndef QD_USB_HOST
+#define QD_USB_HOST 0
+#endif
+
 /* the tracks a project has (2026-10-24: 8 -> 6, the owner's choice, for RAM; model.h QD_NTRACK, pattern.h QD_PAT_NTRACK,
  * pool.h QD_POOL_NTRACK and the screens' UI_NTRACK are this). The white keys W1..W6 are the tracks; W7 / W8 are dark
  * where they chose a track. The store's format changed with it (persist.h QD_STORE_VER): an older store starts fresh. */

@@ -3950,6 +3950,75 @@ static void g_ble_settings(void)
 }
 #endif
 
+#if QD_USB_HOST
+/* 2026-11-14, USB HOST (the USB package, qd_config.h QD_USB_HOST): SETTINGS' page 3 by SELECT: KNOB 1 USB HOST ON / OFF
+ * (OFF at power-on, never saved: app.h qd_app_usb_host_on), KNOB 2 the port's state (shown only, a change drawn; OFF
+ * whatever the port says while the switch is off); KNOB 3, 4 nothing; the labels; SELECT stops at page 3 */
+static void g_usbh_settings(void)
+{
+    static ui_menu_t mv;
+    qd_labels_t lb;
+    uint32_t h0, h1, h2;
+    start();
+    CHECK(!qd_app_usb_host_on(&A), "power-on: USB HOST OFF");
+    settings_open();
+    turn(QD_K_SELECT, 2);
+    qd_view_menu(&A, &mv);
+    qd_ctl_labels(&A, &lb);
+    CHECK(A.ui.set_page == 2 && mv.set_page == 2 && !mv.usbh_on && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "USB HOST") &&
+              !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_2], "STATUS") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_3], "") &&
+              !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_SELECT], "PAGE"),
+          "SELECT twice: page 3, USB HOST OFF (its labels)");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.set_page == 2 + QD_PKG_BLE, "SELECT on: page 3 the last (no Bluetooth page here)");
+    h0 = qd_view_frame_hash(&A);
+    qd_app_usb_host_state(&A, 1);
+    h1 = qd_view_frame_hash(&A);
+    qd_view_menu(&A, &mv);
+    CHECK(!qd_app_usb_host_on(&A) && !mv.usbh_on && h0 == h1, "OFF: the port's state changes nothing on the page");
+    qd_app_usb_host_state(&A, 0);
+    turn(QD_K_2, 1), turn(QD_K_3, 1), turn(QD_K_4, -1);
+    CHECK(!qd_app_usb_host_on(&A) && A.ui.follow && !A.ui.boost && A.ui.clk_out && A.ui.cc_out && !A.ui.home_lock,
+          "KNOB 2..4 on page 3: nothing (page 1's and 2's values as they were)");
+    turn(QD_K_1, 1);
+    qd_view_menu(&A, &mv);
+    CHECK(qd_app_usb_host_on(&A) && mv.usbh_on && mv.usbh_st == 0 && A.ui.follow, "KNOB 1 right: ON, WAITING "
+          "(PAGE FOLLOW untouched)");
+    h0 = qd_view_frame_hash(&A);
+    qd_app_usb_host_state(&A, 1);
+    h1 = qd_view_frame_hash(&A);
+    h2 = qd_view_frame_hash(&A);
+    qd_view_menu(&A, &mv);
+    CHECK(mv.usbh_st == 1 && h0 != h1 && h1 == h2 && qd_app_usb_host_on(&A), "a device CONNECTED: shown (the frame "
+          "changed), the switch untouched");
+    qd_app_usb_host_state(&A, 2);
+    qd_view_menu(&A, &mv);
+    CHECK(mv.usbh_st == 2, "NOT MIDI: shown");
+    qd_app_usb_host_state(&A, 9);
+    CHECK(A.ui.usbh_st == 2, "a state past 2: NOT MIDI");
+    qd_app_usb_host_state(&A, -1);
+    CHECK(A.ui.usbh_st == 0, "a state under 0: WAITING");
+    turn(QD_K_1, 3);
+    CHECK(qd_app_usb_host_on(&A), "KNOB 1 further right: ON still");
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch && qd_app_usb_host_on(&A), "HOME: the settings closed, USB HOST ON still (the way back: the page)");
+    settings_open();
+    CHECK(A.ui.latch == QD_LATCH_SET && A.ui.set_page == 2, "opened again: page 3, as left");
+    turn(QD_K_1, -1);
+    CHECK(!qd_app_usb_host_on(&A), "KNOB 1 left: OFF");
+    turn(QD_K_1, 1);
+    turn(QD_K_SELECT, -2);
+    turn(QD_K_1, -1);
+    qd_ctl_labels(&A, &lb);
+    CHECK(!A.ui.set_page && !A.ui.follow && qd_app_usb_host_on(&A) && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "FOLLOW"),
+          "SELECT back: page 1, KNOB 1 PAGE FOLLOW again (USB HOST untouched)");
+    turn(QD_K_1, 1);
+    btap(QD_B_HOME);
+    start();
+    CHECK(!qd_app_usb_host_on(&A) && !A.ui.usbh_st, "a restart: USB HOST OFF (never saved)");
+}
+#endif
+
 /* 2026-11-10 (owner): SEL tapped: OVERVIEW at once, nothing else changed; SEL again (or HOME) back to the view */
 static void g_sel_tap(void)
 {
@@ -11316,6 +11385,9 @@ int main(void)
         {"P1.3y: SHIFT + SEL: page follow; layout A; lmode MODES", g_knob_layouts},
 #if QD_PKG_BLE
         {"the Bluetooth package: SETTINGS' page 2, BLUETOOTH", g_ble_settings},
+#endif
+#if QD_USB_HOST
+        {"2026-11-14: SETTINGS' page 3, USB HOST", g_usbh_settings},
 #endif
         {"2026-11-10: SEL tapped: OVERVIEW", g_sel_tap},
         {"P1.4a: the sound editor on EDIT", g_snd},

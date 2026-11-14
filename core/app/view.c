@@ -2059,6 +2059,9 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
 #if QD_PKG_BLE
     v->ble_on = !u->ble_off, v->ble_st = u->ble_st;     /* (the Bluetooth package's page 3) */
 #endif
+#if QD_USB_HOST
+    v->usbh_on = u->usbh_on, v->usbh_st = u->usbh_st;   /* (2026-11-14: the USB package's page 3) */
+#endif
     v->t = secs(a->ms);
     if (v->kind == UI_MENU_TRK) {                      /* P1.4b: the track settings of the selected track */
         const qd_tset_t *ts = &qd_ctl_cpat(a)->trk[a->sel];

@@ -122,6 +122,11 @@ void qd_app_hold_release(qd_app_t *a)
 int qd_app_ble_on(const qd_app_t *a) { return !a->ui.ble_off; }
 void qd_app_ble_state(qd_app_t *a, int st) { a->ui.ble_st = (uint8_t)(st < 0 ? 0 : st > 2 ? 2 : st); }
 #endif
+#if QD_USB_HOST
+/* 2026-11-14: SETTINGS' USB HOST (app.h; never saved: qd_app_init's zeroed ui, OFF) */
+int qd_app_usb_host_on(const qd_app_t *a) { return a->ui.usbh_on; }
+void qd_app_usb_host_state(qd_app_t *a, int st) { a->ui.usbh_st = (uint8_t)(st < 0 ? 0 : st > 2 ? 2 : st); }
+#endif
 
 /* ---------------------------------------------------------------- input: the controller's --- */
 void qd_app_key(qd_app_t *a, int key, int down, int vel)

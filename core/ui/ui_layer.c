@@ -695,6 +695,59 @@ static FZ_COLD __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /*
 }
 #endif
 
+#if QD_USB_HOST
+/* 2026-11-14, the USB package: SETTINGS' page 3 (SELECT), as the Bluetooth package's (the track settings' grid, the
+ * value 26 px at the right, its picture left of it): KNOB 1 USB HOST ON / OFF (the USB mark, struck through when OFF),
+ * KNOB 2 its state, shown only: OFF, WAITING (three dots in turn), CONNECTED (three dots lit), NOT MIDI (red). KNOB 3,
+ * 4 nothing */
+static FZ_COLD void usb_mark(float x, float y, qd_rgb col)   /* the USB trident, 22 px tall: (x, y) its middle */
+{
+    static const float P[3][6] = {{0.f, 8.f, 0.f, -9.f, 0.f, -9.f},             /* the stem */
+                                  {0.f, 4.f, -8.8f, -0.4f, -8.8f, -3.5f},       /* the left branch .. */
+                                  {0.f, 7.f, 8.8f, 2.2f, 8.8f, -0.9f}};         /* .. the right */
+    const float a[6] = {x - 3.5f, y - 6.5f, x, y - 11.f, x + 3.5f, y - 6.5f};
+    float q[6];
+    int k, i;
+    for (k = 0; k < 3; k++) {
+        for (i = 0; i < 6; i += 2)
+            q[i] = x + P[k][i], q[i + 1] = y + P[k][i + 1];
+        ui_P(q, 3, col, 1.7f, 0, QD_NONE);
+    }
+    ui_P(a, 3, col, 1.8f, 1, col);                      /* the arrow, the round foot, the round end, the square end */
+    ui_O(x, y + 9.f, 3.f, QD_NONE, 1.f, col);
+    ui_O(x - 8.8f, y - 4.4f, 2.2f, QD_NONE, 1.f, col);
+    ui_RR(x + 6.6f, y - 4.9f, 4.4f, 4.4f, 0.5f, QD_NONE, 1.f, col);
+}
+static FZ_COLD __attribute__((noinline)) void menu_usbh(const ui_menu_t *v)
+{
+    static const char *const ST[4] = {"OFF", "WAITING", "CONNECTED", "NOT MIDI"};
+    const int st = !v->usbh_on ? 0 : v->usbh_st < 0 || v->usbh_st > 2 ? 1 : v->usbh_st + 1;
+    int k;
+    for (k = 0; k < 2; k++) {
+        const float y = 40.f + (float)k * 53.25f, vy = y + 30.f;   /* (the track settings' grid, TRK_Y) */
+        const char *val = k == 0 ? (v->usbh_on ? "ON" : "OFF") : ST[st];
+        const qd_rgb col = st == 3 && k ? UI_RED : (k == 0 ? v->usbh_on : st) ? KCOL[k] : UI_G2;
+        const float w = ui_TW(val, 26.f, 300, 0.f), sz = w > 150.f ? 26.f * 150.f / w : 26.f;
+        const float lx = 232.f - (w > 150.f ? 150.f : w);
+        menu_row_sz(k, y, k == 0 ? "USB HOST" : "STATUS", 0, 0.f);
+        ui_T(val, 232.f, vy, sz, 300, 0.f, col, QD_RIGHT);
+        if (k == 0) {
+            usb_mark(lx - 18.f, vy - 9.f, col);
+            if (!v->usbh_on)
+                line2(lx - 30.f, vy - 21.f, lx - 6.f, vy + 3.f, UI_RED, 1.6f);
+        } else {
+            int i;
+            const int lit = st == 2 ? 3 : st == 1 ? (int)fmodf(v->t * 3.f, 3.f) + 1 : 0;
+            for (i = 0; i < 3; i++) {
+                const int on = st == 2 ? 1 : st == 1 ? i == lit - 1 : 0;
+                ui_O(lx - 42.f + (float)i * 14.f, vy - 9.f, 4.5f, on ? col : st == 3 ? col : UI_G3, 1.2f,
+                     on ? col : QD_NONE);
+            }
+        }
+    }
+}
+#endif
+
 /* 2026-11-10 (owner): SETTINGS' page 2, HOME, on the track settings' grid (TRK_Y: four rows 53.25 px apart, the value
  * 26 px at the right): KNOB 1 HOME VIEW (its name), KNOB 2 LOCK (ON / OFF, a padlock shut or open); under them the three
  * Home views (2026-11-13) as little screens in HOME's order, the chosen one lit in KNOB 1's colour; unlocked an arrow along
@@ -743,12 +796,18 @@ static void menu_set(const ui_menu_t *v)
 {
     int k;
     menu_head("SETTINGS");
-    for (k = 0; k < (QD_PKG_BLE ? 3 : 2); k++)          /* the pages' dots, where the track settings' are */
+    for (k = 0; k < 2 + QD_USB_HOST + QD_PKG_BLE; k++)   /* the pages' dots, where the track settings' are */
         ui_O(170.f + (float)k * 9.f, 14.f, 2.6f, k == v->set_page ? UI_K3 : UI_G2, 1.f, k == v->set_page ? UI_K3 : QD_NONE);
     if (v->set_page == 1) {
         menu_home(v);
         return;
     }
+#if QD_USB_HOST
+    if (v->set_page == 2) {
+        menu_usbh(v);
+        return;
+    }
+#endif
 #if QD_PKG_BLE
     if (v->set_page) {
         menu_set2(v);

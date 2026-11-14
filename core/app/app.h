@@ -432,6 +432,16 @@ void qd_app_hold_release(qd_app_t *a);   /* 2026-10-26: the live keys' HOLD: the
 int qd_app_ble_on(const qd_app_t *a);
 void qd_app_ble_state(qd_app_t *a, int st);
 #endif
+#if QD_USB_HOST
+/* 2026-11-14, USB HOST (qd_config.h QD_USB_HOST): SETTINGS' page 3 (SELECT), KNOB 1 USB HOST ON / OFF, never saved
+ * (OFF at every power-on: a computer and the installers always find the unit). The core only keeps and shows it; the
+ * port applies it (main loop: plat_usb_host) and plays what the device sends as USB MIDI in:
+ *   qd_app_usb_host_on     1: USB HOST ON (the setting)
+ *   qd_app_usb_host_state  the port's state while ON: 0 waiting (no device yet), 1 a device connected, 2 a device that
+ *                          is not USB-MIDI (or a low-speed one); shown on the page (a change draws it again) */
+int qd_app_usb_host_on(const qd_app_t *a);
+void qd_app_usb_host_state(qd_app_t *a, int st);
+#endif
 
 #ifdef __cplusplus
 }

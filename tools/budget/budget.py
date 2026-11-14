@@ -63,7 +63,8 @@ ISR_STACK = 7936                      # D: the system stack (the audio ISR)
 MARGIN_STACK = 2048                   # E: kept free on each
 RATCHET = HERE / "ratchet.txt"        # P2.1: the ceilings so far (budget-ratchet)
 
-GFX_DEF = (["-DQD_GFX_FAST"] if GFX == "fast" else []) + ["-DQD_VOICES_DEV=%d" % VOICES]
+GFX_DEF = (["-DQD_GFX_FAST"] if GFX == "fast" else []) + ["-DQD_VOICES_DEV=%d" % VOICES] + ["-DQD_USB_HOST=1"]   # (2026-11-14:
+# the USB package's SETTINGS page 3, USB HOST: core/qd_config.h)
 CC_FLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-DQD_DEVICE", "-DQD_TARGET_FM1", *GFX_DEF, "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
 ARM_FLAGS = ["-mcpu=cortex-m4", "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16"]

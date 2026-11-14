@@ -301,8 +301,14 @@ static FZ_COLD void lb_ctx(const qd_app_t *a, qd_labels_t *o)
 #else
         const char *const *SET2 = SET;
 #endif
+#if QD_USB_HOST
+        static const char *const SETU[4] = {"USB HOST", "STATUS", "", ""};   /* (2026-11-14: the USB package's page 3) */
+#else
+        const char *const *SETU = SET;
+#endif
         const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC)
-                             : u->latch == QD_LATCH_SET ? (u->set_page == 1 ? SETH : u->set_page ? SET2 : SET)
+                             : u->latch == QD_LATCH_SET ? (u->set_page == 1 ? SETH : QD_USB_HOST && u->set_page == 2 ? SETU
+                                                           : u->set_page ? SET2 : SET)
                              : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), r[k]);
@@ -314,7 +320,7 @@ static FZ_COLD void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         }
         if (u->latch == QD_LATCH_REC)
             lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
-        if (u->latch == QD_LATCH_SET)                   /* (SETTINGS' pages: 2026-11-10 HOME; BLUETOOTH) */
+        if (u->latch == QD_LATCH_SET)                   /* (SETTINGS' pages: 2026-11-10 HOME; USB HOST; BLUETOOTH) */
             lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_BTN(QD_B_OCTDN), "BACK");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
