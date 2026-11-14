@@ -365,13 +365,18 @@ static void tl_revert(qd_app_t *a)                    /* OCT-: back to the origi
 }
 static void tl_closed(qd_app_t *a) { tl_keep(a); }   /* (HOME, another page: a pending change kept) */
 void qd_tools_keep(qd_app_t *a) { tl_keep(a); }       /* (2026-11-13: F1 / F2's step layers: the change kept first) */
-void qd_tools_oct_click(qd_app_t *a, int d)           /* 2026-11-13 (owner): a quick click: OCT+ keeps, OCT- reverts;
+void qd_tools_oct_click(qd_app_t *a, int d)           /* 2026-11-13 (owner): a quick click: OCT+ keeps, OCT- undoes
+                                                         * (a pending change: reverted; none: the last undo level);
                                                          * held: the step view's F1 / F2 */
 {
-    if (d > 0)
+    if (d > 0) {
         tl_confirm(a);
-    else
+    } else if (qd_tools_pending(a)) {
         tl_revert(a);
+    } else {
+        qd_shift_undo(a, -1);
+        tl_settle(&a->ui.tl);                           /* (the pattern undone: the new original) */
+    }
 }
 
 void qd_tools_screen(qd_app_t *a)

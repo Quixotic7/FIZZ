@@ -396,7 +396,7 @@ static void lb_ctx(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_SELECT), "TOOL");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "SCOPE");
         lb_set(o, LB_BTN(QD_B_OCTUP), tool == QD_TL_CLIP ? CA[u->tl.v.cl.act % QD_CL_N] : "KEEP");
-        lb_set(o, LB_BTN(QD_B_OCTDN), "REVERT");
+        lb_set(o, LB_BTN(QD_B_OCTDN), "UNDO");         /* (2026-11-13: a click undoes; held: F1) */
         lb_set(o, LB_BTN(QD_B_HOME), "CLOSE");
         return;
     }

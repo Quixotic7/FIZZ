@@ -585,7 +585,7 @@ static void t_rotate_live(void)
 {
     qd_pattern_t *before = malloc(sizeof *before);
     qd_leds_t l;
-    int n0, m, w, ok = 1;
+    int n0, w, ok = 1;
     start();
     bass(0);
     run(600);                                           /* (the edits' gesture closed) */
@@ -617,23 +617,16 @@ static void t_rotate_live(void)
     CHECK(!qd_tools_pending(&A) && !A.undo.hold && qd_undo_count(&A, -1) == n0 + 1 && A.ui.tl.rot == 0 &&
               qd_tools_open(&A) && A.ui.tk == UI_TK_TOOL && A.ui.tk_knob == 2 && A.ui.tk_step == 0,
           "OCT+: kept, one undo level, KEPT popped; the offset 0 again; TOOLS stays");
-    m = ons(0, 0, 16);
-    btap(F1);
-    CHECK(qd_tools_open(&A) && ons(0, 0, 16) == m, "OCT- with nothing pending: nothing (TOOLS stays: HOME leaves)");
-    bdown(QD_B_FUNC);
-    btap(F1);
-    bup(QD_B_FUNC);
-    run(10);
-    CHECK(!memcmp(PAT()->step, before->step, sizeof before->step) && !memcmp(PAT()->lock, before->lock, sizeof before->lock) &&
-              PAT()->nlock == before->nlock, "SHIFT + F1: undone, the original byte for byte");
+    btap(F1);                                           /* (2026-11-13, owner: a click with nothing pending: undo) */
+    CHECK(qd_tools_open(&A) && !memcmp(PAT()->step, before->step, sizeof before->step) &&
+              !memcmp(PAT()->lock, before->lock, sizeof before->lock) && PAT()->nlock == before->nlock,
+          "OCT- with nothing pending: undone, the original byte for byte (TOOLS stays: HOME leaves)");
     turn(QD_K_1, 5);
     n0 = qd_undo_count(&A, -1);
     btap(F1);
     CHECK(!memcmp(PAT()->step, before->step, sizeof before->step) && !qd_tools_pending(&A) && qd_tools_open(&A) &&
               qd_undo_count(&A, -1) == n0 && A.ui.tl.rot == 0 && A.ui.tk_knob == 2 && A.ui.tk_step == 1,
           "OCT-: reverted byte for byte, no level, REVERTED popped, TOOLS open");
-    btap(F1);
-    CHECK(qd_tools_open(&A), "OCT- again: still open");
     turn(QD_K_1, 3);
     black(0);
     CHECK(A.ui.tl.rot == 0 && !memcmp(PAT()->step, before->step, sizeof before->step) && qd_tools_pending(&A),
@@ -1458,6 +1451,10 @@ static void t_owner_1113(void)
     m = ons(0, 0, 16);
     btap(F2);
     CHECK(!qd_tools_pending(&A) && ons(0, 0, 16) == m && qd_undo_count(&A, -1) == n0 + 1, "OCT+ clicked: kept, a level");
+    btap(F1);
+    CHECK(!qd_tools_pending(&A) && qd_undo_count(&A, -1) == n0 && qd_tools_open(&A),
+          "OCT- clicked, nothing pending: the kept change undone (2026-11-13, owner), TOOLS open");
+
     turn(QD_K_1, 1);
     bdown(F1);
     run(20);
