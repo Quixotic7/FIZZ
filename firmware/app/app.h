@@ -21,7 +21,10 @@
 extern uint8_t fz_fb_hi[][240];
 #define APP_CANVAS_AT ((uint16_t *)(void *)fz_fb_hi)
 #endif
-#define APP_BIG_FONT FONT_B                  /* (FONT_L's 20 KB of flash saved; the splash's name in B, 16 rows) */
+#define APP_BIG_FONT FONT_S                  /* (FONT_L's 20 KB of flash saved) .. */
+#define APP_SYS_TEXT                         /* .. 2026-11-14: fm1-base's own screens (boot, crash, safe mode, update, the
+                                              * splash) all in its small face, the one FIZZ's messages use: FONT_B is
+                                              * not linked (8.7 KB of the slot, for USB HOST on the Bluetooth package) */
 #define APP_SYSEX                            /* FIZZ's SysEx (7D 46 5A: LIST, DUMP, STORE, LABELS ..) */
 #define APP_USB_CMD                          /* the data blob written over USB (firmware/tools/fizz_xdata.py) */
 #define FM1B_UAC_RING_POOL 1                 /* USB audio in's 2 KB ring in the pool (FIZZ's RAM is full: BUDGET.md) */
