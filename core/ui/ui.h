@@ -553,6 +553,7 @@ typedef struct ui_held {
     char func_name[12];
     int jump_page, jump_step;
     uint8_t jump_trig[16];
+    uint8_t page_trig[16];              /* 2026-11-13: the held step's page, its trigs (FUNC's route row) */
     int bank;                           /* the bank of ten on the keys (0: 1..10) */
     /* TRIG (2026-10-26): the step's MIDI FX group under the trig picture: 1..5 (mfx_track: the track's), 0 OFF; its
      * slots' types (0 none) and which play (bit k of mfx_lit) */

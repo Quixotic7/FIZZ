@@ -474,6 +474,7 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
             qd_rstep_t rq;
             qd_step_resolve(P, t, (s / QD_PAGE) * QD_PAGE + i, &rq);
             v->page_sound[i] = (uint8_t)(rq.on ? rq.sound : 0);
+            v->page_trig[i] = (uint8_t)rq.on;
         }
         v->held_col = s % QD_PAGE;
         v->nlocks = qd_lock_count(P, t, s);

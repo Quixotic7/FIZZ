@@ -922,30 +922,118 @@ static void f_slide(const ui_held_t *v, const pal_t *p)
     ui_T(v->pslope ? "RATE" : "TIME", 216.f, ry + 20.f, 12.f, 600, 0.5f, UI_G2, QD_RIGHT);
 }
 
-/* ---------------------------------------------------------------- FUNC (P1.3w) */
-/* the function big as its icon, its one-word name under it (the full screen; EDIT has it in the head); a jump: its
- * target on a strip of the target's page (its number at the left) */
+/* ---------------------------------------------------------------- FUNC (P1.3w; 2026-11-13, the owner: redrawn) */
+/* the page's 16 steps as a row, the held step filled; the function as the playhead's route over it: RESTART an arc
+ * back to step 1, REVERSE / FORWARD the flow turning, FLIP both, JUMP an arc to its target (another page: the target's
+ * row, its number at the left), LEAP the hops, the random ones dashed arcs under a die; NONE the flow running on */
+#define FN_RY 140.f                                     /* the row's top (the full screen; EDIT moves it up) */
+#define FN_CH 26.f
+static float fn_x(int i) { return 24.f + (float)i * 12.2f + (float)(i / 4) * 2.4f + 5.f; }   /* a cell's centre */
+static void fn_head(float x, float y, float dx, qd_rgb c)   /* an arrowhead at (x, y) pointing down, leaning dx */
+{
+    line2(x, y, x - 6.f + dx, y - 7.f, c, 2.6f);
+    line2(x, y, x + 6.f + dx, y - 7.f, c, 2.6f);
+}
+static void fn_arc(int a, int b, float h, qd_rgb c, int dash)   /* from cell a's top up and over into cell b's (dash
+                                                         * 2: no arrowhead, a hop) */
+{
+    const float x0 = fn_x(a), x1 = fn_x(b), y = FN_RY - 3.f;
+    static const float D[2] = {3.f, 3.f};
+    qd_save();
+    if (dash == 1)
+        qd_dash(D, 2);
+    qd_path_begin();
+    qd_move_to(x0, y);
+    qd_quad_to((x0 + x1) * 0.5f, y - h * 2.f, x1, y);
+    qd_path_stroke(c, 3.f);
+    qd_restore();
+    if (dash != 2)
+        fn_head(x1, y, x1 > x0 ? -1.5f : 1.5f, c);
+}
+static void fn_flow(int s, int dir, qd_rgb c, int dash) /* the flow turning at s and running on dir (+1 / -1) */
+{
+    const float x = fn_x(s), y = FN_RY - 26.f, xe = x + (float)dir * 64.f, x1 = xe < 14.f ? 14.f : xe > 226.f ? 226.f : xe;
+    static const float D[2] = {3.f, 3.f};
+    qd_save();
+    if (dash)
+        qd_dash(D, 2);
+    qd_path_begin();
+    qd_move_to(x, FN_RY - 3.f);
+    qd_quad_to(x, y, x + (float)dir * 14.f, y);
+    qd_line_to(x1, y);
+    qd_path_stroke(c, 3.f);
+    qd_restore();
+    line2(x1, y, x1 - (float)dir * 7.f, y - 6.f, c, 2.6f);
+    line2(x1, y, x1 - (float)dir * 7.f, y + 6.f, c, 2.6f);
+}
 static void f_func(const ui_held_t *v, const pal_t *p)
 {
-    const int ic = ui_fn_icon(v->func);
-    if (ic == UI_IC_NONE)
-        ui_O(120.f, 96.f, 6.f, p->k[0], 1.5f, QD_NONE);  /* none: an empty ring */
-    else
-        ui_icon(ic, 120.f, 96.f, 5.f, p->k[0]);
-    if (!p->nobig && v->func_name[0])
-        ui_T(v->func_name, 120.f, 166.f, 34.f, 200, 0.f, p->k[0], QD_CENTER);
-    if (v->func >= UI_FN_JUMP && v->func < UI_FN_LEAP) {
-        char n[12];
-        int i;
-        ui_T(ui_itoa(n, v->jump_page + 1), 16.f, 206.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
-        for (i = 0; i < 16; i++) {
-            const float x = 28.f + (float)i * 12.5f + (float)(i / 4) * 2.f;
-            const int tgt = i == v->jump_step;
-            ui_RR(x, 194.f, 10.f, 16.f, 2.f, tgt ? QD_NONE : UI_G2, 1.f, tgt ? p->k[0] : QD_NONE);
-            if (!tgt && v->jump_trig[i])
-                ui_O(x + 5.f, 202.f, 1.6f, QD_NONE, 1.f, UI_G1);
-        }
+    const int f = v->func, s = v->is_default ? -1 : v->held_col;
+    const int other = f >= UI_FN_JUMP && f < UI_FN_LEAP && v->jump_page != (v->step - 1) / 16;
+    const qd_rgb c = p->k[0];
+    const uint8_t *trig = other ? v->jump_trig : v->page_trig;
+    char n[12];
+    int i;
+    for (i = 0; i < 16; i++) {                          /* the row */
+        const float x = fn_x(i) - 5.f;
+        const int me = !other && i == s, tgt = (f >= UI_FN_JUMP && f < UI_FN_LEAP && i == v->jump_step) ||
+                                               (f == 1 && i == 0);
+        ui_RR(x, FN_RY, 10.f, FN_CH, 2.5f, tgt ? c : me ? QD_NONE : UI_G2, tgt ? 2.4f : 1.2f, me ? c : QD_NONE);
+        if (!me && !tgt && trig[i])
+            ui_RR(x + 2.5f, FN_RY + FN_CH - 8.f, 5.f, 5.f, 1.f, QD_NONE, 1.f, UI_G1);
     }
+    if (other)
+        ui_T(ui_itoa(n, v->jump_page + 1), 12.f, FN_RY + 18.f, 14.f, 600, 0.f, UI_G1, QD_CENTER);
+    if (s < 0 && !other)
+        return;
+    if (f == 0) {                                       /* NONE: the flow runs on */
+        fn_flow(s, 1, UI_G2, 1);
+    } else if (f == 1) {                                /* RESTART: back to step 1 */
+        const float x0 = fn_x(s), xt = fn_x(0), y = FN_RY - 34.f;   /* (up, back along the top, down into step 1) */
+        qd_path_begin();
+        qd_move_to(x0, FN_RY - 3.f);
+        qd_line_to(x0, y + 6.f);
+        qd_quad_to(x0, y, x0 - 6.f, y);
+        qd_line_to(xt + 6.f, y);
+        qd_quad_to(xt, y, xt, y + 6.f);
+        qd_line_to(xt, FN_RY - 3.f);
+        qd_path_stroke(c, 3.f);
+        fn_head(xt, FN_RY - 3.f, 0.f, c);
+    } else if (f == 2 || f == 3) {                      /* REVERSE / FORWARD */
+        fn_flow(s, f == 2 ? -1 : 1, c, 0);
+    } else if (f == 4) {                                /* FLIP: the other way, whichever */
+        fn_flow(s, -1, c, 0);
+        fn_flow(s, 1, c, 0);
+    } else if (f == 5 || f == 6) {                      /* RANDOM JUMP / RANDOM FUNC: dashed arcs, the die */
+        static const int8_t D[3] = {-5, 4, 9};
+        for (i = 0; i < 3; i++) {
+            const int t = ((s + D[i]) % 16 + 16) % 16;
+            fn_arc(s, t, 6.f + 1.2f * (float)(t > s ? t - s : s - t), f == 5 ? c : UI_G2, 1);
+        }
+        ui_icon(f == 5 ? UI_IC_DICE : UI_IC_DICE_FN, 120.f, FN_RY - 50.f, 2.2f, c);
+    } else if (f < UI_FN_LEAP) {                        /* JUMP: an arc to the target */
+        if (other) {
+            const float x1 = fn_x(v->jump_step), y = FN_RY - 3.f;
+            qd_path_begin();
+            qd_move_to(18.f, FN_RY - 50.f);
+            qd_quad_to(x1, FN_RY - 56.f, x1, y);
+            qd_path_stroke(c, 3.f);
+            fn_head(x1, y, 0.f, c);
+        } else {
+            const int d = v->jump_step > s ? v->jump_step - s : s - v->jump_step;
+            fn_arc(s, v->jump_step, 20.f + 2.6f * (float)d, c, 0);
+        }
+    } else {                                            /* LEAP n: n hops (many: one arc) */
+        const int nn = f - UI_FN_LEAP - 15, an = nn < 0 ? -nn : nn, dir = nn < 0 ? -1 : 1;
+        if (an <= 6)
+            for (i = 0; i < an; i++)
+                fn_arc(((s + dir * i) % 16 + 16) % 16, ((s + dir * (i + 1)) % 16 + 16) % 16, 10.f, c,
+                       i + 1 < an ? 2 : 0);
+        else
+            fn_arc(s, ((s + nn) % 16 + 16) % 16, 20.f + 2.6f * (float)an, c, 0);
+    }
+    if (v->func_name[0])                                /* (2026-11-13, owner: centred over the picture) */
+        ui_T(v->func_name, 120.f, FN_RY - 76.f, 26.f, 200, 0.f, c, QD_CENTER);
 }
 
 /* ---------------------------------------------------------------- the frame */
@@ -1115,7 +1203,7 @@ static void ed_head_val(const ui_held_t *v, const ui_lane_t *lane, int field, ch
     case UI_F_RATCH: cat(cat(val, "\xc3\x97"), ui_itoa(n, v->count < 1 ? 1 : v->count > 8 ? 8 : v->count)); break;
     case UI_F_TRIG: cat(val, TRIGS[v->type >= 1 && v->type <= 3 ? v->type : 0]); break;
     case UI_F_SOUND: cat(val, v->sound_cur ? v->sound_cur : "TRACK SOUND"); break;
-    case UI_F_FUNC: cat(val, v->func_name); break;
+    case UI_F_FUNC: break;                              /* (2026-11-13, owner: the name over the picture, not the corner) */
     case UI_F_SLIDE: cat(val, PORT_NAMES[v->port < 0 ? 0 : v->port > 2 ? 2 : v->port]); break;
     default: break;
     }
@@ -1194,9 +1282,8 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
         p.nobig = 0;
         moved(v, &p, field, -4.f);                      /* (30 .. 182 -> 26 .. 178) */
         break;
-    case UI_F_FUNC:                                     /* P1.3w: the icon big, the name in the head */
-        cat(val, v->func_name);
-        moved(v, &p, field, -36.f);                     /* (the icon 96 -> 60, the jump strip 194 .. 210 -> 158 .. 174) */
+    case UI_F_FUNC:                                     /* P1.3w; 2026-11-13: the route, the name centred over it */
+        moved(v, &p, field, -14.f);                     /* (2026-11-13: the row 140 -> 126, over the keys / the lane) */
         break;
     case UI_F_SLIDE:                                    /* 2026-10-26: the ramp; PORT in the head */
         cat(val, PORT_NAMES[v->port < 0 ? 0 : v->port > 2 ? 2 : v->port]);

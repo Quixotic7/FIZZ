@@ -10404,8 +10404,8 @@ static void g_mfx_b11_global(void)
 }
 
 
-/* 2026-11-13 (owner): VEL on the step keyboard, ALGORITHM scrolling: the W keys the selected step's velocity, no
- * position flash over them */
+/* 2026-11-13 (owner): VEL on the step keyboard, ALGORITHM scrolling: the step's own W flashes once (every mode), then
+ * the W keys the selected step's velocity */
 static void g_vel_scroll(void)
 {
     qd_leds_t l;
@@ -10418,11 +10418,12 @@ static void g_vel_scroll(void)
         qd_step_on(PAT(), 0, s), qd_step_set_vel(PAT(), 0, s, 8 * (15 - s));
     for (s = 0; s < 4; s++) {
         turn(QD_K_ALGO, 1);
-        run(20);
+        ok &= A.ui.wflash == s + 1;
+        run(QD_PFLASH_MS + 20);
         l = leds();
-        ok &= l.key[WK(14 - s)] == QD_LED_LIT && (s == 14 - s || l.key[WK(s)] != QD_LED_LIT);
+        ok &= l.key[WK(14 - s)] == QD_LED_LIT && l.key[WK(s)] != QD_LED_LIT;
     }
-    CHECK(ok, "VEL, the step keyboard: ALGORITHM steps 1..4: W15..W12 lit (their velocities), the step's own W not");
+    CHECK(ok, "VEL, the step keyboard: ALGORITHM steps 1..4: the step's W flashes, then W15..W12 lit (their velocities)");
 }
 
 /* 2026-11-13 (owner): B11's state is one across the Home views and the keyboard page (REC): the Home views' steps are
