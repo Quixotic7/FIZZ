@@ -1686,7 +1686,6 @@ static void b_sel(qd_app_t *a, int down)
         qd_trk_button(a);
     }
 }
-int qd_ctl_sel_map(const qd_app_t *a) { (void)a; return 0; }   /* (2026-11-11: the tracks' map retired) */
 
 /* OCT- / OCT+ (d -1 / +1): the layers in the step view (F1 / F2 / both F3); with steps held: NOTE's octave, SOUND's
  * bank; the keyboard: the octave (step recording: OCT+ a rest, OCT- a step back), both: every voice out (PANIC) */

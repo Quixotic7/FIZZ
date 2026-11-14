@@ -4,7 +4,7 @@
 /* P1.5r: FIZZ's SysEx (fizz_sx.h, docs/SYSEX.md). Built through app.c (it includes this file: the core's source lists
  * stay as they are). */
 
-uint32_t qd_sx_pack7(const uint8_t *in, uint32_t n, uint8_t *out)
+FZ_COLD uint32_t qd_sx_pack7(const uint8_t *in, uint32_t n, uint8_t *out)
 {
     uint32_t i = 0, o = 0;
     while (i < n) {
@@ -21,7 +21,7 @@ uint32_t qd_sx_pack7(const uint8_t *in, uint32_t n, uint8_t *out)
     return o;
 }
 
-uint32_t qd_sx_unpack7(const uint8_t *in, uint32_t n, uint8_t *out)
+FZ_COLD uint32_t qd_sx_unpack7(const uint8_t *in, uint32_t n, uint8_t *out)
 {
     uint32_t i = 0, o = 0;
     while (i < n) {
@@ -40,7 +40,7 @@ static void sx_job(qd_app_t *a);                        /* (P1.6m) */
 static uint32_t sx_room(const qd_sx_t *s) { return QD_SX_RING - (s->w - s->r); }
 static void sx_put(qd_sx_t *s, uint8_t v) { s->ring[s->w++ % QD_SX_RING] = v; }
 static uint8_t sx_at(const qd_sx_t *s, uint32_t i) { return s->ring[(s->r + i) % QD_SX_RING]; }
-static int sx_reply(qd_app_t *a, const uint8_t *b, uint32_t n)
+static FZ_COLD int sx_reply(qd_app_t *a, const uint8_t *b, uint32_t n)
 {
     qd_sx_t *s = &a->sx;
     uint32_t i, sum = 0;
@@ -62,7 +62,7 @@ static int sx_reply(qd_app_t *a, const uint8_t *b, uint32_t n)
     return 1;
 }
 
-int qd_app_sysex_peek(const qd_app_t *a)
+FZ_COLD int qd_app_sysex_peek(const qd_app_t *a)
 {
     const qd_sx_t *s = &a->sx;
 #if QD_PKG_BLE
@@ -78,7 +78,7 @@ void qd_app_sysex_port(qd_app_t *a, int port) { a->sx.port = (uint8_t)(port != 0
 
 int qd_app_sysex_busy(const qd_app_t *a) { return a->sx.job != 0; }
 
-int qd_app_sysex_take(qd_app_t *a, uint8_t *out, uint32_t max)
+FZ_COLD int qd_app_sysex_take(qd_app_t *a, uint8_t *out, uint32_t max)
 {
     qd_sx_t *s = &a->sx;
     const uint32_t n = (uint32_t)qd_app_sysex_peek(a);
@@ -93,7 +93,7 @@ int qd_app_sysex_take(qd_app_t *a, uint8_t *out, uint32_t max)
 
 /* P1.6l: LABELS: the change count (two 7-bit bytes), how many (49), each label its length (0..10) then its
  * characters (qd_ctl_labels) */
-static uint32_t sx_labels_hash(const qd_labels_t *l)
+static FZ_COLD uint32_t sx_labels_hash(const qd_labels_t *l)
 {
     uint32_t h = 2166136261u, i;
     const uint8_t *p = (const uint8_t *)l->s;
@@ -101,7 +101,7 @@ static uint32_t sx_labels_hash(const qd_labels_t *l)
         h = (h ^ p[i]) * 16777619u;
     return h;
 }
-static void sx_labels_reply(qd_app_t *a, const qd_labels_t *l)
+static FZ_COLD void sx_labels_reply(qd_app_t *a, const qd_labels_t *l)
 {
     uint8_t b[4 + QD_LBL_N * QD_LBL_LEN];
     uint32_t o = 0;
@@ -118,7 +118,7 @@ static void sx_labels_reply(qd_app_t *a, const qd_labels_t *l)
     }
     sx_reply(a, b, o);
 }
-static void sx_labels(qd_app_t *a, const uint8_t *b, uint32_t n)
+static FZ_COLD void sx_labels(qd_app_t *a, const uint8_t *b, uint32_t n)
 {
     static qd_labels_t l;
     qd_ctl_labels(a, &l);
@@ -130,7 +130,7 @@ static void sx_labels(qd_app_t *a, const uint8_t *b, uint32_t n)
     a->sx.lbl_ms = a->ms;
     sx_labels_reply(a, &l);
 }
-void qd_sx_ms(qd_app_t *a)
+FZ_COLD void qd_sx_ms(qd_app_t *a)
 {
     static qd_labels_t l;
     uint32_t h;
@@ -159,7 +159,7 @@ void qd_sx_ms(qd_app_t *a)
 void qd_app_sysex_version(qd_app_t *a, const char *version) { a->sx.version = version; }
 
 /* a name field (12): printable ASCII (others '?'), the trailing spaces off; 0: empty */
-static int sx_name(const uint8_t *b, char *name)
+static FZ_COLD int sx_name(const uint8_t *b, char *name)
 {
     int i;
     for (i = 0; i < QD_SX_NAME; i++)
@@ -170,7 +170,7 @@ static int sx_name(const uint8_t *b, char *name)
     return name[0] != 0;
 }
 
-static void sx_store_reply(qd_app_t *a, int status, int pool, int slot)
+static FZ_COLD void sx_store_reply(qd_app_t *a, int status, int pool, int slot)
 {
     const uint8_t b[5] = {QD_SX_R_STORE, (uint8_t)status, (uint8_t)pool, (uint8_t)((slot >> 7) & 0x7F), (uint8_t)(slot & 0x7F)};
     if (status)
@@ -182,7 +182,7 @@ typedef char qd_sx_pend_np_ok[sizeof(((qd_sx_pend_t *)0)->patch) == QD_QUAD_NP *
 static int sx_job_begin(qd_app_t *a, int cmd, int src, int x, int y, int flags, int stopped);
 
 /* the sound read (q): stored, loaded, auditioned (the handler, or the STORE job's end) */
-static void sx_store_apply(qd_app_t *a, const qd_sx_pend_t *q)
+static FZ_COLD void sx_store_apply(qd_app_t *a, const qd_sx_pend_t *q)
 {
     const int flags = q->flags, pool = (flags & QD_SXF_POOL) != 0, track = q->track;
     const int mask = q->mix[4];
@@ -270,7 +270,7 @@ static void sx_store_apply(qd_app_t *a, const qd_sx_pend_t *q)
 /* STORE: body[0..n) after the command byte, its checksum included. P2-B: over a used MY PRESETS place a job (the
  * other projects' records that load the preset keep their own copies first, a project a step: never inside the
  * handler), stopped only (BUSY while playing, as the other jobs); its reply when done */
-static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
+static FZ_COLD void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
 {
     uint8_t blob[QD_SX_BLOB6 + 8];
     qd_sx_pend_t q;
@@ -359,7 +359,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
 
 /* ---------------------------------------------------------------- P1.6m: LIST, DUMP */
 /* source src's entry k (0-based): its sound (a pool slot: its preset, resolved; the pool's own name), 0 none */
-static int sx_entry(const qd_app_t *a, int src, int k, qd_sound_t *s)
+static FZ_COLD int sx_entry(const qd_app_t *a, int src, int k, qd_sound_t *s)
 {
     if (src == QD_SXS_MINE) {
         if (k < 0 || k >= QD_NLIB || !qd_lib_used(a, k))
@@ -391,7 +391,7 @@ static int sx_entry(const qd_app_t *a, int src, int k, qd_sound_t *s)
     return 1;
 }
 /* P2.1: an entry's name, id, tags and flags only (LIST's: no sound read; the rest zeros), 0 none */
-static int sx_head(const qd_app_t *a, int src, int k, qd_sound_t *s)
+static FZ_COLD int sx_head(const qd_app_t *a, int src, int k, qd_sound_t *s)
 {
     memset(s, 0, sizeof *s);
     if (src == QD_SXS_MINE) {
@@ -414,7 +414,7 @@ static int sx_head(const qd_app_t *a, int src, int k, qd_sound_t *s)
     }
     return 1;
 }
-static int sx_count(const qd_app_t *a, int src)
+static FZ_COLD int sx_count(const qd_app_t *a, int src)
 {
     qd_sound_t s;
     int k, n = 0, max = src == QD_SXS_MINE ? QD_NLIB : src == QD_SXS_FACTORY ? QD_NFACTORY : QD_NSOUND;
@@ -428,7 +428,7 @@ static int sx_count(const qd_app_t *a, int src)
  * the preset made again). P2-B: a track's (tr 0..5; -1 none) with LOAD and its track, then the track's extras
  * (QD_SX_XTRA: its preset id, pool sound, flags, MIDI channel, the selected track). (P2-B: built in qd_sx_t, the pool,
  * not in RAM) */
-static int sx_dump_sound(qd_app_t *a, const qd_sound_t *s, int flags, int slot, int tr)
+static FZ_COLD int sx_dump_sound(qd_app_t *a, const qd_sound_t *s, int flags, int slot, int tr)
 {
     uint8_t *const b = a->sx.dump;
     uint8_t blob[QD_SX_BLOB6];
@@ -464,7 +464,7 @@ static int sx_dump_sound(qd_app_t *a, const qd_sound_t *s, int flags, int slot, 
     }
     return sx_reply(a, b, o) ? 1 : 0;
 }
-static int sx_dump_one(qd_app_t *a, int src, int k)
+static FZ_COLD int sx_dump_one(qd_app_t *a, int src, int k)
 {
     qd_sound_t s;
     if (!sx_entry(a, src, k, &s))
@@ -472,7 +472,7 @@ static int sx_dump_one(qd_app_t *a, int src, int k)
     return sx_dump_sound(a, &s, src == QD_SXS_POOL ? QD_SXF_POOL : 0, src == QD_SXS_FACTORY ? 0 : k + 1, -1);
 }
 /* P2-B: track t's sound (slot 1..6; 0 the selected one) as the editor sees it: its name, patch, mix, its preset's tags */
-static int sx_dump_track(qd_app_t *a, int slot)
+static FZ_COLD int sx_dump_track(qd_app_t *a, int slot)
 {
     qd_sound_t s;
     const int t = slot ? slot - 1 : a->sel, m = t < QD_NTRACK ? qd_lib_find(a, a->model.t[t].preset) : -1;
@@ -492,7 +492,7 @@ static int sx_dump_track(qd_app_t *a, int slot)
 
 /* LIST's reply: part, last (1: the listing's end), the total (2 x 7 bits), how many here, the entries: source, slot
  * (2), preset id (3 x 7 bits), name (12, spaces), tags, flags (bit 0 imported, bit 1 in this project's pool) */
-static int sx_list_part(qd_app_t *a)
+static FZ_COLD int sx_list_part(qd_app_t *a)
 {
     static uint8_t b[8 + QD_SX_LIST_PER * QD_SX_ENTRY];
     qd_sx_t *x = &a->sx;
@@ -537,7 +537,7 @@ static int sx_list_part(qd_app_t *a)
 }
 
 /* the job going out: as many replies as there is room for now (the rest: qd_sx_ms, as the host reads) */
-static void sx_job(qd_app_t *a)
+static FZ_COLD void sx_job(qd_app_t *a)
 {
     qd_sx_t *x = &a->sx;
     while (x->job && sx_room(x) >= QD_SX_FRAME_MAX + 2u) {
@@ -559,7 +559,7 @@ static void sx_job(qd_app_t *a)
     }
 }
 
-static void sx_list(qd_app_t *a, const uint8_t *b, uint32_t n)
+static FZ_COLD void sx_list(qd_app_t *a, const uint8_t *b, uint32_t n)
 {
     qd_sx_t *x = &a->sx;
     x->job = QD_SX_LIST;
@@ -569,7 +569,7 @@ static void sx_list(qd_app_t *a, const uint8_t *b, uint32_t n)
 }
 
 /* DUMP: source, slot (2 x 7 bits; 1-based; 0: every one of that source, paced) */
-static void sx_dump(qd_app_t *a, const uint8_t *b, uint32_t n)
+static FZ_COLD void sx_dump(qd_app_t *a, const uint8_t *b, uint32_t n)
 {
     int src, slot;
     if (n < 4u) {
@@ -595,7 +595,7 @@ static void sx_dump(qd_app_t *a, const uint8_t *b, uint32_t n)
 /* (docs/WEB-MANAGER-PLAN.md §5, docs/SYSEX.md) the quick ones in the handler (the lock: a directory entry, a record
  * queued); those that touch patterns or other projects' records a job (qd_sx_work_t), stepped by the store's step,
  * their reply when done. A slot on the wire: 1-based, two 7-bit bytes. ACK: 52 <cmd> <status> <a hi lo> <b hi lo> */
-static void sx_ack(qd_app_t *a, int cmd, int status, int v1, int v2)
+static FZ_COLD void sx_ack(qd_app_t *a, int cmd, int status, int v1, int v2)
 {
     const uint8_t b[7] = {QD_SX_R_ACK, (uint8_t)(cmd & 0x7F), (uint8_t)status, (uint8_t)((v1 >> 7) & 0x7F),
                           (uint8_t)(v1 & 0x7F), (uint8_t)((v2 >> 7) & 0x7F), (uint8_t)(v2 & 0x7F)};
@@ -604,7 +604,7 @@ static void sx_ack(qd_app_t *a, int cmd, int status, int v1, int v2)
     sx_reply(a, b, 7);
 }
 static int sx_u14(const uint8_t *b) { return (b[0] & 0x7F) << 7 | (b[1] & 0x7F); }
-static uint32_t sx_put14(uint8_t *b, uint32_t o, uint32_t v)
+static FZ_COLD uint32_t sx_put14(uint8_t *b, uint32_t o, uint32_t v)
 {
     b[o] = (uint8_t)((v >> 7) & 0x7F), b[o + 1] = (uint8_t)(v & 0x7F);
     return o + 2u;
@@ -615,7 +615,7 @@ static uint32_t sx_put14(uint8_t *b, uint32_t o, uint32_t v)
  * each); the job's command (0 none); the selected track. 2026-10-27: the Bluetooth package's reply goes on: its
  * package byte (QD_SXK_*), its projects (4), its MY PRESETS' places (2 bytes: 128); the USB package's ends at the
  * track, as before (a reply without them: the USB package, 8 projects, 256 places) */
-static void sx_status(qd_app_t *a)
+static FZ_COLD void sx_status(qd_app_t *a)
 {
     const qd_persist_t *ps = &a->per;
     uint8_t b[25 + 4 * QD_PKG_BLE];
@@ -658,7 +658,7 @@ static void sx_status(qd_app_t *a)
 }
 
 /* PROJECTS (63): the one worked on, 8, then each: flags (1 there, 2 worked on, 4 the demos), name (12), store pages (2) */
-static void sx_projects(qd_app_t *a)
+static FZ_COLD void sx_projects(qd_app_t *a)
 {
     const qd_persist_t *ps = &a->per;
     uint8_t b[3 + QD_NPROJ * (3 + QD_SX_NAME)];
@@ -686,7 +686,7 @@ static void sx_projects(qd_app_t *a)
 }
 
 /* a source's slot (1-based): its browser code (qd_tags_set's), -1 none there */
-static int sx_code(const qd_app_t *a, int src, int slot)
+static FZ_COLD int sx_code(const qd_app_t *a, int src, int slot)
 {
     if (src == QD_SXS_MINE)
         return slot >= 1 && slot <= QD_NLIB && qd_lib_used(a, slot - 1) ? QD_BR_MINE_CODE + slot - 1 : -1;
@@ -698,7 +698,7 @@ static int sx_code(const qd_app_t *a, int src, int slot)
 }
 
 /* a job begun: 1 (0: one is running, or it needs the transport stopped and FIZZ plays: BUSY) */
-static int sx_job_begin(qd_app_t *a, int cmd, int src, int x, int y, int flags, int stopped)
+static FZ_COLD int sx_job_begin(qd_app_t *a, int cmd, int src, int x, int y, int flags, int stopped)
 {
     qd_sx_work_t *w = &a->sx.wk;
     if (w->cmd || (stopped && a->seq.playing))
@@ -710,7 +710,7 @@ static int sx_job_begin(qd_app_t *a, int cmd, int src, int x, int y, int flags, 
 }
 
 /* the body's least length (its checksum included) */
-static uint32_t sx_need(int cmd)
+static FZ_COLD uint32_t sx_need(int cmd)
 {
     return cmd == QD_SX_RENAME ? 4u + QD_SX_NAME : cmd == QD_SX_SWAP || cmd == QD_SX_POOLREF ? 6u
          : cmd == QD_SX_TAGS || cmd == QD_SX_DELETE ? 5u : cmd == QD_SX_FLUSH ? 1u : 4u;
@@ -728,7 +728,7 @@ static uint32_t sx_need(int cmd)
  *             references the preset (no copy); the steps locking that number play it
  *   USERS     source, slot: a job (other projects' records read), while playing too
  *   PROJECT   op (LOAD, NEW, COPY p onto q, DELETE), p, q (1..8): a job, stopped only */
-static int sx_edit(qd_app_t *a, int cmd, const uint8_t *b, uint32_t n, int *v)
+static FZ_COLD int sx_edit(qd_app_t *a, int cmd, const uint8_t *b, uint32_t n, int *v)
 {
     qd_persist_t *ps = &a->per;
     const int src = b[0];
@@ -853,7 +853,7 @@ static int sx_edit(qd_app_t *a, int cmd, const uint8_t *b, uint32_t n, int *v)
 }
 
 /* USERS (57): source, slot, how many projects, each (project, steps 2), this project's tracks (bit t) */
-static void sx_users_reply(qd_app_t *a)
+static FZ_COLD void sx_users_reply(qd_app_t *a)
 {
     const qd_sx_work_t *w = &a->sx.wk;
     uint8_t b[8 + 3 * QD_NPROJ];
@@ -877,7 +877,7 @@ static void sx_users_reply(qd_app_t *a)
  * answers IN USE (projects, steps) and stops; else MY preset: each other project's records that load it keep their
  * copy (a project a step), then qd_preset_delete (its pool references go: their steps back to the track's sound, as on
  * the panel; one undo level); a pool sound: qd_pool_delete */
-void qd_sx_work(qd_app_t *a)
+FZ_COLD void qd_sx_work(qd_app_t *a)
 {
     qd_sx_work_t *w = &a->sx.wk;
     const int cmd = w->cmd;
@@ -990,7 +990,7 @@ void qd_sx_work(qd_app_t *a)
 
 /* P2-B: PARAM: track (0..5, 127 the selected), id, value + 2^20 (3 x 7 bits), flags (01 ACK): the track's sound as a knob
  * turned on the unit (qd_player_live_edit: clamped, the voices sounding follow; no undo level) */
-static void sx_param(qd_app_t *a, const uint8_t *b, uint32_t n)
+static FZ_COLD void sx_param(qd_app_t *a, const uint8_t *b, uint32_t n)
 {
     int t, id, st = QD_SX_OK;
     if (n < 7u) {
@@ -1013,7 +1013,7 @@ static void sx_param(qd_app_t *a, const uint8_t *b, uint32_t n)
 /* Manager fixes: BROWSE: track (0..5, 127 the selected), preset id (3 x 7 bits): the unit's sound browser opened on
  * that track at that preset (qd_br_goto: the track previews it; the owner's OCT- cancels, OCT+ loads), the screen
  * woken; refused while a name is typed on the unit (BUSY: the typing would be lost) */
-static void sx_browse(qd_app_t *a, const uint8_t *b, uint32_t n)
+static FZ_COLD void sx_browse(qd_app_t *a, const uint8_t *b, uint32_t n)
 {
     int t, id, st = QD_SX_OK;
     if (n < 5u) {
@@ -1039,7 +1039,7 @@ static void sx_browse(qd_app_t *a, const uint8_t *b, uint32_t n)
 static void sx_frame(qd_app_t *a, const uint8_t *f, uint32_t n);
 /* (the Bluetooth package) a frame's replies go to its port; a LIST / DUMP, a job, a LABELS subscription it starts keep
  * that port for theirs */
-void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
+FZ_COLD void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
 {
     qd_sx_t *s = &a->sx;
     const int job0 = s->job, wk0 = s->wk.cmd, lbl0 = s->lbl_sub;
@@ -1052,9 +1052,9 @@ void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
     if (s->lbl_sub && (!lbl0 || (n > 4u && f[4] == QD_SX_LABELS)))
         s->lbl_port = s->port;
 }
-static void sx_frame(qd_app_t *a, const uint8_t *f, uint32_t n)
+static FZ_COLD void sx_frame(qd_app_t *a, const uint8_t *f, uint32_t n)
 #else
-void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
+FZ_COLD void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
 #endif
 {
     uint32_t i, sum = 0;

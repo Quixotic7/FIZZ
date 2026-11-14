@@ -165,7 +165,7 @@ static float tl_noteh(const ui_tools_t *v, int i, float span)   /* a step's note
 }
 
 /* the lane at the foot: the page as it will be */
-static void tl_lane(const ui_tools_t *v, int heights)
+static FZ_COLD void tl_lane(const ui_tools_t *v, int heights)
 {
     const float y = 206.f;
     const float pulse = 0.6f + 0.4f * sinf(v->t * 6.f);
@@ -471,7 +471,7 @@ static void tl_grids(const ui_tools_t *v)
  * line (TRACK and PATTERN: the eight pages across; PAGE and SELECTED: the page's sixteen steps), the fan between them
  * the squeeze or the spread; the factor big in KNOB 1's blue (/4 .. x1.5 .. x4) over its ladder's thirteen rungs, or the
  * pages it fits onto in KNOB 2's green */
-static float tl_tape(const uint8_t *on, const uint8_t *in, float y, float h, int page, qd_rgb col, float *x1)
+static FZ_COLD float tl_tape(const uint8_t *on, const uint8_t *in, float y, float h, int page, qd_rgb col, float *x1)
 {
     const int s0 = page >= 0 ? page * 16 : 0, n = page >= 0 ? 16 : 128;
     const float sw = 224.f / (float)n;
@@ -547,7 +547,7 @@ static const char *tl_clip_on(char *s, int sc, int act, int page)   /* what the 
     s[0] = 'P', s[1] = 'A', s[2] = 'G', s[3] = 'E', s[4] = ' ', s[5] = (char)('1' + (page & 7)), s[6] = 0;
     return s;
 }
-static void tl_clip_icon(int k, float x, float y, float sc, qd_rgb col)
+static FZ_COLD void tl_clip_icon(int k, float x, float y, float sc, qd_rgb col)
 {
     qd_save();
     qd_translate(x, y);

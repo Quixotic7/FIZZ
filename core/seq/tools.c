@@ -36,7 +36,7 @@ int qd_tl_pos_of(const uint8_t *pos, int n, int s)
 
 /* the steps permuted: position d takes what was at position from[d] (from: a permutation of 0..n-1), the track's locks
  * renumbered the same way and its range sorted again (cycle-following, one step's temporary, 16 bytes of marks) */
-static void tl_permute(qd_pattern_t *p, int t, const uint8_t *pos, int n, const uint8_t *from)
+static FZ_COLD void tl_permute(qd_pattern_t *p, int t, const uint8_t *pos, int n, const uint8_t *from)
 {
     qd_step_t *S = p->step[t];
     uint8_t to[QD_NSTEP], seen[QD_NSTEP / 8];
@@ -103,7 +103,7 @@ void qd_tl_reverse(qd_pattern_t *p, int t, const uint8_t *pos, int n)
             S[pos[i]].micro = -S[pos[i]].micro;
 }
 
-int qd_tl_move_map(const uint8_t *pos, int n, const uint8_t *sel, int ns, int k, uint8_t *from)
+FZ_COLD int qd_tl_move_map(const uint8_t *pos, int n, const uint8_t *sel, int ns, int k, uint8_t *from)
 {
     uint8_t in[QD_NSTEP / 8];
     int i, d = 0, moved = 0;
@@ -145,7 +145,7 @@ int qd_tl_euclid_hit(int i, int hits, int len, int rot)
     return (((i % len) + rot) * hits) % len < hits;
 }
 
-void qd_tl_euclid(qd_pattern_t *p, int t, const uint8_t *pos, int n, int hits, int len, int rot, int mode)
+FZ_COLD void qd_tl_euclid(qd_pattern_t *p, int t, const uint8_t *pos, int n, int hits, int len, int rot, int mode)
 {
     int i;
     for (i = 0; i < n; i++) {
@@ -157,7 +157,7 @@ void qd_tl_euclid(qd_pattern_t *p, int t, const uint8_t *pos, int n, int hits, i
     }
 }
 
-int qd_tl_double(qd_pattern_t *p, int t, qd_tset_t *only)
+FZ_COLD int qd_tl_double(qd_pattern_t *p, int t, qd_tset_t *only)
 {
     qd_tset_t *ts = only ? only : &p->trk[t];
     const int loop = qd_track_loop(ts);
@@ -183,7 +183,7 @@ int qd_tl_double(qd_pattern_t *p, int t, qd_tset_t *only)
 static int tl_fdiv(int a, int b) { return a >= 0 ? a / b : -((b - 1 - a) / b); }   /* (floor; b > 0) */
 static int tl_clampi(int v, int lo, int hi);
 static int tl_abs(int v) { return v < 0 ? -v : v; }
-void qd_tl_stretch_to(int i, int mic, int num, int den, int m, int *j, int *mo)
+FZ_COLD void qd_tl_stretch_to(int i, int mic, int num, int den, int m, int *j, int *mo)
 {
     const int tt = tl_fdiv(2 * (i * 24 + mic) * num + den, 2 * den);   /* (the new time in 24ths, rounded) */
     const int k = tl_clampi(tl_fdiv(tt + 12, 24), 0, m - 1);
@@ -194,7 +194,7 @@ void qd_tl_stretch_to(int i, int mic, int num, int den, int m, int *j, int *mo)
 static int tl_bit(const uint8_t *b, int i) { return b[i >> 3] >> (i & 7) & 1; }
 static void tl_set(uint8_t *b, int i) { b[i >> 3] |= (uint8_t)(1u << (i & 7)); }
 
-void qd_tl_stretch(qd_pattern_t *p, int t, const uint8_t *pos, int n, int base, int m, int num, int den)
+FZ_COLD void qd_tl_stretch(qd_pattern_t *p, int t, const uint8_t *pos, int n, int base, int m, int num, int den)
 {
     qd_step_t *S = p->step[t];
     const qd_sdef_t *d = &p->trk[t].def;
@@ -267,7 +267,7 @@ void qd_tl_rung(int r, int *num, int *den)
     *num = TL_RUNG[k][r < 0], *den = TL_RUNG[k][r >= 0];
 }
 
-int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *rp, int fit, qd_tset_t *only)
+FZ_COLD int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *rp, int fit, qd_tset_t *only)
 {
     qd_tset_t *ts = only ? only : &p->trk[t];
     uint8_t pos[QD_NSTEP];
@@ -315,7 +315,7 @@ static void tl_halve_page(qd_tset_t *ts, int page)
     ts->pend[page] = (uint8_t)(a + (m >= 2 ? m / 2 : 1) - 1);
 }
 
-void qd_tl_length(qd_pattern_t *p, int t, int page, int pw, qd_tset_t *only)
+FZ_COLD void qd_tl_length(qd_pattern_t *p, int t, int page, int pw, qd_tset_t *only)
 {
     qd_tset_t *ts = only ? only : &p->trk[t];
     for (; pw > 0; pw--) {
@@ -369,13 +369,13 @@ uint32_t qd_tl_hash(uint32_t seed, int t, int i)       /* (an integer mix: xorsh
 static int tl_clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 static int tl_spread(uint32_t h, int k) { return k ? (int)(h % (uint32_t)(2 * k + 1)) - k : 0; }   /* -k..k */
 
-int qd_tl_random_on(uint32_t seed, int t, int i, int dens)
+FZ_COLD int qd_tl_random_on(uint32_t seed, int t, int i, int dens)
 {
     return (int)(qd_tl_hash(seed, t, i) & 0xFFu) * 100 < dens * 256;
 }
 
-void qd_tl_random(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int dens, int notes, int vel,
-                  int chance, int scale, int root)
+FZ_COLD void qd_tl_random(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int dens, int notes,
+                          int vel, int chance, int scale, int root)
 {
     const qd_sdef_t *d = &p->trk[t].def;
     int i;
@@ -412,7 +412,7 @@ void qd_tl_humanize_one(uint32_t h, int micro, int vel, int *m, int *v)
         *v = tl_clampi(*v + tl_spread(h >> 12, vel), 1, 127);
 }
 
-void qd_tl_humanize(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int micro, int vel)
+FZ_COLD void qd_tl_humanize(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int micro, int vel)
 {
     int i;
     for (i = 0; i < n; i++) {
@@ -448,7 +448,7 @@ void qd_tl_quantize_one(const qd_step_t *st, const qd_sdef_t *d, int grid, int a
         *v = d->vel + (st->vel - d->vel) * (100 - tl_clampi(vamt, 0, 100)) / 100;
 }
 
-void qd_tl_quantize(qd_pattern_t *p, int t, const uint8_t *pos, int n, int grid, int amt, int vamt)
+FZ_COLD void qd_tl_quantize(qd_pattern_t *p, int t, const uint8_t *pos, int n, int grid, int amt, int vamt)
 {
     const qd_sdef_t *d = &p->trk[t].def;
     int i;
@@ -489,13 +489,13 @@ int qd_tl_grids_level(int i, int x, int y, int part)
     return top + (bot - top) * uy / 256;
 }
 
-int qd_tl_grids_at(uint32_t seed, int t, int i, int x, int y, int part, int chaos)
+FZ_COLD int qd_tl_grids_at(uint32_t seed, int t, int i, int x, int y, int part, int chaos)
 {
     const int l = qd_tl_grids_level(i, x, y, part);
     return chaos ? tl_clampi(l + ((int)(qd_tl_hash(seed, t, i) & 0xFFu) - 128) * chaos / 128, 0, 255) : l;
 }
 
-void qd_tl_grids(qd_pattern_t *p, int t, const uint8_t *pos, int n, int x, int y, int dens, int part, int chaos,
+FZ_COLD void qd_tl_grids(qd_pattern_t *p, int t, const uint8_t *pos, int n, int x, int y, int dens, int part, int chaos,
                  uint32_t seed)
 {
     int i;

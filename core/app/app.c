@@ -28,7 +28,7 @@ void qd_app_tempo(qd_app_t *a, int bpm)
     qd_fx_tempo(a->bpm);
 }
 
-void qd_app_init(qd_app_t *a)
+FZ_COLD void qd_app_init(qd_app_t *a)
 {
     int t;
     memset(a, 0, sizeof *a);

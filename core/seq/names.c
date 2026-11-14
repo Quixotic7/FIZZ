@@ -85,7 +85,7 @@ static void nm_fit(char *s)                             /* (at most twelve, no h
         s[--n] = 0;
 }
 
-void qd_name_rnd(uint32_t *seed, char *out)
+FZ_COLD void qd_name_rnd(uint32_t *seed, char *out)
 {
     char d[32], t[32];
     int k;
@@ -105,7 +105,7 @@ void qd_name_rnd(uint32_t *seed, char *out)
 }
 
 /* namesizer's getWordTypeAtRandom and phonic_nonsense (its types 1 and 2 as namesizer has them) */
-void qd_name_phonic(uint32_t *seed, char *out)
+FZ_COLD void qd_name_phonic(uint32_t *seed, char *out)
 {
     const float r = nm_unit(seed);
     char w[32] = "";
@@ -124,7 +124,7 @@ void qd_name_phonic(uint32_t *seed, char *out)
 }
 
 /* namesizer's new_word: length 4..8, a hyphen in the middle half the time, a funky piece a fifth of the letters */
-void qd_name_word(uint32_t *seed, char *out)
+FZ_COLD void qd_name_word(uint32_t *seed, char *out)
 {
     char w[64];
     int k;
@@ -168,7 +168,7 @@ static int nm_add(char (*out)[QD_NAME_MAX + 1], int *kind, int n, const char *nm
     return n + 1;
 }
 
-int qd_name_ideas(uint32_t seed, const int16_t *patch, char (*out)[QD_NAME_MAX + 1], int *kind, int max)
+FZ_COLD int qd_name_ideas(uint32_t seed, const int16_t *patch, char (*out)[QD_NAME_MAX + 1], int *kind, int max)
 {
     /* the order: a pair (the suggestion), the sound's, then pairs between a phonic word, a cosmic word, the sound's */
     static const uint8_t PLAN[12] = {QD_NK_RND, QD_NK_SOUND, QD_NK_RND, QD_NK_PHONIC, QD_NK_RND, QD_NK_SOUND,
@@ -211,7 +211,7 @@ int qd_name_ideas(uint32_t seed, const int16_t *patch, char (*out)[QD_NAME_MAX +
     return n;
 }
 
-int qd_name_project_ideas(uint32_t seed, const char *own, char (*out)[QD_NAME_MAX + 1], int *kind, int max)
+FZ_COLD int qd_name_project_ideas(uint32_t seed, const char *own, char (*out)[QD_NAME_MAX + 1], int *kind, int max)
 {
     static const uint8_t PLAN[11] = {QD_NK_RND, QD_NK_RND, QD_NK_PHONIC, QD_NK_RND, QD_NK_RND, QD_NK_WORD, QD_NK_RND,
                                      QD_NK_RND, QD_NK_PHONIC, QD_NK_RND, QD_NK_RND};
@@ -235,7 +235,7 @@ int qd_name_project_ideas(uint32_t seed, const char *own, char (*out)[QD_NAME_MA
     return n;
 }
 
-void qd_name_track_roll(uint32_t *seed, int kind, const char *avoid, char *out)
+FZ_COLD void qd_name_track_roll(uint32_t *seed, int kind, const char *avoid, char *out)
 {
     const char *kn = qd_preset_kind_name(kind);
     int tries;
@@ -261,7 +261,7 @@ void qd_name_track_roll(uint32_t *seed, int kind, const char *avoid, char *out)
     qd_name_roll(seed, 0, avoid, out);
 }
 
-int qd_name_roll(uint32_t *seed, const int16_t *patch, const char *avoid, char *out)
+FZ_COLD int qd_name_roll(uint32_t *seed, const int16_t *patch, const char *avoid, char *out)
 {
     char snd[8][QD_NAME_MAX + 1];
     const int nsnd = patch ? qd_sound_ideas(patch, snd, 8) : 0;

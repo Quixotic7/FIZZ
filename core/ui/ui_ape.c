@@ -575,7 +575,7 @@ static void ap_ext(const ui_turn_t *v)
 }
 
 /* ---------------------------------------------------------------- the takeover */
-static void ap_burst(const ap_box_t *B, float a0, float seed, int ns, float R)
+static FZ_COLD void ap_burst(const ap_box_t *B, float a0, float seed, int ns, float R)
 {
     static const qd_rgb SC[4] = {UI_KSEL, AP_CYAN, AP_FUR, AP_LEAF};
     float u;
@@ -614,7 +614,7 @@ static void ap_rings(const ap_box_t *B, float t, int front)
 
 /* the scene: tap n of a count (2026-10-25: or the tempo's beats, ui_ape_tempo), since its time; b0, b1 the BPM of the
  * last two, value the BPM shown in bc; tap: the TAP takeover's head and dots */
-static void ap_draw(const ui_turn_t *v, int n, float since, int b0, int b1, int value, qd_rgb bc, int tap)
+static FZ_COLD void ap_draw(const ui_turn_t *v, int n, float since, int b0, int b1, int value, qd_rgb bc, int tap)
 {
     const float t = v->t;
     const int bpm = n >= 2 ? b0 : 0;

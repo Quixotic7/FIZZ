@@ -50,6 +50,9 @@ float fz_sinf(float x)
     y = 1.2732395f * x - 0.4052847f * x * fabsf(x);
     return 0.225f * (y * fabsf(y) - y) + y;
 }
+#if defined(__clang__)
+__attribute__((minsize))                /* (2026-11-14: a call to fz_sinf, not -Os's copy of it: 100 B) */
+#endif
 float fz_cosf(float x) { return fz_sinf(x + 1.5707963f); }
 float fz_expf(float x)
 {
