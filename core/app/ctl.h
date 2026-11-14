@@ -1144,6 +1144,13 @@ int qd_rec_key_note(const struct qd_app *a, int key);   /* the keyboard's note o
 struct qd_leds;
 void qd_ctl_leds(const struct qd_app *a, struct qd_leds *out);
 void qd_ctl_sounding(const struct qd_app *a, uint8_t *notes);   /* the selected track's notes sounding (128) */
+/* 2026-11-13 (owner): one key-light rule on every page: key held or its note n sounding (notes[n] & 1): lit; else the
+ * scale's root, a note of the scale, out of it */
+int qd_key_led(const struct qd_app *a, int key, int n, const uint8_t *notes, int sc, int rt);
+/* 2026-11-13 (owner): a step row's W LEDs on every page: the playhead's key inverted, the selected steps (sel, the page
+ * shown's) blinking at one rate (QD_FAST_MS) */
+void qd_leds_row(const struct qd_app *a, uint8_t *key, uint16_t sel);
+void qd_leds_steps(const struct qd_app *a, uint8_t *key, uint16_t sel);   /* .. the page's steps first (as the step view) */
 int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig flash (80 ms) */
 #define QD_LED_BREATH_MS 1500u
 uint8_t qd_led_breath(uint32_t ms);

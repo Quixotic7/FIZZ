@@ -149,7 +149,7 @@ void ui_keys_draw(const ui_keys_t *v)
         uint16_t trig = 0;
         for (i = 0; i < 16; i++)
             trig |= (uint16_t)((v->page_trig[i] != 0) << i);
-        ui_page_row(38.f, trig, v->sel, c, v->ksteps && v->rec != 1 ? v->play : -1);   /* (above the sound's name, 12
+        ui_page_row(38.f, trig, v->sel, c, v->rec != 1 ? v->play : -1);   /* (above the sound's name, 12
                                                          * px: the owner, 2026-11-10; STEPS: the playhead too) */
     }
     if (v->rec == 1) {

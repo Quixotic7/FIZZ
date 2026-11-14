@@ -745,8 +745,8 @@ void qd_tools_leds(const qd_app_t *a, uint8_t *key)
     int i;
     for (i = 0; i < 16; i++)                            /* W: the page's steps as the change makes them (the ghosts dim,
                                                          * the steps that do not play dark), the selected blinking */
-        key[QD_WHITE_KEY[i]] = (sel >> i) & 1u ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
-                             : !((inr >> i) & 1u) ? QD_LED_OFF : on[i] ? QD_LED_LIT : was[i] ? QD_LED_DIM : QD_LED_OFF;
+        key[QD_WHITE_KEY[i]] = !((inr >> i) & 1u) ? QD_LED_OFF : on[i] ? QD_LED_LIT : was[i] ? QD_LED_DIM : QD_LED_OFF;
+    qd_leds_row(a, key, sel);                           /* (2026-11-13, owner: the playhead, the one blink) */
     for (i = 0; i < QD_TL_N; i++)                       /* the tools (B6 both of its two), B7 the scope; B11 the hold
                                                          * key (ctl_leds.c) */
         key[QD_BLACK_KEY[i]] = qd_tools_tool_key(T->tool) == i ? QD_LED_LIT : QD_LED_DIM;

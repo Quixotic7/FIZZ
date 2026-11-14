@@ -541,16 +541,8 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
     memset(key, 0, QD_NKEY);
     if (!lane && u->mode == QD_MODE_STEP) {             /* P1.6e, STEPS: the page's steps as in the step view (a trig
                                                          * lit, a LOCK dim, none faint), held ones blinking */
-        const qd_pattern_t *p = qd_ctl_cpat(a);
-        for (k = 0; k < 16; k++) {
-            const int st = u->page[a->sel] * QD_PAGE + k, ty = qd_step_type(p, a->sel, st);
-            int i, sel = (u->mfx_wheld >> k) & 1u;
-            for (i = 0; i < u->nheld && !u->mfx_wheld; i++)
-                sel |= u->held[i] == st;
-            key[QD_WHITE_KEY[k]] = sel ? (bl ? QD_LED_LIT : QD_LED_OFF)
-                                 : !qd_page_in_range(&p->trk[a->sel], st) ? QD_LED_OFF
-                                 : ty == QD_TRIG_LOCK ? QD_LED_DIM : ty ? QD_LED_LIT : QD_LED_FAINT;
-        }
+        qd_leds_steps(a, key, u->mfx_wheld ? u->mfx_wheld : qd_sel_mask(u, u->page[a->sel]));   /* (2026-11-13,
+                                                         * owner: the playhead too, the step view's blink) */
     }
     if (u->mfx_wheld && !lane && u->mode == QD_MODE_STEP) {   /* (2026-11-13, owner: W keys held: the black keys
                                                          * their group's shortcuts, B1 OFF, B2..B6 1..5, B11 TRACK; the
@@ -596,9 +588,8 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
         qd_ctl_sounding(a, notes);
         qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
         for (k = 0; k < 16; k++) {
-            const int n = qd_snd_scale_note(a, k);
-            key[QD_WHITE_KEY[k]] = n >= 0 && n < 128 && notes[n] ? QD_LED_LIT : ((n % 12) + 12) % 12 == rt ? QD_LED_ROOT
-                                                                                                    : QD_LED_SCALE;
+            key[QD_WHITE_KEY[k]] = (uint8_t)qd_key_led(a, QD_WHITE_KEY[k], qd_snd_scale_note(a, k), notes, sc, rt);
+                                                        /* (2026-11-13, owner: a key held lit at once, as elsewhere) */
         }
     }
 }

@@ -462,15 +462,8 @@ void qd_keys_leds(const qd_app_t *a, uint8_t *key)
         } else {
             n = QD_NOTE0 + i + 12 * a->oct;
         }
-        if (((a->keys_held >> i) & 1u) || (n >= 0 && n < 128 && notes[n]))   /* (2026-11-11, owner: a note sounding
-                                                         * lights the key of its own pitch, not every key that plays it) */
-            key[i] = QD_LED_LIT;
-        else if (n >= 0 && n < 128 && ((n % 12) + 12) % 12 == rt)
-            key[i] = QD_LED_ROOT;
-        else if (n >= 0 && n < 128 && qd_scale_has(sc, rt, n))
-            key[i] = QD_LED_SCALE;
-        else
-            key[i] = QD_LED_OFF;
+        key[i] = (uint8_t)qd_key_led(a, i, n, notes, sc, rt);   /* (2026-11-11, owner: a note sounding lights the key
+                                                         * of its own pitch, not every key that plays it) */
     }
 }
 

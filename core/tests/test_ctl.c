@@ -9233,6 +9233,12 @@ static void g_p16l_labels(void)
               !strcmp(lab(LBK(0)), "PLAY/MOD") && !strcmp(lab(LBK(8)), "DICE") && !strcmp(lab(LBT(QD_B_SOUND)), "CLOSE") &&
               labels_clean(), "the sound editor on FILTER: KNOB 1 %s, KNOB 2 %s, the groups, B9 DICE, EDIT CLOSE",
           lab(LKN(QD_K_1)), lab(LKN(QD_K_2)));
+    black(B11);                                         /* (the editor's keys on, FULL) */
+    A.proj.rec_ekeys = 1;
+    CHECK(qd_snd_keys(&A) && strcmp(lab(LBK(8)), "DICE") && strcmp(lab(LBK(9)), "NEW SOUND"),
+          "FULL: B9 / B10 play notes, named so, not DICE / NEW SOUND (2026-11-13, owner; %s)", lab(LBK(8)));
+    A.proj.rec_ekeys = 0;
+    black(B11);
     btap(QD_B_SOUND);
     btap(QD_B_HOME);
     run(600);
@@ -10538,6 +10544,25 @@ static void g_page_open(void)
           "the picker gone (%d)", bad);
 }
 
+/* 2026-11-13 (owner, stage 2): every step row shows the playhead, the selected steps blink at one rate: MIDI FX's STEPS
+ * as the step view */
+static void g_rows_one(void)
+{
+    qd_leds_t l;
+    int s, w, ok;
+    start();
+    for (w = 0; w < 16; w++)
+        qd_step_clear(PAT(), 0, w);
+    btap(QD_B_KEYS);
+    btap(QD_B_PLAY);
+    run(300);
+    s = qd_seq_track_step(&A.seq, 0);
+    l = leds();
+    ok = s >= 0 && s < 16 && l.key[WK(s)] == QD_LED_LIT && l.key[WK((s + 8) % 16)] == QD_LED_FAINT;
+    btap(QD_B_PLAY);
+    CHECK(qd_mfx_open(&A) && ok, "MIDI FX's STEPS, playing: the playhead's W key inverted (step %d)", s + 1);
+}
+
 /* 2026-11-13 (owner): the sound editor's LFO keys (B6..B8) and B1: a quick click the page; held (the mapping) never */
 static void g_lfo_hold(void)
 {
@@ -10907,6 +10932,7 @@ int main(void)
         {"2026-11-13: the LFO keys held: never the page", g_lfo_hold},
         {"2026-11-13: stage 2: a W waits QD_TAP_MS on the mix; LFO's last selection on every page", g_w_wait_everywhere},
         {"2026-11-13: stage 2: a page opened keeps the lock, clears the popup", g_page_open},
+        {"2026-11-13: stage 2: the playhead on every step row", g_rows_one},
         {"2026-11-13: MIDI FX keeps B11's global state", g_mfx_b11_global},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
