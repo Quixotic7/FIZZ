@@ -193,7 +193,9 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 The single-core package is no longer built or shipped (2026-11-15, the owner: "Dual Core stuff is ironed out and
 Single core is a kneecapped experience"): every package is the dual build. The current sizes are in
-`firmware/app/build/fizz-size.txt` and `fizz-ble-size.txt` and in firmware/BUDGET.md.
+`firmware/app/build/fizz-size.txt` and `fizz-ble-size.txt` and in firmware/BUDGET.md. After the 2026-11-15 diet
+(BUDGET.md "The 2026-11-15 diet"): USB slot 20,180 B free, RAM 1,684; Bluetooth slot 12,808 B free, RAM 784, its two
+blobs 180 and 364 B free.
 
 - **Flash is the binding limit.** Any new feature must find room first: trims, or dead code removed.
 - **New state** goes in `qd_app_t`, `qd_sx_t` or `qd_sx_work_t` (the pool), never in file statics in main RAM.

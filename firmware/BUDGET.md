@@ -463,3 +463,33 @@ simulator's `firmware/app/tests/ble_midi.txt` with `fizz-ble_host`).
   PRESETS there: from STATUS's package bytes (absent: 8 and 256). Over Bluetooth MIDI (the FM-1's own port, when
   a computer is connected) everything but a restore (FZSR) and a blob's write (FZXD) works as over USB: replies come
   back on the port the request came on.
+
+## The 2026-11-15 diet (both packages; branch ble-diet)
+
+Room for a feature that needs ~10 KB of the app slot and ~250 B of main RAM in both packages. No feature removed, no
+audio code moved out of RAM, no unit's optimisation changed. Measured from master 1101abd's builds:
+
+| saving | USB slot | Bluetooth slot | main RAM | risk on the unit |
+| --- | --- | --- | --- | --- |
+| the single-core package dropped (build.py, release.py, docs) | 0 | 0 | 0 | none: the symbol tables are identical |
+| player.o's and sounds.o's .bss in NOINIT (fizz.ld .fz_ni), not main RAM | 0 | 0 | 580 USB, 560 BLE | low: SRAM either way; cleared by app_init / fz_restart as the other units there |
+| fm1-base's FONT_S cut to 32..95 (build.py generate): the platform's screens and fz_message are all capitals; gfx.c folds lower case | 2,848 | 2,848 | 0 | low: a lower-case letter on a platform screen shows as its capital, `{ \| } ~` and a backtick as '?' (none are drawn) |
+| qd_div.h's long divisions once (QD_DIV_SHARED, fz_port.c QD_DIV_IMPL), not one copy a unit | 2,320 | 2,288 | 0 | low: the same code; every copy was in the flash already |
+| fb_index's exact entry by a scan of QF_PAL, not QF_XK / QF_XI (2,560 B of tables; same entry for all 65,536 RGB565 values) | 2,560 | 2,576 | 0 | low: ~256 compares on a miss of the 32-colour cache, main loop only (the drawing a little slower on a frame of many new colours; not measured on the unit) |
+| no zero-filled constants for "nothing there" (view.c's arp model, 540 B; qd_fx.c's CHAIN inputs, one of two 128 B) | 708 | 704 | 0 | none |
+| **in all** | **8,436** | **8,416** | **580 / 560** | |
+
+After it: USB 561,384 B of the slot (20,180 free), RAM 96,620 (1,684 free), NOINIT 2,928 free, its blob as before;
+Bluetooth 568,756 B (12,808 free), RAM 97,520 (784 free), NOINIT 1,216 free, the blobs as before (first 180 free,
+second 364).
+
+Found, not taken (larger, or in files another branch changes):
+- JieLi's Bluetooth libraries still link classic Bluetooth's pieces (L2CAP's classic channels, AVCTP / AVRCP, A2DP,
+  HFP / HID / SPP / SDP stubs, LMP's classic link: ~19 KB of names in the image, some of it LE's too). More
+  `BLE_TRIM` stubs (fm1-base tools/build.py) could cut several KB, but Melodee's spike showed stubs there can stop
+  the radio (avctp_user.c.o) or crash a connection (ll_create_conn_link): each needs the unit.
+- The stats reply (app.c fz_stats_reply, 5.4 KB at minsize, ~13 B a field): a table of fields would be ~6 B a field
+  (~2 KB), a rewrite of the port's debugging lines.
+- The main-loop units at -Oz (app.o ~1 KB, view.o ~370, sounds.o ~240, the rest under 100 each): the owner wants
+  the drawing at -Os.
+
