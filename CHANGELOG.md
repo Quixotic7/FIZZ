@@ -11,6 +11,10 @@ its text becomes the release's notes on the install page and on GitHub.
 
 - There is no single-core package any more: the USB and the Bluetooth packages both play across the FM-1's two
   cores.
+- **ATRIUM**, a demo song, is the first project of a new or erased FM-1 (and of FIZZ in the browser): ten patterns at
+  71 BPM, a dusty beat under pads, a bell and a brassy lead, tuned a little flat like an old tape. Its sounds are
+  factory presets. An FM-1 that already has projects keeps them all; a project 1 with the old three-pattern demo
+  shows its unchanged demo patterns blank (the ones you changed are kept).
 
 ## 0.12.0 (2026-11-14)
 

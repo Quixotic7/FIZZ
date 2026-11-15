@@ -817,7 +817,7 @@ Three things, one job each:
     (their sounds stay read only).
 - **The Sound Pool** (lime) is the project's palette of up to 128 sounds, the ones its steps lock. **The pool holds
   references to presets** (P1.5w), not copies: a pool sound is the preset itself, as it is now, so replacing one of MY
-  presets changes it in every project's pool. **A new project's pool starts empty** (the demo project keeps its
+  presets changes it in every project's pool. **A new project's pool starts empty** (the demo project ATRIUM starts with its
   sounds). The track's own sound is still a copy (loaded from a preset, edited in EDIT, saved with the pattern).
 
 **PRESETS with nothing held** opens the **library browser**, in every view:
@@ -1290,6 +1290,12 @@ bright).
   W turns orange, the same W again replaces it). **B11 + W** deletes one (the one you work on: a blank project in
   its place). **B10** names the current project (on the keybed, as above: F2 keeps it, HOME the old one).
 - **F1** or **HOME** leaves; **SAVE** clicked goes to SAVE PRESET.
+- **The demo song ATRIUM** is project 1 of a new (or erased) FM-1: ten four-bar patterns A01..A10 at 71 BPM (the
+  opening, the beat, the tune, its variation, a bare one, the bridge, the tune and its variation in full, the coda,
+  the end), six named tracks, a pool of 17 factory presets, MIDI FX group 1 on the hats, its own effects. Its
+  patterns are built into FIZZ: they take no room until you change one. A project 1 that already holds the older
+  three-pattern demo stays as it is; its A01..A03 are blank now unless you had changed them (those you changed are
+  kept). ATRIUM is made only when the FM-1 starts with no project to open (new, or its projects erased).
 
 ## Not built yet
 
