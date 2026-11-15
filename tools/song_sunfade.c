@@ -196,6 +196,14 @@ static void sounds(qd_app_t *a, qd_pattern_t *p)
 
 int fizz_tour_song(qd_app_t *a, int argc, char **argv)
 {
+    /* (eight of these, and OLD FILM and TOY PIANO below, left the pack later: presets/pack/sunfade-only.txt) */
+    static const char *const KITS[30] = {
+        "DUST KICK", "DUST SNARE", "DUST CLAP", "DUST RIM", "DUST HAT", "DUST OPEN", "DUST TOM", "DUST BELL",
+        "DUST SHAKER", "DUST CRASH",
+        "TAPE KICK", "TAPE SNARE", "TAPE SNAP", "TAPE TICK", "TAPE HAT", "TAPE OPEN", "TAPE TOM", "TAPE BLOCK",
+        "TAPE SHAKE", "TAPE HISS",
+        "808 KICK", "808 SNARE", "808 CLAP", "808 RIM", "808 HAT", "808 OPEN", "808 TOM", "808 CONGA", "808 COWBELL",
+        "808 CYMBAL"};
     static const char *const POOL[] = {"808 BASS", "OLD FILM", "TOY PIANO", "HAZY BELL", "HAZE", "SUB", "MUSIC BOX",
                                        "WIND", "TAPE PAD", "GAMELAN"};
     /* level, chorus, delay, reverb, pan */
@@ -229,16 +237,12 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
         fprintf(stderr, "song: MY PRESETS is full\n");
         return 1;
     }
-    printf("song: %d presets stored (%d in the pack)\n", n, FIZZ_PACK_N);
+    printf("song: %d presets stored (%d in the pack)\n", n, FIZZ_PACK_LIB);
     if (argc > 1 && !strcmp(argv[1], "pack"))
         return 0;
     /* the pool: three kits of ten, then the song's sounds */
-    for (i = 0; i < 10; i++)
-        pool_add(a, pack_find("DUST KICK") + i);
-    for (i = 0; i < 10; i++)
-        pool_add(a, pack_find("TAPE KICK") + i);
-    for (i = 0; i < 10; i++)
-        pool_add(a, pack_find("808 KICK") + i);
+    for (i = 0; i < 30; i++)
+        pool_add(a, pack_find(KITS[i]));
     for (i = 0; i < (int)(sizeof POOL / sizeof POOL[0]); i++)
         if (pool_add(a, pack_find(POOL[i])) != P_BASS + i) {
             fprintf(stderr, "song: the pool is not empty (a new project first)\n");

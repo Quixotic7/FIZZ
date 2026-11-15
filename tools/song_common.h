@@ -24,35 +24,54 @@ static int pack_find(const char *name)
     return 0;
 }
 
-/* the pack into MY PRESETS (a preset of that name already there: kept) */
+/* pack preset i into MY PRESETS (one of that name already there: kept) -> 1 stored, 0 it was there, -1 no room */
+static int pack_put(qd_app_t *a, int i)
+{
+    const fizz_pack_t *k = &FIZZ_PACK[i];
+    qd_sound_t s;
+    int slot = -1, j, n = 0;
+    for (j = 0; j < QD_NLIB && slot < 0; j++)
+        if (qd_lib_used(a, j) && !strcmp(qd_lib_name(a, j), k->name))
+            slot = j;
+    if (slot < 0) {
+        slot = qd_lib_free_slot(a);
+        if (slot < 0 || !qd_lib_store_ex(a, slot, k->name, k->patch, 0))
+            return -1;
+        n = 1;
+    }
+    qd_lib_read(a, slot, &s);
+    s.tags = k->tag, s.pan = k->pan, s.chorus = k->chorus, s.delay = k->delay, s.reverb = k->reverb;
+    qd_lib_write(a, slot, &s);
+    LIB[i] = slot;
+    return n;
+}
+
+/* the pack into MY PRESETS: its first FIZZ_PACK_LIB. The table's others (presets/pack/sunfade-only.txt) are not in
+ * the pack; one goes in when a song names it (pack_at) */
 static int pack_store(qd_app_t *a)
 {
     int i, n = 0;
-    for (i = 0; i < FIZZ_PACK_N; i++) {
-        const fizz_pack_t *k = &FIZZ_PACK[i];
-        qd_sound_t s;
-        int slot = -1, j;
-        for (j = 0; j < QD_NLIB && slot < 0; j++)
-            if (qd_lib_used(a, j) && !strcmp(qd_lib_name(a, j), k->name))
-                slot = j;
-        if (slot < 0) {
-            slot = qd_lib_free_slot(a);
-            if (slot < 0 || !qd_lib_store_ex(a, slot, k->name, k->patch, 0))
-                return -1;
-            n++;
-        }
-        qd_lib_read(a, slot, &s);
-        s.tags = k->tag, s.pan = k->pan, s.chorus = k->chorus, s.delay = k->delay, s.reverb = k->reverb;
-        qd_lib_write(a, slot, &s);
-        LIB[i] = slot;
+    for (i = 0; i < FIZZ_PACK_N; i++)
+        LIB[i] = -1;
+    for (i = 0; i < FIZZ_PACK_LIB; i++) {
+        const int r = pack_put(a, i);
+        if (r < 0)
+            return -1;
+        n += r;
     }
     return n;
+}
+static int pack_at(qd_app_t *a, int i)
+{
+    if (LIB[i] < 0)
+        pack_put(a, i);
+    return LIB[i];
 }
 
 static int pool_add(qd_app_t *a, int i)
 {
     qd_sound_t s;
-    qd_lib_read(a, LIB[i], &s);
+    qd_lib_read(a, pack_at(a, i), &s);
     return qd_pool_add_sound(a, &s);
 }
 
@@ -63,7 +82,7 @@ static void tsound(qd_app_t *a, qd_pattern_t *p, int t, const char *name, int k)
     memcpy(p->snd[t].patch, FIZZ_PACK[i].patch, sizeof p->snd[t].patch);
     memset(p->snd[t].name, 0, sizeof p->snd[t].name);
     strncpy(p->snd[t].name, name, sizeof p->snd[t].name - 1);
-    p->snd[t].sound = (uint8_t)k, p->snd[t].edited = 0, p->snd[t].preset = qd_lib_preset(a, LIB[i]);
+    p->snd[t].sound = (uint8_t)k, p->snd[t].edited = 0, p->snd[t].preset = qd_lib_preset(a, pack_at(a, i));
 }
 
 static void note(qd_pattern_t *p, int t, int s, int n, int vel, int len)
