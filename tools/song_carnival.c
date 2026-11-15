@@ -2,7 +2,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* FIZZ's demo song "CARNIVAL": minimal techno house with Latin percussion. A kick on every beat, a short bass off it,
- * one chord stab into the delay, a kalimba's small figure that keeps changing, and never more than a few things at
+ * one chord stab into the delay, a pluck's small figure that keeps changing, and never more than a few things at
  * once: each pattern adds or takes away one. The percussion (congas, a clave, bongos, an agogo, timbales) and the
  * effects are sound locks, and the fourth bar of every pattern is a fill (make -C tools tour SONG=song_carnival.c;
  * `song` in a tour script, a new project first).
@@ -10,8 +10,8 @@
  * 124 BPM, straight sixteenths, A sharp (B flat) Ionian. Four bars a pattern (64 steps).
  *   T1 DRUMS   the 808 kit's kick and open hat, the LATIN cabasa between; the fills' toms and snare roll
  *   T2 BASS    FM BASS: off the kick (the off-beats and two ghosts), or rolling on every sixteenth but the kick's
- *   T3 STAB    DX EP: one four-note chord, short, off the beat, into the delay
- *   T4 LEAD    KALIMBA: a two-bar figure, and its answer
+ *   T3 STAB    JUNO STAB: one four-note chord (a saw, the filter closing, the chorus), off the beat, into the delay
+ *   T4 LEAD    JUNO PLUCK: a two-bar figure, and its answer
  *   T5 PAD     TAPE PAD: three notes, in the break and the peak only
  *   T6 PERC    the clap, the LATIN kit (conga, clave, bongo, agogo, timbales), and THE EFFECTS: single steps locking
  *              a blip, a laser tom, a radio, a gamelan, a hiss, each into the delay or the reverb
@@ -173,7 +173,7 @@ static void stab(qd_pattern_t *p, const uint8_t (*v)[4], int busy, int cut)
     for (b = 0; b < NBAR; b++)
         for (i = 0; i < (busy ? 4 : 2); i++)
             if (b * 16 + AT[i] < cut)
-                chord(p, T_KEYS, b * 16 + AT[i], v[b], 4, VEL[i], L2, 0);
+                chord(p, T_KEYS, b * 16 + AT[i], v[b], 4, VEL[i], i ? L1 : LS2, 0);
 }
 
 /* the pad: three notes a bar, held */
@@ -211,13 +211,13 @@ static const uint8_t V_PEAK[NBAR][4] = {{58, 62, 65, 69}, {58, 62, 65, 67}, {57,
 static const uint8_t D_HOME[NBAR][3] = {{65, 70, 74}, {65, 70, 74}, {67, 70, 74}, {65, 69, 72}};
 static const uint8_t D_PEAK[NBAR][3] = {{67, 70, 74}, {67, 70, 75}, {65, 70, 74}, {65, 69, 72}};
 
-enum { P_BASS = 31, P_EP, P_KALIMBA, P_PAD };
+enum { P_BASS = 31, P_STAB, P_PLUCK, P_PAD };
 static void sounds(qd_app_t *a, qd_pattern_t *p)
 {
     tsound(a, p, T_DR, "808 KICK", E_KICK);
     tsound(a, p, T_BA, "FM BASS", P_BASS);
-    tsound(a, p, T_KEYS, "DX EP", P_EP);
-    tsound(a, p, T_MEL, "KALIMBA", P_KALIMBA);
+    tsound(a, p, T_KEYS, "JUNO STAB", P_STAB);
+    tsound(a, p, T_MEL, "JUNO PLUCK", P_PLUCK);
     tsound(a, p, T_PAD, "TAPE PAD", P_PAD);
     tsound(a, p, T_PERC, "LATIN CONGA", K_CONGA);
     p->bpm = 124;
@@ -229,10 +229,10 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
 {
     static const char *const FXS[] = {"ZAP BLIP", "ZAP NOISE", "ZAP TOM", "ZAP CRASH", "RADIO", "TAPE HISS", "GAMELAN",
                                       "DUST BELL", "VINYL", "ZAP TICK"};
-    static const char *const POOL[] = {"FM BASS", "DX EP", "KALIMBA", "TAPE PAD"};
+    static const char *const POOL[] = {"FM BASS", "JUNO STAB", "JUNO PLUCK", "TAPE PAD"};
     /* level, chorus, delay, reverb, pan */
     static const struct { uint8_t level, chorus, delay, reverb; int8_t pan; } MIX[QD_NTRACK] = {
-        {108, 0, 0, 4, 0}, {106, 0, 0, 0, 0}, {98, 20, 34, 16, -12}, {98, 0, 38, 20, 12}, {88, 30, 0, 40, 0},
+        {108, 0, 0, 4, 0}, {106, 0, 0, 0, 0}, {98, 60, 34, 16, -12}, {108, 30, 38, 20, 12}, {88, 30, 0, 40, 0},
         {102, 0, 6, 12, 0}};
     static const char *const TNAME[QD_NTRACK] = {"DRUMS", "BASS", "STAB", "LEAD", "PAD", "PERC FX"};
     static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_KEYS, QD_PK_LEAD, QD_PK_PAD, QD_PK_FX};
@@ -287,7 +287,7 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
     drums(p, 1, 1, F_STOP), perc(p, 1, 1, F_STOP, 0), bass(p, R_HOME, 0, 0, HALF), stab(p, V_HOME, 0, HALF);
     sprinkle(p, 1);
 
-    /* A04 FIGURE: the kalimba's two bars, twice; the cabasa; the timbales */
+    /* A04 FIGURE: the pluck's two bars, twice; the cabasa; the timbales */
     p = qd_proj_pat(&a->proj, 3);
     sounds(a, p);
     drums(p, 1, 2, F_TIMBAL), perc(p, 1, 1, F_TIMBAL, 1), bass(p, R_HOME, 0, 0, LEN), stab(p, V_HOME, 0, LEN);
