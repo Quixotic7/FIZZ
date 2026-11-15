@@ -5,7 +5,7 @@
 # MOD and TRANSPOSE lanes.
 # The film's time is the video's time. A bar is 3.380 s (71 BPM), a pattern four bars; the chain A02 (the beat),
 # A03 (the tune), A07 (the tune, full), A08 (its variation, the arp), A09 (the coda, under the last three bars):
-# 0 the 3D title (two bars, promo/space.py), 13.52 the tune, 27.04 full, 40.56 the arp, 54.08 the coda.
+# 0 the idle title (one bar), 13.52 the tune, 27.04 full, 40.56 the arp, 54.08 the coda.
 # Every section starts on its bar line (its mark within about 60 ms of k x 3380.3 ms) and leaves the song as it was:
 # the rider's velocity comes back to 122, the tapped tempo is 71, the LFO's mapping is undone, TOOLS is put back.
 wait 3300
@@ -42,7 +42,7 @@ film take.rgb
 wav take.wav
 play
 mark intro
-# bars 1, 2, 0 .. 6.76 A02: OVERVIEW (the 3D FM-1 shows it in space; the title over it)
+# bars 1, 2, 0 .. 6.76 A02: OVERVIEW (the idle title lies over bar 1)
 wait 6760
 mark overview
 # bar 3, 6.76: OVERVIEW, the beat
