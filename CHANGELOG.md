@@ -9,6 +9,11 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+A new demo song, 93 new factory presets, SOUND's keys in your own order, and a preset browser that remembers its view.
+
+- **93 new factory presets**: drum kits (DUST, TAPE, 808, ZAP, LATIN, WOOD), basses, pads, bells, keys, leads and
+  textures, in the browser's ALL list with the factory's own. Six of the old factory presets are no longer listed
+  (projects that use them still play them). The browser's ALL list now holds 110 factory presets.
 - There is no single-core package any more: the USB and the Bluetooth packages both play across the FM-1's two
   cores.
 - **ATRIUM**, a demo song, is the first project of a new or erased FM-1 (and of FIZZ in the browser): ten patterns at

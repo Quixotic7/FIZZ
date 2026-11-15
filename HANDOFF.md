@@ -10,6 +10,18 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **2026-11-15, FIZZ 0.13.0 (branch factory-atrium merged to master):** the owner's 93-preset pack is factory ids
+  24..116 (`core/seq/factory_tab.h` from `tools/gen_factory.py`; six old ids retired, still resolving by id);
+  **ATRIUM is the built-in demo** (`core/seq/demo.c`, the header's demo byte 2; the old demo's generator is in host
+  builds only, `-DQD_DEMO_HOST`, for the tests' fixtures; `tools/tour.c` starts on ATRIUM as the firmware does); the
+  single-core package is gone and the diet freed 8.4 KB (`firmware/BUDGET.md`); the preset browser keeps its source and
+  kind; SOUND's keys are remappable per project (`qd_project_t.kmap`, record 'K' 1). Sizes: USB 13,316 B of slot free,
+  Bluetooth 5,928 B, RAM 2,068 / 784 B. The owner's unit was wiped onto ATRIUM (their old store:
+  `../FIZZ-saves/2026-11-15-before-atrium-factory.bin`). The promo (`promo/`, 57 s) films ATRIUM; `tools/song_promo.c`
+  gives A08's bells an arp for the film only. **Open:** `make -C tools test-pace` hangs (every pace's render_frames, at
+  `tools/render_p13q.c:263`: track 3's page 2 never joins the loop in the device profile; it last completed here on
+  2026-10-25, so it predates this work); the iOS app's `FizzCore.xcframework` still holds the old factory and demo
+  (`ios/engine/build_core.sh`); an old Manager against the new firmware pairs factory rows wrongly (retired ids).
 - **2026-10-27, after beta.9, on master and the unit (unreleased):** Geek Out's fifth page **TRACKS** (QD_VIEW_TRACKS,
   the owner's spec: six equal rows filling the screen, no header, each track's voices before the FX in its colour, a
   silent track one flat line). The mixer's `vtap` copies each voice's block after DRIVE (mix.c, RAM code: 72 B left);

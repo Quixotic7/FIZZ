@@ -77,6 +77,12 @@ function tapBtn(e, p, name, ms = 80) { p.btn(name, true); run(e, ms); p.btn(name
 function tapKey(e, p, k, ms = 80) { p.key(k, true); run(e, ms); p.key(k, false); run(e, 60); }
 const blank = (px) => px.every((v) => v === px[0]);
 const diffPx = (a, b) => { let n = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++; return n; };
+// 2026-11-15: pixels that differ clearly (a channel by more than 48 of 255), not by a shade: an older build's shot is
+// taken seconds after its key taps, when the step row's outlines have settled a little dimmer, and with ATRIUM as
+// the demo (no steps on A01's track 1) that shimmer outweighed the two steps the checks are about
+const chan = (v, k) => (a16 ? [((v >> 11) & 31) << 3, ((v >> 5) & 63) << 2, (v & 31) << 3][k] : (v >>> (8 * k)) & 255);
+let a16 = false;
+const diffClear = (a, b) => { a16 = a.BYTES_PER_ELEMENT === 2; let n = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) { for (let k = 0; k < 3; k++) if (Math.abs(chan(a[i], k) - chan(b[i], k)) > 48) { n++; break; } } return n; };
 
 const wasm = fs.readFileSync(path.join(SITE, "fizz.wasm"));
 const module = await WebAssembly.compile(wasm);
@@ -454,7 +460,7 @@ e.dispose();
     run(blankE, 500); tapBtn(blankE, pb, "HOME"); run(blankE, 300);
     const blankShot = blankE.screen().pixels.slice(180 * 240);
     blankE.dispose();
-    const dOld = diffPx(newShot, oldShot), dBlank = diffPx(newShot, blankShot);
+    const dOld = diffClear(newShot, oldShot), dBlank = diffClear(newShot, blankShot);
     // 2026-10-24: an eight-track save (its projects' format 1) meets the six-track FIZZ: the projects start fresh,
     // MY PRESETS stay (persist.c prj_format_ok; the owner's decision)
     const was = readRegion(img), now = readRegion(after);
@@ -605,8 +611,8 @@ e.dispose();
     run(o.u, 1500);                                         // (the pool's "imported" pop-up gone: it fades over the rows)
     for (let k = 0; k < 3; k++) { o.pattern(k); for (const w of stepsOf[k]) tapKey(o.u, o.pp, W[w]); run(o.u, 200); oldRows.push(o.rows()); }
     // the MIDI FX group (since 0.12.0-beta.18: PRESETS the track's group, ALGORITHM the step cursor; a slot's key held +
-    // KNOB 1 its effect): group 1, slot 1 ARP
-    tapBtn(o.u, o.pp, "ARP"); o.turn(2, 1); run(o.u, 200);
+    // KNOB 1 its effect): group 2, slot 1 ARP (2026-11-15: group 1 is ATRIUM's hats', a RANDOM there already)
+    tapBtn(o.u, o.pp, "ARP"); o.turn(2, 1); run(o.u, 100); o.turn(2, 1); run(o.u, 200);
     o.pp.key(1, true); run(o.u, 500); o.turn(3, 1); run(o.u, 200); o.pp.key(1, false); run(o.u, 200);
     tapBtn(o.u, o.pp, "HOME"); run(o.u, 3000);
     const img = o.u.flash().bytes;
@@ -625,7 +631,7 @@ e.dispose();
       const mineOk = mine.every((nm, k) => { const d = dumps.find((q) => q.name === nm); return d && d.blob[2] === k + 1 && d.blob[3] === 2 * (k + 1) && d.blob[50] === 10 * (k + 1) && d.drive === 5 * k && d.pan === k - 1 && d.chorus === 10 * k && d.tags === k + 1; });
       const poolOk = pool.every((nm) => ents.some((q) => q.source === "pool" && q.name === nm));
       const pats = [];
-      for (let k = 0; k < 3; k++) { x.pattern(k); const r = x.rows(); pats.push({ old: diffPx(r, oldRows[k]), fresh: diffPx(r, freshRows[k]), r }); }
+      for (let k = 0; k < 3; k++) { x.pattern(k); const r = x.rows(); pats.push({ old: diffClear(r, oldRows[k]), fresh: diffClear(r, freshRows[k]), r }); }
       const patsOk = pats.every((q) => q.old < q.fresh);
       x.u.midiIn(labelsReq(true)); tapBtn(x.u, x.pp, "ARP");
       const lbl = x.pump(400).map(decodeLabels).filter(Boolean).at(-1);
@@ -652,7 +658,7 @@ e.dispose();
     n1.u.dispose();
     const n2 = await unit(module, img2);
     n2.pattern(0);
-    const editKept = diffPx(n2.rows(), edited) < diffPx(n2.rows(), oldRows[0]);
+    const editKept = diffClear(n2.rows(), edited) < diffClear(n2.rows(), oldRows[0]);
     oldRows[0] = edited;
     await look(n2, `edited here (pattern 1, W13), saved in ${info.version}'s records and booted again`);
     check(editKept, `the edit survives the rewrite (pattern 1's rows closer to the edited screen than to the old one)`);
