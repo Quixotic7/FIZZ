@@ -622,6 +622,45 @@ def tc(tool, *args):
 fb.tc = tc
 OUTP = "fizz-ble" if BLE_PKG else "fizz"       # the map's, the blobs' and the size report's names
 
+# ---- (2026-11-15, the diet) fm1-base's small face (FONT_S: the platform's own screens and FIZZ's fz_message, app.h
+# APP_SYS_TEXT) with the characters 32..95 only, as fm1-base's M and L faces: every text it draws is in capitals
+# (fm1-base's sys_text.c; FIZZ's tagline is empty and its backup off), and gfx.c folds a lower-case letter to its
+# capital in a face without them (glyph(); anything else missing draws '?'). The generated header's FONT_S cut to its
+# first 64 glyphs after fm1-base's generator wrote it (gen_font.py, the submodule, unchanged): 2.7 KB of the slot
+FONT_S_LAST = 95
+_generate = fb.generate
+
+
+def generate():
+    _generate()
+    h = fb.GEN / "felucca_font.h"
+    s = h.read_text()
+    n = FONT_S_LAST - 31
+    m = re.search(r"static const uint8_t FONT_S_DATA\[(\d+)\] = \{\n(.*?)\n\};\n"
+                  r"static const uint16_t FONT_S_OFF\[95\] = \{([^}]*)\};\n"
+                  r"static const uint8_t FONT_S_ADV\[95\] = \{([^}]*)\};\n"
+                  r"static const uint8_t FONT_S_BW\[95\] = \{([^}]*)\};\n"
+                  r"static const felucca_font_t FONT_S = \{ (\d+), (\d+), 32, 126, ", s, re.S)
+    if not m:
+        raise SystemExit("fizz: fm1-base's FONT_S (gen_font.py's felucca_font.h) changed: see build.py generate")
+    data = [int(x, 16) for x in re.findall(r"0x([0-9a-f]{2})", m[2])]
+    off = [int(x) for x in m[3].split(",")]
+    if len(data) != int(m[1]) or len(off) != 95:
+        raise SystemExit("fizz: FONT_S's tables do not read back: see build.py generate")
+    data = data[:off[n]]
+    rows = ",\n".join("    " + ", ".join(f"0x{b:02x}" for b in data[i:i + 24]) for i in range(0, len(data), 24))
+    new = (f"static const uint8_t FONT_S_DATA[{len(data)}] = {{\n{rows},\n}};\n"
+           f"static const uint16_t FONT_S_OFF[{n}] = {{{', '.join(map(str, off[:n]))}}};\n"
+           f"static const uint8_t FONT_S_ADV[{n}] = {{{', '.join(m[4].split(', ')[:n])}}};\n"
+           f"static const uint8_t FONT_S_BW[{n}] = {{{', '.join(m[5].split(', ')[:n])}}};\n"
+           f"static const felucca_font_t FONT_S = {{ {m[6]}, {m[7]}, 32, {FONT_S_LAST}, ")
+    t = s[:m.start()] + new + s[m.end():]
+    if t != s:
+        h.write_text(t)
+
+
+fb.generate = generate
+
 # ---- after the link: the blob, the stamp, the report
 _build_app = fb.build_app
 
