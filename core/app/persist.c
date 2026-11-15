@@ -27,8 +27,11 @@
  *   PAT / SND / LIB  (E1) 'P' 3 and 'S' 5: the packed patches are version-6 blobs (QD_QUAD_BLOB, 128 bytes: the values
  *        74..); 'P' 1..2 and 'S' 1..4 carry 96-byte blobs (their values 74.. at their defaults), and a 'P' 1..2's lock
  *        ids of the mix (74..78 then) move up past the new values (QD_LK_PAN ..)
- *   FTAG 'F' 1, the factory presets' tags as the owner set them (QD_NFACTORY bytes: 0x80 | tags, 0 the classifier's);
- *        in the library's store. P1.5w: 'F' 2, then the next MY preset id (u16)
+ *   FTAG 'F' 1, the factory presets' tags as the owner set them (23 bytes: 0x80 | tags, 0 the classifier's);
+ *        in the library's store. P1.5w: 'F' 2, then the next MY preset id (u16). 2026-11-15: 'F' 3, a tag byte for
+ *        every factory id (QD_NFACTORY of them; the record's length less 4 is their count), then the next id; a
+ *        'F' 1 / 2 gives the first 23 (the rest: their own tags). An older FIZZ or Manager reads an 'F' 3 as no
+ *        record (the classifier's tags, its next id from MY presets), and its Manager leaves it as it is
  *   SND  (P1.5w) 'R' 1, a pool slot's preset id (u16): THE POOL HOLDS REFERENCES. An 'S' record in the pool (0.7.2 and
  *        older: a copy) becomes a reference when its project loads: to the preset with that very sound (factory or
  *        MINE), else to a new MY preset made from it (its name made unique, its tags kept). A reference to a MY
@@ -654,7 +657,7 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
 /* P1.5v: the factory tags' record */
 static uint32_t ser_ftag(const qd_app_t *a, uint8_t *b)
 {
-    b[0] = 'F', b[1] = 2;
+    b[0] = 'F', b[1] = 3;
     memcpy(b + 2, a->per.ftags, QD_NFACTORY);
     memcpy(b + 2 + QD_NFACTORY, &a->per.id_next, 2);    /* (P1.5w) */
     return 2 + QD_NFACTORY + 2;
@@ -973,10 +976,15 @@ static void lib_read(qd_app_t *a)
     ps->id_next = 0;
     {
         const int len = qd_store_get(&ps->lib_st, QD_RKEY(QD_RK_FTAG, 0, 0), pr_buf, sizeof pr_buf);
-        if (len >= 2 + QD_NFACTORY && pr_buf[0] == 'F' && (pr_buf[1] == 1 || pr_buf[1] == 2))
-            memcpy(ps->ftags, pr_buf + 2, QD_NFACTORY);
-        if (len == 2 + QD_NFACTORY + 2 && pr_buf[1] == 2)
-            memcpy(&ps->id_next, pr_buf + 2 + QD_NFACTORY, 2);
+        if (len >= 2 + QD_NFACTORY_POOL && pr_buf[0] == 'F' && (pr_buf[1] == 1 || pr_buf[1] == 2))
+            memcpy(ps->ftags, pr_buf + 2, QD_NFACTORY_POOL);   /* (the 23 there were then) */
+        if (len == 2 + QD_NFACTORY_POOL + 2 && pr_buf[0] == 'F' && pr_buf[1] == 2)
+            memcpy(&ps->id_next, pr_buf + 2 + QD_NFACTORY_POOL, 2);
+        if (len >= 4 && pr_buf[0] == 'F' && pr_buf[1] == 3) {   /* (2026-11-15: every id's; a later FIZZ's longer) */
+            const int n = len - 4;
+            memcpy(ps->ftags, pr_buf + 2, (size_t)(n < QD_NFACTORY ? n : QD_NFACTORY));
+            memcpy(&ps->id_next, pr_buf + 2 + n, 2);
+        }
     }
 }
 
@@ -2878,7 +2886,7 @@ static void snd_load(void *ctx, int key, qd_sound_t *dst)
         len = qd_store_get(st, item_key(a, it), b, sizeof b);
     if (len > 0 && len != (int)QDS_DELETED)
         snd_from_rec(a, key, dst, b, (uint32_t)len);
-    else if (key < QD_SK_LIB && !a->proj.pool_empty && key <= QD_NFACTORY) {
+    else if (key < QD_SK_LIB && !a->proj.pool_empty && key <= QD_NFACTORY_POOL) {
         dst->preset = (uint16_t)key;                    /* (the factory's: a reference to it, with the owner's tags) */
         pool_cache(a, dst);
     }

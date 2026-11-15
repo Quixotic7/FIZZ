@@ -898,7 +898,7 @@ static void pr_fill(const qd_app_t *a, const qd_sound_t *s, int mine, ui_preset_
 /* P1.5t: the library browser's model */
 static void fill_browse(const qd_app_t *a, ui_browse_t *v)
 {
-    int *const list = qd_br_buf;                        /* (P2.1b: ctl_presets.c's one list) */
+    qd_brc_t *const list = qd_br_buf;                        /* (P2.1b: ctl_presets.c's one list) */
     qd_sound_t *const ent = br_ent;
     const qd_brui_t *b = &a->ui.br;
     const int n = qd_br_list(a, b->src, b->kind, list);

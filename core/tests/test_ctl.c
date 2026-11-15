@@ -4155,14 +4155,16 @@ static void g_snd(void)
     turn(QD_K_PRESETS, 1);                              /* (P1.5t: the browser, then on to WOBBLE, F2; 2026-11-13: from
                                                          * the Home view: the editor's PRESETS is a value) */
     {
-        int list[QD_BR_LIST], n = qd_br_list(&A, QD_BR_ALL, 0, list), i;
-        for (i = 0; i < n && list[i] != 10; i++)        /* (WOBBLE: factory preset 10, id 11) */
+        qd_brc_t list[QD_BR_LIST];
+        int n = qd_br_list(&A, QD_BR_ALL, 0, list), i;
+        for (i = 0; i < n && list[i] != 92; i++)        /* (DUST BASS: factory preset 92, id 93; 2026-11-15: WOBBLE
+                                                         * is retired, not listed) */
             ;
         turn(QD_K_PRESETS, i - A.ui.br.pos);
     }
     btap(F2);
-    CHECK(A.model.t[0].preset == 11 && A.model.t[0].patch[QD_QP_DRIVE] == 10,
-          "PRESETS: the browser, WOBBLE loaded (F2), its DRIVE 10 with it");
+    CHECK(A.model.t[0].preset == 93 && A.model.t[0].patch[QD_QP_DRIVE] == 24,
+          "PRESETS: the browser, DUST BASS loaded (F2), its DRIVE 24 with it");
 }
 
 /* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
@@ -7940,6 +7942,15 @@ static int br_code(void)                                /* the chosen entry's li
     int c = -1;
     return qd_br_chosen(&A, &s, &c, 0) ? c : -1;
 }
+static void br_to(int code)                             /* (2026-11-15) PRESETS turned to the entry with that code */
+{
+    qd_brc_t list[QD_BR_LIST];
+    const int n = qd_br_list(&A, A.ui.br.src, A.ui.br.kind, list);
+    int i;
+    for (i = 0; i < n && list[i] != code; i++)
+        ;
+    turn(QD_K_PRESETS, i - A.ui.br.pos);
+}
 static int br_n(void)
 {
     qd_sound_t s;
@@ -7951,7 +7962,8 @@ static void g_p15t_browse(void)
 {
     static qd_tsound_t own, pat0;
     qd_sound_t s;
-    int list[QD_BR_LIST], n, i, ok;
+    qd_brc_t list[QD_BR_LIST];
+    int n, i, ok;
     start();
     run(20);
     A.model.t[0].patch[QD_QP_HARM] += 300;              /* the track's sound edited */
@@ -7973,8 +7985,8 @@ static void g_p15t_browse(void)
     CHECK(A.ui.pv_note >= 0, "stopped: a short note");
     run(400);
     CHECK(A.ui.pv_note < 0, ".. short (it ends)");
-    turn(QD_K_SELECT, -1);
-    CHECK(A.ui.br.pos == 13 + 1 - 10, "SELECT: ten back (%d)", A.ui.br.pos);
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.br.pos == 8 + 1 + 10, "SELECT: ten on (%d; MARIMBA's place 8: four of the first retired)", A.ui.br.pos);
     btap(F1);
     CHECK(!A.ui.latch && A.ui.tk == QD_TK_BACK && !memcmp(A.model.t[0].patch, own.patch, sizeof own.patch) &&
               A.model.t[0].edited && A.model.t[0].preset == own.preset && !strcmp(A.model.t[0].sound_name, own.name) &&
@@ -7995,11 +8007,11 @@ static void g_p15t_browse(void)
     run(600);
     n = qd_undo_count(&A, -1);
     turn(QD_K_PRESETS, 1);
-    turn(QD_K_PRESETS, -3);                             /* MARIMBA - 3: WOBBLE (10), id 11 */
+    turn(QD_K_PRESETS, -3);                             /* MARIMBA - 3: HOLLOW (7), id 8 (METAL, WOBBLE, CLAV retired) */
     btap(F2);
-    CHECK(!A.ui.latch && A.ui.tk == QD_TK_LOADED && A.model.t[0].preset == 11 && !A.model.t[0].edited &&
-              !strcmp(A.model.t[0].sound_name, "WOBBLE") && PAT()->snd[0].preset == 11 && !A.seq.pv_patch[0],
-          "F2: LOAD: WOBBLE onto the track (its preset 11, not edited), its pattern's copy too; LOADED");
+    CHECK(!A.ui.latch && A.ui.tk == QD_TK_LOADED && A.model.t[0].preset == 8 && !A.model.t[0].edited &&
+              !strcmp(A.model.t[0].sound_name, "HOLLOW") && PAT()->snd[0].preset == 8 && !A.seq.pv_patch[0],
+          "F2: LOAD: HOLLOW onto the track (its preset 8, not edited), its pattern's copy too; LOADED");
     run(700);
     CHECK(qd_undo_count(&A, -1) == n + 1, "one undo level");
     undo_redo(-1);
@@ -8013,11 +8025,11 @@ static void g_p15t_browse(void)
         qd_br_entry(&A, list[i], &s);
         ok &= (s.tags & QD_PKB(QD_PK_BASS)) != 0;
     }
-    CHECK(A.ui.br.kind == 1 + QD_PK_BASS && ok && n == 2, "B2: BASS only (%d: BASS, WOBBLE)", n);
+    CHECK(A.ui.br.kind == 1 + QD_PK_BASS && ok && n == 8, "B2: BASS only (%d: the pack's; BASS, WOBBLE retired)", n);
     black(B7);
-    CHECK(br_n() == 6, "B7: DRUMS (the six)");
+    CHECK(br_n() == 6 + 49, "B7: DRUMS (the six, the pack's 49)");
     black(B1);
-    CHECK(br_n() == QD_NFACTORY, "B1: ALL (the factory's 23; no MY presets yet)");
+    CHECK(br_n() == QD_NFACTORY_LISTED, "B1: ALL (the factory's 110 listed; no MY presets yet)");
     black(B9);
     CHECK(A.ui.br.src == QD_BR_MINE && br_n() == 0 && qd_view_screen(&A) == QD_SCR_BROWSE, "B9: MY PRESETS (none)");
     black(B9);
@@ -8038,6 +8050,12 @@ static void g_p15t_browse(void)
     btap(F1);
     CHECK(!A.seq.pv_patch[0], "cancelled: its own again");
     btap(QD_B_PLAY);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    A.model.t[0].preset = 11;                           /* (2026-11-15: a track on WOBBLE, retired) */
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && br_code() == 12 && A.model.t[0].preset == 11,
+          "a track on a retired preset (WOBBLE, 11): the browser opens where it was (STRINGS, 13), the track's own sound");
+    btap(F1);
 }
 
 static void g_p15t_pool(void)
@@ -8046,7 +8064,7 @@ static void g_p15t_pool(void)
     start();
     qd_sounds_clear(&A.proj);                           /* (a new project's pool: empty) */
     turn(QD_K_PRESETS, 1);
-    turn(QD_K_PRESETS, 17 - A.ui.br.pos);               /* KICK (factory 17, id 18) */
+    br_to(17);                                          /* KICK (factory 17, id 18) */
     CHECK(br_code() == 17, "(KICK chosen)");
     black(B10);
     CHECK(A.proj.nsound == 1 && !strcmp(POOL(&A.proj, 1)->name, "KICK") && POOL(&A.proj, 1)->preset == 18 &&
@@ -8593,8 +8611,8 @@ static void g_p15v_pool(void)
     run(600);
     qd_sounds_clear(&A.proj);
     turn(QD_K_PRESETS, 1);
-    turn(QD_K_PRESETS, 4 - A.ui.br.pos);
-    CHECK(br_code() == 4 && !qd_br_pool_k(&A) && leds().key[BK(B10)] == QD_LED_LIT, "ALL, not in the pool: B10 lit (adds)");
+    br_to(5);
+    CHECK(br_code() == 5 && !qd_br_pool_k(&A) && leds().key[BK(B10)] == QD_LED_LIT, "ALL, not in the pool: B10 lit (adds)");
     black(B10);
     k = qd_br_pool_k(&A);
     CHECK(k == 1 && A.ui.br.fx == QD_BRFX_IN && leds().key[BK(B10)] == qd_led_breath(A.ms), "B10: in; B10 breathing "
@@ -8608,7 +8626,7 @@ static void g_p15v_pool(void)
     black(B10);
     black(B10);
     CHECK(!qd_sound_used(&A.proj, k) && !qd_br_pool_k(&A) && !R(1, 3).sound && !OV(1, 3, QD_PM_SOUND) &&
-              A.ui.br.src == QD_BR_ALL && br_code() == 4, "B10 again: out, the step back to TRACK, still on it in ALL");
+              A.ui.br.src == QD_BR_ALL && br_code() == 5, "B10 again: out, the step back to TRACK, still on it in ALL");
     mine_add("MINE ONE", 5);
     black(B9);
     CHECK(A.ui.br.src == QD_BR_MINE && br_code() == QD_BR_MINE_CODE, "(MY PRESETS: MINE ONE)");

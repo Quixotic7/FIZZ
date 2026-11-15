@@ -110,6 +110,9 @@ values: $(B)/gen_values
 	$(B)/gen_values > $(ROOT)/site/manager/fizzvalues.js
 stats-names:
 	python3 $(ROOT)/tools/gen_stats_names.py
+# 2026-11-15: core/seq/factory_tab.h (factory presets 24..116) is what tools/gen_factory.py makes of tools/fizz_pack.h
+factory-check:
+	@python3 $(ROOT)/tools/gen_factory.py --check
 stats-names-check:
 	@python3 $(ROOT)/tools/gen_stats_names.py --check
 values-check: $(B)/gen_values
@@ -227,7 +230,8 @@ DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx $(B)/test_tools $(B)/test_midi
 TESTS += $(B)/test_fx_packed
-test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-dev-ble test-gfx-fast budget-ratchet values-check stats-names-check
+test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-dev-ble test-gfx-fast budget-ratchet values-check stats-names-check \
+      factory-check
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
@@ -357,4 +361,4 @@ print-%:
 
 include gfx_fast.mk
 
-.PHONY: all frames strips audio values values-check test test-host test-dev test-pace test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev-ble test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet
+.PHONY: all frames strips audio values values-check factory-check test test-host test-dev test-pace test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev-ble test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet

@@ -56,7 +56,8 @@ enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's
                                         * Bluetooth package. A reply without the byte: the USB package */
 #define QD_SXF_DUMP 0x08u              /* P1.6m: a STORE that is a DUMP's reply: FIZZ ignores it (clear it to restore) */
 #define QD_SXS_MINE 0                  /* P1.6m: LIST / DUMP's sources: MY PRESETS (slot 1..256) .. */
-#define QD_SXS_FACTORY 1               /* .. the factory presets (1..23) .. */
+#define QD_SXS_FACTORY 1               /* .. the factory presets (1..116, slot = id; 2026-11-15: 4 5 10 11 12 16
+                                        * retired: not in LIST or a whole DUMP, a DUMP of the slot still gives it) .. */
 #define QD_SXS_POOL 2                  /* .. the project's pool (1..128: its preset) */
 #define QD_SXL_FACTORY 0x01u           /* LIST's flags: the factory presets too, .. */
 #define QD_SXL_POOL 0x02u              /* .. the pool too */

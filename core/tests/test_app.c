@@ -195,15 +195,16 @@ static void t_presets(void)
     memcpy(before, A.model.t[0].patch, sizeof before);
     qd_app_knob(&A, QD_K_PRESETS, 1);                   /* P1.5t: the library browser, on MARIMBA (preset 14) .. */
     run(300, 0);                                        /* (no acceleration) */
-    qd_app_knob(&A, QD_K_PRESETS, 2);                   /* .. -> FEEDBACK (16), the track plays it */
+    qd_app_knob(&A, QD_K_PRESETS, 2);                   /* .. -> NOISE-ISH (17; FEEDBACK 16 retired), the track plays it */
     run(10, 0);
-    CHECK(A.ui.latch == QD_LATCH_BROWSE && A.model.t[0].preset == 16 &&
-              !strcmp(qd_track_sound_name(&A.model.t[0]), "FEEDBACK"),
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && A.model.t[0].preset == 17 &&
+              !strcmp(qd_track_sound_name(&A.model.t[0]), "NOISE-ISH"),
           "PRESETS: the browser; +2: track 1 plays %d (%s)", A.model.t[0].preset, qd_track_sound_name(&A.model.t[0]));
     CHECK(v >= 0 && !memcmp(A.pool.v[v].q.patch, before, sizeof before), "the sounding voice keeps its patch");
-    qd_app_knob(&A, QD_K_PRESETS, 40);
-    CHECK(!strcmp(qd_track_sound_name(&A.model.t[0]), "OPEN HAT"), "PRESETS clamps at the last preset");
-    qd_app_knob(&A, QD_K_PRESETS, -60);
+    qd_app_knob(&A, QD_K_PRESETS, 200);
+    CHECK(!strcmp(qd_track_sound_name(&A.model.t[0]), "RUMBLE KICK") && A.model.t[0].preset == QD_NFACTORY,
+          "PRESETS clamps at the last preset (the pack's last)");
+    qd_app_knob(&A, QD_K_PRESETS, -200);
     CHECK(!strcmp(qd_track_sound_name(&A.model.t[0]), "INIT"), "PRESETS clamps at INIT");
     qd_app_button(&A, QD_B_OCTDN, 1);
     run(20, 0);

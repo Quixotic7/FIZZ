@@ -26,25 +26,26 @@
  * SAVE goes on to the PROJECT. Saved: the track plays that preset (not edited). */
 
 /* ---------------------------------------------------------------- the list */
-int qd_br_buf[QD_BR_LIST];                              /* (P2.1b: one list for all: each is used and done before the
+qd_brc_t qd_br_buf[QD_BR_LIST];                              /* (P2.1b: one list for all: each is used and done before the
                                                          * next, none kept across a call that lists) */
-int qd_br_list(const qd_app_t *a, int src, int kind, int *out)
+int qd_br_list(const qd_app_t *a, int src, int kind, qd_brc_t *out)
 {
     int n = 0, k;
     const unsigned bit = kind ? QD_PKB(kind - 1) : QD_PK_MASK;   /* (P1.5v: every one with the tag) */
     if (src == QD_BR_POOL) {
         for (k = 1; k <= QD_NSOUND; k++)
             if (qd_sound_used(&a->proj, k) && (!kind || (qd_sound_tags(&a->proj, k) & bit)))
-                out[n++] = QD_BR_POOL_CODE + k;
+                out[n++] = (qd_brc_t)(QD_BR_POOL_CODE + k);
         return n;
     }
     if (src == QD_BR_ALL)
         for (k = 0; k < QD_NFACTORY; k++)
-            if (!kind || ((unsigned)qd_factory_tags(a, k) & bit))   /* (P2.1b: the tags alone) */
-                out[n++] = k;
+            if (qd_factory_listed(k) && (!kind || ((unsigned)qd_factory_tags(a, k) & bit)))   /* (P2.1b: the tags
+                                                         * alone; 2026-11-15: the retired ones not) */
+                out[n++] = (qd_brc_t)k;
     for (k = 0; k < QD_NLIB; k++)
         if (qd_lib_used(a, k) && (!kind || (qd_lib_tags(a, k) & bit)))
-            out[n++] = QD_BR_MINE_CODE + k;
+            out[n++] = (qd_brc_t)(QD_BR_MINE_CODE + k);
     return n;
 }
 
@@ -70,7 +71,7 @@ int qd_br_entry(const qd_app_t *a, int code, qd_sound_t *s)
 
 int qd_br_chosen(const qd_app_t *a, qd_sound_t *s, int *code, int *n)
 {
-    int *const list = qd_br_buf;
+    qd_brc_t *const list = qd_br_buf;
     const qd_brui_t *b = &a->ui.br;
     const int m = qd_br_list(a, b->src, b->kind, list);
     if (n)
@@ -83,7 +84,7 @@ int qd_br_chosen(const qd_app_t *a, qd_sound_t *s, int *code, int *n)
 }
 
 /* where the entry for (preset id, pool number) is in the list (-1 none) */
-static int br_find(const qd_app_t *a, const int *list, int n, int preset, int pool)
+static int br_find(const qd_app_t *a, const qd_brc_t *list, int n, int preset, int pool)
 {
     int i;
     for (i = 0; i < n; i++) {
@@ -138,7 +139,7 @@ static void br_sound(qd_app_t *a)                      /* stopped: a short note 
 /* the list changed (a filter, the source, an entry out): the same entry if it is there, else the place clamped */
 static void br_relist(qd_app_t *a, int keep_code)
 {
-    int *const list = qd_br_buf;
+    qd_brc_t *const list = qd_br_buf;
     qd_brui_t *b = &a->ui.br;
     const int n = qd_br_list(a, b->src, b->kind, list);
     int i;
@@ -156,7 +157,7 @@ static void br_relist(qd_app_t *a, int keep_code)
 /* ---------------------------------------------------------------- open, move, leave */
 static void br_open(qd_app_t *a)
 {
-    int *const list = qd_br_buf;
+    qd_brc_t *const list = qd_br_buf;
     qd_ui_t *u = &a->ui;
     qd_brui_t *b = &u->br;
     const qd_track_t *t = &a->model.t[a->sel];
@@ -176,14 +177,17 @@ static void br_open(qd_app_t *a)
     b->fx = QD_BRFX_NONE;
     n = qd_br_list(a, b->src, b->kind, list);           /* (on the track's current preset) */
     i = br_find(a, list, n, t->preset, 0);
-    b->pos = i < 0 ? 0 : i;
+    if (i < 0 && t->preset >= 1 && t->preset <= QD_NFACTORY)   /* (2026-11-15: a retired one: where it was) */
+        for (i = 0; i < n && list[i] < QD_BR_MINE_CODE && list[i] < t->preset - 1; i++)
+            ;
+    b->pos = i < 0 || i >= n ? 0 : i;
 }
 
 void qd_br_turn(qd_app_t *a, int d)
 {
     qd_brui_t *b = &a->ui.br;
     int n;
-    int *const list = qd_br_buf;
+    qd_brc_t *const list = qd_br_buf;
     if (a->ui.latch != QD_LATCH_BROWSE) {
         br_open(a);
         return;
@@ -265,7 +269,7 @@ void qd_br_home(qd_app_t *a) { br_cancel(a, 0); }
  * one's preview put back first, as SHIFT + SELECT does): moved there; the list ALL, no kind. 0: not in the list */
 int qd_br_goto(qd_app_t *a, int t, int preset)
 {
-    int *const list = qd_br_buf;
+    qd_brc_t *const list = qd_br_buf;
     qd_brui_t *b = &a->ui.br;
     int n = qd_br_list(a, QD_BR_ALL, 0, list), i;
     if (!preset || br_find(a, list, n, preset, 0) < 0)
@@ -456,7 +460,7 @@ void qd_br_key(qd_app_t *a, int key, int w, int b, int down, int vel)
             code = -1;
         br->src = (br->src + 1) % QD_NBRSRC;
         {
-            int *const list = qd_br_buf;
+            qd_brc_t *const list = qd_br_buf;
             const int n = qd_br_list(a, br->src, br->kind, list);
             const int i = code >= 0 ? br_find(a, list, n, s.preset, code >= QD_BR_POOL_CODE ? code - QD_BR_POOL_CODE : 0)
                                     : -1;

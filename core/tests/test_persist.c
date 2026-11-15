@@ -28,6 +28,7 @@
 #include "ui.h"
 #include "demo.h"
 #include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
+#include "../../tools/fizz_pack.h"             /* (2026-11-15: the pack, factory presets 24..116) */
 
 static int checks, failed;
 #define CHECK(c, ...) do { checks++; if (!(c)) { failed++; printf("  FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -137,21 +138,73 @@ static void pages_test(void)
           "kind, the same each time, another with the dice (%d)", ok, okn);
 
     {   /* P1.5t: the seven kinds of the factory presets (the browser's filters) */
-        static const int PK[QD_NFACTORY] = {QD_PK_LEAD, QD_PK_KEYS, QD_PK_KEYS, QD_PK_BASS, QD_PK_PLUCK, QD_PK_LEAD,
+        static const int PK[QD_NFACTORY_POOL] = {QD_PK_LEAD, QD_PK_KEYS, QD_PK_KEYS, QD_PK_BASS, QD_PK_PLUCK, QD_PK_LEAD,
                                             QD_PK_PAD, QD_PK_LEAD, QD_PK_LEAD, QD_PK_FX, QD_PK_BASS, QD_PK_PLUCK,
                                             QD_PK_PAD, QD_PK_PLUCK, QD_PK_PAD, QD_PK_FX, QD_PK_FX, QD_PK_DRUMS,
                                             QD_PK_DRUMS, QD_PK_DRUMS, QD_PK_DRUMS, QD_PK_DRUMS, QD_PK_DRUMS};
         int seen[QD_NPK] = {0};
-        for (ok = 0, k = 0; k < QD_NFACTORY; k++) {
+        for (ok = 0, k = 0; k < QD_NFACTORY_POOL; k++) {
             qd_sound_t f;
             qd_factory_preset(k, &f);
-            ok += f.tags == QD_PKB(PK[k]) && f.preset == k + 1;
+            ok += f.tags == QD_PKB(PK[k]) && f.preset == k + 1 && f.tags == qd_preset_tags(f.patch) &&
+                  qd_factory_tag(k) == f.tags;      /* (2026-11-15: the table of their tags: still the classifier's) */
             seen[qd_tags_first(f.tags)]++;
         }
         for (k = 0; k < QD_NPK; k++)
             ok += seen[k] > 0;
-        CHECK(ok == QD_NFACTORY + QD_NPK, "the factory presets' kinds (METAL, FEEDBACK, NOISE-ISH FX; the drums DRUMS; "
-              "BELL KEYS ..), every one of the seven used (%d)", ok);
+        CHECK(ok == QD_NFACTORY_POOL + QD_NPK, "the factory presets' kinds (METAL, FEEDBACK, NOISE-ISH FX; the drums "
+              "DRUMS; BELL KEYS ..), the classifier's, every one of the seven used (%d)", ok);
+    }
+    {   /* 2026-11-15: 116 factory presets: the first 23, then the pack's 93 in its order, each what the pack's MY preset
+         * is (stored as tools/song_common.h's pack_put stores it: its name, patch, tag, pan, sends); six retired */
+        static const int RET[] = {4, 5, 10, 11, 12, 16};
+        static qd_app_t P;
+        int nok = 0, kok = 0, lok = 0, uniq = 1, j;
+        CHECK(QD_NFACTORY == 116 && QD_NFACTORY_POOL + FIZZ_PACK_LIB == QD_NFACTORY && QD_NFACTORY_LISTED == 110,
+              "116 factory presets: 23, then the pack's %d; 110 listed", FIZZ_PACK_LIB);
+        qd_app_init(&P);
+        for (j = 0; j < FIZZ_PACK_LIB; j++) {
+            const fizz_pack_t *e = &FIZZ_PACK[j];
+            qd_sound_t f, m;
+            const int slot = qd_lib_free_slot(&P);
+            qd_factory_preset(QD_NFACTORY_POOL + j, &f);
+            if (slot < 0 || !qd_lib_store_ex(&P, slot, e->name, e->patch, 0))
+                break;
+            qd_lib_read(&P, slot, &m);
+            m.tags = e->tag, m.pan = e->pan, m.chorus = e->chorus, m.delay = e->delay, m.reverb = e->reverb;
+            qd_lib_write(&P, slot, &m);
+            qd_lib_read(&P, slot, &m);
+            nok += !strcmp(f.name, m.name) && !memcmp(f.patch, m.patch, sizeof f.patch) &&
+                   !memcmp(f.patch, e->patch, sizeof f.patch) && f.tags == m.tags && f.pan == m.pan &&
+                   f.chorus == m.chorus && f.delay == m.delay && f.reverb == m.reverb && !f.flags &&
+                   f.preset == QD_NFACTORY_POOL + j + 1;
+            kok += f.tags == qd_factory_tag(QD_NFACTORY_POOL + j) && f.tags && !(f.tags & ~QD_PK_MASK);
+            qd_lib_delete(&P, slot);
+        }
+        CHECK(nok == FIZZ_PACK_LIB && kok == FIZZ_PACK_LIB, "factory 24..116: each the pack's MY preset (name, patch, "
+              "tag, pan, sends; %d of %d), its tag known without the classifier (%d)", nok, FIZZ_PACK_LIB, kok);
+        for (j = 0; j < QD_NFACTORY && uniq; j++) {
+            qd_sound_t f, g;
+            int i;
+            qd_factory_preset(j, &f);
+            for (i = j + 1; i < QD_NFACTORY && uniq; i++) {
+                qd_factory_preset(i, &g);
+                uniq = strcmp(f.name, g.name) != 0;
+            }
+        }
+        CHECK(uniq, "every factory preset's name its own");
+        for (j = 0; j < (int)(sizeof RET / sizeof RET[0]); j++) {
+            qd_sound_t f, g;
+            qd_factory_preset(RET[j] - 1, &f);
+            qd_quad_preset_patch(RET[j] - 1, g.patch);
+            lok += !qd_factory_listed(RET[j] - 1) && f.preset == RET[j] && !memcmp(f.patch, g.patch, sizeof g.patch) &&
+                   qd_preset_get(&P, RET[j], &g) && g.preset == RET[j];
+        }
+        for (j = 0, k = 0; j < QD_NFACTORY; j++)
+            k += qd_factory_listed(j);
+        CHECK(lok == 6 && k == QD_NFACTORY_LISTED && !qd_factory_listed(QD_NFACTORY) && !qd_factory_listed(-1),
+              "retired: BASS 4, PLUCK 5, METAL 10, WOBBLE 11, CLAV 12, FEEDBACK 16 resolve by id as before, not listed "
+              "(%d listed)", k);
     }
 
     /* P1.5t: SAVE PRESET: the track's sound into MY presets */
@@ -330,7 +383,7 @@ static void migration_test(void)
           "a 0.6 pool sound: kept, knowing its factory preset (EP: 2), its kind");
     for (n = 0, t = 1; t <= QD_NFACTORY; t++)
         n += qd_sound_used(&B.proj, t) && POOL(&B.proj, t)->preset == t;
-    CHECK(n == QD_NFACTORY && !B.proj.pool_empty, "its absent pool records: the old starting pool, as before (%d)", n);
+    CHECK(n == QD_NFACTORY_POOL && !B.proj.pool_empty, "its absent pool records: the old starting pool, as before (%d)", n);
     CHECK(qd_proj_pat(&B.proj, QD_PAT_START)->trk[2].mfx == 0 && qd_proj_pat(&B.proj, QD_PAT_START)->trk[2].limit ==
               qd_proj_pat(&A.proj, QD_PAT_START)->trk[2].limit, "P1.6c: an older pattern record (42-byte track settings): its tracks' "
           "MIDI FX OFF, the rest as it was");
@@ -457,6 +510,39 @@ static void tags_test(void)
     boot(&A);
     CHECK(LIB(&A, 0)->tags == QD_PKB(QD_PK_PAD) && !strcmp(LIB(&A, 0)->name, "TWO TAGS"),
           "an 'S' 2 record (0.7.0 .. 0.7.1): its kind (PAD) its one tag");
+
+    /* 2026-11-15: FTAG 'F' 3, a tag for each of the 116 ids, then the next id; an 'F' 2 (23 tags) still read */
+    {
+        const uint16_t idn = A.per.id_next;
+        uint8_t v2[2 + 23 + 2];
+        CHECK(qd_tags_set(&A, 100, QD_PKB(QD_PK_KEYS) | QD_PKB(QD_PK_FX)) && qd_tags_set(&A, 6, QD_PKB(QD_PK_BASS)),
+              "tags set on factory 101 (the pack's) and 7");
+        qd_persist_flush(&A);
+        len = qd_store_get(&A.per.lib_st, QD_RKEY(QD_RK_FTAG, 0, 0), b, sizeof b);
+        CHECK(len == 2 + QD_NFACTORY + 2 && b[0] == 'F' && b[1] == 3 && b[2 + 100] == (0x80 | QD_PKB(QD_PK_KEYS) |
+              QD_PKB(QD_PK_FX)) && b[2 + 6] == (0x80 | QD_PKB(QD_PK_BASS)) && b[2 + QD_NFACTORY] == (idn & 0xFF) &&
+              b[3 + QD_NFACTORY] == (idn >> 8), "written as 'F' 3: %d bytes, 116 tags then the next id", len);
+        boot(&B);
+        qd_factory_get(&B, 100, &f);
+        CHECK(f.tags == (QD_PKB(QD_PK_KEYS) | QD_PKB(QD_PK_FX)) && qd_factory_tags(&B, 6) == QD_PKB(QD_PK_BASS) &&
+              qd_factory_tags(&B, 0) == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_LEAD)) && B.per.id_next == idn,
+              "an 'F' 3 read back: the pack's preset's tags, the first 23's, the next id");
+        v2[0] = 'F', v2[1] = 2;
+        memcpy(v2 + 2, b + 2, 23);
+        v2[2 + 6] = 0x80 | QD_PKB(QD_PK_PAD);
+        memcpy(v2 + 25, b + 2 + QD_NFACTORY, 2);
+        qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_FTAG, 0, 0), v2, sizeof v2);
+        qd_store_flush(&B.per.lib_st);
+        boot(&A);
+        CHECK(qd_factory_tags(&A, 6) == QD_PKB(QD_PK_PAD) && qd_factory_tags(&A, 0) == (QD_PKB(QD_PK_PAD) |
+              QD_PKB(QD_PK_LEAD)) && qd_factory_tags(&A, 100) == qd_factory_tag(100) && !A.per.ftags[100] &&
+              A.per.id_next == idn, "an older store's 'F' 2: its 23 tags and next id read, the pack's presets their own");
+        v2[1] = 1;
+        qd_store_put(&A.per.lib_st, QD_RKEY(QD_RK_FTAG, 0, 0), v2, 2 + 23);
+        qd_store_flush(&A.per.lib_st);
+        boot(&B);
+        CHECK(qd_factory_tags(&B, 6) == QD_PKB(QD_PK_PAD), "an 'F' 1 (0.7.x): its 23 tags read");
+    }
 }
 
 /* P1.5w: THE POOL HOLDS REFERENCES. REPLACE plays in every project's pool and its locks; a track's own sound stays
@@ -614,7 +700,7 @@ static void migrate72_test(void)
         int n, k;
         for (n = 0, k = 1; k <= QD_NFACTORY; k++)
             n += POOL(&B.proj, k)->preset == k;
-        CHECK(n == QD_NFACTORY, "the demo's starting pool: references to the factory presets (%d)", n);
+        CHECK(n == QD_NFACTORY_POOL, "the demo's starting pool: references to the factory presets (%d)", n);
     }
     qd_persist_flush(&B);
     boot(&A);

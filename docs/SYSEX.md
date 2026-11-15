@@ -184,7 +184,7 @@ Replies `61`, one part after another (16 entries a part at most):
 | bytes | |
 | --- | --- |
 | 1 | source: 0 MY PRESETS, 1 factory, 2 the pool |
-| 2 | slot, 7 bits each (1-based: MY PRESETS 1..256, factory 1..23, pool 1..128) |
+| 2 | slot, 7 bits each (1-based: MY PRESETS 1..256, factory 1..116 (the slot is the id; LIST leaves out the retired 4, 5, 10, 11, 12, 16), pool 1..128) |
 | 3 | the preset's id, 7 bits each (a pool slot: the preset it references) |
 | 12 | the name, ASCII, spaces after |
 | 1 | tags (FIZZ's, bit 0 BASS .. 6 FX) |
@@ -219,7 +219,8 @@ each of them `7F 07 <cmd>` (BAD COMMAND), which a page reads as "update FIZZ". C
 8: FIZZ has 6; nothing stored).
 
 **Slots** are 1-based, two 7-bit bytes (high, low), as in STORE. **Sources**: `0` MY PRESETS (1..256), `1` factory
-(1..23), `2` the pool (1..128), `3` a project (1..8, RENAME only).
+(1..116, the slot is the id: 1..23 the first presets, 24..116 the preset pack; 4, 5, 10, 11, 12 and 16 are retired:
+not in LIST or a whole-source DUMP, though a DUMP of the slot, POOL REF and LOAD by id still take them), `2` the pool (1..128), `3` a project (1..8, RENAME only).
 
 **ACK** (most commands' reply): `F0 7D 46 5A 01 52 <cmd> <status> <a hi> <a lo> <b hi> <b lo> <chk> F7`; a and b are
 the command's slots (or, for IN USE, the projects and the steps using it).
@@ -317,7 +318,7 @@ Request: `F0 7D 46 5A 01 31 <track> <id hi> <id mid> <id lo> <chk> F7`
 | field | |
 | --- | --- |
 | track | 0..5; `7F` the selected track. Another track than the selected one is selected first (a browser already open on another track puts that track's own sound back first, as SHIFT + SELECT in the browser does) |
-| id | the preset id, 3 x 7 bits: a factory preset 1..23, one of MY presets (LIST's id). A pool sound: its preset's id |
+| id | the preset id, 3 x 7 bits: a factory preset 1..116, one of MY presets (LIST's id). A pool sound: its preset's id |
 
 Reply: ACK (`52`) with a = the track + 1, b = the browser's place + 1 (its list ALL, no kind filter). Statuses: OK;
 NOT FOUND (no preset with that id: nothing opened); BAD TRACK (6 or 7); BUSY (a name is being typed on the unit,

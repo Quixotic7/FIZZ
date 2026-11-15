@@ -78,12 +78,22 @@ int qd_sound_ideas(const int16_t *patch, char (*out)[QD_SOUND_NAME], int max);
 
 /* ---- P1.5t (PLAN.md "The sound system, redesigned"): THE PRESETS. A preset is a sound with an id:
  *   FACTORY   ids 1..QD_NFACTORY, compiled in, read only: INIT, the 16 FM TONE sounds (quad_voice.h's presets 1..16),
- *             the six drums (above); id k = the pool's old number k
+ *             the six drums (above); id k = the pool's old number k (1..QD_NFACTORY_POOL). 2026-11-15: ids 24..116
+ *             the owner's preset pack (presets/pack/drums.txt then pitched.txt; factory_tab.h, made by
+ *             tools/gen_factory.py), and six of the first retired: BASS 4, PLUCK 5, METAL 10, WOBBLE 11, CLAV 12,
+ *             FEEDBACK 16 still are what their id names (old projects, old stores) but no list shows them
  *   MINE      ids QD_PRESET_MINE0.. (each MY preset keeps its own: persist.h's library holds them, 256 places)
  * A pool sound and a track's sound remember the preset they came from (0: none known).
  * THE KINDS (the browser's filters B2..B8): the auto-names' classifier, in seven: BASS KEYS PLUCK PAD LEAD DRUMS FX
  * (a BELL is KEYS; KICK SNARE CLAP HAT are DRUMS; NOISE, a strongly detuned or fed-back sound is FX) */
-#define QD_NFACTORY 23
+#define QD_NFACTORY 116
+#define QD_NFACTORY_POOL 23                 /* the first ones: a pool that did not start empty holds factory n at n */
+#define QD_FACTORY_RETIRED 0x8E18u          /* (bit i: factory i, id i + 1, kept but not listed: 4 5 10 11 12 16) */
+#define QD_NFACTORY_LISTED (QD_NFACTORY - 6)
+static inline int qd_factory_listed(int i)  /* i 0..QD_NFACTORY-1 (id i + 1): in the lists */
+{
+    return i >= 0 && i < QD_NFACTORY && (i >= 16 || !((QD_FACTORY_RETIRED >> i) & 1u));
+}
 #define QD_PRESET_MINE0 0x100
 enum { QD_PK_BASS, QD_PK_KEYS, QD_PK_PLUCK, QD_PK_PAD, QD_PK_LEAD, QD_PK_DRUMS, QD_PK_FX, QD_NPK };
 int qd_preset_kind(const int16_t *patch);
@@ -93,10 +103,13 @@ const char *qd_preset_kind_name(int pk);   /* "BASS" .. "FX" */
 #define QD_PK_MASK 0x7Fu
 int qd_preset_tags(const int16_t *patch);   /* the classifier's: one tag */
 int qd_tags_first(int tags);                /* the first tag (its colour: the glyph's), -1 none */
-int qd_factory_tag(int i);   /* (P2.1b) factory preset i's classifier tag alone (no sound made) */
-void qd_factory_preset(int i, qd_sound_t *out);   /* i 0..QD_NFACTORY-1: id i + 1, its classifier tag (persist.h's
-                                                   * qd_factory_get: with the owner's tags) */
-int qd_factory_of(const char *name, const int16_t *patch);   /* the factory preset this is (its id), 0 none */
+int qd_factory_tag(int i);   /* (P2.1b) factory preset i's tag alone (no sound made): the classifier's (the first
+                              * 23: a table the tests check), the pack's (24..) */
+void qd_factory_preset(int i, qd_sound_t *out);   /* i 0..QD_NFACTORY-1: id i + 1, made when asked (nothing kept),
+                                                   * its tag as qd_factory_tag (persist.h's qd_factory_get: with the
+                                                   * owner's tags) */
+int qd_factory_of(const char *name, const int16_t *patch);   /* the factory preset this is (its id), 0 none (0.6's
+                                                              * sounds: the first QD_NFACTORY_POOL only) */
 
 #ifdef __cplusplus
 }

@@ -166,7 +166,8 @@ static void turn(int k, int d)
 }
 static void browse_to(int src, int kind, const char *name)   /* the browser on that entry */
 {
-    int list[QD_BR_LIST], n, i;
+    qd_brc_t list[QD_BR_LIST];
+    int n, i;
     qd_sound_t s;
     if (A.ui.latch != QD_LATCH_BROWSE)
         turn(QD_K_PRESETS, 1);

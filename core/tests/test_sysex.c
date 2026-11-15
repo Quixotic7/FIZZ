@@ -1223,14 +1223,47 @@ int main(int argc, char **argv)
                 pools += POOL(&A.proj, j + 1)->name[0] != 0;
             n = frame(f, QD_SX_LIST, &lf, 1);
             qd_app_sysex(&A, f, n);
+            int nfac = 0, fbad = 0, fprev = 0;
             for (got = 0, last = 0, g = 0; g < 100 && !last; g++) {
                 int ln;
-                while (!last && (ln = qd_app_sysex_take(&A, LR, sizeof LR)) > 0)
+                while (!last && (ln = qd_app_sysex_take(&A, LR, sizeof LR)) > 0) {
+                    int e;
+                    for (e = 0; e < LR[10]; e++) {      /* (2026-11-15: the factory's slots: the ids, none retired) */
+                        const uint8_t *q = LR + 11 + e * QD_SX_ENTRY;
+                        const int sl = q[1] << 7 | q[2], id = q[3] << 14 | q[4] << 7 | q[5];
+                        if (q[0] != QD_SXS_FACTORY)
+                            continue;
+                        nfac++;
+                        fbad += sl != id || !qd_factory_listed(sl - 1) || sl <= fprev;
+                        fprev = sl;
+                    }
                     got += LR[10], total = LR[8] << 7 | LR[9], last = LR[7];
+                }
                 run(1);
             }
-            CHECK(last && total == 3 + QD_NFACTORY + pools && got == total, "LIST with the factory and the pool: %d "
-                  "(3 + %d + %d)", got, QD_NFACTORY, pools);
+            CHECK(last && total == 3 + QD_NFACTORY_LISTED + pools && got == total, "LIST with the factory and the "
+                  "pool: %d (3 + %d + %d)", got, QD_NFACTORY_LISTED, pools);
+            CHECK(nfac == QD_NFACTORY_LISTED && !fbad && fprev == QD_NFACTORY, "LIST: the factory's 110 by id, "
+                  "1..116 without 4 5 10 11 12 16 (%d, %d wrong)", nfac, fbad);
+        }
+        {   /* 2026-11-15: a whole DUMP of the factory: the 110 listed; a retired one's slot DUMPed by itself still */
+            const uint8_t db[3] = {QD_SXS_FACTORY, 0, 0}, d11[3] = {QD_SXS_FACTORY, 0, 11};
+            int nf = 0, ln;
+            n = frame(f, QD_SX_DUMP, db, 3);
+            qd_app_sysex(&A, f, n);
+            for (g = 0; g < 2000 && nf < QD_NFACTORY + 1; g++) {
+                while ((ln = qd_app_sysex_take(&A, D[0], sizeof D[0])) > 0)
+                    nf += (D[0][5] == QD_SX_STORE || D[0][5] == QD_SX_STORE6) && (D[0][6] & QD_SXF_DUMP);
+                run(1);
+                if (!A.sx.job && !qd_app_sysex_peek(&A))
+                    break;
+            }
+            CHECK(nf == QD_NFACTORY_LISTED, "DUMP of the factory (slot 0): its %d listed (%d)", QD_NFACTORY_LISTED, nf);
+            n = frame(f, QD_SX_DUMP, d11, 3);
+            qd_app_sysex(&A, f, n);
+            ln = qd_app_sysex_take(&A, D[0], sizeof D[0]);
+            CHECK(ln > 100 && (D[0][5] == QD_SX_STORE || D[0][5] == QD_SX_STORE6) && (D[0][6] & QD_SXF_DUMP),
+                  "DUMP of factory slot 11 (WOBBLE, retired): its sound still (%d bytes)", ln);
         }
         for (k = 0; k < 3; k++) {                       /* DUMP each */
             const int slot = k == 0 ? 2 : k == 1 ? 5 : 9;

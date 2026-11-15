@@ -341,8 +341,10 @@ enum { QD_BR_ALL, QD_BR_MINE, QD_BR_POOL, QD_NBRSRC };   /* the browser's source
 enum { QD_BRFX_NONE, QD_BRFX_IN, QD_BRFX_THERE, QD_BRFX_FULL, QD_BRFX_OUT, QD_BRFX_DEL };   /* (P1.5v: DEL, a MY
                                                          * preset deleted: it breaks up) */   /* + POOL: in, already there (the tray
                                                          * pulses), full (it flashes orange); - POOL: out */
-#define QD_BR_LIST (QD_NFACTORY + QD_NLIB)               /* the longest list (ALL) */
-extern int qd_br_buf[];                             /* (P2.1b) the one list: filled, used and done (no call that lists between) */
+#define QD_BR_LIST (QD_NFACTORY_LISTED + QD_NLIB)        /* the longest list (ALL; the retired factory ids not in it) */
+typedef int16_t qd_brc_t;                                /* (2026-11-15) a list entry, QD_BR_*_CODE: 2 bytes (the list's
+                                                         * RAM: 116 factory ids) */
+extern qd_brc_t qd_br_buf[];                             /* (P2.1b) the one list: filled, used and done (no call that lists between) */
 #define QD_BR_MINE_CODE 1000            /* a list entry: 0.. a factory preset, QD_BR_MINE_CODE + its place a MY preset, */
 #define QD_BR_POOL_CODE 2000            /* .. QD_BR_POOL_CODE + its number a pool sound */
 typedef struct {
@@ -1038,7 +1040,7 @@ void qd_br_home(struct qd_app *a);               /* .. by HOME (to the view) */
 void qd_br_load(struct qd_app *a);               /* the chosen onto the track, the browser closed */
 int qd_br_goto(struct qd_app *a, int t, int preset);   /* Manager: browsing track t at preset id `preset` (1; 0 none) */
 void qd_br_sync(struct qd_app *a);               /* (the pattern's sounds reloaded under it: its preview again) */
-int qd_br_list(const struct qd_app *a, int src, int kind, int *out);   /* the list's entries (QD_BR_*_CODE), count */
+int qd_br_list(const struct qd_app *a, int src, int kind, qd_brc_t *out);   /* the list's entries (QD_BR_*_CODE), count */
 int qd_br_entry(const struct qd_app *a, int code, qd_sound_t *s);   /* an entry's sound (with its preset id); 1 ok */
 int qd_br_chosen(const struct qd_app *a, qd_sound_t *s, int *code, int *n);   /* the chosen (0: the list empty) */
 void qd_br_key(struct qd_app *a, int key, int w, int b, int down, int vel);

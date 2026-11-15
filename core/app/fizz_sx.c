@@ -401,8 +401,9 @@ static FZ_COLD int sx_head(const qd_app_t *a, int src, int k, qd_sound_t *s)
         s->preset = qd_lib_preset(a, k), s->tags = (uint8_t)qd_lib_tags(a, k), s->flags = (uint8_t)qd_lib_flags(a, k);
         return 1;
     }
-    if (src == QD_SXS_FACTORY)
-        return sx_entry(a, src, k, s);
+    if (src == QD_SXS_FACTORY)                          /* (2026-11-15: a retired one not listed; DUMP of its slot
+                                                         * still gives it) */
+        return qd_factory_listed(k) && sx_entry(a, src, k, s);
     if (k < 0 || k >= QD_NSOUND || !qd_sound_used(&a->proj, k + 1))
         return 0;
     {
@@ -496,7 +497,7 @@ static FZ_COLD int sx_list_part(qd_app_t *a)
 {
     static uint8_t b[8 + QD_SX_LIST_PER * QD_SX_ENTRY];
     qd_sx_t *x = &a->sx;
-    const int total = sx_count(a, QD_SXS_MINE) + (x->job_flags & QD_SXL_FACTORY ? QD_NFACTORY : 0) +
+    const int total = sx_count(a, QD_SXS_MINE) + (x->job_flags & QD_SXL_FACTORY ? QD_NFACTORY_LISTED : 0) +
                       (x->job_flags & QD_SXL_POOL ? sx_count(a, QD_SXS_POOL) : 0);
     uint32_t o = 6;
     int n = 0;
@@ -552,7 +553,8 @@ static FZ_COLD void sx_job(qd_app_t *a)
                 x->job = 0;
                 return;
             }
-            if (sx_dump_one(a, x->job_src, x->job_at) == 0)
+            if ((x->job_src != QD_SXS_FACTORY || qd_factory_listed(x->job_at)) &&   /* (the factory's as LIST's) */
+                sx_dump_one(a, x->job_src, x->job_at) == 0)
                 return;                                 /* (no room after all: again later; -1: an empty place) */
             x->job_at++;
         }

@@ -42,17 +42,47 @@ static void make_patch(int preset, const kv_t *kv, int n, int16_t *p)
 
 #define N(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
-/* P1.5t: factory preset i (0..QD_NFACTORY-1): INIT, the 16 FM TONE sounds, the six drums */
+/* P1.5t: factory preset i (0..QD_NFACTORY-1): INIT, the 16 FM TONE sounds, the six drums; 2026-11-15: then the pack */
 /* P1.5x: the FM TONE presets' sends, chorus / delay / reverb, as ChoralRoot's FX() has them (firmware/src/eng_quad.c
  * QUAD_PRESETS: EP .. NOISE-ISH, the order of quad_voice.h's presets 1..16) */
 static const uint8_t FX_SENDS[16][3] = {
     {30, 20, 40}, {20, 35, 60}, {0, 10, 10}, {20, 30, 40}, {25, 20, 40}, {50, 25, 70}, {35, 25, 50}, {25, 40, 40},
     {20, 30, 50}, {0, 15, 10}, {15, 20, 25}, {55, 15, 65}, {15, 25, 40}, {50, 30, 80}, {25, 30, 40}, {20, 30, 50}};
 
-#ifdef QD_DEVICE
-static uint8_t tagc[QD_NFACTORY];                       /* (P2.1b: only the classifier's tags kept, made once; the rest
-                                                         * made when asked: no 5.5 KB cache) */
-#endif
+/* 2026-11-15: the first 23's tags, the classifier's (qd_preset_tags of each: test_persist checks they still are; no
+ * classifier run, no RAM for them) */
+#define K(k) QD_PKB(QD_PK_##k)
+static const uint8_t TAG23[QD_NFACTORY_POOL] = {K(LEAD), K(KEYS), K(KEYS), K(BASS), K(PLUCK), K(LEAD), K(PAD), K(LEAD),
+                                                K(LEAD), K(FX), K(BASS), K(PLUCK), K(PAD), K(PLUCK), K(PAD), K(FX),
+                                                K(FX), K(DRUMS), K(DRUMS), K(DRUMS), K(DRUMS), K(DRUMS), K(DRUMS)};
+#undef K
+
+/* 2026-11-15: ids 24..116, the preset pack: made from factory_tab.h when asked (the base, then the run of values that
+ * differ; nothing kept) */
+#include "factory_tab.h"
+typedef char qd_ft_np_ok[QD_FT_NP == QD_QUAD_NP && QD_NFACTORY_POOL + QD_FT_N == QD_NFACTORY ? 1 : -1];
+static void ft_make(int j, qd_sound_t *s)               /* j 0..QD_FT_N-1 */
+{
+    const uint8_t *p = QD_FT_DIFF + QD_FT_OFF[j], *const e = QD_FT_DIFF + QD_FT_OFF[j + 1], *m = QD_FT_META[j];
+    const char *nm = QD_FT_NAMES;
+    int i;
+    memcpy(s->patch, QD_FT_BASE, sizeof s->patch);
+    while (p < e) {
+        const int id = *p & 0x7F;
+        if (*p & 0x80) {
+            s->patch[id] = (int8_t)p[1];
+            p += 2;
+        } else {
+            s->patch[id] = (int16_t)(uint16_t)(p[1] | p[2] << 8);
+            p += 3;
+        }
+    }
+    for (i = 0; i < j; i++)
+        nm += strlen(nm) + 1;
+    strncpy(s->name, nm, QD_SOUND_NAME - 1);
+    s->tags = m[0], s->pan = (int8_t)m[1], s->chorus = m[2], s->delay = m[3], s->reverb = m[4];
+}
+
 void qd_factory_preset(int i, qd_sound_t *out)
 {
     static const kv_t KICK[] = {
@@ -82,72 +112,43 @@ void qd_factory_preset(int i, qd_sound_t *out)
         int n;
     } DRUM[6] = {{"KICK", KICK, N(KICK)}, {"SNARE", SNARE, N(SNARE)}, {"CLAP", CLAP, N(CLAP)},
                  {"GHOST", GHOST, N(GHOST)}, {"HAT", HAT, N(HAT)}, {"OPEN HAT", OHAT, N(OHAT)}};
-    const int want = i < 0 ? 0 : i >= QD_NFACTORY ? QD_NFACTORY - 1 : i;
-    static int made;
-    int k;
-#ifdef QD_DEVICE
-    qd_sound_t one, *s = &one;
-    for (k = made ? want : 0; k < (made ? want + 1 : QD_NFACTORY); k++) {
-#else
-    static qd_sound_t cache[QD_NFACTORY];
-    qd_sound_t *s;
-    for (k = 0; !made && k < QD_NFACTORY; k++) {      /* (made once: the classifier run once for the set) */
-        s = &cache[k];
-#endif
-        memset(s, 0, sizeof *s);
-        if (k < QD_QUAD_NPRESET) {
-            qd_quad_preset_patch(k, s->patch);
-            strncpy(s->name, qd_quad_preset_name(k), QD_SOUND_NAME - 1);
-        } else {
-            const int d = k - QD_QUAD_NPRESET;
-            make_patch(d ? QD_SND_NOISE - 1 : 0, DRUM[d].kv, DRUM[d].n, s->patch);
-            strncpy(s->name, DRUM[d].name, QD_SOUND_NAME - 1);
-        }
-        s->preset = (uint16_t)(k + 1);
-#ifdef QD_DEVICE
-        if (!made)
-            tagc[k] = (uint8_t)qd_preset_tags(s->patch);
-        s->tags = tagc[k];
-#else
-        s->tags = (uint8_t)qd_preset_tags(s->patch);
-#endif
-        if (k >= 1 && k <= 16) {                    /* P1.5x: ChoralRoot's FX(drive, chorus, delay, reverb) of its
-                                                     * QUAD preset (eng_quad.c QUAD_PRESETS); pan centre */
-            s->chorus = FX_SENDS[k - 1][0];
-            s->delay = FX_SENDS[k - 1][1];
-            s->reverb = FX_SENDS[k - 1][2];
-        } else {
-            s->reverb = 20;                         /* (INIT, the drums: the default kit's, QD_MIX_REVERB_DEFAULT) */
-        }
-#ifdef QD_DEVICE
-        if (k == want)
-            *out = *s;
-#endif
+    const int k = i < 0 ? 0 : i >= QD_NFACTORY ? QD_NFACTORY - 1 : i;
+    qd_sound_t *const s = out;
+    memset(s, 0, sizeof *s);
+    s->preset = (uint16_t)(k + 1);
+    if (k >= QD_NFACTORY_POOL) {
+        ft_make(k - QD_NFACTORY_POOL, s);
+        return;
     }
-    made = 1;
-#ifndef QD_DEVICE
-    *out = cache[want];
-#endif
+    if (k < QD_QUAD_NPRESET) {
+        qd_quad_preset_patch(k, s->patch);
+        strncpy(s->name, qd_quad_preset_name(k), QD_SOUND_NAME - 1);
+    } else {
+        const int d = k - QD_QUAD_NPRESET;
+        make_patch(d ? QD_SND_NOISE - 1 : 0, DRUM[d].kv, DRUM[d].n, s->patch);
+        strncpy(s->name, DRUM[d].name, QD_SOUND_NAME - 1);
+    }
+    s->tags = TAG23[k];
+    if (k >= 1 && k <= 16) {                        /* P1.5x: ChoralRoot's FX(drive, chorus, delay, reverb) of its
+                                                     * QUAD preset (eng_quad.c QUAD_PRESETS); pan centre */
+        s->chorus = FX_SENDS[k - 1][0];
+        s->delay = FX_SENDS[k - 1][1];
+        s->reverb = FX_SENDS[k - 1][2];
+    } else {
+        s->reverb = 20;                             /* (INIT, the drums: the default kit's, QD_MIX_REVERB_DEFAULT) */
+    }
 }
 
 int qd_factory_tag(int i)
 {
-    qd_sound_t s;
-#ifdef QD_DEVICE
-    static int once;
-    if (!once)
-        qd_factory_preset(0, &s), once = 1;             /* (the first: all the tags made) */
-    return tagc[i < 0 ? 0 : i >= QD_NFACTORY ? QD_NFACTORY - 1 : i];
-#else
-    qd_factory_preset(i, &s);
-    return s.tags;
-#endif
+    const int k = i < 0 ? 0 : i >= QD_NFACTORY ? QD_NFACTORY - 1 : i;
+    return k < QD_NFACTORY_POOL ? TAG23[k] : QD_FT_META[k - QD_NFACTORY_POOL][0];
 }
 
 int qd_factory_of(const char *name, const int16_t *patch)
 {
     int k;
-    for (k = 0; k < QD_NFACTORY; k++) {
+    for (k = 0; k < QD_NFACTORY_POOL; k++) {           /* (0.6's sounds: only these were factory then) */
         qd_sound_t f;
         qd_factory_preset(k, &f);
         if (!strcmp(f.name, name) && !memcmp(f.patch, patch, sizeof f.patch))
@@ -417,7 +418,7 @@ void qd_sounds_init(qd_project_t *pr)
 {
     int k;
     qd_sounds_clear(pr);
-    for (k = 0; k < QD_NFACTORY; k++) {
+    for (k = 0; k < QD_NFACTORY_POOL; k++) {          /* (the old starting pool: the first 23 only) */
         qd_sound_t f;
         qd_factory_preset(k, &f);
 #if QD_SND_RAM

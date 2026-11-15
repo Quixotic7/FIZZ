@@ -172,7 +172,7 @@ static void turn(int k, int d)
 }
 static void to_code(int code)
 {
-    static int list[QD_BR_LIST];
+    static qd_brc_t list[QD_BR_LIST];
     const int n = qd_br_list(&A, A.ui.br.src, A.ui.br.kind, list);
     int i;
     for (i = 0; i < n && list[i] != code; i++)
