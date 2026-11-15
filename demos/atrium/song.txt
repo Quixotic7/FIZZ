@@ -1,0 +1,9 @@
+reset
+wait 300
+tap HOME
+wait 300
+project 4 new
+name ATRIUM
+song
+wait 300
+store atrium.bin
