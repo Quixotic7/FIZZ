@@ -707,7 +707,7 @@ const __fizz_m1 = (function () {
 //   parseList(bytes)                             -> {part, last, total, entries: [{source, slot, id, name, tags,
 //                                                   imported, inPool}]} | null
 //   dumpRequest({source, slot})                  -> P1.6m: DUMP (22): one preset (source "mine" 1..256, "factory"
-//                                                   1..23, "pool" 1..128), or slot 0: all of that source, paced; the
+//                                                   1..116, "pool" 1..128), or slot 0: all of that source, paced; the
 //                                                   reply is a STORE / STORE6 frame with the DUMP flag
 //   parseDump(bytes)                             -> {source: "mine" | "pool", slot, name, drive, pan, chorus, delay,
 //                                                   reverb, tags, blob (96 or 128 bytes), six, frame} | null
@@ -1731,7 +1731,14 @@ const { dnReadZip } = __fizz_m0;
 const { FIZZ_TAGS } = __fizz_m1;
 
 const RK = { SET: 1, HDR: 2, PAT: 3, SND: 4, LIB: 5, FTAG: 6, MFX: 7 };       // persist.h QD_RK_*
-const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 23, MINE0 = 0x100, DEMO_N = 3;   // (NPROJ, NLIB: the USB package's)
+const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 116, MINE0 = 0x100, DEMO_N = 3;   // (NPROJ, NLIB: the USB package's)
+// (2026-11-15) factory ids 1..116: the first 23 (a pool that did not start empty holds them at places 1..23), the pack's
+// 93 after them; ids 4 5 10 11 12 16 retired (they still play; the unit's LIST leaves them out)
+const NFACTORY_POOL = 23, FACTORY_RETIRED = [4, 5, 10, 11, 12, 16];
+// FTAG ('F'): 1 the first 23's tags; 2 then the next MY preset id (u16); 3 (2026-11-15) a tag for each factory id (the
+// length less 4 of them), then the next id. -> the next id's offset, -1 none
+const ftagNextAt = (f) => !f || f[0] !== 0x46 ? -1 : f[1] === 2 && f.length >= 2 + NFACTORY_POOL + 2 ? 2 + NFACTORY_POOL :
+  f[1] === 3 && f.length >= 4 ? f.length - 2 : -1;
 const NAME = 13, BLOB = 128, WIRE = 20, LIBLEN = 2 + NAME + BLOB + 8;
 const rkey = (kind, p, i) => ((kind << 24) | (p << 16) | i) >>> 0;
 const kindOf = (k) => k >>> 24, projOf = (k) => (k >>> 16) & 0xFF, idxOf = (k) => k & 0xFFFF;
@@ -1831,12 +1838,12 @@ const projects = (m) => Array.from({ length: limits(m).nproj }, (_, p) => projec
 
 // a pool place: {id} (a reference, 'R' 1), {rec} (a copy, 0.7's 'S'), or null (empty, 'E' 1, none). A project whose
 // pool did not start empty (the demos', 0.6's: HDR's pool_empty byte, persist.c proj_read) holds factory preset n in
-// places 1..23 that have no record (qd_sounds_init)
+// places 1..23 that have no record (qd_sounds_init: NFACTORY_POOL, the first 23 only)
 const HDR_POOL_EMPTY = 2 + NAME + 7 + 7 * NTRACK + 1;
 function poolStartsEmpty(m, p) { const h = m.prj.get(rkey(RK.HDR, p, 0)); return !!(h && h.length > HDR_POOL_EMPTY && h[HDR_POOL_EMPTY]); }
 function poolEntry(m, p, n, empty = poolStartsEmpty(m, p)) {
   const r = m.prj.get(rkey(RK.SND, p, n));
-  if (!r) return !empty && n <= NFACTORY ? { id: n } : null;
+  if (!r) return !empty && n <= NFACTORY_POOL ? { id: n } : null;
   if (r[0] === 0x45) return null;
   if (r.length === 4 && r[0] === 0x52 && r[1] === 1) return { id: g16(r, 2) };
   return { rec: r };
@@ -1856,9 +1863,14 @@ const sameSound = (a, b) => { for (let i = 2; i < 2 + NAME + BLOB; i++) if (a[i]
 function nextId(m, ix) {
   let n = MINE0;
   for (const id of ix.byId.keys()) n = Math.max(n, id + 1);
-  const f = m.lib.get(rkey(RK.FTAG, 0, 0));
-  if (f && f[0] === 0x46 && f[1] === 2 && f.length >= 2 + NFACTORY + 2) n = Math.max(n, g16(f, 2 + NFACTORY));
+  const f = m.lib.get(rkey(RK.FTAG, 0, 0)), at = ftagNextAt(f);
+  if (at >= 0) n = Math.max(n, g16(f, at));
   return n;
+}
+// the FTAG record's next id past id (an 'F' 2 or 3; none, or an 'F' 1: left as it is)
+function bumpNext(m, id) {
+  const f = m.lib.get(rkey(RK.FTAG, 0, 0)), at = ftagNextAt(f);
+  if (at >= 0 && g16(f, at) <= id) { const g = f.slice(); p16(g, at, id + 1); m.lib.set(rkey(RK.FTAG, 0, 0), g); }
 }
 // the ids a clip or a kept project names, made the target store's: kept, linked to the same sound, or added; with
 // MY PRESETS full, lost (-> lost: id -> its record: the callers write the sound as the project's own copy). The ids
@@ -1880,10 +1892,7 @@ function relink(m, presets, need = null) {
     ix.byId.set(nid, { i, r });
     map.set(id, nid);
     added++;
-    const f = m.lib.get(rkey(RK.FTAG, 0, 0));
-    if (f && f[0] === 0x46 && f[1] === 2 && f.length >= 2 + NFACTORY + 2 && g16(f, 2 + NFACTORY) <= nid) {
-      const g = f.slice(); p16(g, 2 + NFACTORY, nid + 1); m.lib.set(rkey(RK.FTAG, 0, 0), g);
-    }
+    bumpNext(m, nid);
   }
   return { map, added, lost };
 }
@@ -1898,10 +1907,7 @@ function addPreset(m, rec) {
   const i = ix.free[0], id = nextId(m, ix), r = rec.slice();
   p16(r, 2 + NAME + BLOB, id);
   m.lib.set(rkey(RK.LIB, 0, i), r);
-  const f = m.lib.get(rkey(RK.FTAG, 0, 0));
-  if (f && f[0] === 0x46 && f[1] === 2 && f.length >= 2 + NFACTORY + 2 && g16(f, 2 + NFACTORY) <= id) {
-    const g = f.slice(); p16(g, 2 + NFACTORY, id + 1); m.lib.set(rkey(RK.FTAG, 0, 0), g);
-  }
+  bumpNext(m, id);
   return { i, id, same: false };
 }
 const removePreset = (m, i) => m.lib.delete(rkey(RK.LIB, 0, i));
@@ -2202,7 +2208,7 @@ async function readFizzpat(bytes, file = "") {
 }
 const patFileName = (clip) => `${safe(clip.from)} ${clip.names.length > 1 ? `${clip.names[0]}-${clip.names[clip.names.length - 1]}` : clip.names[0] || ""}.fizzpat`;
 const prjFileName = (kept) => `${safe(kept.name)}.fizzprj`;
-return { DEMO_N, FILE_VERSION, MINE0, NFACTORY, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, addPreset, cleanName, clearPatterns, cloneModel, copyPatterns, copyRecord, derefPat, fitChoice, fitModel, idxOf, imageOf, keepProject, kindOf, limits, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, poolEntry, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, removePreset, renameKept, renameProject, rkey, walkPat };
+return { DEMO_N, FACTORY_RETIRED, FILE_VERSION, MINE0, NFACTORY, NFACTORY_POOL, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, addPreset, cleanName, clearPatterns, cloneModel, copyPatterns, copyRecord, derefPat, fitChoice, fitModel, ftagNextAt, idxOf, imageOf, keepProject, kindOf, limits, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, poolEntry, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, removePreset, renameKept, renameProject, rkey, walkPat };
 })();
 
 // ======== site/manager/fizzvalues.js

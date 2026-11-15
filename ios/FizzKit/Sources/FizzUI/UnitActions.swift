@@ -213,10 +213,10 @@ public final class UnitActions {
         (unit?.pool ?? []).filter { $0.id == id }.map(\.slot).sorted()
     }
 
-    func dumpsRead(mine: [[UInt8]], factory: [[UInt8]]) {
+    func dumpsRead(mine: [[UInt8]], factory: [[UInt8]], factorySlots fs: [Int] = []) {
         var f: [String: [UInt8]] = [:]
         for x in mine { if let d = FizzSysEx.parseDump(x) { f["mine:\(d.slot)"] = x } }
-        for (k, x) in factory.enumerated() { if let d = FizzSysEx.parseDump(x) { f["factory:\(d.slot > 0 ? d.slot : k + 1)"] = x } }
+        for (k, x) in factory.enumerated() { if let d = FizzSysEx.parseDump(x) { f["factory:\(d.slot > 0 ? d.slot : k < fs.count ? fs[k] : k + 1)"] = x } }
         frames = f
         if unit?.status != nil { Task { await probeTrack() } }
     }

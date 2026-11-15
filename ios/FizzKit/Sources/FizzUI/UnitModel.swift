@@ -381,14 +381,16 @@ public final class UnitModel {
             var a: [String: Int] = [:]
             let m = try await link.dumpAll(source: .mine, total: mine.count)
             for f in m { if let d = FizzSysEx.parseDump(f), d.blob.count > 2 { a["mine:\(d.slot)"] = Int(d.blob[2]) + 1 } }
+            // (the factory's frames carry slot 0, in LIST's order: its slots; 2026-11-15: retired ids not in it)
+            let fs = factory.map(\.slot)
             let fac = try await link.dumpAll(source: .factory, total: factory.count)
             for (k, f) in fac.enumerated() {
-                if let d = FizzSysEx.parseDump(f), d.blob.count > 2 { a["factory:\(d.slot > 0 ? d.slot : k + 1)"] = Int(d.blob[2]) + 1 }
+                if let d = FizzSysEx.parseDump(f), d.blob.count > 2 { a["factory:\(d.slot > 0 ? d.slot : k < fs.count ? fs[k] : k + 1)"] = Int(d.blob[2]) + 1 }
             }
             guard self.link === link else { return }
             algos = a
             dumpsLoaded = true
-            actions.dumpsRead(mine: m, factory: fac)
+            actions.dumpsRead(mine: m, factory: fac, factorySlots: fs)
             say("DUMP: \(m.count) of \(mine.count) my presets, \(fac.count) factory")
         } catch {
             say("library: \(error)")

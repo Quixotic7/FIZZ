@@ -382,7 +382,7 @@ public final class EditorModel {
     func placeOf(_ s: EditSound) -> EditPlace {
         let id = s.extras?.id ?? 0
         let row = id >= 0x100 ? unit?.mine.first { $0.id == id } : nil
-        let fac = (1...23).contains(id)
+        let fac = (1...116).contains(id)   // (the factory's ids: 1..23, the pack's 24..116)
         let what = row.map { "MY PRESETS \($0.slot)" } ?? (fac ? "FACTORY \(id)" : "ITS OWN SOUND")
         return EditPlace(label: what + (s.extras?.edited == true ? " · EDITED ON THE FM-1" : ""), source: row == nil ? "track" : "mine",
                          slot: row?.slot ?? 0, id: id, track: s.track, fromTarget: true)
