@@ -232,8 +232,8 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
     static const char *const POOL[] = {"FM BASS", "JUNO STAB", "JUNO PLUCK", "TAPE PAD"};
     /* level, chorus, delay, reverb, pan */
     static const struct { uint8_t level, chorus, delay, reverb; int8_t pan; } MIX[QD_NTRACK] = {
-        {108, 0, 0, 4, 0}, {106, 0, 0, 0, 0}, {98, 60, 34, 16, -12}, {108, 30, 38, 20, 12}, {88, 30, 0, 40, 0},
-        {102, 0, 6, 12, 0}};
+        {108, 0, 0, 10, 0}, {106, 0, 0, 0, 0}, {98, 60, 44, 34, -12}, {108, 30, 46, 38, 12}, {88, 30, 10, 60, 0},
+        {102, 0, 10, 28, 0}};
     static const char *const TNAME[QD_NTRACK] = {"DRUMS", "BASS", "STAB", "LEAD", "PAD", "PERC FX"};
     static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_KEYS, QD_PK_LEAD, QD_PK_PAD, QD_PK_FX};
     qd_pattern_t *p;
@@ -264,11 +264,12 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
         strncpy(a->model.t[t].name, TNAME[t], sizeof a->model.t[t].name - 1);
         a->model.t[t].kind = TKIND[t], a->model.t[t].named = 1;
     }
-    /* the effects: a small dark room, short, and a synced dotted-eighth ping-pong echo for the stab and the figure */
-    qd_fx_set(QD_FXP_RSIZE, 70), qd_fx_set(QD_FXP_RDECAY, 34), qd_fx_set(QD_FXP_RDAMP, 60), qd_fx_set(QD_FXP_RMOD, 30);
-    qd_fx_set(QD_FXP_RPRE, 20), qd_fx_set(QD_FXP_RLOW, 80);
-    qd_fx_set(QD_FXP_DSYNC, 1), qd_fx_set(QD_FXP_DDIV, 8), qd_fx_set(QD_FXP_DMODE, 1), qd_fx_set(QD_FXP_DFDBK, 48);
-    qd_fx_set(QD_FXP_DTONE, 50), qd_fx_set(QD_FXP_DWOW, 10);
+    /* the effects: a big wide room (its input cut low, so the kick and the bass stay out of it), and a stereo echo:
+     * dotted eighths on the left, eighths on the right (2:3) */
+    qd_fx_set(QD_FXP_RSIZE, 120), qd_fx_set(QD_FXP_RDECAY, 74), qd_fx_set(QD_FXP_RDAMP, 40), qd_fx_set(QD_FXP_RMOD, 56);
+    qd_fx_set(QD_FXP_RPRE, 34), qd_fx_set(QD_FXP_RLOW, 104), qd_fx_set(QD_FXP_RWIDTH, 127);
+    qd_fx_set(QD_FXP_DSYNC, 1), qd_fx_set(QD_FXP_DDIV, 8), qd_fx_set(QD_FXP_DRATIO, 2), qd_fx_set(QD_FXP_DMODE, 0);
+    qd_fx_set(QD_FXP_DFDBK, 56), qd_fx_set(QD_FXP_DTONE, 56), qd_fx_set(QD_FXP_DWOW, 16);
 
     /* A01 KICK: the kick and the conga; the bass from the third bar; the timbales */
     p = qd_proj_pat(&a->proj, 0);
