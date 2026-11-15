@@ -15,10 +15,24 @@
 #else
 #define QD_DIV_FN static
 #endif
+/* (2026-11-15, the flash diet) QD_DIV_SHARED (the firmware's units: firmware/app/fizz_prefix.h): one copy of the long
+ * parts in the whole image, not one in every unit that uses them (six copies, ~1.7 KB): the unit that defines
+ * QD_DIV_IMPL before it includes this (firmware/app/fz_port.c) has them, the others only declare them */
+#if defined(QD_DIV_SHARED) && defined(QD_DIV_IMPL)
+#undef QD_DIV_FN
+#define QD_DIV_FN __attribute__((noinline))
+#elif defined(QD_DIV_SHARED)
+#define QD_DIV_DECL_ONLY 1
+uint64_t qd_udivmod64_long(uint64_t x, uint32_t d, uint32_t *rem);
+uint64_t qd_udivmod64(uint64_t x, uint32_t d, uint32_t *rem);
+int64_t qd_divmod64(int64_t x, int32_t d, int32_t *rem);
+float qd_ratio_f(int64_t num, int64_t den);
+#endif
 /* x / d and x % d (d >= 1) */
 #ifdef QD_DIV_COUNT
 extern unsigned long qd_div_long_n;                     /* (a bench's count of the long divisions) */
 #endif
+#ifndef QD_DIV_DECL_ONLY
 QD_DIV_FN uint64_t qd_udivmod64_long(uint64_t x, uint32_t d, uint32_t *rem)
 {
 #ifdef QD_DIV_COUNT
@@ -68,10 +82,12 @@ QD_DIV_FN uint64_t qd_udivmod64(uint64_t x, uint32_t d, uint32_t *rem)
     }
     return qd_udivmod64_long(x, d, rem);
 }
+#endif
 /* (P2.4: a quotient that fits 32 bits, the common case, inline: one hardware division, no call) */
 static inline uint64_t qd_udiv64(uint64_t x, uint32_t d) { return !(x >> 32) ? (uint32_t)x / d : qd_udivmod64_long(x, d, 0); }
 
 /* signed x / d and x % d as C has them (truncated toward zero), d > 0 */
+#ifndef QD_DIV_DECL_ONLY
 QD_DIV_FN int64_t qd_divmod64(int64_t x, int32_t d, int32_t *rem)
 {
     uint32_t r;
@@ -87,6 +103,7 @@ QD_DIV_FN int64_t qd_divmod64(int64_t x, int32_t d, int32_t *rem)
         return q;
     }
 }
+#endif
 static inline int64_t qd_div64(int64_t x, int32_t d) { return x == (int32_t)x ? (int32_t)x / d : qd_divmod64(x, d, 0); }
 static inline int32_t qd_mod64(int64_t x, int32_t d)
 {
@@ -99,6 +116,7 @@ static inline int32_t qd_mod64(int64_t x, int32_t d)
 
 /* num / den as the nearest float (round half to even: what (float)((double)num / den) gives but for the rare double
  * rounding), den > 0 and < 2^32; with 32-bit divisions and shifts only (P2.4: no double on the unit) */
+#ifndef QD_DIV_DECL_ONLY
 QD_DIV_FN float qd_ratio_f(int64_t num, int64_t den)
 {
     const int neg = num < 0;
@@ -139,3 +157,4 @@ QD_DIV_FN float qd_ratio_f(int64_t num, int64_t den)
     f *= p.f;
     return neg ? -f : f;
 }
+#endif

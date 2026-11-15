@@ -3,6 +3,7 @@
  * core_quadrille.c), from fm1-base's main loop. A unit of its own (fm1.toml o2), built with FIZZ's device profile
  * (fizz_prefix.h: QD_DEVICE; on the unit QD_TARGET_FM1). Its .bss (the one qd_app_t) goes to fm1-base's pool
  * (fizz.ld). */
+#define QD_DIV_IMPL 1                        /* (the image's one copy of qd_div.h's long divisions: QD_DIV_SHARED) */
 #include <string.h>
 
 #include "../../core/app/app.h"
