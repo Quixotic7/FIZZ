@@ -128,11 +128,11 @@ uint32_t qd_fx_master_q12(void) { return song.master_q12; }
 typedef char qd_rt_half_ok[XF_HALF && CR_FX_DELAY_DS == 2 && CR_FX_REVERB_DS == 2 ? 1 : -1];   /* (the delay's wet
                                                          * is the half-rate xf.t[2..3], up-sampled here) */
 
+static const int32_t qd_chain_none[CTL];               /* (CHAIN: the other effect's silent input; one for both) */
 /* CHAIN: the delay alone, from `in`, its wet added into l / r (its own up-sampler) */
 static void qd_chain_delay(const int32_t *in, int32_t *l, int32_t *r)
 {
-    static const int32_t none[CTL];
-    const uint32_t f = xf_prep(in, none, CTL), nh = CTL >> 1;
+    const uint32_t f = xf_prep(in, qd_chain_none, CTL), nh = CTL >> 1;
     uint32_t i;
     int32_t any = 0;
     if (!(f & 1u) && !qd_ud_live)
@@ -158,8 +158,7 @@ static void qd_chain_delay(const int32_t *in, int32_t *l, int32_t *r)
 /* CHAIN: the reverb alone, from `in`, its wet added into l / r (xf.up, as in PARALLEL) */
 static void qd_chain_reverb(const int32_t *in, int32_t *l, int32_t *r)
 {
-    static const int32_t none[CTL];
-    const uint32_t f = xf_prep(none, in, CTL);
+    const uint32_t f = xf_prep(qd_chain_none, in, CTL);
     uint32_t i;
     if (!(f & 6u))
         return;
