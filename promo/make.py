@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-"""FIZZ's promo: 37 s, 1080 x 1920 (Shorts / Reels), from the firmware's own screen and sound.
+"""FIZZ's promo: 57 s, 1080 x 1920 (Shorts / Reels), from the firmware's own screen and sound.
 
-    make -C tools tour                                        # the host app with its film command
+    make -C tools tour B=build/tour-promo SONG=song_promo.c   # the host app with its film command and the promo's arp
     mkdir -p promo/build && cd promo/build
-    ../../tools/build/tour ../take.txt .                      # idle.rgb, take.rgb, take.wav: the demo song ATRIUM
+    ../../tools/build/tour-promo/tour ../take.txt .                    # idle.rgb, take.rgb, take.wav: the demo song ATRIUM
     python3 ../make.py                                        # promo/fizz-short.mp4
 
 The picture is the take's 240 x 240 frames at 4x; the lettering is the firmware's typeface (assets/fonts)."""
@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 B = os.path.join(HERE, "build")
 OUT = os.path.join(HERE, "fizz-short.mp4")
 FONTS = os.path.join(HERE, "..", "assets", "fonts")
-W, H, FPS, SECS = 1080, 1920, 30, 37.2
+W, H, FPS, SECS = 1080, 1920, 30, 57.46
 LCD, LX, LY = 960, 60, 480
 FR = 240 * 240 * 3
 
@@ -30,16 +30,22 @@ CAPS = [
     (0.00, "FIZZ", "An FM groovebox for the FM-1", BLUE),
     (3.38, "Six tracks", "16 voices of four-operator FM", ORANGE),
     (6.76, "Sound locks", "Kick, snare, hat: one track", GREEN),
-    (10.14, "8 algorithms", "A deep sound editor", PINK),
-    (13.52, "Black hole reverb", "And a ping-pong delay", VIOLET),
+    (10.14, "Every step its own", "Velocity, length, chance, ratchets", PINK),
+    (13.52, "8 algorithms", "A deep sound editor", VIOLET),
     (16.90, "Three LFOs", "Slow sweeps, a tape's flat tuning", BLUE),
-    (20.28, "Generative MIDI FX", "Arp, random, chance", ORANGE),
-    (23.66, "Mix it", "Levels, mutes, solos", GREEN),
-    (27.04, "110 factory presets", "Drum kits. Pads. Bells.", LIME),
-    (30.42, "USB host", "Bluetooth MIDI", VIOLET),
-    (33.80, "FIZZ", "Free. Open source.", PINK),
+    (20.28, "Black hole reverb", "And a ping-pong delay", ORANGE),
+    (23.66, "Chorus. Delay. Reverb.", "Sends on every track", GREEN),
+    (27.04, "Tempo and swing", "Tap it in. The ape dances.", LIME),
+    (30.42, "Mix it", "Levels, mutes, solos", PINK),
+    (33.80, "Generative MIDI FX", "Random, chance, on any track", VIOLET),
+    (37.18, "110 factory presets", "Drum kits. Pads. Bells.", LIME),
+    (40.56, "Arpeggiator", "17 patterns, its own step lanes", BLUE),
+    (43.94, "Generative tools", "Euclid, grids, random, humanize", ORANGE),
+    (47.32, "USB host", "Bluetooth MIDI", VIOLET),
+    (50.70, "A Manager in your browser", "Projects, presets, backups", GREEN),
+    (54.08, "FIZZ", "Free. Open source.", PINK),
 ]
-TITLE_END, CARD = 3.38, 33.80
+TITLE_END, CARD = 3.38, 54.08
 
 
 def font(weight, size):

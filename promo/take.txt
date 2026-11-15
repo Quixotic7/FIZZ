@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: MPL-2.0
-# The promo's two takes (from promo/build: ../../tools/build/tour ../take.txt .): the idle title, then 37 s of the
-# demo song ATRIUM, the first project of a new FM-1 (core/seq/demo.c; the tour starts on a blank flash, so it is there).
+# The promo's two takes (from promo/build: ../../tools/build/tour-promo/tour ../take.txt .): the idle title, then 57 s
+# of the demo song ATRIUM, the first project of a new FM-1 (core/seq/demo.c; the tour starts on a blank flash, so it is
+# there). "song" is tools/song_promo.c: for the film alone A08's bells play each bar's chord through an arp.
 # The film's time is the video's time. A bar is 3.380 s (71 BPM), a pattern four bars; the chain A02 (the beat),
-# A07 (the tune, full), A08 (its variation): 13.52 the tune, 27.04 the variation.
+# A03 (the tune), A07 (the tune, full), A08 (its variation, the arp), A09 (the coda, under the card):
+# 13.52 the tune, 27.04 full, 40.56 the arp, 54.08 the card.
 wait 3300
 film idle.rgb
 wait 3800
 
+song
+wait 200
 tap HOME
 wait 300
 # the drums' PIANO ROLL left in SOUND (B10 held: the mode), so SEQ comes back to it
@@ -26,49 +30,42 @@ key B10 up
 wait 300
 tap HOME
 wait 300
-# the pad selected; the effects left on DELAY
-tap SEL
-wait 200
-tapkey B3
-wait 200
-tap FX
-wait 300
-knob SELECT 2
-wait 300
-tap HOME
-wait 300
 tap SEL
 wait 200
 tapkey B1
 wait 500
-chain 2 7 8
+chain 2 3 7 8 9
 film take.rgb
 wav take.wav
 play
 mark intro
-# 0 .. 3.38 A02's first bar: OVERVIEW (the title lies over it)
+# bar 1, 0 .. 3.38 A02: OVERVIEW (the title lies over it)
 wait 3360
 mark overview
-# 3.38 .. 6.76: OVERVIEW, the beat
+# bar 2, 3.38: OVERVIEW, the beat
 wait 3380
-# 6.76 .. 10.14: the drums' sound locks (SEQ: the PIANO ROLL in SOUND)
+# bar 3, 6.76: the drums' sound locks (SEQ: the PIANO ROLL in SOUND)
 tap SEQ
 mark locks
-wait 3200
-# 10.14 .. 13.52: the pad's sound editor, its algorithm
-hold 140
+wait 3140
+# bar 4, 10.14: a step held in VEL: the stunt rider
+hold 400
+tap HOME
+down LFO
+tapkey B2
+up LFO
+key W1 down
+mark rider
+wait 3250
+key W1 up
+# bar 5, 13.52 A03: the pad's sound editor, its algorithm
+hold 200
 tap SEL
 tapkey B3
 tap EDIT
 mark editor
-wait 3280
-# 13.52 .. 16.90 A07: the reverb, the black hole
-hold 200
-tap FX
-knob SELECT 2
-mark reverb
-wait 3200
-# 16.90 .. 20.28: the lead's LFOs (LFO 1's page; its LFO 3 holds it a little flat, like an old tape)
+wait 3180
+# bar 6, 16.90: the lead's LFOs (LFO 1's page; its LFO 3 holds it a little flat, like an old tape)
 hold 640
 tap HOME
 tap SEL
@@ -76,8 +73,45 @@ tapkey B4
 tap EDIT
 knob SELECT 12
 mark lfo
-wait 2760
-# 20.28 .. 23.66: the hats' MIDI FX group (ARP: the MIDI FX screen)
+wait 2880
+# bar 7, 20.28: the reverb, the black hole
+hold 300
+tap FX
+knob SELECT 4
+mark reverb
+wait 3220
+# bar 8, 23.66: the sends, the cat
+hold 300
+knob SELECT -4
+mark sends
+wait 3260
+# bar 9, 27.04 A07: F3, the tempo: the TAP ape (a turn up and back: 71 BPM still)
+hold 300
+tap HOME
+down OCT-
+down OCT+
+up OCT+
+up OCT-
+knob PRESETS 1
+knob PRESETS -1
+mark ape
+wait 700
+knob PRESETS 1
+knob PRESETS -1
+wait 700
+knob PRESETS 1
+knob PRESETS -1
+wait 700
+knob PRESETS 1
+knob PRESETS -1
+wait 970
+tap OCT-
+# bar 10, 30.42: the mixer
+hold 200
+tap ENV
+mark mix
+wait 3170
+# bar 11, 33.80: the hats' MIDI FX group (ARP: the MIDI FX screen)
 hold 200
 tap HOME
 tap SEL
@@ -85,31 +119,57 @@ tapkey B6
 tap ARP
 mark midifx
 wait 3340
-# 23.66 .. 27.04: the mixer
-tap ENV
-mark mix
-wait 3340
-# 27.04 .. 30.42 A08: the presets
-tap REC
+# bar 12, 37.18: the presets (the browser; OCT- leaves it, the hat as it was)
+tap HOME
 mark presets
-wait 400
-knob PRESETS 1
-wait 400
-knob PRESETS 1
-wait 400
-knob PRESETS 1
-wait 400
-knob PRESETS 1
-wait 400
-knob PRESETS 1
-wait 400
-knob PRESETS 1
-wait 400
-knob PRESETS 1
 wait 300
-# 30.42 .. 37.2: OVERVIEW again, the end card over its last bar
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 220
+tap OCT-
+# bar 13, 40.56 A08: the bells' arp (MIDI FX group 2)
+hold 200
+tap HOME
+tap SEL
+tapkey B5
+tap ARP
+mark arp
+wait 3160
+# bar 14, 43.94: TOOLS on the hats, SELECT through them (each plays at once; OCT- puts the hats back)
+hold 300
+tap HOME
+tap SEL
+tapkey B6
+tap SEQ
+tap SEQ
+mark tools
+wait 500
+knob SELECT 1
+wait 520
+knob SELECT 1
+wait 520
+knob SELECT 1
+wait 520
+knob SELECT 1
+wait 520
+knob SELECT 1
+wait 520
+wait 50
+tap OCT-
+# bar 15, 47.32 .. the end: OVERVIEW again, the card over the last bar (A09)
 tap HOME
 tap SEL
 mark outro
-wait 7400
+wait 10800
 mark end
