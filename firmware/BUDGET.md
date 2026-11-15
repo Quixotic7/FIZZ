@@ -279,6 +279,9 @@ is ChoralRoot's (GPL), so FIZZ's would be written for fm1-base anew.
 
 ## P2.6: 8 voices, the voices' render in RAM (the single-core package)
 
+(2026-11-15: the single-core package is no longer built or shipped, the owner's decision; `--single-core`,
+`FZ_SINGLE_CORE` and the `FZ_VARIANT` speed bisect are gone from `firmware/build.py`. This section is the record.)
+
 The owner (2026-10-23): 8 voices on one core (`firmware/build.py --single-core`, `QD_VOICES_DEV=8`, `fizz-1core.fwsc`),
 16 when core 1 renders half (Standard, `QD_VOICES_DEV=16`). Code in RAM is placed by function now (build.py `HOT`:
 the section renamed `.fzrt.*` in the object, fizz.ld's window), not by unit.

@@ -6,10 +6,8 @@
                                             size report fizz-size.txt
   firmware/build.py --host                  the host simulator: firmware/app/build/host/fizz_host
   firmware/build.py --web                   the browser emulator (Emscripten): firmware/app/build/emu/
-  ... --single-core                         the single-core package (FZ_SINGLE_CORE=1: core 1 never started; 8
-                                            voices, QD_VOICES_DEV=8, and the voices' render in RAM), its files
-                                            named fizz-1core* (fizz-1core.fwsc, the host's fizz-1core_host).
-                                            Without it: the dual build (8 voices, the second core)
+                                            (every package is the dual build: 8 voices, the second core; the
+                                            single-core package was dropped 2026-11-15, the owner's decision)
   ... --define NAME[=VALUE]                 a core option for every unit (repeatable), named in stats line 8
   ... --tag NAME                            the package's name with -NAME (fizz-NAME.fwsc)
   ... --ble                                 the Bluetooth package (2026-10-27): fm1-base's Bluetooth MIDI peripheral
@@ -88,11 +86,11 @@ def jieli(rel):
 
 
 _tc = fb.tc
-SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
 BLE_PKG = "--ble" in sys.argv[1:]               # the Bluetooth package (2026-10-27; firmware/BUDGET.md)
 BLE_FB_LO = int(os.environ.get("FZ_BLE_FB_LO", "6"))   # (the Bluetooth package: the 8-bit frame's rows in RAM)
-if BLE_PKG and SINGLE:
-    raise SystemExit("--ble: the Bluetooth package is the dual-core one (no single-core Bluetooth package)")
+if "--single-core" in sys.argv[1:]:
+    raise SystemExit("--single-core: the single-core package is no longer built (2026-11-15, the owner: every package "
+                     "is the dual build)")
 # P2.15i: --define NAME=VALUE (repeatable): a core option for every unit (e.g. the pacing flags, core/qd_config.h), named
 # in stats line 8 (defines=); --tag NAME: the package's name gets -NAME (fizz-NAME.fwsc)
 EXTRA, TAG, _rest = [], "", []
@@ -116,14 +114,7 @@ sys.argv = [sys.argv[0], *_rest]
 # the owner (2026-10-23): 8 voices on one core, 16 when core 1 renders half (core/qd_config.h QD_VOICES_DEV)
 # P2.14b (the owner): 8 voices on every build; the dual build's voices on core 1 first, the rest on core 0. Its main RAM
 # holds core 1's stacks: 12 of the 8-bit frame's rows go to the pool
-DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=8", "-DFZ_FB_LO=88u", "-DFM1B_CPU2=1"]
-if SINGLE:
-    os.environ["FM1B_CPU2"] = "0"                  # (P2.14: the single-core package never starts the second core)
-if SINGLE and "FM1B_POOL_SPARE" not in os.environ:
-    # the comb lines (16 KB) move from the RAM code region to the pool for quad_render: the pool keeps ~3 KB spare,
-    # not fm1-base's 8,192. That spare is the build's margin only (nothing uses the pool past _pool_end: the stacks
-    # are above it, at 0x01C74000); fm1-base's own override (FM1B_POOL_SPARE, "an app's own build") sets it
-    os.environ["FM1B_POOL_SPARE"] = "2048"         # (P2.10: the core's LFO caches and looks' state, +1,080 B: 3,120 left)
+DEFS = ["-DQD_VOICES_DEV=8", "-DFZ_FB_LO=88u", "-DFM1B_CPU2=1"]
 
 # ---- audio code in RAM, by function (fizz.ld: .fzrt.* in the RAM code region's window). The compiler is not told:
 # the function's section in the compiled object is renamed from .text.NAME to .fzrt.NAME (five bytes of the section
@@ -139,22 +130,8 @@ HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_bloc
 if os.environ.get("FZ_HOT_DRAW") == "1":
     HOT = {"build_units_c_qd_gfx_fast.o": ["qd_dl_play", "text_draw", "fill_path", "paint_setup", "acc_edge",
                                            "qd_text_mask_rows", "quad_dev", "rect_dev"]}
-# (P2.8) the speed bisect: FZ_VARIANT=xip | o2 | crflags builds the voices' unit (quad_voice.c: the engine) another
-# way, into fizz-1core-VARIANT.fwsc, its id in stats line 8 (build=): xip (1) its render left in the flash, o2 (2) at
-# -O2 (in the flash too), crflags (3) with ChoralRoot's flags (-Os -ffunction-sections -fno-builtin: no -mcpu=r3, -mfprev1,
-# -ffp-contract=off, -std=gnu11). The plain build is id 0
-# P2.9: the unit's bench (us a 128 frames): o2ram 223 (218 warm), o2 240, os 259, crflags 260. The single-core
-# package's default is o2ram (id 4): the voices' unit at -O2 with its render in RAM, the effects' hot functions back in
-# the flash (their time 114 us a half stopped against 104); os (0) is P2.7's (-Os, the render in RAM), o2 (2) -O2 in
-# the flash
-VARIANT = os.environ.get("FZ_VARIANT", "")
-VARIANTS = {"os": 0, "xip": 1, "o2": 2, "crflags": 3, "o2ram": 4}
-NAMED = VARIANT
-if SINGLE and not VARIANT:
-    VARIANT = "o2ram"                            # (P2.9b: the unit's best: 223 us a 128 frames, 218 warm)
-if VARIANT and VARIANT not in VARIANTS:
-    raise SystemExit(f"FZ_VARIANT={VARIANT}: one of " + ", ".join(VARIANTS))
-DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
+# (P2.8, P2.9: FZ_VARIANT, the single-core package's speed bisect of the voices' unit, went with that package on
+# 2026-11-15; stats line 8's build= is 0, app.c FZ_VARIANT_ID)
 DEFS += [f"-D{d}" for d in EXTRA]
 if BLE_PKG:
     DEFS.append("-DQD_PKG_BLE=1")                # (the core's Bluetooth profile: core/qd_config.h)
@@ -170,13 +147,10 @@ os.environ["FM1B_USB_HOST"] = "1" if USB_HOST else "0"
 DEFS.append(f"-DQD_USB_HOST={int(USB_HOST)}")
 if EXTRA:
     DEFS.append('-DFZ_DEFINES="' + ",".join(EXTRA) + '"')
-if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out, and
-    HOT.pop("build_units_c_qd_fx.o", None)       # without the drawing's: the single-core build's region is the voices')
-    HOT.pop("build_units_c_qd_gfx_fast.o", None)
 # P2.15: the control block's begin (the sequencer, the player, the voices' starts, the owners' LFOs: branchy code that
-# missed the flash's cache, its spikes ~8x its average on the unit) in RAM too, in the dual build (the single-core
-# build's region is full); FZ_BEGIN_RAM=0 leaves it in the flash (the comparison)
-BEGIN_RAM = not SINGLE and os.environ.get("FZ_BEGIN_RAM", "1") == "1"
+# missed the flash's cache, its spikes ~8x its average on the unit) in RAM too; FZ_BEGIN_RAM=0 leaves it in the flash
+# (the comparison)
+BEGIN_RAM = os.environ.get("FZ_BEGIN_RAM", "1") == "1"
 DEFS.append(f"-DFZ_BEGIN_RAM={int(BEGIN_RAM)}")    # (stats line 8: begin_ram=)
 if BEGIN_RAM:
     HOT.update({"build_units_c_player.o": ["qd_player_block", "fz_real_qd_player_block", "?qd_player_event"],
@@ -196,9 +170,6 @@ if BLE_PKG:
     for _o, _ns in BLE_COLD.items():
         if _o in HOT:
             HOT[_o] = [n for n in HOT[_o] if n not in _ns]
-if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does not fit the RAM code region: flash)                  # (8 voices: the RAM they free takes the voices' render)
-    HOT["build_units_c_quad_voice.o"] = ["quad_render", "qd_quad_voice_render", "?quad_lfo_incb", "?quad_lfo_incb_p",
-                                         "?quad_lfo_incv", "?quad_lfo_inc"]   # (?: its helpers, where the core has them)
 
 
 # ---- the Bluetooth package's second blob (--ble): what leaves the app slot for the data region's first 24 sectors
@@ -271,7 +242,6 @@ BLE_OZ = OZ_CTL | {"build_units_c_ui_idle.o",   # (the idle screen: nothing play
                    # had 192 B left)
                    *filter(None, os.environ.get("FZ_BLE_OZ", "").split(","))}
 USB_OZ = set(OZ_CTL)
-SINGLE_OZ = set(OZ_CTL)
 # .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
 # does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
 # -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
@@ -615,11 +585,7 @@ def tc(tool, *args):
             # fm1-base's Bluetooth build makes them)
             args = ["-mllvm", "-pi32v2-large-program=true", *args]
             out = args[args.index("-o") + 1]
-            if out.name == "build_units_c_quad_voice.o" and VARIANT in ("o2", "o2ram"):
-                args = [a if a != "-Os" else "-O2" for a in args]
-            if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
-                args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
-            if out.name in (BLE_OZ if BLE_PKG else SINGLE_OZ if SINGLE else USB_OZ):
+            if out.name in (BLE_OZ if BLE_PKG else USB_OZ):
                 args = [a if a != "-Os" else "-Oz" for a in args]
             if out.name in HOT or (BLE_PKG and (out.name in BLE_SLOT or out.name in BLE_X2_FN)):
                 r = _tc(tool, *args)
@@ -633,25 +599,15 @@ def tc(tool, *args):
     if tool == "pi32v2/bin/ld":
         for i, a in enumerate(args):
             if isinstance(a, Path) and a.name in ("app.ld", "app_wifi.ld"):
-                args[i] = APP / "fizz.ld"
-                if not SINGLE:                   # (P2.12: Standard keeps its comb lines in the RAM code region: the
-                    ld = (APP / "fizz.ld").read_text()   # frame's rows and buffers marked for it go to the pool)
-                    if ld.count(" *(.fz_rtdata*)") != 1 or ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
-                        raise SystemExit("fizz: fizz.ld's .fz_rt / .pool lines changed: see build.py")
-                    ld = ld.replace(" *(.fz_rtdata*)", "").replace("*/o2/fz_port.o(.bss* .sbss* COMMON)",
-                                                                   "*/o2/fz_port.o(.bss* .sbss* COMMON) *(.fz_rtdata*)")
-                    args[i] = fb.OUT / ("fizz-ble.ld" if BLE_PKG else "fizz-std.ld")
-                    args[i].write_text(ble_ld(ld) if BLE_PKG else ld)
-                if SINGLE:                       # the voices' comb lines leave the RAM code region for the pool;
-                    ld = (APP / "fizz.ld").read_text()   # 2026-10-24: the frame's rows and buffers marked for it too
-                    comb = " */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)"   # (as Standard: six tracks gave
-                    if (ld.count(comb) != 1 or ld.count(" *(.fz_rtdata*)") != 1 or   # the pool 14 KB; the render
-                            ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1):   # at -O2 outgrew the region)
-                        raise SystemExit("fizz: fizz.ld's .fz_rt / .pool lines changed: see build.py")
-                    ld = ld.replace(comb, "").replace(" *(.fz_rtdata*)", "").replace(
-                        "*/o2/fz_port.o(.bss* .sbss* COMMON)", "*/o2/fz_port.o(.bss* .sbss* COMMON) *(.fz_rtdata*)" + comb)
-                    args[i] = fb.OUT / "fizz-1core.ld"
-                    args[i].write_text(ld)
+                # (P2.12: the comb lines stay in the RAM code region: the frame's rows and buffers marked for it
+                # go to the pool)
+                ld = (APP / "fizz.ld").read_text()
+                if ld.count(" *(.fz_rtdata*)") != 1 or ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
+                    raise SystemExit("fizz: fizz.ld's .fz_rt / .pool lines changed: see build.py")
+                ld = ld.replace(" *(.fz_rtdata*)", "").replace("*/o2/fz_port.o(.bss* .sbss* COMMON)",
+                                                               "*/o2/fz_port.o(.bss* .sbss* COMMON) *(.fz_rtdata*)")
+                args[i] = fb.OUT / ("fizz-ble.ld" if BLE_PKG else "fizz-std.ld")
+                args[i].write_text(ble_ld(ld) if BLE_PKG else ld)
         o = args.index("-o")
         if os.environ.get("FZ_MEASURE") == "1":
             args[o:o] = ["--no-check-sections"]
@@ -961,12 +917,10 @@ class _Subprocess:
 
 fb.subprocess = _Subprocess()
 
-# ---- the single-core package: its own file names (the name in fm1.toml, -1core), FZ_SINGLE_CORE=1 everywhere
-if (SINGLE or TAG) and not BLE_PKG:
+# ---- --tag NAME: the USB package's files named fizz-NAME
+if TAG and not BLE_PKG:
     _read_conf = fb.read_conf
-    fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") +
-                                 ("-1core" if SINGLE else "") + (f"-{NAMED}" if SINGLE and NAMED else "") +
-                                 (f"-{TAG}" if TAG else "")}
+    fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") + f"-{TAG}"}
 
 # ---- the Bluetooth package: fm1-base's Bluetooth MIDI peripheral (trimmed, no pairing), its heap and stacks from
 # fm1.toml's fizz_ble_heap_kb / fizz_ble_stack_kb (the environment's FZ_BLE_HEAP_KB / FZ_BLE_STACK_KB over them: the
@@ -984,5 +938,5 @@ if BLE_PKG:
     fb.read_conf = _ble_conf
 
 if __name__ == "__main__":
-    sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *[a for a in sys.argv[1:] if a != "--single-core"]]
+    sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *sys.argv[1:]]
     sys.exit(fb.main())

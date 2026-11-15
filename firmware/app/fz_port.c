@@ -754,7 +754,7 @@ uint32_t fz_state_line(char *q, char *lim)
     uint32_t live = 0, total = 0;
     st_lim = lim, st_need = 0, st_cut = 0;
     q = st_u(q, "voices=", (uint32_t)qd_pool_in_use(&a->pool));
-    q = st_u(q, "of=", (uint32_t)a->pool.nvoice);         /* (the build's: 8 single-core, 16 Standard) */
+    q = st_u(q, "of=", (uint32_t)a->pool.nvoice);         /* (the build's: QD_VOICES_DEV) */
     q = st_u(q, "playing=", (uint32_t)a->playing);
     q = st_u(q, "seq_playing=", (uint32_t)a->seq.playing);
     q = st_u(q, "kheld=", a->keys_held);               /* (2026-11-13: the keys FIZZ holds down, the step keyboard) */

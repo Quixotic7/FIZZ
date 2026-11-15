@@ -2,7 +2,7 @@
 # P2.10: the owner's two slow screens, playing: a held step (the outline around the screen) and VEL's rider (a step
 # held after B2, VEL: the simulator's black key b1). Every frame from one instant (no list outgrown: drawn live) and the screen's bursts. Its counters:
 # fzstats (lines 1, 2 and 7). The simulator's times are the host's; the counts are the unit's.
-#   firmware/app/build/host/fizz-1core_host firmware/app/tests/perf.txt OUT
+#   firmware/app/build/host/fizz_host firmware/app/tests/perf.txt OUT
 expect fz_up 1
 wait 500
 tap PLAY

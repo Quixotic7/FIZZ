@@ -6,18 +6,13 @@
  * The core 1 itself is a back end behind fz_c1_backend_t: today the SIMULATED one (core 0 runs the job, through the
  * same mailbox, check word and sequence a real core 1 will read: the protocol and the bit-exactness are proven before
  * core 1 exists); tomorrow felucca-bsp's chip/fm1_cpu1.* (issue #5, the owner's decision of 2026-10-23: wait for it),
- * handed to fz_dual_boot as its back end. FZ_SINGLE_CORE 1 (the single-core package): core 1 is never started, whatever
- * else, and every job runs on core 0 at once.
+ * handed to fz_dual_boot as its back end. (The single-core package, FZ_SINGLE_CORE, is no longer built: 2026-11-15.)
  *
  * The escalation, the record's decision and the power-on gating are from ChoralRoot's cr_cpu1.h, Michael P Jones,
  * relicensed MPL-2.0 by its author for FIZZ, 2026-10-23 (its design after Melodee PR 21, Kerem Kilic, credited there).
  * Nothing here is from felucca-bsp's, fm1-x0x's, Melodee's or Jangada's fm1_cpu1.* / fm1_multicore.h. */
 #pragma once
 #include <stdint.h>
-
-#ifndef FZ_SINGLE_CORE
-#define FZ_SINGLE_CORE 0
-#endif
 
 enum { FZ_C1_OFF, FZ_C1_OK, FZ_C1_FAILED, FZ_C1_GAVE_UP };          /* core 1 this session */
 enum { FZ_C1_BAR_NONE, FZ_C1_BAR_CRASH, FZ_C1_BAR_HANG, FZ_C1_BAR_GAVE_UP };   /* why the record keeps it off */

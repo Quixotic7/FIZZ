@@ -27,11 +27,11 @@ usb_audio_out = false
 mirror = false
 # USB HOST (2026-11-14, PLAYING.md "USB host"): SETTINGS' page 3 makes the port the host of a USB-MIDI keyboard or synth
 # (felucca-bsp's chip/usb_host.c, with firmware/build.py's OVERLAY: RemoteFM1's fixes); never saved: every power-on is
-# a device. The USB package's only: build.py turns it off for --ble and --single-core (no room in their flash)
+# a device. Every package's (build.py FM1B_USB_HOST; 0 leaves it out)
 usb_host = true
 backup = false                 # (fm1-base's backup carries Felucca's storage objects; FIZZ's store is its own: fizz_xdata.py backup)
-# P2.14: the second core (fm1-base's cpu2, felucca-bsp's, Melodee's): the dual build's voices 8..15 (build.py
-# --single-core turns it off); a unit whose second core fails plays on with one, until power-off
+# P2.14: the second core (fm1-base's cpu2, felucca-bsp's, Melodee's): half the voices on it, every package (the
+# single-core package is no longer built, 2026-11-15); a unit whose second core fails plays on with one, until power-off
 cpu2 = true
 cpu2_fallback = true
 # the site
