@@ -55,7 +55,8 @@ import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
 import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage, writeStore, RESERVE, magicsOf } from "../manager/fizzstore.js";
 import { modelOf, imageOf, projects, project, walkPat, rkey, RK, patName, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject,
-  renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, fitModel, fitChoice, limits } from "../manager/projects.js";
+  renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, fitModel, fitChoice, limits,
+  NFACTORY, NFACTORY_POOL, FACTORY_RETIRED, ftagNextAt, addPreset, poolEntry } from "../manager/projects.js";
 import { backupFlash, isBackupFile } from "../js/backup-play.js";
 import { usedBy } from "../manager/usedby.js";
 import { browserRows, recordOf, keepIn, dropFrom } from "../manager/browserlib.js";
@@ -100,7 +101,15 @@ check(layoutOf(info.size).name === "host" && layoutOf(299008).name === "device",
 // ---- the library
 const rows = await link.list({ factory: true });
 const my = mine(rows), fac = rows.filter((r) => r.source === "factory");
-check(my.length === 3 && my.map((r) => r.name).join() === NAMES.join() && fac.length === 23, `LIST: MY PRESETS ${my.map((r) => `${r.slot} ${r.name}`).join(", ")}; factory ${fac.length}`);
+check(my.length === 3 && my.map((r) => r.name).join() === NAMES.join() && fac.length === 110, `LIST: MY PRESETS ${my.map((r) => `${r.slot} ${r.name}`).join(", ")}; factory ${fac.length}`);
+// (2026-11-15) the factory's 116 ids, 4 5 10 11 12 16 retired: LIST leaves them out, its slot the id, the pack's from 24
+check(fac.every((r) => r.id === r.slot && !FACTORY_RETIRED.includes(r.id)) && fac[fac.length - 1].id === NFACTORY && fac.find((r) => r.id === 24).name === "DUST KICK",
+  `LIST: the factory's ids 1..${NFACTORY} without ${FACTORY_RETIRED.join(" ")} (24 ${(fac.find((r) => r.id === 24) || {}).name})`);
+{
+  const fd = await link.dumpAll("factory", fac.length), d11 = await link.dump("factory", 11);
+  check(fd.length === fac.length && fd.every((f, i) => soundFromFrame(f).name === fac[i].name) && d11 && soundFromFrame(d11).name === "WOBBLE",
+    `DUMP of the factory: ${fd.length} frames in LIST's order (the Manager keys them by LIST's slots); a retired slot (11, WOBBLE) DUMPed by itself`);
+}
 const t0 = performance.now();
 const dumps = await link.dumpAll("mine", my.length);
 const dumpMs = performance.now() - t0;
@@ -555,7 +564,7 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   check((await trackOf(0)).track === 0, "and back to track 1");
   // BROWSE: the unit's browser on track 4 at MY PRESETS 2 (its id); OCT- cancels, OCT+ loads
   const rows0 = await lk.list({ factory: true });
-  const p2 = rows0.find((q) => q.source === "mine" && q.slot === 2), f5 = rows0.find((q) => q.source === "factory" && q.slot === 5);
+  const p2 = rows0.find((q) => q.source === "mine" && q.slot === 2), f5 = rows0.find((q) => q.source === "factory" && q.slot === 6);
   const own4 = await lk.dumpTrack(4);
   const b1 = await lk.browse(3, p2.id), st = await lk.status(), t4 = await trackOf(4);
   check(b1.status === 0 && b1.a === 4 && st.browse && st.sel === 3 && t4.extras.browse && t4.extras.id === p2.id && t4.name === p2.name,
@@ -568,7 +577,7 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   u.press("OCT+");
   const st4 = await lk.status(), t4b = await trackOf(4);
   check(b2.status === 0 && b2.a === 4 && !st4.browse && t4b.extras.id === f5.id && t4b.name === f5.name && !t4b.extras.browse,
-    `BROWSE the selected track (4), FACTORY 5 ${f5.name}; OCT+ on the unit: loaded (the track plays preset ${t4b.extras.id})`);
+    `BROWSE the selected track (4), FACTORY 6 ${f5.name}; OCT+ on the unit: loaded (the track plays preset ${t4b.extras.id})`);
   const nf = await lk.browse(0, 4000), bt = await lk.browse(6, f5.id);
   check(nf.status === 9 && bt.status === 11 && !(await lk.status()).browse, "BROWSE: NOT FOUND for no such preset, BAD TRACK for track 7; nothing opened");
   // POOL REF: the next LIST has it (the page shows it at once, then reads back until the unit agrees)
@@ -1298,6 +1307,28 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   }
 }
 // ---- (end of nf-dnsyx)
+
+// ---- (2026-11-15) the factory's 116: FTAG 'F' 1 / 2 (the 23 tags) and 'F' 3 (a tag each, then the next id), both read;
+// a pool that did not start empty holds factory n at places 1..23 only
+{
+  const g16 = (b, o) => b[o] | b[o + 1] << 8;
+  const v2 = new Uint8Array(2 + 23 + 2), v3 = new Uint8Array(2 + NFACTORY + 2), v1 = new Uint8Array(2 + 23);
+  v2.set([0x46, 2]); v2[25] = 0x34; v2[26] = 0x02; v3.set([0x46, 3]); v3[2 + NFACTORY] = 0x40; v3[3 + NFACTORY] = 0x02; v1.set([0x46, 1]);
+  check(ftagNextAt(v2) === 25 && ftagNextAt(v3) === 2 + NFACTORY && ftagNextAt(v1) === -1 && ftagNextAt(null) === -1,
+    `FTAG: the next id's place in an 'F' 2 (25), an 'F' 3 (${2 + NFACTORY}), none in an 'F' 1`);
+  const rec = new Uint8Array(2 + 13 + 128 + 8); rec.set([0x53, 5]); rec[2] = 0x41;
+  let ok = 0;
+  for (const [f, at, want] of [[v2, 25, 0x234], [v3, 2 + NFACTORY, 0x240]]) {
+    const m = { layout: "host", lib: new Map([[rkey(RK.FTAG, 0, 0), f]]), prj: new Map() };
+    const a = addPreset(m, rec), g = m.lib.get(rkey(RK.FTAG, 0, 0));
+    ok += a.id === want && g.length === f.length && g16(g, at) === want + 1 && g[1] === f[1];
+  }
+  check(ok === 2, "FTAG: a preset added (IN THIS BROWSER) takes the next id of an 'F' 2 and an 'F' 3, each kept its own version");
+  const m = { layout: "host", lib: new Map(), prj: new Map() };
+  const e = [1, NFACTORY_POOL, NFACTORY_POOL + 1, 50].map((n) => poolEntry(m, 0, n, false));
+  check(e[0].id === 1 && e[1].id === 23 && e[2] === null && e[3] === null && FACTORY_RETIRED.join() === "4,5,10,11,12,16",
+    "a pool that did not start empty: factory n at places 1..23 only (24.. empty, as before)");
+}
 
 // ---- the owner's saved images (outside the repo), read offline
 {

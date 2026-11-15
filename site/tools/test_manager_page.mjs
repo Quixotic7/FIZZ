@@ -451,12 +451,12 @@ try {
   // EDIT (Manager P2-A): opened from LIBRARY, every group, every value; edits; the browser's FIZZ; SAVE AS NEW; EXPORT
   await click("#t-library");
   await click("#l-filter [data-src='factory']");
-  await click("#l-list .cas[data-src='factory'][data-slot='4']");
+  await click("#l-list .cas[data-src='factory'][data-slot='6']");   // (2026-11-15: 4 and 5 retired, not listed)
   await waitFor("document.getElementById('l-edit') && !document.getElementById('l-edit').disabled");
   await click("#l-edit");
   await waitFor("!document.getElementById('tab-edit').hidden && document.querySelector('#ed-stage .algosvg')");
   const ename = await evaluate("__mgr.editor.sound().name");
-  check(!!ename && (await evaluate("document.querySelector('#ed-head .h').textContent")).startsWith("FACTORY 4"), `EDIT: LIBRARY's EDIT opened FACTORY 4 ${ename}`);
+  check(!!ename && (await evaluate("document.querySelector('#ed-head .h').textContent")).startsWith("FACTORY 6"), `EDIT: LIBRARY's EDIT opened FACTORY 6 ${ename}`);
   const seen = new Set();
   const collect = () => evaluate(`[...document.querySelectorAll('#ed-stage [data-id], #ed-stage [data-x], #ed-stage [data-y], #ed-stage [data-pick], #ed-stage [data-set]')]
     .flatMap((e) => [e.dataset.id, e.dataset.x, e.dataset.y, e.dataset.pick, e.dataset.set && e.dataset.set.split(':')[0]]).filter((x) => x !== undefined).map(Number)`);
@@ -1127,7 +1127,7 @@ try {
   await click("#t-library");
   await click("#live");
   await waitFor("__mgr.live.on()");
-  await click("#l-list .cas[data-src='factory'][data-slot='5']");
+  await click("#l-list .cas[data-src='factory'][data-slot='7']");
   await waitFor("!document.getElementById('loadbar').hidden");
   await idle();
   await evaluate("window.scrollTo(0, 0)");

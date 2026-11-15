@@ -1091,7 +1091,7 @@ const projectName = (p) => {
 };
 
 // ---------------------------------------------------------------- the library
-const frameOf = (r) => (r.source === "mine" ? S.unit.dumps && S.unit.dumps.get(r.slot) : S.unit.fdumps && S.unit.fdumps[r.slot - 1]) ||
+const frameOf = (r) => (r.source === "mine" ? S.unit.dumps && S.unit.dumps.get(r.slot) : S.unit.fdumps && S.unit.fdumps.get(r.slot)) ||
   (S.unit.one && S.unit.one.get(`${r.source}:${r.slot}:${r.id}`)) || null;
 // a selected preset's DUMP read by itself when the whole library's is not here yet (EXPORT, EDIT need it)
 function fetchOne(r) {
@@ -1273,7 +1273,7 @@ function renderSel() {
       took: (rs) => rs.some((q) => q.source === r.source && q.slot === r.slot && q.tags === mask) });
     if (x && x.status === 0) {
       if (r.source === "mine") await redump(r.slot);
-      else if (u.fdumps) u.fdumps[r.slot - 1] = await S.link.dump("factory", r.slot).catch(() => null) || u.fdumps[r.slot - 1];
+      else if (u.fdumps) { const f = await S.link.dump("factory", r.slot).catch(() => null); if (f) u.fdumps.set(r.slot, f); }
     }
     renderLibrary(); pool.render();
   }));
@@ -1956,7 +1956,8 @@ async function loadDumps() {
     }
     if (!u.fdumps) {
       const fac = u.rows.filter((r) => r.source === "factory");
-      u.fdumps = await S.link.dumpAll("factory", fac.length);
+      const frames = await S.link.dumpAll("factory", fac.length);   // (in LIST's order: its slots, the retired ids not in it)
+      u.fdumps = new Map(frames.map((f, i) => [fac[i].slot, f]));
       renderLibrary();
     }
   } catch (e) { log(`library: ${e.message}`); } finally { dumping = false; }

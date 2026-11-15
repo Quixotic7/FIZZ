@@ -26,7 +26,7 @@
 //   parseList(bytes)                             -> {part, last, total, entries: [{source, slot, id, name, tags,
 //                                                   imported, inPool}]} | null
 //   dumpRequest({source, slot})                  -> P1.6m: DUMP (22): one preset (source "mine" 1..256, "factory"
-//                                                   1..23, "pool" 1..128), or slot 0: all of that source, paced; the
+//                                                   1..116, "pool" 1..128), or slot 0: all of that source, paced; the
 //                                                   reply is a STORE / STORE6 frame with the DUMP flag
 //   parseDump(bytes)                             -> {source: "mine" | "pool", slot, name, drive, pan, chorus, delay,
 //                                                   reverb, tags, blob (96 or 128 bytes), six, frame} | null
