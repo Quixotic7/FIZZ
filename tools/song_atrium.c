@@ -4,8 +4,9 @@
 /* FIZZ's demo song "ATRIUM": slow, worn, sunlit: a television station's opening music on an old tape. A dusty hip hop
  * beat at 71 BPM under pads, a sub that follows the kick, and a FANFARE: a brassy lead that climbs in fourths and
  * fifths to long high notes, a bell doubling it an octave up, a tom roll and a cymbal into each strain. Everything
- * pitched is tuned a quarter of a semitone FLAT, as a tape running slow. It opens and closes without the drums, and
- * it closes in another key (make -C tools tour SONG=song_atrium.c; `song` in a tour script, a new project first).
+ * pitched is tuned a quarter of a semitone FLAT, as a tape running slow (each track's sound edited in its pattern:
+ * no presets of the song's own). It opens on air, a noise whose filter opens over ten seconds, and closes without
+ * the drums, in another key (make -C tools tour SONG=song_atrium.c; `song` in a tour script, a new project first).
  *
  * 71 BPM, swing 58 %, C Lydian (C major with F sharp), four bars a pattern. The first strain holds C, F and G over a
  * bass that moves under them: C, C, A, F. The second is the big cadence: A flat, B flat, C, C. The coda is in A.
@@ -17,55 +18,51 @@
  *   T5 BELLS   HAZY BELL: five notes on a loop of TWELVE steps (three beats against four); with the fanfare, its
  *              notes an octave up; alone, slowly, in the opening and the coda
  *   T6 HATS    DUST HAT in eighths through MIDI FX group 1 (RANDOM velocities), the shaker later; the cymbal; and
- *              THE AIR as sound locks: TAPE HISS, RADIO, WIND
+ *              THE AIR as sound locks: TAPE HISS, RADIO, WIND. In the opening and the coda the track's sound is
+ *              WIND, edited: one long note, its filter opening slowly
  * A01 OPENING  A02 BEAT  A03 BELLS  A04 FANFARE  A05 CADENCE  A06 BARE  A07 FANFARE AGAIN  A08 CADENCE, FULL
  * A09 CODA  A10 END (one bar) */
 enum { T_DR, T_BA, T_PAD, T_MEL, T_BELL, T_HAT };
-/* the pool, in this order: the drums and the air from the pack, then the song's five flat sounds */
+/* the pool, in this order */
 enum { K_KICK = 1, K_SNARE, K_RIM, K_HAT, K_OPEN, K_SHAKER, K_SNAP, K_THAT, K_TOM, K_CYMBAL, X_HISS, X_RADIO, X_WIND,
        P_SUB, P_PAD, P_CHAPEL, P_LEAD, P_BELL };
 enum { LEN = 64 };                                      /* four bars */
+enum { LS64 = 16 };                                     /* (a length past the common header's: 64 steps) */
 enum { FLAT_DEPTH = -133 };                             /* PITCH depth 64.00 an octave: 1.33 = 25 cents */
+enum { AIR_FREQ = 12700, AIR_WAVE = 4, AIR_DEPTH = -6400 };   /* the opening air's filter, RAMP, its depth */
 
 #include "song_common.h"
 
-/* ---- THE FLAT SOUNDS. FIZZ has no master tuning, so each pitched sound gets its own: its third LFO (free in all
- * five) as a square that starts at each note and takes hours to turn, on PITCH: a fixed 25 cents down. They are
- * MY presets of their own (FLAT ..), not the pack's */
-static struct { const char *from, *name; int slot; int16_t patch[sizeof FIZZ_PACK[0].patch / sizeof(int16_t)]; }
-    FL[] = {{"SUB", "FLAT SUB", 0, {0}}, {"JUNO PAD", "FLAT JUNO PD", 0, {0}}, {"CHAPEL", "FLAT CHAPEL", 0, {0}},
-            {"JUNO LEAD", "FLAT JUNO LD", 0, {0}}, {"HAZY BELL", "FLAT BELL", 0, {0}}};
-enum { NFLAT = sizeof FL / sizeof FL[0] };
-
-static int flat_store(qd_app_t *a, int k)
+/* ---- THE EDITS, each to a track's sound in its pattern (kept with the pattern; the presets stay as they are).
+ * FLAT: FIZZ has no master tuning, so each pitched track's third LFO (free in all five sounds) is a square that
+ * starts at each note and takes hours to turn, on PITCH: a fixed 25 cents down */
+static int dest(const char *name)
 {
-    const fizz_pack_t *f = &FIZZ_PACK[pack_find(FL[k].from)];
-    qd_sound_t s;
-    int d, pitch = -1;
+    int d;
     for (d = 0; d < qd_quad_ndest(); d++)
-        if (!strcmp(qd_quad_dest_name(d), "PITCH"))
-            pitch = d;
-    memcpy(FL[k].patch, f->patch, sizeof FL[k].patch);
-    FL[k].patch[QD_QP_LFO(2, QD_QL_SPEED)] = 1, FL[k].patch[QD_QP_LFO(2, QD_QL_MULT)] = 12;     /* F1: 0.00004 Hz */
-    FL[k].patch[QD_QP_LFO(2, QD_QL_WAVE)] = 2, FL[k].patch[QD_QP_LFO(2, QD_QL_TRIG)] = 1;      /* SQR, TRIG */
-    FL[k].patch[QD_QP_LFO(2, QD_QL_PHASE)] = 0, FL[k].patch[QD_QP_LFO(2, QD_QL_FADE)] = 0;
-    FL[k].patch[QD_QP_LFO(2, QD_QL_DEST)] = (int16_t)pitch, FL[k].patch[QD_QP_LFO(2, QD_QL_DEPTH)] = FLAT_DEPTH;
-    FL[k].slot = qd_lib_free_slot(a);
-    if (pitch < 0 || FL[k].slot < 0 || !qd_lib_store_ex(a, FL[k].slot, FL[k].name, FL[k].patch, 0))
-        return -1;
-    qd_lib_read(a, FL[k].slot, &s);
-    s.tags = f->tag, s.pan = f->pan, s.chorus = f->chorus, s.delay = f->delay, s.reverb = f->reverb;
-    qd_lib_write(a, FL[k].slot, &s);
-    qd_lib_read(a, FL[k].slot, &s);
-    return qd_pool_add_sound(a, &s);
+        if (!strcmp(qd_quad_dest_name(d), name))
+            return d;
+    fprintf(stderr, "song: no destination %s\n", name);
+    return 0;
 }
-/* track t's sound in pattern p: flat sound k (pool number P_SUB + k) */
-static void fsound(qd_app_t *a, qd_pattern_t *p, int t, int k)
+static void lfo3(qd_pattern_t *p, int t, int speed, int wave, int trig, const char *to, int depth)
 {
-    memcpy(p->snd[t].patch, FL[k].patch, sizeof p->snd[t].patch);
-    memset(p->snd[t].name, 0, sizeof p->snd[t].name);
-    strncpy(p->snd[t].name, FL[k].name, sizeof p->snd[t].name - 1);
-    p->snd[t].sound = (uint8_t)(P_SUB + k), p->snd[t].edited = 0, p->snd[t].preset = qd_lib_preset(a, FL[k].slot);
+    int16_t *q = p->snd[t].patch;
+    q[QD_QP_LFO(2, QD_QL_SPEED)] = (int16_t)speed, q[QD_QP_LFO(2, QD_QL_MULT)] = 12;       /* F1: SPEED / 256 Hz */
+    q[QD_QP_LFO(2, QD_QL_WAVE)] = (int16_t)wave, q[QD_QP_LFO(2, QD_QL_TRIG)] = (int16_t)trig;
+    q[QD_QP_LFO(2, QD_QL_PHASE)] = 0, q[QD_QP_LFO(2, QD_QL_FADE)] = 0;
+    q[QD_QP_LFO(2, QD_QL_DEST)] = (int16_t)dest(to), q[QD_QP_LFO(2, QD_QL_DEPTH)] = (int16_t)depth;
+    p->snd[t].edited = 1;
+}
+static void flat(qd_pattern_t *p, int t) { lfo3(p, t, 1, 2, 1, "PITCH", FLAT_DEPTH); }   /* SQR, TRIG */
+/* THE OPENING AIR: WIND with a ramp on its filter: RAMP falls from 1 to 0 once, over sixteen seconds, and the depth
+ * is negative, so the filter starts shut and opens all the way; the note (the pattern's four bars, 13.5 s) ends
+ * before the ramp does. A slow fade in */
+static void airy(qd_pattern_t *p, int t)
+{
+    int16_t *q = p->snd[t].patch;
+    q[QD_QP_FREQ] = AIR_FREQ, q[QD_QP_EATK] = 100, q[QD_QP_EREL] = 60;
+    lfo3(p, t, 1600, AIR_WAVE, 3, "FREQ", AIR_DEPTH);                                     /* 1/16 Hz, ONE */
 }
 
 static void hitn(qd_pattern_t *p, int t, int s, int k, int vel, int n)
@@ -173,16 +170,14 @@ static const struct { uint8_t root, v[4]; } CH[] = {
     {30, {42, 49, 57, 64}}};
 static const uint8_t H_A[4] = {CS, LY, AM, FA}, H_B[4] = {AB, BB, CM, LY}, H_CODA[4] = {AA, FS, AA, AA};
 
-/* THE PAD: each bar's chord for the bar, strummed slowly; sound k (0: the track's own) */
-static void pad(qd_pattern_t *p, const uint8_t *h, int k)
+/* THE PAD: each bar's chord for the bar, strummed slowly */
+static void pad(qd_pattern_t *p, const uint8_t *h)
 {
     int b;
     qd_track_set_length(p, T_PAD, LEN);
     p->trk[T_PAD].limit = 8;
     for (b = 0; b < 4; b++) {
         chord(p, T_PAD, b * 16, CH[h[b]].v, 4, 84, LS16, 4);
-        if (k)
-            qd_step_set_sound(p, T_PAD, b * 16, k);
     }
 }
 
@@ -228,31 +223,42 @@ static void line(qd_pattern_t *p, int t, const mel_t *m, int limit, int up, int 
     for (; m->s != 255; m++)
         note(p, t, m->s, m->n + up, m->vel + dvel, m->len);
 }
-/* THE FANFARE: G, C, D, up to the long high G; F sharp, E; over A the long E and up a fourth to A; over F: F, G, A,
- * climbing out */
-static const mel_t M_A[] = {{0, 67, 100, LS4}, {4, 72, 104, LS4}, {8, 74, 108, LS4}, {12, 79, 116, LS12},
-    {24, 78, 100, LS4}, {28, 76, 100, LS4}, {32, 76, 106, LS8}, {40, 81, 114, LS8}, {48, 77, 102, LS4},
-    {52, 79, 106, LS4}, {56, 81, 112, LS8}, {255, 0, 0, 0}};
+/* THE FANFARE, the cadence's shape: two notes up to a long third one, three times, each higher: G, C, the long E;
+ * A, D, the long F sharp; over A the high A for the bar; over F: F, E, and the long G that asks for the cadence */
+static const mel_t M_A[] = {{0, 67, 102, LS4}, {4, 72, 104, LS4}, {8, 76, 112, LS8}, {16, 69, 104, LS4},
+    {20, 74, 108, LS4}, {24, 78, 116, LS8}, {32, 81, 120, LS12}, {44, 79, 104, LS4}, {48, 77, 108, LS4},
+    {52, 76, 104, LS4}, {56, 79, 112, LS8}, {255, 0, 0, 0}};
 /* THE CADENCE: over A flat C, E flat, the long A flat; over B flat F, B flat, the long D; C major: the high C for
  * the bar; then D, C, and home to G */
 static const mel_t M_B[] = {{0, 72, 104, LS4}, {4, 75, 106, LS4}, {8, 80, 114, LS8}, {16, 77, 106, LS4},
     {20, 82, 110, LS4}, {24, 86, 118, LS8}, {32, 84, 122, LS12}, {44, 79, 104, LS4}, {48, 86, 114, LS4},
     {52, 84, 108, LS4}, {56, 79, 110, LS8}, {255, 0, 0, 0}};
-/* the bell alone in the opening: the fanfare's first notes, slowly */
-static const mel_t M_OPEN[] = {{8, 67, 84, LS8}, {16, 72, 80, LS8}, {24, 74, 84, LS8}, {40, 79, 90, LS16},
-    {56, 78, 76, LS8}, {255, 0, 0, 0}};
+/* the bell alone in the opening, over the cadence's chords: its long notes, an octave down */
+static const mel_t M_OPEN[] = {{8, 68, 84, LS8}, {24, 74, 84, LS8}, {32, 72, 90, LS16}, {56, 67, 80, LS8},
+    {255, 0, 0, 0}};
 /* .. in the coda, in A: E, A, B, the long E */
 static const mel_t M_CODA[] = {{8, 64, 84, LS8}, {16, 69, 80, LS8}, {24, 71, 84, LS8}, {40, 76, 90, LS16},
     {255, 0, 0, 0}};
 
-static void sounds(qd_app_t *a, qd_pattern_t *p)
+/* a pattern's track sounds. chapel: the pad is CHAPEL (JUNO PAD otherwise). air: the hats' track is the opening air */
+static void sounds(qd_app_t *a, qd_pattern_t *p, int chapel, int air)
 {
     tsound(a, p, T_DR, "DUST KICK", K_KICK);
-    fsound(a, p, T_BA, P_SUB - P_SUB);
-    fsound(a, p, T_PAD, P_PAD - P_SUB);
-    fsound(a, p, T_MEL, P_LEAD - P_SUB);
-    fsound(a, p, T_BELL, P_BELL - P_SUB);
-    tsound(a, p, T_HAT, "DUST HAT", K_HAT);
+    tsound(a, p, T_BA, "SUB", P_SUB), flat(p, T_BA);
+    if (chapel)
+        tsound(a, p, T_PAD, "CHAPEL", P_CHAPEL);
+    else
+        tsound(a, p, T_PAD, "JUNO PAD", P_PAD);
+    flat(p, T_PAD);
+    tsound(a, p, T_MEL, "JUNO LEAD", P_LEAD), flat(p, T_MEL);
+    tsound(a, p, T_BELL, "HAZY BELL", P_BELL), flat(p, T_BELL);
+    if (air) {
+        tsound(a, p, T_HAT, "WIND", X_WIND), airy(p, T_HAT);
+        qd_track_set_length(p, T_HAT, LEN);
+        note(p, T_HAT, 0, 60, 84, LS64);
+        qd_lock_set(p, T_HAT, 0, QD_LK_REVERB, 70);
+    } else
+        tsound(a, p, T_HAT, "DUST HAT", K_HAT);
     p->bpm = 71;
     p->swing = 58;
     p->used = 1;
@@ -261,7 +267,8 @@ static void sounds(qd_app_t *a, qd_pattern_t *p)
 int fizz_tour_song(qd_app_t *a, int argc, char **argv)
 {
     static const char *const POOL[] = {"DUST KICK", "DUST SNARE", "DUST RIM", "DUST HAT", "DUST OPEN", "DUST SHAKER",
-        "TAPE SNAP", "TAPE HAT", "DUST TOM", "808 CYMBAL", "TAPE HISS", "RADIO", "WIND"};
+        "TAPE SNAP", "TAPE HAT", "DUST TOM", "808 CYMBAL", "TAPE HISS", "RADIO", "WIND", "SUB", "JUNO PAD", "CHAPEL",
+        "JUNO LEAD", "HAZY BELL"};
     /* level, chorus, delay, reverb, pan */
     static const struct { uint8_t level, chorus, delay, reverb; int8_t pan; } MIX[QD_NTRACK] = {
         {98, 0, 0, 14, 0}, {88, 0, 0, 0, 0}, {74, 60, 20, 60, 0}, {98, 40, 44, 56, 6}, {100, 20, 60, 60, -16},
@@ -280,11 +287,6 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
     for (i = 0; i < (int)(sizeof POOL / sizeof POOL[0]); i++)
         if (pool_add(a, pack_find(POOL[i])) != 1 + i) {
             fprintf(stderr, "song: the pool is not empty (a new project first)\n");
-            return 1;
-        }
-    for (i = 0; i < NFLAT; i++)
-        if (flat_store(a, i) != P_SUB + i) {
-            fprintf(stderr, "song: no room for %s\n", FL[i].name);
             return 1;
         }
     for (t = 0; t < QD_NTRACK; t++) {
@@ -307,65 +309,62 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
         m[0].v[QD_MD_VEL] = 36, m[0].v[QD_MD_CHANCE] = 70;
     }
 
-    /* A01 OPENING: the pad, the hiss, the bell with the fanfare's first notes. No drums */
+    /* A01 OPENING: the air opening, the pad on the cadence's chords, the bell. No drums */
     p = qd_proj_pat(&a->proj, 0);
-    sounds(a, p);
-    air(p, 1, 0, 0, 0), pad(p, H_A, 0), line(p, T_BELL, M_OPEN, 3, 0, 0);
+    sounds(a, p, 1, 1);
+    pad(p, H_B), line(p, T_BELL, M_OPEN, 3, 0, 0);
 
     /* A02 BEAT: the drums, the sub, the hats under the pad */
     p = qd_proj_pat(&a->proj, 1);
-    sounds(a, p);
-    drums(p, 0), air(p, 1, 0, 0, 0), hats(p, 0), bass(p, H_A, 0), pad(p, H_A, 0);
+    sounds(a, p, 0, 0);
+    drums(p, 0), air(p, 1, 0, 0, 0), hats(p, 0), bass(p, H_A, 0), pad(p, H_A);
 
     /* A03 BELLS: the bell figure over it; the toms into the fanfare */
     p = qd_proj_pat(&a->proj, 2);
-    sounds(a, p);
-    drums(p, 3), air(p, 1, 1, 0, 0), hats(p, 0), bass(p, H_A, 0), pad(p, H_A, 0), bells(p);
+    sounds(a, p, 0, 0);
+    drums(p, 3), air(p, 1, 1, 0, 0), hats(p, 0), bass(p, H_A, 0), pad(p, H_A), bells(p);
 
     /* A04 FANFARE: the cymbal, the lead, the bell an octave over it */
     p = qd_proj_pat(&a->proj, 3);
-    sounds(a, p);
-    drums(p, 1), air(p, 1, 0, 0, 1), hats(p, 0), bass(p, H_A, 0), pad(p, H_A, 0);
+    sounds(a, p, 0, 0);
+    drums(p, 1), air(p, 1, 0, 0, 1), hats(p, 0), bass(p, H_A, 0), pad(p, H_A);
     line(p, T_MEL, M_A, 2, 0, 0), line(p, T_BELL, M_A, 3, 12, -10);
 
     /* A05 CADENCE: A flat, B flat, C; the other pad; it stops on the last bar's three */
     p = qd_proj_pat(&a->proj, 4);
-    sounds(a, p);
-    drums(p, 2), air(p, 1, 0, 1, 1), hats(p, 0), bass(p, H_B, 1), pad(p, H_B, P_CHAPEL);
+    sounds(a, p, 1, 0);
+    drums(p, 2), air(p, 1, 0, 1, 1), hats(p, 0), bass(p, H_B, 1), pad(p, H_B);
     line(p, T_MEL, M_B, 2, 0, 0), line(p, T_BELL, M_B, 3, 12, -14);
 
     /* A06 BARE: the drums, the sub, the bell figure, the radio. No pad, no lead; the toms */
     p = qd_proj_pat(&a->proj, 5);
-    sounds(a, p);
+    sounds(a, p, 0, 0);
     drums(p, 3), air(p, 1, 1, 0, 0), hats(p, 0), bass(p, H_A, 0), bells(p);
 
     /* A07 FANFARE AGAIN: everything, the shaker with it */
     p = qd_proj_pat(&a->proj, 6);
-    sounds(a, p);
-    drums(p, 1), air(p, 1, 0, 0, 1), hats(p, 1), bass(p, H_A, 0), pad(p, H_A, 0);
+    sounds(a, p, 0, 0);
+    drums(p, 1), air(p, 1, 0, 0, 1), hats(p, 1), bass(p, H_A, 0), pad(p, H_A);
     line(p, T_MEL, M_A, 2, 0, 0), line(p, T_BELL, M_A, 3, 12, -10);
 
     /* A08 CADENCE, FULL; the stop */
     p = qd_proj_pat(&a->proj, 7);
-    sounds(a, p);
-    drums(p, 2), air(p, 1, 0, 1, 1), hats(p, 1), bass(p, H_B, 1), pad(p, H_B, P_CHAPEL);
+    sounds(a, p, 1, 0);
+    drums(p, 2), air(p, 1, 0, 1, 1), hats(p, 1), bass(p, H_B, 1), pad(p, H_B);
     line(p, T_MEL, M_B, 2, 0, 0), line(p, T_BELL, M_B, 3, 12, -14);
 
-    /* A09 CODA: in A, no drums: the other pad, the bell, the hiss */
+    /* A09 CODA: in A, no drums: the other pad, the bell, the air again */
     p = qd_proj_pat(&a->proj, 8);
-    sounds(a, p);
-    air(p, 1, 0, 0, 0), pad(p, H_CODA, P_CHAPEL), line(p, T_BELL, M_CODA, 3, 0, 0);
+    sounds(a, p, 1, 1);
+    pad(p, H_CODA), line(p, T_BELL, M_CODA, 3, 0, 0);
 
     /* A10 END (one bar): A, held */
     p = qd_proj_pat(&a->proj, 9);
-    sounds(a, p);
+    sounds(a, p, 1, 0);
     for (t = 0; t < QD_NTRACK; t++)
         qd_track_set_length(p, t, 16);
     chord(p, T_PAD, 0, CH[AA].v, 4, 80, LS16, 4);
-    qd_step_set_sound(p, T_PAD, 0, P_CHAPEL);
     note(p, T_BELL, 0, 73, 72, LS8);
-    note(p, T_HAT, 1, 60, 60, LS16);
-    qd_step_set_sound(p, T_HAT, 1, X_HISS);
     p->master = 16;
     return 0;
 }
