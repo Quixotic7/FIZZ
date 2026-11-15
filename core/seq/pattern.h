@@ -319,7 +319,8 @@ typedef struct {
     uint8_t stg_on;                     /* .. the owner reads outside the lock (the app: qd_proj_fetch_work in its free
                                          * part); 0: qd_proj_fetch reads at once, as before */
 #endif
-    uint8_t demo;                       /* P2.1: the patterns' defaults: the demos (A01..A03), else blank */
+    uint8_t demo;                       /* P2.1: the patterns' defaults: a demo's (demo.h QD_DEMO_*: ATRIUM's A01..A10),
+                                         * else blank */
     qd_pat_io_t io;
     uint32_t pat_loads, pat_saves, pat_forced;   /* (the budget's counters: forced: every slot pinned) */
     uint8_t nopage;                     /* P2.4: the audio side is running: nothing is read in or written (a count) */

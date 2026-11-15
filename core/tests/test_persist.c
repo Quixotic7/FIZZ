@@ -1731,22 +1731,39 @@ static int locks_to(qd_app_t *a, int k)
                 n += qd_proj_cpat(&a->proj, p)->step[t][s].sound == k;
     return n;
 }
-static void demo_drums_test(void)                      /* demo.h's table: what the demos lock, as they are made */
+/* demo.c qd_demo_locks: what a demo's pattern locks, not made, as it is made (persist.c's users of a pool slot in the
+ * patterns with no record): every lock on, the sound overridden; a track sound's source (s -1) */
+typedef struct { uint8_t hit[QD_PAT_NTRACK][QD_NSTEP + 1]; } dl_t;
+static void dl_fn(void *ctx, int t, int s) { ((dl_t *)ctx)->hit[t][s < 0 ? QD_NSTEP : s]++; }
+static void demo_drums_test(void)
 {
     static qd_pattern_t P;
-    int d, t, s, bad = 0;
-    for (d = 0; d < QD_DEMO_N; d++) {
-        qd_demo_pattern(&P, d);
-        for (t = 0; t < QD_PAT_NTRACK; t++) {
-            bad += P.snd[t].sound != 0;
-            for (s = 0; s < QD_NSTEP; s++) {
-                const qd_step_t *x = &P.step[t][s];
-                const int want = t == 0 && s < 16 ? QD_DEMO_DRUMS[d][s] : 0;
-                bad += x->sound != want || (want && (!(x->flags & QD_SF_ON) || !(x->ovr & QD_OV(QD_PM_SOUND))));
+    static dl_t L;
+    int kind, d, t, s, k, bad = 0, n = 0;
+    for (kind = QD_DEMO_OLD; kind <= QD_DEMO_ATRIUM; kind++)
+        for (d = 0; d < qd_demo_n(kind); d++) {
+            qd_demo_default(&P, kind, d);
+            for (k = 1; k <= QD_NSOUND; k++) {
+                int c, want = 0;
+                memset(&L, 0, sizeof L);
+                c = qd_demo_locks(kind, d, k, dl_fn, &L);
+                for (t = 0; t < QD_PAT_NTRACK; t++) {
+                    want += P.snd[t].sound == k;
+                    bad += L.hit[t][QD_NSTEP] != (P.snd[t].sound == k);
+                    for (s = 0; s < QD_NSTEP; s++) {
+                        const qd_step_t *x = &P.step[t][s];
+                        const int lk = x->sound == k;
+                        want += lk;
+                        bad += L.hit[t][s] != lk || (lk && (!(x->flags & QD_SF_ON) || !(x->ovr & QD_OV(QD_PM_SOUND))));
+                    }
+                }
+                bad += c != want;
+                n += want;
             }
         }
-    }
-    CHECK(!bad, "demo.h QD_DEMO_DRUMS: the demos' sound locks, as made (%d differ)", bad);
+    CHECK(!bad && n > 0 && qd_demo_locks(QD_DEMO_ATRIUM, 1, 1, 0, 0) == 11 + 1,
+          "demo.c qd_demo_locks: the demos' sound locks and track sounds, not made, as made (%d of them, %d differ)", n,
+          bad);
 }
 #if QD_SND_RAM
 #define SC_LOADS(a) ((a)->per.sc.loads)

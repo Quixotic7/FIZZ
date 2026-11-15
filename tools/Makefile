@@ -66,7 +66,10 @@ OUT := $(ROOT)/core/tests/out
 # 2026-11-14: USB HOST (core/qd_config.h QD_USB_HOST) as every package has it (the Bluetooth package's too: its
 # SETTINGS page 3, BLUETOOTH page 4)
 USBH_DEF := -DQD_USB_HOST=1
-WARN := -std=c99 -Wall -Wextra -Wpedantic $(PROFILE) $(USBH_DEF) $(GFX_DEF)
+# 2026-11-15: the old demo (core/seq/demo.h QD_DEMO_HOST) in the tools and tests only: their fixtures (the firmware and
+# the browser's emulator have ATRIUM alone)
+DEMO_DEF := -DQD_DEMO_HOST=1
+WARN := -std=c99 -Wall -Wextra -Wpedantic $(PROFILE) $(USBH_DEF) $(GFX_DEF) $(DEMO_DEF)
 SAN := -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all
 SAN_ENGINE := -O2 -g -fsanitize=address,signed-integer-overflow -fno-sanitize-recover=all
 T := $(ROOT)/core/tests
@@ -221,6 +224,9 @@ $(B)/test_sysex: $(T)/test_sysex.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_sysex.c $(SAN_OBJ) -lm
 $(B)/test_persist: $(T)/test_persist.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_persist.c $(SAN_OBJ) -lm
+# 2026-11-15: the built-in ATRIUM against tools/song_atrium.c, the song it is made from (linked in)
+$(B)/test_atrium: $(T)/test_atrium.c $(ROOT)/tools/song_atrium.c $(ROOT)/tools/song_common.h $(SAN_OBJ) $(HDRS)
+	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_atrium.c $(ROOT)/tools/song_atrium.c $(SAN_OBJ) -lm
 $(B)/test_store: $(T)/test_store.c $(ROOT)/core/store/store.c $(ROOT)/core/store/store.h | $(B)
 	$(CC) $(SAN) $(WARN) -o $@ $(T)/test_store.c $(ROOT)/core/store/store.c
 $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/qd_arena.h | $(B)
@@ -229,7 +235,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx $(B)/test_tools $(B)/test_midi
-TESTS += $(B)/test_fx_packed
+TESTS += $(B)/test_fx_packed $(B)/test_atrium
 test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-dev-ble test-gfx-fast budget-ratchet values-check stats-names-check \
       factory-check
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
@@ -238,7 +244,7 @@ test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-dev-ble test
 # core/tests/out/dev (the goldens are the same: the sizes change nothing a pattern sounds like). The bit-exact tests
 # compare the voice and the effects with ChoralRoot's code: no size of theirs differs, they run once (test-host)
 DEV_TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_mfx $(B)/test_app $(B)/test_ctl $(B)/test_store \
-             $(B)/test_persist $(B)/test_sysex $(B)/test_arena $(B)/test_tools $(B)/test_midi
+             $(B)/test_persist $(B)/test_sysex $(B)/test_arena $(B)/test_tools $(B)/test_midi $(B)/test_atrium
 test-dev:
 	$(MAKE) PROFILE=-DQD_DEVICE B=build/dev OUT=$(abspath $(OUT))/dev test-dev-run
 # P2.4: the same at the device's sizes with the unit's drawing (GFX=fast), into build/dev-fast
@@ -290,6 +296,7 @@ test-dev-run: $(DEV_TESTS)
 	$(B)/test_ctl
 	$(B)/test_store
 	$(B)/test_persist
+	$(B)/test_atrium
 	$(B)/test_sysex
 	$(B)/test_arena
 	$(B)/test_tools
@@ -310,6 +317,7 @@ test-host: $(TESTS)
 	$(PY) grids_map.py --check
 	$(B)/test_store
 	$(B)/test_persist
+	$(B)/test_atrium
 	$(B)/test_sysex
 	@if [ -d "$(DNSND_DIR)" ]; then node test_sysex_dnsnd.mjs "$(DNSND_DIR)" $(B)/test_sysex; else echo "test_sysex_dnsnd: no $(DNSND_DIR) (skipped)"; fi
 	node test_fizz_sysex.mjs $(B)/test_sysex

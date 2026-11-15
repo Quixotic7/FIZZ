@@ -213,9 +213,7 @@ void qd_project_init(qd_project_t *pr)
 /* ---------------------------------------------------------------- P2.1: the patterns paged */
 void qd_pat_default(const qd_project_t *pr, int k, qd_pattern_t *dst)
 {
-    qd_pat_init(dst);
-    if (pr->demo && k >= 0 && k < QD_DEMO_N)
-        qd_demo_pattern(dst, k);
+    qd_demo_default(dst, pr->demo, k);                  /* (blank past the demo's, or with none) */
 }
 
 static int pk(int k) { return k < 0 ? 0 : k >= QD_NPAT ? QD_NPAT - 1 : k; }

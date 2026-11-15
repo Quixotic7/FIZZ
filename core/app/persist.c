@@ -804,7 +804,7 @@ static void proj_initial(qd_app_t *a, int demo, int pool_empty)
         pr->pool_empty = 1;
     }
     if (demo)
-        qd_demo_load(pr);
+        qd_demo_load(pr, demo);                         /* (its patterns' defaults, its MIDI FX: demo.c) */
     for (t = 0; t < QD_NTRACK; t++) {                   /* the model's mix and voices: the default kit's */
         qd_model_t m;
         qd_model_init(&m);
@@ -855,7 +855,7 @@ static void proj_read(qd_app_t *a, int p)
         rd_t r;
         uint8_t h[8];
         len = rd_open(&r, &ps->prj_st, QD_RKEY(QD_RK_PAT, p, k));
-        a->proj.pat_used[k] = (uint8_t)(a->proj.demo && k < QD_DEMO_N);
+        a->proj.pat_used[k] = (uint8_t)(k < qd_demo_n(a->proj.demo));
         if (len > 0 && len != (int)QDS_DELETED && rd_get(&r, h, 8) && pat_tset_size(h, (uint32_t)len))
             a->proj.pat_used[k] = h[7];
     }
@@ -1021,6 +1021,40 @@ static int prj_format_ok(qd_persist_t *ps, const qd_flash_t *fl)
     return qd_store_mount(&ps->prj_st, fl, QD_FLASH_PRJ, QD_FLASH_PRJ_SEC, ps->prj_ent, QD_PRJ_KEYS);
 }
 
+/* (2026-11-15) the built-in ATRIUM's project beside its patterns and MIDI FX (demo.c, no record): the tracks' mix,
+ * kinds and names (the header's, written by the caller), its pool written (references to factory presets, as
+ * tools/song_atrium.c's MY presets were); fx: the effects too (an erased flash: no settings' record yet) */
+static FZ_COLD void atrium_app(qd_app_t *a, int fx)
+{
+    static const uint8_t MIX[QD_NTRACK][6] = {          /* level, chorus, delay, reverb, pan; the kind */
+        {98, 0, 0, 14, 0, QD_PK_DRUMS}, {88, 0, 0, 0, 0, QD_PK_BASS}, {74, 60, 20, 60, 0, QD_PK_PAD},
+        {98, 40, 44, 56, 6, QD_PK_LEAD}, {100, 20, 60, 60, (uint8_t)-16, QD_PK_KEYS}, {92, 0, 20, 20, 12, QD_PK_DRUMS}};
+    static const char NAMES[] = "DRUMS\0SUB\0PAD\0FANFARE\0BELLS\0HATS AIR";
+    static const uint8_t FX[][2] = {                    /* a long dark room; a dull stereo echo that wobbles */
+        {QD_FXP_RSIZE, 124}, {QD_FXP_RDECAY, 96}, {QD_FXP_RDAMP, 60}, {QD_FXP_RMOD, 70}, {QD_FXP_RPRE, 30},
+        {QD_FXP_RLOW, 90}, {QD_FXP_RWIDTH, 127}, {QD_FXP_DSYNC, 1}, {QD_FXP_DDIV, 8}, {QD_FXP_DRATIO, 2},
+        {QD_FXP_DMODE, 0}, {QD_FXP_DFDBK, 60}, {QD_FXP_DTONE, 44}, {QD_FXP_DWOW, 60}};
+    const char *nm = NAMES;
+    int t, k;
+    for (t = 0; t < QD_NTRACK; t++, nm += strlen(nm) + 1) {
+        qd_track_t *m = &a->model.t[t];
+        m->mix.level = MIX[t][0], m->mix.chorus = MIX[t][1], m->mix.delay = MIX[t][2], m->mix.reverb = MIX[t][3];
+        m->mix.pan = (int8_t)MIX[t][4];
+        memset(m->name, 0, sizeof m->name);
+        strncpy(m->name, nm, sizeof m->name - 1);
+        m->kind = MIX[t][5], m->named = 1;
+    }
+    for (k = 1; k <= QD_ATRIUM_NPOOL; k++) {
+        qd_sound_t s;
+        memset(&s, 0, sizeof s);
+        s.preset = (uint16_t)(QD_ATRIUM_ID0 + QD_ATRIUM_POOL[k - 1]);
+        pool_cache(a, &s);
+        put_now(&a->per.prj_st, QD_RKEY(QD_RK_SND, a->per.proj, k), pr_buf, snd_rec(&s, 1, pr_buf));
+    }
+    for (k = 0; fx && k < (int)(sizeof FX / sizeof FX[0]); k++)
+        qd_fx_set(FX[k][0], FX[k][1]);
+}
+
 FZ_COLD void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)   /* (once, at boot: minsize) */
 {
     qd_persist_t *ps = &a->per;
@@ -1044,11 +1078,14 @@ FZ_COLD void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)   /* (once, at
                                                          * the demos */
         proj = 0;
         if (!ps->pexists[0]) {
+            const int kind = qd_demo_first;             /* (ATRIUM; the host's tests: the old demo, their fixtures) */
             ps->proj = 0;
-            ps->pdemo = 1;
-            proj_initial(a, 1, 0);                      /* (the demo keeps its starting pool: its drums) */
+            ps->pdemo = (uint8_t)kind;
+            proj_initial(a, kind, kind == QD_DEMO_ATRIUM);   /* (the old demo keeps its starting pool: its drums) */
+            if (kind == QD_DEMO_ATRIUM)
+                atrium_app(a, len <= 0 || len == (int)QDS_DELETED);
             memset(ps->pname[0], 0, QD_PROJ_NAME);
-            strcpy(ps->pname[0], "PROJECT 1");
+            strcpy(ps->pname[0], kind == QD_DEMO_ATRIUM ? "ATRIUM" : "PROJECT 1");
             write_header(a);
         }
     }
@@ -1958,6 +1995,25 @@ static __attribute__((noinline)) int rd_skip(rd_t *r, uint32_t n)
     r->pos += n;
     return 1;
 }
+/* a demo's pattern with no record: each lock of the slot (on, every one), as a record's below; a track sound's source
+ * (s -1): counted only */
+typedef struct {
+    qd_app_t *a;
+    int p, k, rec, *on;
+    uint8_t *tracks;
+} rr_t;
+static void rr_lock(void *ctx, int t, int s)
+{
+    rr_t *c = (rr_t *)ctx;
+    if (s < 0)
+        return;
+    if (c->rec)
+        qd_undo_xlock(c->a, c->p, t, s, c->k, 1);
+    if (c->on)
+        ++*c->on;
+    if (c->tracks)
+        *c->tracks |= (uint8_t)(1u << t);
+}
 static int rec_refs(qd_app_t *a, int p, int k, int *on, uint8_t *tracks, int rec)
 {
     qd_store_t *st = pat_store(a);
@@ -1970,20 +2026,10 @@ static int rec_refs(qd_app_t *a, int p, int k, int *on, uint8_t *tracks, int rec
     if (!st)
         return -1;
     len = rd_open(&r, st, QD_RKEY(QD_RK_PAT, a->per.proj, p));
-    if (len <= 0 || len == (int)QDS_DELETED) {          /* (its default: blank, or a demo: its drums' locks) */
-        if (!a->proj.demo || p >= QD_DEMO_N)
-            return 0;
-        for (s = 0; s < 16; s++)
-            if (QD_DEMO_DRUMS[p][s] == k) {
-                n++;
-                if (rec)
-                    qd_undo_xlock(a, p, 0, s, k, 1);
-                if (on)
-                    ++*on;
-                if (tracks)
-                    *tracks |= 1u;
-            }
-        return n;
+    if (len <= 0 || len == (int)QDS_DELETED) {          /* (its default: blank, or a demo's: its locks, not made) */
+        rr_t c;
+        c.a = a, c.p = p, c.k = k, c.rec = rec, c.on = on, c.tracks = tracks;
+        return qd_demo_locks(a->proj.demo, p, k, rr_lock, &c);
     }
     if (!rd_get(&r, h, 4) || !(tsz = pat_tset_size(h, r.len)) || !rd_skip(&r, 6) || !rd_get(&r, &nlock, 2))
         return -1;
