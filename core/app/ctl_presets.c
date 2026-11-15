@@ -170,9 +170,8 @@ static void br_open(qd_app_t *a)
     b->t = a->sel;
     qd_track_to_tsound(t, &b->own);
     b->own_mix = t->mix;                                /* (P1.5x: the track's own mix, back on a cancel) */
-    b->src = QD_BR_ALL;
-    b->kind = 0;
-    b->moved = 0;
+    b->moved = 0;                                       /* (2026-11-15, the owner: the source and kind kept from the
+                                                         * last time; not in the list: at the top) */
     b->del_armed = b->out_armed = 0;
     b->fx = QD_BRFX_NONE;
     n = qd_br_list(a, b->src, b->kind, list);           /* (on the track's current preset) */
