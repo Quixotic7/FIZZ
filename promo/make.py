@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-"""FIZZ's promo: 57 s, 1080 x 1920 (Shorts / Reels), from the firmware's own screen and sound.
+"""FIZZ's promo: 64 s (19 bars of ATRIUM), 1080 x 1920 (Shorts / Reels), from the firmware's own screen and sound.
 
     make -C tools tour B=build/tour-promo SONG=song_promo.c   # the host app with its film command and the promo's arp
     mkdir -p promo/build && cd promo/build
     ../../tools/build/tour-promo/tour ../take.txt .                    # idle.rgb, take.rgb, take.wav: the demo song ATRIUM
     python3 ../make.py                                        # promo/fizz-short.mp4
 
-The picture is the take's 240 x 240 frames at 4x; the lettering is the firmware's typeface (assets/fonts)."""
+The first bar is the idle title; then the picture is the take's 240 x 240 frames at 4x; the lettering is the
+firmware's typeface (assets/fonts)."""
 import os
 import subprocess
 import sys
@@ -18,7 +19,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 B = os.path.join(HERE, "build")
 OUT = os.path.join(HERE, "fizz-short.mp4")
 FONTS = os.path.join(HERE, "..", "assets", "fonts")
-W, H, FPS, SECS = 1080, 1920, 30, 57.46
+BAR = 240.0 / 71                                        # a bar of ATRIUM (71 BPM), 3.380 s
+W, H, FPS, SECS = 1080, 1920, 30, round(19 * BAR, 2)
 LCD, LX, LY = 960, 60, 480
 FR = 240 * 240 * 3
 
@@ -26,26 +28,27 @@ BLACK, WHITE, GREY = (0, 0, 0), (255, 255, 255), (150, 150, 158)
 BLUE, GREEN, ORANGE, PINK, LIME, VIOLET = (0x3D, 0x7B, 0xFF), (0x2E, 0xD5, 0x8A), (0xFF, 0x6B, 0x2B), (0xFF, 0x3D, 0xC8), (0xC8, 0xF0, 0x3C), (0x9B, 0x6B, 0xFF)
 
 # (from s, line 1, line 2, line 2's colour): the take's marks (promo/take.txt)
-CAPS = [
-    (0.00, "FIZZ", "An FM groovebox for the FM-1", BLUE),
-    (3.38, "Six tracks", "16 voices of four-operator FM", ORANGE),
-    (6.76, "Sound locks", "Kick, snare, hat: one track", GREEN),
-    (10.14, "Every step its own", "Velocity, length, chance, ratchets", PINK),
-    (13.52, "8 algorithms", "A deep sound editor", VIOLET),
-    (16.90, "Three LFOs", "Slow sweeps, a tape's flat tuning", BLUE),
-    (20.28, "Black hole reverb", "And a ping-pong delay", ORANGE),
-    (23.66, "Chorus. Delay. Reverb.", "Sends on every track", GREEN),
-    (27.04, "Tempo and swing", "Tap it in. The ape dances.", LIME),
-    (30.42, "Mix it", "Levels, mutes, solos", PINK),
-    (33.80, "Generative MIDI FX", "Random, chance, on any track", VIOLET),
-    (37.18, "110 factory presets", "Drum kits. Pads. Bells.", LIME),
-    (40.56, "Arpeggiator", "17 patterns, its own step lanes", BLUE),
-    (43.94, "Generative tools", "Euclid, grids, random, humanize", ORANGE),
-    (47.32, "USB host", "Bluetooth MIDI", VIOLET),
-    (50.70, "A Manager in your browser", "Projects, presets, backups", GREEN),
-    (54.08, "FIZZ", "Free. Open source.", PINK),
-]
-TITLE_END, CARD = 3.38, 54.08
+# (from bar, line 1, line 2, line 2's colour): the take's marks (promo/take.txt), a section a bar line
+CAPS = [(b * BAR, a, c, col) for b, a, c, col in [
+    (0, "FIZZ", "An FM groovebox for the FM-1", BLUE),           # the idle title
+    (1, "Six tracks", "16 voices of four-operator FM", ORANGE),
+    (2, "A demo song inside", "ATRIUM, on every new FM-1", LIME),
+    (3, "Sound locks", "Kick, snare, hat: one track", GREEN),
+    (4, "Every step its own", "Velocity, length, chance, ratchets", PINK),
+    (5, "8 algorithms", "A deep sound editor", VIOLET),
+    (6, "Three LFOs", "Hold one, turn a knob: mapped", BLUE),
+    (7, "Black hole reverb", "And a ping-pong delay", ORANGE),
+    (8, "Chorus. Delay. Reverb.", "Sends on every track", GREEN),
+    (9, "Tap tempo", "Tap it in. The ape dances.", LIME),
+    (10, "Mix it", "Levels, mutes, solos", PINK),
+    (11, "110 factory presets", "Drum kits. Pads. Bells.", LIME),
+    (12, "Arpeggiator", "Its own MOD and TRANSPOSE lanes", BLUE),   # two bars
+    (14, "Generative tools", "Euclid and grids fill the steps", ORANGE),  # two bars
+    (16, "USB host", "Bluetooth MIDI", VIOLET),
+    (17, "A Manager in your browser", "Projects, presets, backups", GREEN),
+    (18, "FIZZ", "Free. Open source.", PINK),
+]]
+TITLE_END, CARD = 1 * BAR, 18 * BAR
 
 
 def font(weight, size):
@@ -84,9 +87,27 @@ def base(accent):
     return im
 
 
+def idle_frame(idle, i):
+    return Image.frombytes("RGB", (240, 240), idle[i * FR:(i + 1) * FR])
+
+
 def main():
     idle = open(os.path.join(B, "idle.rgb"), "rb").read()
     take = open(os.path.join(B, "take.rgb"), "rb").read()
+    texts = {}
+
+    def text(k, a1, a2):
+        """The captions alone (RGBA) for the 3D title."""
+        key = (k, a1, a2)
+        if key not in texts:
+            _, a, b, col = CAPS[k]
+            im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            d = ImageDraw.Draw(im)
+            for s, f, y, c, n in ((a, F1, 150, WHITE, a1), (b, F2, 290, col, a2)):
+                if n > 0:
+                    centre(d, y + int((1 - n / 8.0) * 26), s, f, c + (int(255 * n / 8.0),))
+            texts[key] = im
+        return texts[key]
     bases = {}
     layers = {}
 
