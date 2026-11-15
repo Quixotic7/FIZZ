@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-"""FIZZ's promo: 30 s, 1080 x 1920 (Shorts / Reels), from the firmware's own screen and sound.
+"""FIZZ's promo: 37 s, 1080 x 1920 (Shorts / Reels), from the firmware's own screen and sound.
 
-    make -C tools tour                                        # the host app with its film command and the demo song
+    make -C tools tour                                        # the host app with its film command
     mkdir -p promo/build && cd promo/build
-    ../../tools/build/tour ../song.txt .                      # sunfade.bin: the demo project SUNFADE
-    ../../tools/build/tour ../take.txt .                      # idle.rgb, take.rgb, take.wav
+    ../../tools/build/tour ../take.txt .                      # idle.rgb, take.rgb, take.wav: the demo song ATRIUM
     python3 ../make.py                                        # promo/fizz-short.mp4
 
 The picture is the take's 240 x 240 frames at 4x; the lettering is the firmware's typeface (assets/fonts)."""
@@ -19,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 B = os.path.join(HERE, "build")
 OUT = os.path.join(HERE, "fizz-short.mp4")
 FONTS = os.path.join(HERE, "..", "assets", "fonts")
-W, H, FPS, SECS = 1080, 1920, 30, 30.0
+W, H, FPS, SECS = 1080, 1920, 30, 37.2
 LCD, LX, LY = 960, 60, 480
 FR = 240 * 240 * 3
 
@@ -29,18 +28,18 @@ BLUE, GREEN, ORANGE, PINK, LIME, VIOLET = (0x3D, 0x7B, 0xFF), (0x2E, 0xD5, 0x8A)
 # (from s, line 1, line 2, line 2's colour): the take's marks (promo/take.txt)
 CAPS = [
     (0.00, "FIZZ", "An FM groovebox for the FM-1", BLUE),
-    (2.73, "Six tracks", "16 voices of four-operator FM", ORANGE),
-    (5.45, "Sound locks", "Kick, snare, hat: one track", GREEN),
-    (8.18, "8 algorithms", "A deep sound editor", PINK),
-    (10.91, "Black hole reverb", "And a ping-pong delay", VIOLET),
-    (13.64, "Lock any step", "Filter sweeps, written in", BLUE),
-    (16.36, "Generative arps", "MIDI FX: arp, random, chance", ORANGE),
-    (19.09, "Mix it", "Levels, mutes, solos", GREEN),
-    (21.82, "101 new presets", "Five drum kits. Pads. Bells.", LIME),
-    (24.55, "USB host", "Bluetooth MIDI", VIOLET),
-    (27.50, "FIZZ", "Free. Open source.", PINK),
+    (3.38, "Six tracks", "16 voices of four-operator FM", ORANGE),
+    (6.76, "Sound locks", "Kick, snare, hat: one track", GREEN),
+    (10.14, "8 algorithms", "A deep sound editor", PINK),
+    (13.52, "Black hole reverb", "And a ping-pong delay", VIOLET),
+    (16.90, "Three LFOs", "Slow sweeps, a tape's flat tuning", BLUE),
+    (20.28, "Generative MIDI FX", "Arp, random, chance", ORANGE),
+    (23.66, "Mix it", "Levels, mutes, solos", GREEN),
+    (27.04, "110 factory presets", "Drum kits. Pads. Bells.", LIME),
+    (30.42, "USB host", "Bluetooth MIDI", VIOLET),
+    (33.80, "FIZZ", "Free. Open source.", PINK),
 ]
-TITLE_END, CARD = 2.73, 27.50
+TITLE_END, CARD = 3.38, 33.80
 
 
 def font(weight, size):
@@ -110,7 +109,7 @@ def main():
     ff = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-r", str(FPS),
          "-i", "-", "-i", os.path.join(B, "take.wav"), "-t", str(SECS),
-         "-af", "volume=7.5dB,alimiter=limit=0.89:level=0,afade=t=out:st=%.2f:d=1.4" % (SECS - 1.4),
+         "-af", "volume=10dB,alimiter=limit=0.89:level=0,afade=t=out:st=%.2f:d=1.4" % (SECS - 1.4),
          "-c:v", "libx264", "-preset", "slow", "-crf", "15", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-movflags", "+faststart", OUT],
         stdin=subprocess.PIPE)

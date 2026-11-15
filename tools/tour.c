@@ -54,6 +54,7 @@
 
 #include "app.h"
 #include "ctl.h"
+#include "demo.h"
 #include "plutovg.h"
 #include "qd_gfx.h"
 
@@ -244,6 +245,8 @@ int main(int argc, char **argv)
         perror(path);
         return 2;
     }
+    qd_demo_first = QD_DEMO_ATRIUM;                     /* (the firmware's: a blank flash starts with ATRIUM, not the
+                                                         * host tests' old demo) */
     memset(FL, 0xFF, sizeof FL);
     reset();
     while (fgets(line, sizeof line, f)) {

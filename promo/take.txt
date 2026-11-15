@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: MPL-2.0
-# The promo's two takes (from promo/build: ../../tools/build/tour ../take.txt .): the idle title, then 30 s of the
-# demo song SUNFADE (tools/song_sunfade.c; promo/build/sunfade.bin is its project, made by promo/song.txt). The film's
-# time is the video's time. A bar is 2.727 s (88 BPM); the chain A01 (one bar) A02 A03 A04 A05 A07:
-# 2.73 the beat, 8.18 the arps, 13.64 the sweep, 19.09 the drop, 24.55 the outro.
+# The promo's two takes (from promo/build: ../../tools/build/tour ../take.txt .): the idle title, then 37 s of the
+# demo song ATRIUM, the first project of a new FM-1 (core/seq/demo.c; the tour starts on a blank flash, so it is there).
+# The film's time is the video's time. A bar is 3.380 s (71 BPM), a pattern four bars; the chain A02 (the beat),
+# A07 (the tune, full), A08 (its variation): 13.52 the tune, 27.04 the variation.
 wait 3300
 film idle.rgb
-wait 3000
+wait 3800
 
-load sunfade.bin 2
-wait 500
 tap HOME
 wait 300
 # the drums' PIANO ROLL left in SOUND (B10 held: the mode), so SEQ comes back to it
@@ -43,56 +41,57 @@ tap SEL
 wait 200
 tapkey B1
 wait 500
-chain 1 2 3 4 5 7
+chain 2 7 8
 film take.rgb
 wav take.wav
 play
 mark intro
-# 0 .. 2.73 A01: OVERVIEW (the title lies over it)
-wait 2710
+# 0 .. 3.38 A02's first bar: OVERVIEW (the title lies over it)
+wait 3360
 mark overview
-# 2.73 .. 5.45 A02's first bar: OVERVIEW, the beat in
-wait 2720
-# 5.45 .. 8.18: the drums' sound locks (SEQ: the PIANO ROLL in SOUND)
+# 3.38 .. 6.76: OVERVIEW, the beat
+wait 3380
+# 6.76 .. 10.14: the drums' sound locks (SEQ: the PIANO ROLL in SOUND)
 tap SEQ
 mark locks
-wait 2540
-# 8.18 .. 10.91 A03: the pad's sound editor, its algorithm
+wait 3200
+# 10.14 .. 13.52: the pad's sound editor, its algorithm
 hold 140
 tap SEL
 tapkey B3
 tap EDIT
 mark editor
-wait 2630
-# 10.91 .. 13.64: the reverb, the black hole
+wait 3280
+# 13.52 .. 16.90 A07: the reverb, the black hole
 hold 200
 tap FX
 knob SELECT 2
 mark reverb
-wait 2540
-# 13.64 .. 16.36 A04: the pad's FILTER, swept by its locks
-hold 200
-tap EDIT
-knob SELECT 5
-mark filter
-wait 2510
-# 16.36 .. 19.09: the arp's MIDI FX group (ARP: the MIDI FX screen)
-hold 200
+wait 3200
+# 16.90 .. 20.28: the lead's LFOs (LFO 1's page; its LFO 3 holds it a little flat, like an old tape)
+hold 640
 tap HOME
 tap SEL
 tapkey B4
+tap EDIT
+knob SELECT 12
+mark lfo
+wait 2760
+# 20.28 .. 23.66: the hats' MIDI FX group (ARP: the MIDI FX screen)
+hold 200
+tap HOME
+tap SEL
+tapkey B6
 tap ARP
 mark midifx
-wait 2690
-# 19.09 .. 21.82 A05: the mixer
+wait 3340
+# 23.66 .. 27.04: the mixer
 tap ENV
 mark mix
-wait 2680
-# 21.82 .. 24.55: the presets
+wait 3340
+# 27.04 .. 30.42 A08: the presets
 tap REC
 mark presets
-wait 500
-knob PRESETS 1
 wait 400
 knob PRESETS 1
 wait 400
@@ -102,9 +101,15 @@ knob PRESETS 1
 wait 400
 knob PRESETS 1
 wait 400
-# 24.55 .. 30 A07: OVERVIEW again, the outro
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 400
+knob PRESETS 1
+wait 300
+# 30.42 .. 37.2: OVERVIEW again, the end card over its last bar
 tap HOME
 tap SEL
 mark outro
-wait 6500
+wait 7400
 mark end
