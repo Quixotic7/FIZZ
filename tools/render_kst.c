@@ -17,7 +17,7 @@
 #include "sounds.h"
 #include "ui.h"
 
-#define NSHOT 10
+#define NSHOT 12
 static qd_app_t A;
 static uint32_t now;
 static uint64_t frames_done;
@@ -223,6 +223,21 @@ int render_kst(const char *out)
     shot("keys-play", "KEYS, step 3 selected, playing: the row's playhead", 1);
     btap(QD_B_PLAY);
     run(100);
+    btap(QD_B_HOME);                                    /* 2026-11-15: SOUND's keys remapped on the step keyboard */
+    run(300);
+    if (!qd_step_kb(&A))
+        ktap(BK(10));
+    for (s = 0; s < 2 && A.ui.hmode != UI_F_SOUND; s++)
+        ktap(BK(qd_ctl_mode_key(UI_F_SOUND)));
+    qd_step_release_all(&A);                            /* (nothing selected) */
+    A.ui.sound_bank = 1;
+    qd_app_key(&A, WK(2), 1, 100);
+    run(100);
+    qd_app_knob(&A, QD_K_PRESETS, 3);
+    run(150);
+    shot("kmap", "SOUND, W3 held + PRESETS: W3 plays another pool sound (the band)", 1);
+    qd_app_key(&A, WK(2), 0, 0);
+    run(QD_CONFIRM_MS + 300);
     if (!failed)
         sheet_as("kst-sheet.png", "FIZZ: the keyboard page, B11's KEYS / STEPS (1.5x)");
     return failed;

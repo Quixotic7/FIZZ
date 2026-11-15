@@ -423,6 +423,40 @@ static void mfx_test(void)
           "the same after a restart");
 }
 
+/* 2026-11-15: SOUND's keys (qd_project_t.kmap): no record until one is set; 'K' 1 to its last key set; kept across a
+ * restart, a project copy; a new project's the pool's order; a later version's record ignored */
+static void kmap_test(void)
+{
+    uint8_t b[8];
+    int len, ok;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 2000);
+    qd_persist_flush(&A);
+    for (ok = 1, len = 0; len < QD_KMAP_N; len++)
+        ok &= !A.proj.kmap[len];
+    CHECK(ok && qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_KMAP, 0, 0), 0, 0) < 0,
+          "2026-11-15: a new store: the pool's order, no keys' record");
+    A.proj.kmap[2] = 5, A.proj.kmap[13] = 1;
+    A.edit_gen++;
+    run(&A, 2000);
+    qd_persist_flush(&A);
+    len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_KMAP, 0, 0), b, sizeof b);
+    CHECK(len == 2 + 14 && b[0] == 'K' && b[1] == 1, "the keys set: 'K' 1, 14 keys (%d bytes)", len);
+    boot(&B);
+    CHECK(!memcmp(B.proj.kmap, A.proj.kmap, sizeof A.proj.kmap), "a restart: the same keys");
+    CHECK(qd_proj_copy(&A, 0, 1) && qd_proj_load(&A, 1) && A.proj.kmap[2] == 5 && A.proj.kmap[13] == 1,
+          "a project copied: its keys too");
+    CHECK(qd_proj_new(&A, 2) && !A.proj.kmap[2] && !A.proj.kmap[13], "a new project: the pool's order");
+    {
+        static const uint8_t later[4] = {'K', 2, 9, 9};
+        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_KMAP, 1, 0), later, 4);
+        qd_store_flush(&A.per.prj_st);
+    }
+    CHECK(qd_proj_load(&A, 1) && !A.proj.kmap[0] && !A.proj.kmap[2], "a later version's record: the pool's order");
+}
+
 /* 2026-10-26, 'P' 6: the sound's VOICE page (110..114) moved the mix's lock ids up by 5. A pattern with a PAN and a
  * REVERB lock written as an older record ('P' 4: the ids as they were) comes back after a restart with them as PAN and
  * REVERB again (not as UNISON, SPREAD); written as 'P' 6, the same */
@@ -2134,6 +2168,7 @@ int main(void)
     p5_migration_test();
     migration_test();
     mfx_test();
+    kmap_test();
     voice_ids_test();
     tags_test();
     refs_test();

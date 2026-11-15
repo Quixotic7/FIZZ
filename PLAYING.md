@@ -845,7 +845,8 @@ Three things, one job each:
   it is the filter). They follow the browser as it moves.
 - **SHIFT + B2..B8 toggles that tag** on the chosen preset (P1.5v): its chip pops, filled when on, struck when off,
   and its key starts or stops breathing at once. Inside the browser SHIFT means tags (no snapshots there).
-- **B9 the source**: ALL PRESETS → MY PRESETS → POOL → ALL.
+- **B9 the source**: ALL PRESETS → MY PRESETS → POOL → ALL. The browser opens again with the source and tag filter
+  you left it with (until the unit is switched off); when the track's preset is not in that list it opens at the top.
 - **B10 = the pool, from any source** (P1.5v): **+ POOL** when the chosen preset is not in the project's pool (B10
   lit; it is copied in without loading it, the cassette shrinks into the tray; the pool full: the tray flashes
   orange), **− POOL** when it is (B10 breathing; in the POOL source always): P1.5z, the cassette pops back out of the
@@ -868,6 +869,13 @@ the step plays each one. **The picker stays up as long as the step is held** (or
 no time-out), and letting go closes it, keeping the sound. An empty pool offers TRACK only (an empty tray, 0/128). In
 **SOUND** mode the ten black keys are still ten sounds of the pool (the group of ten that holds the step's sound);
 F1 / F2 show the ten before / after; B11 removes the sound lock.
+
+**Your own order for the SOUND keys** (2026-11-15): each group of ten can be rearranged, like a drum kit. With
+nothing selected, **hold one of the group's sound keys and turn KNOB 1 or PRESETS**: the key steps through the pool's
+sounds, each one heard as you turn, and a band shows the key and its sound (W3 · 21 SNARE). The keys are the white
+keys W1..W10 with the step keyboard on, or the black keys B1..B10 in the step latch's VALUES (there the track takes the
+key's new sound too). The turn does nothing else (no browser, no lock). With steps selected or held, PRESETS stays
+their sound lock. The order is saved with the project; until you change a key it is the pool's own order.
 
 **What happens to the steps** (P1.5w, shown on the screens):
 - **Taking a sound out of the pool** (B10) sends the steps that lock it back to their track's sound (OUT? shows them

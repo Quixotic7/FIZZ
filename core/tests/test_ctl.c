@@ -8850,7 +8850,7 @@ static void g_p15w_refs(void)
     CHECK(A.model.t[0].patch[QD_QP_HARM] == harm && !A.model.t[0].edited, "track 1's own sound: its copy as it was");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     turn(QD_K_PRESETS, 1);
-    black(B9);
+    CHECK(A.ui.br.src == QD_BR_MINE, "(2026-11-15: opened again on MY PRESETS, the source kept)");
     if (br_code() != QD_BR_MINE_CODE)
         turn(QD_K_PRESETS, -5);
     black(B11);
@@ -11355,6 +11355,119 @@ static void g_kb_round3(void)
           "flashes");
 }
 
+/* 2026-11-15 (owner): the preset browser opens with the source and kind of its last time (the track's preset not in
+ * that list: the top of it); the Manager's BROWSE (qd_br_goto) still shows ALL */
+static void g_br_kept(void)
+{
+    int ok;
+    start();
+    run(600);
+    turn(QD_K_PRESETS, 1);
+    black(B9), black(B9);                               /* ALL -> MINE -> POOL */
+    black(B7);                                          /* DRUMS */
+    ok = A.ui.br.src == QD_BR_POOL && A.ui.br.kind == 1 + QD_PK_DRUMS && br_n() > 0;
+    btap(F1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    CHECK(ok && A.ui.latch != QD_LATCH_BROWSE, "(the POOL's DRUMS chosen, F1: closed)");
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && A.ui.br.src == QD_BR_POOL && A.ui.br.kind == 1 + QD_PK_DRUMS &&
+              A.ui.br.pos >= 0 && A.ui.br.pos < br_n(), "opened again: still the POOL's DRUMS (at %d of %d)", A.ui.br.pos,
+          br_n());
+    btap(F1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    CHECK(qd_br_goto(&A, 0, 2) && A.ui.br.src == QD_BR_ALL && A.ui.br.kind == 0 && br_code() == 1,
+          "the Manager's BROWSE to EP: ALL, no kind, on it");
+    btap(F1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.br.src == QD_BR_ALL && A.ui.br.kind == 0, "opened again after it: ALL");
+    btap(F1);
+}
+
+/* 2026-11-15 (owner): SOUND's keys remapped: a sound key held + KNOB 1 / PRESETS, nothing selected */
+static void g_kmap(void)
+{
+    char w[48];
+    char lab[10][6];
+    uint16_t lit, def, none;
+    int clr, ok, k;
+    start();
+    A.ui.lmode = QD_LMODE_MODES;
+    A.ui.sound_bank = 0;
+    black(B11);                                         /* the step keyboard */
+    mode(M_SOUND);
+    CHECK(qd_mk_on(&A) && qd_mk_val(&A, M_SOUND, 2) == 3 && A.proj.nsound >= 10, "the pool's order: W3 plays sound 3");
+    kdown(WK(2)), run(20);
+    turn(QD_K_PRESETS, 2);
+    qd_mk_band(&A, w);
+    CHECK(qd_mk_val(&A, M_SOUND, 2) == 5 && A.proj.kmap[2] == 5 && A.ui.latch != QD_LATCH_BROWSE && A.ui.mk_nt[0] &&
+              A.ui.cf_on && !strncmp(w, "W3 \xc2\xb7 5 ", 8) && strstr(w, qd_sound_name(&A.proj, 5)),
+          "W3 held + PRESETS 2: W3 plays sound 5, heard, the band (%s); no browser", w);
+    k = PAT()->trk[0].def.vel;
+    turn(QD_K_1, -1);
+    CHECK(qd_mk_val(&A, M_SOUND, 2) == 4 && PAT()->trk[0].def.vel == k && !R(0, 0).on,
+          "KNOB 1 -1: sound 4; nothing else changed");
+    turn(QD_K_1, 1);
+    turn(QD_K_1, -1);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, -2);
+    CHECK(A.proj.kmap[2] == 0 && qd_mk_val(&A, M_SOUND, 2) == 3, "back to 3: the map's default again (0)");
+    turn(QD_K_PRESETS, 4);
+    kup(WK(2)), run(20);
+    turn(QD_K_PRESETS, 1);
+    run(10);
+    CHECK(qd_mk_val(&A, M_SOUND, 2) == 7 && A.ui.latch == QD_LATCH_BROWSE, "W3 let go: PRESETS the browser again");
+    btap(F1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    kdown(WK(2)), run(20);
+    {
+        static ui_held_t h;
+        static ui_lane_t ln;
+        qd_view_edit(&A, &h, &ln);
+        CHECK(h.sound == 7 && h.sound_cur && !strcmp(h.sound_cur, qd_sound_name(&A.proj, 7)),
+              "W3 pressed: sound 7 plays, the screen names it");
+    }
+    kup(WK(2)), run(20);
+    btap(QD_B_REC);
+    run(20);
+    ok = A.ui.rec;
+    btap(QD_B_PLAY);
+    run(200);
+    kdown(WK(2)), run(30), kup(WK(2)), run(30);
+    btap(QD_B_PLAY);
+    btap(QD_B_REC);
+    run(20);
+    for (k = 0; k < 16 && !(R(0, k).on && R(0, k).sound == 7); k++)
+        ;
+    CHECK(!ok || k < 16, "REC armed: W3's press records sound 7's lock (step %d)", k + 1);
+    turn(QD_K_ALGO, 3);                                 /* a selection: step 3 */
+    run(400);
+    k = A.proj.kmap[2];
+    kdown(WK(2)), run(20);
+    turn(QD_K_PRESETS, 1);
+    kup(WK(2)), run(20);
+    CHECK(A.ui.nheld == 1 && A.proj.kmap[2] == k && R(0, A.ui.held[0]).sound != 7,
+          "a step selected: W3 + PRESETS its sound lock, the map as it was");
+    btap(LFO);
+    /* B1..B10: the step latch in VALUES, nothing selected */
+    start();
+    A.ui.sound_bank = 0;
+    btap(LFO);
+    qd_step_release_all(&A);
+    bdown(LFO), black(qd_ctl_mode_key(M_SOUND)), bup(LFO), run(10);
+    CHECK(qd_step_latch_default(&A) && A.ui.hmode == M_SOUND, "(the latch, VALUES, nothing selected, SOUND)");
+    kdown(BK(B4)), run(20);
+    turn(QD_K_1, 2);
+    kup(BK(B4)), run(20);
+    qd_step_value_keys(&A, lab, &lit, &def, &none, &clr);
+    CHECK(A.proj.kmap[3] == 6 && A.model.t[0].sound == 6 && !strcmp(lab[3], "6") &&
+              A.ui.latch != QD_LATCH_BROWSE, "B4 held + KNOB 1 2: B4 is sound 6 (its label; the track's sound now: %d)",
+          A.model.t[0].sound);
+    black(B4);
+    CHECK(A.model.t[0].sound == 6, "B4 tapped: the track's sound 6");
+    btap(LFO);
+}
+
 int main(void)
 {
     static const struct {
@@ -11533,6 +11646,8 @@ int main(void)
         {"wake: the press or turn that wakes the unit does nothing else", g_wake_eats},
         {"2026-11-13: round 3: F1 / F2 the steps, B11 breathes, ALGORITHM's flash, LIVE's override + REC, SHIFT sticks",
          g_kb_round3},
+        {"2026-11-15: the preset browser keeps its source and kind", g_br_kept},
+        {"2026-11-15: SOUND's keys remapped (a key held + KNOB 1 / PRESETS)", g_kmap},
     };
     size_t i;
     uint64_t h1, h2;

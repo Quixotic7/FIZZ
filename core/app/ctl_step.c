@@ -512,6 +512,19 @@ int qd_step_entry_note(const qd_app_t *a, int b)
 }
 
 int qd_step_sound_bank(const qd_app_t *a) { return a->ui.sound_bank; }
+int qd_bank_sound(const qd_app_t *a, int w)
+{
+    const int i = a->ui.sound_bank * 10 + w;
+    return i < 0 || i >= QD_KMAP_N ? 0 : a->proj.kmap[i] ? a->proj.kmap[i] : i + 1;
+}
+int qd_bank_key(const qd_app_t *a, int k)
+{
+    int w;
+    for (w = 0; w < 10; w++)
+        if (qd_bank_sound(a, w) == k)
+            return w;
+    return -1;
+}
 
 /* ---------------------------------------------------------------- the ten values --- */
 /* one held step: B(b+1) of mode m (P1.6d: in pattern p) */
@@ -574,7 +587,7 @@ static void value_set_p(qd_app_t *a, qd_pattern_t *p, int s, int m, int b)
             qd_step_set_func(p, t, s, QD_FN_MAKE_JUMP(a->ui.fn_target >= 0 ? a->ui.fn_target : s / QD_PAGE * QD_PAGE));
         break;
     case UI_F_SOUND: {
-        const int k = a->ui.sound_bank * 10 + b + 1;
+        const int k = qd_bank_sound(a, b);
         if (k <= a->proj.nsound)
             qd_step_set_sound(p, t, s, k);
         break;
@@ -688,6 +701,8 @@ void qd_step_value_key_default(qd_app_t *a, int b, int down)
     qd_ui_t *u = &a->ui;
     qd_pattern_t *p = PAT(a);
     const int m = u->hmode, t = a->sel;
+    if (m == UI_F_SOUND && b < 10)
+        qd_mk_kmap_key(a, 11 + b, down);                /* (2026-11-15: held + KNOB 1 / PRESETS: its sound) */
     if (!down) {
         u->note_keys &= (uint16_t)~(1u << b);
         return;
@@ -711,7 +726,7 @@ void qd_step_value_key_default(qd_app_t *a, int b, int down)
     case UI_F_FUNC:
         return;                                         /* (no default) */
     case UI_F_SOUND: {
-        const int k = u->sound_bank * 10 + b + 1;
+        const int k = qd_bank_sound(a, b);
         qd_track_t *tr = &a->model.t[t];
         if (k > a->proj.nsound || !qd_sound_used(&a->proj, k))
             return;
@@ -766,8 +781,9 @@ void qd_step_sound_pick(qd_app_t *a, int d)
                                                          * holes skipped) */
     }
     resolve(a, u->held[0], &r);
-    if (r.sound > 0)
-        u->sound_bank = (r.sound - 1) / 10;             /* the keys' bank follows */
+    if (r.sound > 0 && qd_bank_key(a, r.sound) < 0)
+        u->sound_bank = (r.sound - 1) / 10;             /* the keys' bank follows (2026-11-15: unless a key of it plays
+                                                         * the sound) */
     u->roll_ms = a->ms;
     u->roll_dir = d > 0 ? 1 : -1;
 }
@@ -1588,16 +1604,16 @@ keys:
             }
             break;
         case UI_F_SOUND: {
-            const int k = u->sound_bank * 10 + b + 1;
+            const int k = qd_bank_sound(a, b);
             if (k > a->proj.nsound) {
                 *none |= bit;
                 break;
             }
             lab_int(lab[b], k, 0);
-            if (r.on && r.sound > 0) {                  /* (another bank: its end key nearest the sound) */
+            if (r.on && r.sound > 0) {                  /* (the key playing it; another bank: its end key nearest) */
                 const int lo = u->sound_bank * 10 + 1, hi = lo + 9 < a->proj.nsound ? lo + 9 : a->proj.nsound;
-                const int sk = r.sound < lo ? lo : r.sound > hi ? hi : r.sound;
-                *lit |= sk == k ? bit : 0;
+                const int w = qd_bank_key(a, r.sound);
+                *lit |= (w >= 0 ? w : (r.sound < lo ? lo : r.sound > hi ? hi : r.sound) - lo) == b ? bit : 0;
             }
             break;
         }

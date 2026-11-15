@@ -15,6 +15,11 @@ its text becomes the release's notes on the install page and on GitHub.
   71 BPM, a dusty beat under pads, a bell and a brassy lead, tuned a little flat like an old tape. Its sounds are
   factory presets. An FM-1 that already has projects keeps them all; a project 1 with the old three-pattern demo
   shows its unchanged demo patterns blank (the ones you changed are kept).
+- The preset browser remembers its view: open it again and it shows the source (ALL, MY PRESETS, POOL) and the tag
+  filter you left it with.
+- SOUND's keys can be put in your own order, like a drum kit: with nothing selected, hold a sound key (W1..W10 on the
+  step keyboard, or B1..B10 in the step latch) and turn KNOB 1 or PRESETS to choose the pool sound it plays; you hear
+  each one, and a band shows the key and its sound. The order is saved with the project.
 
 ## 0.12.0 (2026-11-14)
 

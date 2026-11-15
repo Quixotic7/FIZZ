@@ -85,7 +85,7 @@ struct qd_app;
 #define QD_SWAP_SEC 256                /* (P2.1: the host's RAM store for the patterns and sounds at the device's sizes) */
 #define QD_SWAP_KEYS 1024
 /* the keys: kind << 24 | project << 16 | index */
-enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG, QD_RK_MFX };   /* (P1.6c: MIDI FX) */   /* (P1.5v: the factory tags) */
+enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG, QD_RK_MFX, QD_RK_KMAP };   /* (2026-11-15: SOUND's keys) */   /* (P1.6c: MIDI FX) */   /* (P1.5v: the factory tags) */
 #define QD_RKEY(kind, p, i) ((uint32_t)(kind) << 24 | (uint32_t)(p) << 16 | (uint32_t)(i))
 /* 2026-10-24: the projects' format, the settings record's version (persist.c prj_format_ok): 2 since six tracks (1:
  * eight); another one at the mount: the projects' store erased, a fresh start (MY PRESETS, in the library's store,
@@ -94,7 +94,7 @@ enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG, QD
 
 /* the things the app writes, each with a hash of its record as last written and as last seen, and when it changed */
 enum { QD_PI_SET, QD_PI_HDR, QD_PI_PAT, QD_PI_SND = QD_PI_PAT + QD_NPAT, QD_PI_LIB = QD_PI_SND + QD_NSOUND,
-       QD_PI_FTAG = QD_PI_LIB + QD_NLIB, QD_PI_MFX, QD_PI_N };
+       QD_PI_FTAG = QD_PI_LIB + QD_NLIB, QD_PI_MFX, QD_PI_KMAP, QD_PI_N };
 
 typedef struct {
     int on;                            /* a flash attached */
@@ -133,8 +133,8 @@ typedef struct {
     int sst_ready;                     /* .. read (qd_persist_snd_work), placed by the next prefetch .. */
     qd_sound_t sst;                    /* .. here */
 #endif
-    uint16_t it_gen[4], it_wr[4];      /* P2.6c: SET, HDR, FTAG, MFX's last looks (as pat_gen) */
-    uint8_t it_skip[4];
+    uint16_t it_gen[5], it_wr[5];      /* P2.6c: SET, HDR, FTAG, MFX, KMAP's last looks (as pat_gen) */
+    uint8_t it_skip[5];
     int maybe_dirty;                   /* P2.6c: an item's seen or saved hash set since a scan found all clean */
     int urgent;                        /* P2.4: 1 + the item a prefetch waits on to leave RAM (0 none): written next,
                                         * with no debounce */

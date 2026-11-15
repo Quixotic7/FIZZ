@@ -52,6 +52,7 @@ extern "C" {
 #define QD_NBANK 4                      /* A..D */
 #define QD_NPAT (QD_NBANK * 16)         /* patterns a project */
 #define QD_NSOUND 128                   /* the sound pool a project */
+#define QD_KMAP_N ((QD_NSOUND + 9) / 10 * 10)   /* SOUND's banks of ten keys (qd_project_t.kmap) */
 #define QD_SOUND_NAME 13                /* (P1.5a: twelve letters and the end: "BRIGHT PLUCK") */
 /* the sequencer's musical time: ticks, QD_TPS a 16th (a step at rate 1). 100800 = 2^6 3^2 5^2 7 (P1.3c: twice
  * P1.2's 50400, for the 1/64 steps; QD_SUB halved with it, so a 16th is the same 5,292,000,000 subticks and every
@@ -348,6 +349,8 @@ typedef struct {
                                          * FULL (every key as the keyboard; the pages on SELECT) */
     qd_mfx_group_t mfx[QD_MFX_NGROUP];  /* P1.6c: the MIDI FX groups (mfx.h) */
     uint8_t rec_auto;                   /* P1.6d: AUTOMATION: armed live recording records knob moves too (1 ON) */
+    uint8_t kmap[QD_KMAP_N];            /* 2026-11-15 (owner): the step view's SOUND banks, key by key: bank b's key w
+                                         * plays pool sound kmap[b * 10 + w], 0: b * 10 + w + 1 (the pool's order) */
 } qd_project_t;
 enum { QD_TAKE_CAPTURE, QD_TAKE_OVERDUB, QD_TAKE_REPLACE };   /* qd_project_t.rec_dub */
 /* the MIDI FX group a step of track t plays through: 0 none, 1..5 (the step's, else the track's) */

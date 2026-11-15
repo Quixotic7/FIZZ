@@ -2473,6 +2473,7 @@ static const struct {
     {when_snd, k_snd},                 /* P1.4a: the sound editor: its page's values (a finger: p-locks) */
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
     {w_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
+    {qd_mk_kmap_on, qd_mk_kmap},       /* 2026-11-15: SOUND, a sound key held: KNOB 1 / PRESETS its sound (ctl_rec.c) */
     {when_auto, k_live},               /* P1.6d: automation recording: the quick page as locks on the step playing */
     {when_geek, k_geek},               /* P2.11: a Geek Out page, nothing held: the knobs do nothing */
     {when_ov, qd_ctl_ov_knob},         /* 2026-11-10: OVERVIEW, nothing held: KNOB 1..4 rate, volume, start, end */

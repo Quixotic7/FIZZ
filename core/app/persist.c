@@ -61,7 +61,10 @@
  *        INIT): bytes 2..29 the 28 slots' values (| 128: touched), 30..57 their CC numbers, the rest zeros. In RAM the
  *        same patch (quad_voice.h QD_MSND_*): slot k's value in FM TONE value QD_MSND_ID[k] (a value of range 0..127, so
  *        a slot's p-lock is that value's lock id: 0..127 as it is), its CC number and touched flag in value 74 + k, the
- *        mark 0x4D in VOICE's PRIORITY. Every older record reads FM TONE; ENGINE back to FM TONE is INIT */
+ *        mark 0x4D in VOICE's PRIORITY. Every older record reads FM TONE; ENGINE back to FM TONE is INIT
+ *   KMAP (2026-11-15) 'K' 1, the project's SOUND keys (qd_project_t.kmap: a pool number a key, 0 the pool's order), to
+ *        the last one not 0 (none: 2 bytes; no record at all until one is set: the pool's order). A record of its own:
+ *        an older FIZZ never reads it (its projects' copies and deletes take every record of a project) */
 #include <stddef.h>
 
 #include "../voice/fx/qd_fx.h"
@@ -683,6 +686,25 @@ static int de_mfx(qd_app_t *a, const uint8_t *b, uint32_t len)
     return 1;
 }
 
+/* 2026-11-15: SOUND's keys: 'K' 1, the map to its last key not 0 */
+static uint32_t ser_kmap(const qd_app_t *a, uint8_t *b)
+{
+    uint32_t n = QD_KMAP_N;
+    while (n && !a->proj.kmap[n - 1])
+        n--;
+    b[0] = 'K', b[1] = 1;
+    memcpy(b + 2, a->proj.kmap, n);
+    return 2 + n;
+}
+static void de_kmap(qd_app_t *a, const uint8_t *b, uint32_t len)
+{
+    uint32_t i;
+    if (len < 2 || b[0] != 'K' || b[1] != 1)
+        return;
+    for (i = 0; i < QD_KMAP_N && 2 + i < len; i++)     /* (a later FIZZ's longer: its first ones) */
+        a->proj.kmap[i] = b[2 + i] <= QD_NSOUND ? b[2 + i] : 0;
+}
+
 /* an item's key and bytes now */
 static uint32_t item_key(const qd_app_t *a, int it)
 {
@@ -695,6 +717,8 @@ static uint32_t item_key(const qd_app_t *a, int it)
         return QD_RKEY(QD_RK_HDR, p, 0);
     if (it == QD_PI_MFX)
         return QD_RKEY(QD_RK_MFX, p, 0);
+    if (it == QD_PI_KMAP)
+        return QD_RKEY(QD_RK_KMAP, p, 0);
     if (it < QD_PI_SND)
         return QD_RKEY(QD_RK_PAT, p, it - QD_PI_PAT);
     if (it < QD_PI_LIB)
@@ -711,6 +735,8 @@ static uint32_t item_small(const qd_app_t *a, int it, uint8_t *b)   /* (every it
         return ser_hdr(a, b);
     if (it == QD_PI_MFX)
         return ser_mfx(a, b);
+    if (it == QD_PI_KMAP)
+        return ser_kmap(a, b);
     {
         qd_sound_t s;                                   /* (P1.5w: a pool slot: a reference) */
         snd_now(a, it, &s);
@@ -738,7 +764,7 @@ static uint32_t item_hash(const qd_app_t *a, int it, uint32_t *len)
 }
 static __attribute__((noinline)) qd_store_t *item_store(qd_app_t *a, int it)
 {
-    return it >= QD_PI_LIB && it != QD_PI_MFX ? &a->per.lib_st : &a->per.prj_st;
+    return it >= QD_PI_LIB && it <= QD_PI_FTAG ? &a->per.lib_st : &a->per.prj_st;
 }
 
 /* P2.1: an item there to look at: a pattern, and at the device's sizes a pool or library sound, only while it is in
@@ -889,6 +915,10 @@ static void proj_read(qd_app_t *a, int p)
     len = qd_store_get(&ps->prj_st, QD_RKEY(QD_RK_MFX, p, 0), pr_buf, sizeof pr_buf);   /* P1.6c (none: empty) */
     if (len > 0 && len != (int)QDS_DELETED)
         de_mfx(a, pr_buf, (uint32_t)len);
+    len = qd_store_get(&ps->prj_st, QD_RKEY(QD_RK_KMAP, p, 0), pr_buf, sizeof pr_buf);   /* 2026-11-15 (none: the
+                                                         * pool's order) */
+    if (len > 0 && len != (int)QDS_DELETED)
+        de_kmap(a, pr_buf, (uint32_t)len);
     qd_sound_recount(&a->proj);
 #if QD_PAT_RAM >= QD_NPAT
     for (k = 0; k < QD_NPAT; k++)                       /* (0.6's track sounds: their preset from the pool source) */
@@ -1134,10 +1164,10 @@ static void look(qd_app_t *a, int it)
     uint32_t h;
     if (!item_here(a, it))
         return;
-    if (it == QD_PI_SET || it == QD_PI_HDR || it == QD_PI_FTAG || it == QD_PI_MFX) {   /* (P2.6c: the settings, the
+    if (it == QD_PI_SET || it == QD_PI_HDR || it >= QD_PI_FTAG) {   /* (P2.6c: the settings, the
                                                          * header, the tags, the MIDI FX: hashed again only after an
                                                          * input; every 11th all the same) */
-        const int j = it == QD_PI_SET ? 0 : it == QD_PI_HDR ? 1 : it == QD_PI_FTAG ? 2 : 3;
+        const int j = it == QD_PI_SET ? 0 : it == QD_PI_HDR ? 1 : 2 + it - QD_PI_FTAG;
         if (ps->it_gen[j] == (uint16_t)a->edit_gen && ps->it_wr[j] == (uint16_t)ps->written && ps->it_skip[j] < 10u) {
             ps->it_skip[j]++;
             return;
@@ -1274,6 +1304,8 @@ void qd_persist_ms(qd_app_t *a)
         look(a, QD_PI_FTAG);
     else if (k == 3)
         look(a, QD_PI_MFX);                             /* P1.6c */
+    else if (k == 14)
+        look(a, QD_PI_KMAP);                            /* 2026-11-15 */
     else if (k == 4)
         look(a, QD_PI_PAT + a->seq.cur);
     else if (k == 5) {
