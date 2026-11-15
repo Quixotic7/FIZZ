@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.13.0 (2026-11-15)
+
 A new demo song, 93 new factory presets, SOUND's keys in your own order, and a preset browser that remembers its view.
 
 - **93 new factory presets**: drum kits (DUST, TAPE, 808, ZAP, LATIN, WOOD), basses, pads, bells, keys, leads and

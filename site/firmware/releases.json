@@ -1,7 +1,59 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0",
+  "latest": "0.13.0",
   "releases": [
+    {
+      "version": "0.13.0",
+      "date": "2026-11-15",
+      "channel": "stable",
+      "identity": "FM-1_46001300",
+      "source": "dae5a0c41525aef1fabf1c00eab21d977972e4dc",
+      "fm1base": "934e40d846d84e76e9c428d37b74bccb6192c823",
+      "notes": "A new demo song, 93 new factory presets, SOUND's keys in your own order, and a preset browser that remembers its view.\n\n- **93 new factory presets**: drum kits (DUST, TAPE, 808, ZAP, LATIN, WOOD), basses, pads, bells, keys, leads and\n  textures, in the browser's ALL list with the factory's own. Six of the old factory presets are no longer listed\n  (projects that use them still play them). The browser's ALL list now holds 110 factory presets.\n- There is no single-core package any more: the USB and the Bluetooth packages both play across the FM-1's two\n  cores.\n- **ATRIUM**, a demo song, is the first project of a new or erased FM-1 (and of FIZZ in the browser): ten patterns at\n  71 BPM, a dusty beat under pads, a bell and a brassy lead, tuned a little flat like an old tape. Its sounds are\n  factory presets. An FM-1 that already has projects keeps them all; a project 1 with the old three-pattern demo\n  shows its unchanged demo patterns blank (the ones you changed are kept).\n- The preset browser remembers its view: open it again and it shows the source (ALL, MY PRESETS, POOL) and the tag\n  filter you left it with.\n- SOUND's keys can be put in your own order, like a drum kit: with nothing selected, hold a sound key (W1..W10 on the\n  step keyboard, or B1..B10 in the step latch) and turn KNOB 1 or PRESETS to choose the pool sound it plays; you hear\n  each one, and a band shows the key and its sound. The order is saved with the project.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI and USB audio",
+          "fwsc": {
+            "path": "0.13.0/fizz.fwsc",
+            "bytes": 1042099,
+            "sha256": "11148699c6989e2af4e1537c7d744c9305022a299175036b198aecb2ec95a9c6"
+          },
+          "data": {
+            "path": "0.13.0/fizz-xdata.bin",
+            "bytes": 91896,
+            "sha256": "f376b2c405445e7aa1dc3d4161fdcdc0faf8818256ab8cd39b74095ad62b80e4",
+            "crc32": 4280745227
+          }
+        },
+        {
+          "name": "fizz-ble",
+          "kind": "ble",
+          "label": "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+          "projects": 4,
+          "presets": 128,
+          "fwsc": {
+            "path": "0.13.0/fizz-ble.fwsc",
+            "bytes": 1042154,
+            "sha256": "f695bf2256f948caa4782fdc0554df17bca83d4b61f23453a5414dec7c614da2"
+          },
+          "data": {
+            "path": "0.13.0/fizz-ble-xdata.bin",
+            "bytes": 85824,
+            "sha256": "33dfdc74706a2f9fa4841b503931854335d9d75b9b925955873b4a54caa91302",
+            "crc32": 904680933,
+            "at": 946176
+          },
+          "data2": {
+            "path": "0.13.0/fizz-ble-xdata2.bin",
+            "bytes": 97928,
+            "sha256": "7063b37381b4c5aaf2aa476ceed5a99645f190478fd536d34cbbb7cb206f83dc",
+            "crc32": 706605713,
+            "at": 618496
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0",
       "date": "2026-11-14",
