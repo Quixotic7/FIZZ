@@ -1,30 +1,40 @@
 /* SPDX-License-Identifier: MPL-2.0
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
-/* FIZZ's demo song "CARNIVAL": minimal techno house with Latin percussion. A kick on every beat, a short bass off it,
- * one chord stab into the delay, a pluck's small figure that keeps changing, and never more than a few things at
- * once: each pattern adds or takes away one. The percussion (congas, a clave, bongos, an agogo, timbales) and the
- * effects are sound locks, and the fourth bar of every pattern is a fill (make -C tools tour SONG=song_carnival.c;
- * `song` in a tour script, a new project first).
+/* FIZZ's demo song "CARNIVAL": minimal techno house with Latin percussion and Boards of Canada's harmony. A kick on
+ * every beat, a short bass off it, a chord stab with no third in it over bass roots that move under it, a lead of
+ * long notes that slide into each other, hats that never play the same bar twice, and never more than a few things
+ * at once. The percussion and the effects are sound locks; the last bar of every phrase is a fill (make -C tools tour
+ * SONG=song_carnival.c; `song` in a tour script, a new project first).
  *
- * 124 BPM, straight sixteenths, A sharp (B flat) Ionian. Four bars a pattern (64 steps).
- *   T1 DRUMS   the 808 kit's kick and open hat, the LATIN cabasa between; the fills' toms and snare roll
+ * 124 BPM, straight sixteenths, A sharp (B flat) Ionian, with one bar that is not. The phrases are uneven: 6 + 5 + 5
+ * bars, a pattern each. The chords are fourths, fifths and suspensions (B flat sus2, stacked fifths on C, a tritone
+ * with a fourth on it at the turn); the bass goes B flat, G, E flat, F under them, and in the peak C and A flat.
+ *   T1 DRUMS   the 808 kick; the fills' toms, snare roll and stops
  *   T2 BASS    FM BASS: off the kick (the off-beats and two ghosts), or rolling on every sixteenth but the kick's
- *   T3 STAB    JUNO STAB: one four-note chord (a saw, the filter closing, the chorus), off the beat, into the delay
- *   T4 LEAD    JUNO PLUCK: a two-bar figure, and its answer
- *   T5 PAD     TAPE PAD: three notes, in the break and the peak only
+ *   T3 KEYS    JUNO STAB: the chord, off the beat, into the echo; and TAPE PAD (a sound lock on each bar's one): a
+ *              fifth and its octave, drifting, in the break, the peak and the end
+ *   T4 LEAD    JUNO LEAD (mono, portamento): quarter, half and whole notes, each held into the next: it slides
+ *   T5 HATS    the 808 hat: five steps on a loop of TWELVE (three beats against the bar's four), through MIDI FX
+ *              group 1 (RANDOM velocities, CHANCE 72 %), a lot of the stereo echo: generative
  *   T6 PERC    the clap, the LATIN kit (conga, clave, bongo, agogo, timbales), and THE EFFECTS: single steps locking
- *              a blip, a laser tom, a radio, a gamelan, a hiss, each into the delay or the reverb
- * A01 KICK  A02 GROOVE  A03 STAB  A04 FIGURE  A05 BREAK  A06 DROP  A07 PERCUSSION  A08 PEAK  A09 OUT  A10 END */
-enum { T_DR, T_BA, T_KEYS, T_MEL, T_PAD, T_PERC };
+ *              a blip, a laser tom, a radio, a gamelan, a hiss, each into the echo or the room
+ * A01 KICK (6 bars)  A02 GROOVE (5)  A03 LEAD (5)  A04 BREAK (6)  A05 DROP (5)  A06 PERCUSSION (5)  A07 PEAK (6)
+ * A08 OUT (5)  A09 END (1) */
+enum { T_DR, T_BA, T_KEYS, T_MEL, T_HAT, T_PERC };
 /* the pool: the LATIN kit 1..10, the 808 kit 11..20 (each in the pack's order), then the effects, then the rest */
 enum { K_KICK = 1, K_SNARE, K_TIMBAL, K_CLAVE, K_HAT, K_OPEN, K_CONGA, K_BONGO, K_CABASA, K_AGOGO };
 enum { E_KICK = 11, E_SNARE, E_CLAP, E_RIM, E_HAT, E_OPEN, E_TOM, E_CONGA, E_COWBELL, E_CYMBAL };
 enum { X_BLIP = 21, X_NOISE, X_LASER, X_ZCRASH, X_RADIO, X_HISS, X_GAMELAN, X_DBELL, X_VINYL, X_TICK };
-enum { NBAR = 4, LEN = NBAR * 16, FILL = LEN - 16, HALF = FILL + 8 };
-enum { F_TIMBAL, F_TOMS, F_ROLL, F_STOP };              /* the fourth bar's fill */
+enum { P_BASS = 31, P_STAB, P_LEAD, P_PAD };
+enum { F_TIMBAL, F_TOMS, F_ROLL, F_STOP };              /* the last bar's fill */
+enum { L24 = 13 };                                      /* (a length past the common header's: 24 steps) */
 
 #include "song_common.h"
+
+/* the pattern being written: its bars (5 or 6), its steps, the fill's half bar */
+static int NBAR, LEN, HALF;
+static void bars(int n) { NBAR = n, LEN = n * 16, HALF = LEN - 8; }
 
 /* a drum: pool sound k on step s of track t at note n (60: as it is), if the step is free (a fill is written before
  * the groove, and keeps its steps: one sound a step) */
@@ -41,9 +51,9 @@ static void hitn(qd_pattern_t *p, int t, int s, int k, int vel, int n)
 }
 static void hit(qd_pattern_t *p, int t, int s, int k, int vel) { hitn(p, t, s, k, vel, 60); }
 
-/* THE KIT over four bars. kick: on every beat (0: none, the break). hats: 0 none, 1 the open hat off the beat, 2 the
- * cabasa between as well. The fourth bar's second half is the fill; the kick leaves its last beat to it */
-static void drums(qd_pattern_t *p, int kick, int hats, int fill)
+/* THE KICK on every beat (0: none, the break), and the fill in the last bar's second half; the kick leaves its last
+ * beat to it */
+static void drums(qd_pattern_t *p, int kick, int fill)
 {
     static const uint8_t TOMS[6] = {67, 67, 64, 64, 60, 57};
     int s;
@@ -70,16 +80,21 @@ static void drums(qd_pattern_t *p, int kick, int hats, int fill)
     default:                                            /* the timbales' (the percussion track's) */
         break;
     }
-    for (s = 0; s < LEN; s++) {
-        if (kick && !(s & 3) && s <= HALF)
-            hit(p, T_DR, s, E_KICK, s & 15 ? 118 : 124);
-        if (fill == F_STOP && s >= HALF)
-            continue;
-        if (hats && (s & 3) == 2)
-            hit(p, T_DR, s, E_OPEN, 84);
-        if (hats > 1 && (s & 1))
-            hit(p, T_DR, s, K_CABASA, (s & 2) ? 64 : 52);
-    }
+    for (s = 0; kick && s <= HALF; s += 4)
+        hit(p, T_DR, s, E_KICK, s & 15 ? 118 : 124);
+}
+
+/* THE HATS: generative. Five steps on a loop of twelve, so the figure starts a beat earlier every bar; MIDI FX group
+ * 1 drops about a quarter of them and moves their velocities, never the same twice; the echo does the rest */
+static void hats(qd_pattern_t *p)
+{
+    static const struct { uint8_t s, vel; } H[] = {{2, 96}, {5, 60}, {6, 84}, {10, 92}, {11, 56}};
+    int i;
+    qd_track_set_length(p, T_HAT, 12);
+    p->trk[T_HAT].limit = 2;
+    p->trk[T_HAT].mfx = 1;
+    for (i = 0; i < (int)(sizeof H / sizeof H[0]); i++)
+        note(p, T_HAT, H[i].s, 60, H[i].vel, L2);
 }
 
 /* THE PERCUSSION. lvl 0: the conga alone; 1: the clave and the bongo with it; 2: the agogo's two bells too. clap: on
@@ -118,16 +133,16 @@ static void perc(qd_pattern_t *p, int lvl, int clap, int fill, int crash)
 }
 
 /* THE EFFECTS, sprinkled on the percussion's free steps (the sixteenth after the one, the three): a sound lock of
- * the pool's effects each, its own note (B flat's scale), into the delay or the reverb */
+ * the pool's effects each, its own note (B flat's scale), into the echo or the room */
 static void sprinkle(qd_pattern_t *p, int set)
 {
     static const struct { uint8_t s, k, n, vel, dly, rev; } FX[3][4] = {
-        {{1, X_BLIP, 74, 92, 110, 30}, {24, X_GAMELAN, 77, 88, 90, 70}, {33, X_LASER, 65, 96, 40, 50},
-         {40, X_DBELL, 70, 80, 100, 50}},
-        {{8, X_TICK, 60, 96, 127, 20}, {17, X_BLIP, 82, 84, 120, 30}, {24, X_RADIO, 60, 70, 60, 40},
-         {49, X_NOISE, 60, 84, 60, 80}},
-        {{8, X_GAMELAN, 70, 90, 100, 80}, {17, X_LASER, 58, 100, 50, 60}, {40, X_BLIP, 77, 88, 120, 30},
-         {49, X_HISS, 60, 92, 30, 70}}};
+        {{1, X_BLIP, 72, 92, 110, 30}, {24, X_GAMELAN, 77, 88, 90, 70}, {33, X_LASER, 65, 96, 40, 50},
+         {56, X_DBELL, 70, 80, 100, 50}},
+        {{8, X_TICK, 60, 96, 127, 20}, {17, X_BLIP, 82, 84, 120, 30}, {40, X_RADIO, 60, 70, 60, 40},
+         {65, X_NOISE, 60, 84, 60, 80}},
+        {{8, X_GAMELAN, 70, 90, 100, 80}, {17, X_LASER, 58, 100, 50, 60}, {49, X_BLIP, 77, 88, 120, 30},
+         {65, X_HISS, 60, 92, 30, 70}}};
     int i;
     for (i = 0; i < 4; i++) {
         const int s = FX[set][i].s;
@@ -141,15 +156,27 @@ static void sprinkle(qd_pattern_t *p, int set)
     }
 }
 
+/* ---- THE HARMONY. A bar's chord: the bass's root, the stab's four notes, the pad's fifth. The notes above hardly
+ * move; the root under them does:
+ *   BB  B flat sus2 (C F B flat C)            GG  the same over G: its flat third below, a sixth chord's colour
+ *   EB  F sus2 over E flat (C F G C)          FF  the turn: E flat and A, a tritone, a fourth and another on it
+ *   CC  fifths stacked on C (C G D G)         AB  B flat sus2 over A FLAT: the one bar outside the scale */
+enum { BB, GG, EB, FF, CC, AB };
+static const struct { uint8_t root, v[4], d[3]; } CH[] = {
+    {34, {60, 65, 70, 72}, {58, 65, 70}}, {31, {60, 65, 70, 72}, {62, 69, 74}}, {39, {60, 65, 67, 72}, {58, 65, 70}},
+    {41, {63, 69, 74, 79}, {60, 67, 72}}, {36, {60, 67, 74, 79}, {55, 62, 67}}, {32, {58, 65, 70, 72}, {63, 70, 75}}};
+static const uint8_t H_SIX[6] = {BB, BB, GG, EB, EB, FF}, H_FIVE[5] = {BB, GG, EB, EB, FF};
+static const uint8_t H_ALT[5] = {BB, GG, CC, EB, FF}, H_PEAK[6] = {GG, EB, CC, AB, EB, FF};
+
 /* THE BASS on each bar's root, never on the kick. roll 0: the off-beats and two ghost octaves; 1: every sixteenth
  * between the kicks, the off-beats accented. from: its first step; cut: its last + 1 (the stop fill) */
-static void bass(qd_pattern_t *p, const uint8_t *root, int roll, int from, int cut)
+static void bass(qd_pattern_t *p, const uint8_t *h, int roll, int from, int cut)
 {
     int s;
     qd_track_set_length(p, T_BA, LEN);
     p->trk[T_BA].limit = 1;
     for (s = from; s < cut; s++) {
-        const int q = s & 15, r = root[s >> 4];
+        const int q = s & 15, r = CH[h[s >> 4]].root;
         if (!(s & 3))
             continue;
         if ((s & 3) == 2)
@@ -163,62 +190,66 @@ static void bass(qd_pattern_t *p, const uint8_t *root, int roll, int from, int c
     }
 }
 
-/* THE STAB: each bar's chord, short. busy 0: twice a bar (the "a" of one, the "e" of three); 1: four times */
-static void stab(qd_pattern_t *p, const uint8_t (*v)[4], int busy, int cut)
+/* THE STAB: each bar's chord. busy 0: twice a bar (the "a" of one, the "e" of three); 1: four times */
+static void stab(qd_pattern_t *p, const uint8_t *h, int busy, int cut)
 {
     static const uint8_t AT[4] = {3, 11, 6, 14}, VEL[4] = {104, 96, 84, 78};
     int b, i;
     qd_track_set_length(p, T_KEYS, LEN);
-    p->trk[T_KEYS].limit = 4;
+    p->trk[T_KEYS].limit = 7;
     for (b = 0; b < NBAR; b++)
         for (i = 0; i < (busy ? 4 : 2); i++)
             if (b * 16 + AT[i] < cut)
-                chord(p, T_KEYS, b * 16 + AT[i], v[b], 4, VEL[i], i ? L1 : LS2, 0);
+                chord(p, T_KEYS, b * 16 + AT[i], CH[h[b]].v, 4, VEL[i], i ? L1 : LS2, 0);
 }
 
-/* the pad: three notes a bar, held */
-static void pad(qd_pattern_t *p, const uint8_t (*v)[3])
+/* THE PAD, on the stab's track: a sound lock on each bar's one, a fifth and its octave held for the bar, out of the
+ * echo and deep in the room */
+static void pad(qd_pattern_t *p, const uint8_t *h)
 {
     int b;
-    qd_track_set_length(p, T_PAD, LEN);
-    p->trk[T_PAD].limit = 3;
-    for (b = 0; b < NBAR; b++)
-        chord(p, T_PAD, b * 16, v[b], 3, 84, LS16, 2);
+    qd_track_set_length(p, T_KEYS, LEN);
+    p->trk[T_KEYS].limit = 7;
+    for (b = 0; b < NBAR; b++) {
+        chord(p, T_KEYS, b * 16, CH[h[b]].d, 3, 76, LS16, 2);
+        qd_step_set_sound(p, T_KEYS, b * 16, P_PAD);
+        qd_lock_set(p, T_KEYS, b * 16, QD_LK_DELAY, 0);
+        qd_lock_set(p, T_KEYS, b * 16, QD_LK_REVERB, 90);
+    }
 }
 
-/* a line: step, note, length, velocity; 255 ends it. On the lead from step `at`, the steps before `cut` */
-typedef struct { uint8_t s, n, len, vel; } mel_t;
-static void line(qd_pattern_t *p, const mel_t *m, int at, int cut)
+/* THE LEAD: step, note; 255 ends it. Every note is held past the next one's start (a quarter for six steps, a half
+ * for twelve, a whole for twenty-four), so the mono voice slides into it; the last one for `last` */
+typedef struct { uint8_t s, n, vel; } mel_t;
+static void lead(qd_pattern_t *p, const mel_t *m, int last)
 {
     qd_track_set_length(p, T_MEL, LEN);
     p->trk[T_MEL].limit = 2;
-    for (; m->s != 255; m++)
-        if (at + m->s < cut)
-            note(p, T_MEL, at + m->s, m->n, m->vel, m->len);
+    for (; m->s != 255; m++) {
+        const int gap = m[1].s == 255 ? 0 : m[1].s - m->s;
+        const int len = gap == 4 ? LS6 : gap == 8 ? LS12 : gap == 12 ? LS16 : gap == 16 ? L24 : last;
+        if (m->s < LEN)
+            note(p, T_MEL, m->s, m->n, m->vel, len);
+    }
 }
-/* THE FIGURE (two bars): down from the third to the fifth below, up again to the major seventh (Ionian's own) */
-static const mel_t M_A[] = {{2, 74, L1, 104}, {5, 72, L1, 92}, {8, 70, LS2, 100}, {11, 65, L1, 88}, {14, 67, LS2, 96},
-    {18, 74, L1, 102}, {21, 77, L1, 96}, {24, 74, L1, 92}, {27, 72, L1, 90}, {30, 69, LS2, 100}, {255, 0, 0, 0}};
-/* ITS ANSWER (two bars): from the fifth, over the sixth, home by the seventh */
-static const mel_t M_B[] = {{0, 77, L1, 104}, {3, 74, L1, 92}, {6, 79, LS2, 102}, {9, 77, L1, 90}, {12, 72, L1, 94},
-    {15, 70, LS2, 98}, {19, 69, L1, 96}, {22, 70, L1, 92}, {25, 74, LS2, 100}, {28, 72, L1, 90}, {31, 65, L1, 92},
-    {255, 0, 0, 0}};
+/* five bars: F up a fifth to C, the long B flat; G, C, up to F; the long C; the turn's A and E flat (the tritone) */
+static const mel_t M_FIVE[] = {{0, 65, 100}, {8, 72, 104}, {16, 70, 100}, {32, 67, 96}, {36, 72, 100}, {40, 77, 108},
+    {48, 72, 100}, {64, 69, 98}, {72, 75, 104}, {255, 0, 0}};
+/* its answer, lower: C down a fourth to G, the long F; B flat, C, E flat; the long F; C, A */
+static const mel_t M_ANSWER[] = {{0, 72, 100}, {8, 67, 98}, {16, 65, 100}, {32, 70, 100}, {40, 72, 100}, {44, 75, 104},
+    {48, 77, 108}, {64, 72, 100}, {72, 69, 100}, {255, 0, 0}};
+/* six bars: the long B flat, F and C; the long G; B flat, C, F; the long G on top; E flat, A */
+static const mel_t M_SIX[] = {{0, 70, 100}, {16, 77, 106}, {24, 72, 100}, {32, 67, 98}, {48, 70, 100}, {52, 72, 100},
+    {56, 77, 106}, {64, 79, 110}, {80, 75, 102}, {88, 69, 100}, {255, 0, 0}};
 
-/* ---- the harmony, a bar each. HOME: B flat, B flat, E flat, F. PEAK: G minor, E flat, B flat, F */
-static const uint8_t R_HOME[NBAR] = {34, 34, 39, 41}, R_PEAK[NBAR] = {31, 39, 34, 41};
-static const uint8_t V_HOME[NBAR][4] = {{62, 65, 69, 72}, {62, 65, 69, 72}, {62, 65, 67, 70}, {60, 63, 65, 69}};
-static const uint8_t V_PEAK[NBAR][4] = {{58, 62, 65, 69}, {58, 62, 65, 67}, {57, 60, 62, 65}, {57, 60, 63, 65}};
-static const uint8_t D_HOME[NBAR][3] = {{65, 70, 74}, {65, 70, 74}, {67, 70, 74}, {65, 69, 72}};
-static const uint8_t D_PEAK[NBAR][3] = {{67, 70, 74}, {67, 70, 75}, {65, 70, 74}, {65, 69, 72}};
-
-enum { P_BASS = 31, P_STAB, P_PLUCK, P_PAD };
-static void sounds(qd_app_t *a, qd_pattern_t *p)
+static void sounds(qd_app_t *a, qd_pattern_t *p, int nbar)
 {
+    bars(nbar);
     tsound(a, p, T_DR, "808 KICK", E_KICK);
     tsound(a, p, T_BA, "FM BASS", P_BASS);
     tsound(a, p, T_KEYS, "JUNO STAB", P_STAB);
-    tsound(a, p, T_MEL, "JUNO PLUCK", P_PLUCK);
-    tsound(a, p, T_PAD, "TAPE PAD", P_PAD);
+    tsound(a, p, T_MEL, "JUNO LEAD", P_LEAD);
+    tsound(a, p, T_HAT, "808 HAT", E_HAT);
     tsound(a, p, T_PERC, "LATIN CONGA", K_CONGA);
     p->bpm = 124;
     p->swing = 50;
@@ -229,13 +260,13 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
 {
     static const char *const FXS[] = {"ZAP BLIP", "ZAP NOISE", "ZAP TOM", "ZAP CRASH", "RADIO", "TAPE HISS", "GAMELAN",
                                       "DUST BELL", "VINYL", "ZAP TICK"};
-    static const char *const POOL[] = {"FM BASS", "JUNO STAB", "JUNO PLUCK", "TAPE PAD"};
+    static const char *const POOL[] = {"FM BASS", "JUNO STAB", "JUNO LEAD", "TAPE PAD"};
     /* level, chorus, delay, reverb, pan */
     static const struct { uint8_t level, chorus, delay, reverb; int8_t pan; } MIX[QD_NTRACK] = {
-        {108, 0, 0, 10, 0}, {106, 0, 0, 0, 0}, {98, 60, 44, 34, -12}, {108, 30, 46, 38, 12}, {88, 30, 10, 60, 0},
+        {108, 0, 0, 10, 0}, {106, 0, 0, 0, 0}, {90, 60, 44, 34, -12}, {98, 50, 40, 44, 8}, {112, 0, 84, 24, 14},
         {102, 0, 10, 28, 0}};
-    static const char *const TNAME[QD_NTRACK] = {"DRUMS", "BASS", "STAB", "LEAD", "PAD", "PERC FX"};
-    static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_KEYS, QD_PK_LEAD, QD_PK_PAD, QD_PK_FX};
+    static const char *const TNAME[QD_NTRACK] = {"KICK", "BASS", "KEYS", "LEAD", "HATS", "PERC FX"};
+    static const uint8_t TKIND[QD_NTRACK] = {QD_PK_DRUMS, QD_PK_BASS, QD_PK_KEYS, QD_PK_LEAD, QD_PK_DRUMS, QD_PK_FX};
     qd_pattern_t *p;
     int i, n, t;
     (void)argc, (void)argv;
@@ -270,76 +301,82 @@ int fizz_tour_song(qd_app_t *a, int argc, char **argv)
     qd_fx_set(QD_FXP_RPRE, 34), qd_fx_set(QD_FXP_RLOW, 104), qd_fx_set(QD_FXP_RWIDTH, 127);
     qd_fx_set(QD_FXP_DSYNC, 1), qd_fx_set(QD_FXP_DDIV, 8), qd_fx_set(QD_FXP_DRATIO, 2), qd_fx_set(QD_FXP_DMODE, 0);
     qd_fx_set(QD_FXP_DFDBK, 56), qd_fx_set(QD_FXP_DTONE, 56), qd_fx_set(QD_FXP_DWOW, 16);
+    /* MIDI FX group 1, the hats': velocities moved, about a quarter of the notes dropped */
+    {
+        qd_mfx_slot_t *m = a->proj.mfx[0].slot;
+        qd_mfx_slot_init(&m[0], QD_MFX_RANDOM);
+        m[0].v[QD_MD_VEL] = 40, m[0].v[QD_MD_CHANCE] = 60;
+        qd_mfx_slot_init(&m[1], QD_MFX_CHANCE);
+        m[1].v[QD_MC_CHANCE] = 72;
+    }
 
-    /* A01 KICK: the kick and the conga; the bass from the third bar; the timbales */
+    /* A01 KICK (6 bars): the kick, the conga, the hats; the bass from the fourth bar; the timbales */
     p = qd_proj_pat(&a->proj, 0);
-    sounds(a, p);
-    drums(p, 1, 0, F_TIMBAL), perc(p, 0, 0, F_TIMBAL, 0), bass(p, R_HOME, 0, 32, LEN);
+    sounds(a, p, 6);
+    drums(p, 1, F_TIMBAL), hats(p), perc(p, 0, 0, F_TIMBAL, 0), bass(p, H_SIX, 0, 48, LEN);
     sprinkle(p, 0);
 
-    /* A02 GROOVE: the open hat, the clap, the clave and the bongo; the toms */
+    /* A02 GROOVE (5): the clap, the clave and the bongo, the stab twice a bar; the toms */
     p = qd_proj_pat(&a->proj, 1);
-    sounds(a, p);
-    drums(p, 1, 1, F_TOMS), perc(p, 1, 1, F_TOMS, 1), bass(p, R_HOME, 0, 0, LEN);
+    sounds(a, p, 5);
+    drums(p, 1, F_TOMS), hats(p), perc(p, 1, 1, F_TOMS, 1), bass(p, H_FIVE, 0, 0, LEN), stab(p, H_FIVE, 0, LEN);
 
-    /* A03 STAB: the chord, twice a bar; the stop */
+    /* A03 LEAD (5): the lead's five bars; the stop */
     p = qd_proj_pat(&a->proj, 2);
-    sounds(a, p);
-    drums(p, 1, 1, F_STOP), perc(p, 1, 1, F_STOP, 0), bass(p, R_HOME, 0, 0, HALF), stab(p, V_HOME, 0, HALF);
+    sounds(a, p, 5);
+    drums(p, 1, F_STOP), hats(p), perc(p, 1, 1, F_STOP, 0), bass(p, H_FIVE, 0, 0, HALF), stab(p, H_FIVE, 0, HALF);
+    lead(p, M_FIVE, LS8);
     sprinkle(p, 1);
 
-    /* A04 FIGURE: the pluck's two bars, twice; the cabasa; the timbales */
+    /* A04 BREAK (6): no kick, no bass: the pad, the lead's six bars, the stab four times a bar, the effects; the
+     * snare roll */
     p = qd_proj_pat(&a->proj, 3);
-    sounds(a, p);
-    drums(p, 1, 2, F_TIMBAL), perc(p, 1, 1, F_TIMBAL, 1), bass(p, R_HOME, 0, 0, LEN), stab(p, V_HOME, 0, LEN);
-    line(p, M_A, 0, LEN), line(p, M_A, 32, LEN);
-
-    /* A05 BREAK: no kick, no bass: the pad, the stab four times a bar, the figure once, the effects; the snare roll */
-    p = qd_proj_pat(&a->proj, 4);
-    sounds(a, p);
-    drums(p, 0, 1, F_ROLL), perc(p, 2, 0, F_ROLL, 0), stab(p, V_HOME, 1, LEN), pad(p, D_HOME);
-    line(p, M_A, 0, LEN);
+    sounds(a, p, 6);
+    drums(p, 0, F_ROLL), hats(p), perc(p, 2, 0, F_ROLL, 0), stab(p, H_SIX, 1, LEN), pad(p, H_SIX);
+    lead(p, M_SIX, LS8);
     sprinkle(p, 0), sprinkle(p, 2);
 
-    /* A06 DROP: everything but the pad, the bass rolling, the figure and its answer; the toms */
-    p = qd_proj_pat(&a->proj, 5);
-    sounds(a, p);
-    drums(p, 1, 2, F_TOMS), perc(p, 1, 1, F_TOMS, 1), bass(p, R_HOME, 1, 0, LEN), stab(p, V_HOME, 1, LEN);
-    line(p, M_A, 0, LEN), line(p, M_B, 32, LEN);
+    /* A05 DROP (5): the bass rolling, the stab four times a bar, the lead's answer; C in the third bar; the toms */
+    p = qd_proj_pat(&a->proj, 4);
+    sounds(a, p, 5);
+    drums(p, 1, F_TOMS), hats(p), perc(p, 1, 1, F_TOMS, 1), bass(p, H_ALT, 1, 0, LEN), stab(p, H_ALT, 1, LEN);
+    lead(p, M_ANSWER, LS8);
 
-    /* A07 PERCUSSION: the kick, the rolling bass and all the percussion, no chords, the effects; the timbales */
-    p = qd_proj_pat(&a->proj, 6);
-    sounds(a, p);
-    drums(p, 1, 2, F_TIMBAL), perc(p, 2, 1, F_TIMBAL, 0), bass(p, R_HOME, 1, 0, LEN);
+    /* A06 PERCUSSION (5): the kick, the rolling bass and all the percussion, no chords, the effects; the timbales */
+    p = qd_proj_pat(&a->proj, 5);
+    sounds(a, p, 5);
+    drums(p, 1, F_TIMBAL), hats(p), perc(p, 2, 1, F_TIMBAL, 0), bass(p, H_FIVE, 1, 0, LEN);
     sprinkle(p, 1), sprinkle(p, 2);
 
-    /* A08 PEAK: G minor, E flat, B flat, F: the pad, the stab, the answer then the figure; the stop */
-    p = qd_proj_pat(&a->proj, 7);
-    sounds(a, p);
-    drums(p, 1, 2, F_STOP), perc(p, 2, 1, F_STOP, 1), bass(p, R_PEAK, 1, 0, HALF), stab(p, V_PEAK, 1, HALF);
-    pad(p, D_PEAK);
-    line(p, M_B, 0, LEN), line(p, M_A, 32, HALF);
+    /* A07 PEAK (6): G, E flat, C, A flat, E flat, F under the same fourths and fifths: the pad, the stab, the lead's
+     * six bars; the stop */
+    p = qd_proj_pat(&a->proj, 6);
+    sounds(a, p, 6);
+    drums(p, 1, F_STOP), hats(p), perc(p, 2, 1, F_STOP, 1), bass(p, H_PEAK, 1, 0, HALF), stab(p, H_PEAK, 1, HALF);
+    pad(p, H_PEAK);
+    lead(p, M_SIX, LS4);
 
-    /* A09 OUT: home again, taken apart: the kick, the bass off the beat, the conga and the clave, the stab; the
-     * figure's first two bars; the snare roll into the last chord */
-    p = qd_proj_pat(&a->proj, 8);
-    sounds(a, p);
-    drums(p, 1, 1, F_ROLL), perc(p, 1, 0, F_ROLL, 1), bass(p, R_HOME, 0, 0, LEN), stab(p, V_HOME, 0, LEN);
-    line(p, M_A, 0, LEN);
+    /* A08 OUT (5): home, taken apart: the kick, the bass off the beat, the conga and the clave, the stab, the pad,
+     * the lead's first five bars again; the snare roll into the last chord */
+    p = qd_proj_pat(&a->proj, 7);
+    sounds(a, p, 5);
+    drums(p, 1, F_ROLL), hats(p), perc(p, 1, 0, F_ROLL, 1), bass(p, H_FIVE, 0, 0, LEN), stab(p, H_FIVE, 0, LEN);
+    pad(p, H_FIVE);
+    lead(p, M_FIVE, LS4);
     sprinkle(p, 0);
 
-    /* A10 END (one bar): the kick, the cymbal, B flat major nine into the delay */
-    p = qd_proj_pat(&a->proj, 9);
-    sounds(a, p);
+    /* A09 END (one bar): the kick, the cymbal, B flat sus2 into the echo, the pad's fifth, the lead's F */
+    p = qd_proj_pat(&a->proj, 8);
+    sounds(a, p, 1);
     for (t = 0; t < QD_NTRACK; t++)
         qd_track_set_length(p, t, 16);
     hit(p, T_DR, 0, E_KICK, 127);
     hit(p, T_PERC, 0, E_CYMBAL, 104);
-    note(p, T_BA, 0, 34, 120, LS4);
-    chord(p, T_KEYS, 0, V_HOME[0], 4, 108, LS2, 0);
-    qd_lock_set(p, T_KEYS, 0, QD_LK_DELAY, 110);
-    note(p, T_MEL, 3, 74, 100, LS2);
-    qd_lock_set(p, T_MEL, 3, QD_LK_DELAY, 120);
+    note(p, T_BA, 2, 34, 120, LS4);
+    pad(p, H_FIVE);
+    chord(p, T_KEYS, 3, CH[BB].v, 4, 108, LS2, 0);
+    qd_lock_set(p, T_KEYS, 3, QD_LK_DELAY, 110);
+    note(p, T_MEL, 0, 65, 100, LS12);
     p->master = 16;
     return 0;
 }
