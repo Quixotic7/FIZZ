@@ -4,7 +4,8 @@
  *      compiler has no -fdata-sections: a unit's .bss is one piece):
  *        the pool          fz_port.c's (the one qd_app_t) and the effects' (qd_fx.c: the delay, the reverb, the chorus)
  *        RAM code region   after the RAM code: the voices' (quad_voice.c: the comb lines)
- *        NOINIT            after fm1-base's records: the view's and two screens' (view.c, ui_idle.c, ui_keys.c); P2.17: the send's segment hashes (fz_fb.c)
+ *        NOINIT            after fm1-base's records: the view's and two screens' (view.c, ui_idle.c, ui_keys.c); P2.17: the send's segment hashes (fz_fb.c);
+ *                          2026-11-15: the player's and the sounds' statics (player.c, sounds.c: ~560 B of main RAM)
  *        RAM               the rest of FIZZ's, with the platform's
  *      crt0 clears only .bss and the pool: app.c clears the other two before FIZZ starts (_fz_rt_start.._fz_rt_end,
  *      _fz_ni_start.._fz_ni_end). firmware/BUDGET.md has the sizes.
@@ -14,12 +15,11 @@
  *      image: firmware/build.py cuts it out (fizz-xdata.bin) and firmware/tools/fizz_xdata.py writes it there, with
  *      a 12-byte trailer after it (fz_port.c).
  *   3. (P2.6) Audio code in RAM: the mix (mix.c) whole, and the functions firmware/build.py renames .fzrt.* in their
- *      objects (HOT: the effects' hot seven; in the single-core build also the voices' quad_render), copied at boot
+ *      objects (HOT: the effects' hot seven, the control block's begin), copied at boot
  *      with the rest of .ram_text: out of the flash cache's way (the drawing's code evicts it between halves). It runs
  *      only in the audio interrupt (and their set-up on the main loop), never while the flash is off (the flash is
  *      programmed and erased with the interrupts off), so like fm1-base's second-core code it may call into the
- *      flash: it sits in the window fm1-base's build check exempts (_c1_start.._c1_end). The single-core build links
- *      a copy of this script (build/fizz-1core.ld) with the voices' comb lines in the pool instead of .fz_rt.
+ *      flash: it sits in the window fm1-base's build check exempts (_c1_start.._c1_end).
  * The regions, the stacks and fm1-base's symbols are as app.ld has them. */
 MEMORY
 {
@@ -51,6 +51,7 @@ SECTIONS
     .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
     .fz_ni (NOLOAD) : { . = ALIGN(4); _fz_ni_start = .; *(.fz_nidata*) */o2/build_units_c_view.o(.bss* .sbss* COMMON)
                         */o2/build_units_c_ui_idle.o(.bss* .sbss* COMMON) */o2/build_units_c_ui_keys.o(.bss* .sbss* COMMON)
+                        */o2/build_units_c_player.o(.bss* .sbss* COMMON) */o2/build_units_c_sounds.o(.bss* .sbss* COMMON)
                         . = ALIGN(4); _fz_ni_end = .; } > NOINIT
     .pool (NOLOAD) : { _pool_start = .; *(.pool*) */o2/fz_port.o(.bss* .sbss* COMMON)
                        */o2/build_units_c_qd_fx.o(.bss* .sbss* COMMON) . = ALIGN(4); _pool_end = .; } > POOL

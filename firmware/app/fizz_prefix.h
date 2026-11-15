@@ -5,6 +5,7 @@
 #pragma once
 #include "fz_gfx.h"                          /* (tools/gen_units.py --gfx: QD_GFX_FAST or not) */
 #define QD_DEVICE 1
+#define QD_DIV_SHARED 1                      /* (core/seq/qd_div.h: its long divisions once, in fz_port.c, not a copy a unit) */
 #ifndef PLAT_HOST
 #define QD_TARGET_FM1 1
 #ifndef __STDC_NO_ATOMICS__

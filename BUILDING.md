@@ -21,8 +21,8 @@ python3 firmware/build.py --ble     # the Bluetooth package: fizz-ble.fwsc, fizz
 Each `.fwsc` carries its data blobs and FIZZ's own update loader, which writes them (see "The data blobs" below).
 The `.bin` files are the same blobs on their own.
 
-`firmware/build.py`'s docstring lists the other builds (the host simulator, the browser emulator, the single-core
-package).
+`firmware/build.py`'s docstring lists the other builds (the host simulator, the browser emulator). Every package is
+the dual-core build; the single-core package is no longer made (2026-11-15).
 
 To test the update loader on this computer, with no FM-1, build both packages, then run
 `bash firmware/app/tests/ldr_test.sh`.

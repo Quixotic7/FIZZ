@@ -3,6 +3,7 @@
  * core_quadrille.c), from fm1-base's main loop. A unit of its own (fm1.toml o2), built with FIZZ's device profile
  * (fizz_prefix.h: QD_DEVICE; on the unit QD_TARGET_FM1). Its .bss (the one qd_app_t) goes to fm1-base's pool
  * (fizz.ld). */
+#define QD_DIV_IMPL 1                        /* (the image's one copy of qd_div.h's long divisions: QD_DIV_SHARED) */
 #include <string.h>
 
 #include "../../core/app/app.h"
@@ -754,7 +755,7 @@ uint32_t fz_state_line(char *q, char *lim)
     uint32_t live = 0, total = 0;
     st_lim = lim, st_need = 0, st_cut = 0;
     q = st_u(q, "voices=", (uint32_t)qd_pool_in_use(&a->pool));
-    q = st_u(q, "of=", (uint32_t)a->pool.nvoice);         /* (the build's: 8 single-core, 16 Standard) */
+    q = st_u(q, "of=", (uint32_t)a->pool.nvoice);         /* (the build's: QD_VOICES_DEV) */
     q = st_u(q, "playing=", (uint32_t)a->playing);
     q = st_u(q, "seq_playing=", (uint32_t)a->seq.playing);
     q = st_u(q, "kheld=", a->keys_held);               /* (2026-11-13: the keys FIZZ holds down, the step keyboard) */

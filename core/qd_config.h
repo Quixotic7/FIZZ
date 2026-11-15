@@ -52,8 +52,8 @@
 
 /* USB HOST (2026-11-14): SETTINGS' page 3 on the USB package, the USB port the host of a USB-MIDI keyboard or synth
  * (fm1-base's plat_usb_host; app.h qd_app_usb_host_on). Never saved: off at every power-on. The core keeps and shows
- * it, the port applies it. firmware/build.py gives 1 to the USB package (its simulator and browser build too) and 0
- * to the Bluetooth package and the single-core one (no room for the host in their flash); tools/Makefile and
+ * it, the port applies it. firmware/build.py gives 1 to every package (its simulator and browser build too;
+ * FM1B_USB_HOST=0 leaves it out); tools/Makefile and
  * tools/budget 1 but for the Bluetooth package's profile. 0 (the default): FM1VST and the site's FIZZ, which have no
  * USB port to give */
 #ifndef QD_USB_HOST

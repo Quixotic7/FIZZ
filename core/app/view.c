@@ -1950,15 +1950,15 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
             v->last = u->mfx_knob == 0 || u->mfx_knob == 1 ? u->mfx_knob : -1;
         }
         if (s->type == QD_MFX_ARP) {                    /* the arp: its held notes, its walk, where it is */
-            static const qd_mfx_srt_t none;             /* (P2.1b: a slot with no state: nothing held) */
-            const qd_mfx_srt_t *r = qd_mfx_srt(&a->player.mfx, g - 1, v->sel) ? qd_mfx_srt(&a->player.mfx, g - 1, v->sel) : &none;
+            const qd_mfx_srt_t *r = qd_mfx_srt(&a->player.mfx, g - 1, v->sel);   /* (P2.1b: none, a slot with no
+                                                         * state: nothing held; 2026-11-15: no 540 B zero copy for it) */
             const int range = s->v[QD_MA_RANGE] < 1 ? 1 : s->v[QD_MA_RANGE] > 4 ? 4 : s->v[QD_MA_RANGE];
             const int pat = s->v[QD_MA_PAT], mlen = s->v[QD_MA_MLEN], tlen = s->v[QD_MA_TLEN];
             static const uint8_t DEF[3] = {60, 64, 67};
             uint8_t notes[QD_MFX_NHOLD], asp[QD_MFX_NHOLD], idx[QD_MFX_NHOLD * 4];
             int n = 0, i, o, ni, nh = 0;
             uint32_t key = 2166136261u;
-            while (n < QD_MFX_NHOLD && r->h[n].used)
+            while (r && n < QD_MFX_NHOLD && r->h[n].used)   /* (r is read only when it holds notes: n) */
                 n++;
             v->lane_sel = u->mfx_lane[v->page == 3 ? 1 : 0] & 15;
             if ((R->hd[v->sel].type & 0x7F) == QD_MFX_ARP && n) {

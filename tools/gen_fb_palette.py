@@ -156,24 +156,8 @@ def main():
             for i in range(0, 256, 12):
                 f.write('    ' + ', '.join('0x%04x' % v for v in vals[i:i + 12]) + ',\n')
             f.write('};\n')
-        # P2.6h: RGB565 -> its entry (a ramp's level before a spare, the first in the palette's order), an open table
-        xk, xi = [0] * 512, [0] * 512
-        for k in range(256):
-            ramp = k == 0 or (k & 15) != 0
-            q = ((pal[k] * 40503) >> 7) & 511
-            while xk[q] and xk[q] != pal[k] + 1:
-                q = (q + 1) & 511
-            if not xk[q]:
-                xk[q], xi[q] = pal[k] + 1, k
-            elif ramp and xi[q] and not (xi[q] & 15):
-                xi[q] = k
-        f.write('static const uint32_t QF_XK[512] = {   /* (RGB565 + 1; 0: empty) */\n')
-        for i in range(0, 512, 12):
-            f.write('    ' + ', '.join('0x%05x' % v for v in xk[i:i + 12]) + ',\n')
-        f.write('};\nstatic const uint8_t QF_XI[512] = {\n')
-        for i in range(0, 512, 24):
-            f.write('    ' + ', '.join('%d' % v for v in xi[i:i + 24]) + ',\n')
-        f.write('};\n')
+        # (P2.6h's RGB565 -> entry hash, QF_XK / QF_XI, 2.5 KB: gone 2026-11-15; qd_gfx_fast.c fb_index scans QF_PAL
+        # for the same entry: a ramp's level before a spare, the first in the palette's order)
         f.write('static const uint8_t QF_NEAR[4096] = {   /* RGB444 (r << 8 | g << 4 | b) -> the nearest entry */\n')
         for i in range(0, 4096, 24):
             f.write('    ' + ', '.join('%d' % v for v in near[i:i + 24]) + ',\n')

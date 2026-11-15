@@ -2,8 +2,7 @@
 /* The second core's manager on the host (fz_dual.c), with stand-in voices until FIZZ's core has its split render:
  * the power-on rules and the record, the escalation, and the samples of a block rendered as "voices 0..7 on core 0,
  * 8..15 as core 1's job" equal to one core's, whichever runs first and whatever fails on the way.
- *   cc -O2 -Wall -I.. dual_test.c -o dual_test && ./dual_test
- *   cc -O2 -Wall -I.. -DFZ_SINGLE_CORE=1 dual_test.c -o dual_test1 && ./dual_test1 */
+ *   cc -O2 -Wall -I.. dual_test.c -o dual_test && ./dual_test */
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -103,18 +102,6 @@ int main(void)
     /* ---- power-on */
     sim_reset();
     boot(0, 0, 0, 1);
-#if FZ_SINGLE_CORE
-    CHECK(fz_dual.state == FZ_C1_OFF);
-    CHECK(!strcmp(fz_dual_state_name(), "single"));
-    render(got, 1, -1, 0);
-    CHECK(!memcmp(ref, got, sizeof ref));
-    CHECK(fz_dual.posts == 0 && fz_dual.inline_jobs == NB);
-    rec.barred = FZ_C1_BAR_CRASH;               /* (a Standard package's record: cleared, never read) */
-    boot(0, 0, 0, 1);
-    CHECK(fz_dual.state == FZ_C1_OFF && fz_dual.barred == FZ_C1_BAR_NONE && rec.barred == 0);
-    printf("dual_test (single-core): %s\n", fails ? "FAILED" : "ok");
-    return fails != 0;
-#else
     CHECK(fz_dual.state == FZ_C1_OK && rec.magic == FZ_C1_BAR_MAGIC && rec.ran == 1 && rec.barred == 0);
     boot(0, 0, 0, 0);
     CHECK(fz_dual.state == FZ_C1_OFF);          /* the setting off */
@@ -171,5 +158,4 @@ int main(void)
     printf("dual_test: %s (posts %u, waits %u, wait max %u ticks)\n", fails ? "FAILED" : "ok", fz_dual.posts,
            fz_dual.waits, fz_dual.wait_max_ticks);
     return fails != 0;
-#endif
 }

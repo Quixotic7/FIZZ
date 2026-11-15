@@ -64,10 +64,6 @@ void fz_dual_boot(fz_c1_bar_t *rec, const fz_c1_backend_t *be, int safe, int cou
     fz_dual.state = FZ_C1_OFF;
     fz_dual.barred = FZ_C1_BAR_NONE;
     fz_dual.misreads = 0;
-#if FZ_SINGLE_CORE                             /* the single-core package: never, whatever the record says */
-    (void)d; (void)be; (void)safe; (void)counted; (void)want; (void)t0;
-    return;
-#else
     if (!want || safe || !be)                  /* the setting off; FIZZ's safe mode; no core 1 in this build */
         return;
     if (d != FZ_C1_BAR_NONE) {                 /* a crash or a hang beside core 1 last time, or a give-up */
@@ -91,7 +87,6 @@ void fz_dual_boot(fz_c1_bar_t *rec, const fz_c1_backend_t *be, int safe, int cou
         fz_dual.state = FZ_C1_OK;
     }
     fz_dual.start_ticks = plat_ticks24() - t0;
-#endif
 }
 
 void fz_dual_crashed(fz_c1_bar_t *rec)
@@ -159,7 +154,7 @@ int fz_dual_active(void) { return fz_dual.state == FZ_C1_OK; }
 const char *fz_dual_state_name(void)
 {
     static const char *const s[] = {"off", "on", "failed", "gave up"};
-    return FZ_SINGLE_CORE ? "single" : s[fz_dual.state & 3u];
+    return s[fz_dual.state & 3u];
 }
 
 /* ------------------------------------------------ the mailbox and the simulated core 1 --- */

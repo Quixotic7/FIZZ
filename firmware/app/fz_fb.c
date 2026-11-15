@@ -66,11 +66,11 @@ static int fz_fb_line(uint32_t *line)    /* the scan's line now; -1 none */
  * bar) goes as a narrow window, not as whole rows, and fits one refresh. The rectangles: consecutive changed rows
  * whose changed segments are within the group's first row's (a superset sent: those pixels are the frame's anyway)
  * make a group; each run of adjacent segments in the group's set is a rectangle. Top to bottom, a group's
- * rectangles left to right. The dual build (the room: 3,840 B, half in the pool, half in NOINIT); the single-core
- * build one segment (whole rows, the row hash as before) */
+ * rectangles left to right. The USB package (the room: 3,840 B, half in the pool, half in NOINIT); the Bluetooth
+ * package one segment (whole rows, the row hash as before) */
 #ifndef FZ_FB_SEGS
-#if FM1B_CPU2 && !FZ_SINGLE_CORE && !QD_PKG_BLE   /* (the Bluetooth package: one segment, as the single-core build:
-                                                 * its 3,840 B of hashes went to the radio) */
+#if FM1B_CPU2 && !QD_PKG_BLE                     /* (the Bluetooth package: one segment: its 3,840 B of hashes went to
+                                                 * the radio) */
 #define FZ_FB_SEGS 4u
 #else
 #define FZ_FB_SEGS 1u

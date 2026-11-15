@@ -62,7 +62,7 @@ INSTALL_URL = "https://quixotic7.github.io/FIZZ/install/"
 DISCORD = "https://discord.gg/emf6DmZ9V"
 REPO_URL = "https://github.com/Quixotic7/FIZZ"
 # the packages a release carries: (file name, firmware/build.py's arguments, what it is, for the page, its kind)
-# (P2.14: the dual build, fm1.toml cpu2 = true with cpu2_fallback; "--single-core" makes fizz-1core, core 1 off)
+# (P2.14: the dual build, fm1.toml cpu2 = true with cpu2_fallback; the single-core package is no longer made, 2026-11-15)
 # (2026-10-27: the Bluetooth package, firmware/BUDGET.md "The Bluetooth package": the same identity, its own name, two
 # data blobs; 4 projects and 128 MY presets)
 PACKAGES = [("fizz", [], "8 voices across both cores, USB MIDI and USB audio", "usb"),
@@ -169,7 +169,7 @@ def child_build(version, args):
         return build_app()
     fb.build_app = stamped
     # firmware/build.py's __main__ block, as it is (with the arguments it left: its own, --ble, --define, --tag, taken)
-    sys.argv = [str(g["BASE"] / "tools" / "build.py"), str(g["APP"]), *[a for a in sys.argv[1:] if a != "--single-core"]]
+    sys.argv = [str(g["BASE"] / "tools" / "build.py"), str(g["APP"]), *sys.argv[1:]]
     return fb.main()
 
 
@@ -221,7 +221,7 @@ def build(version, xyz, name, args):
     ble = "--ble" in args
     fwsc = BUILD / f"{name}-{xyz}.fwsc"
     image = BUILD / f"{name}.bin"
-    # (firmware/build.py: fizz-xdata.bin for the USB package and the single-core one; fizz-ble-xdata.bin and
+    # (firmware/build.py: fizz-xdata.bin for the USB package; fizz-ble-xdata.bin and
     # fizz-ble-xdata2.bin for the Bluetooth one)
     xdata = [BUILD / "fizz-ble-xdata.bin", BUILD / "fizz-ble-xdata2.bin"] if ble else [BUILD / "fizz-xdata.bin"]
     for p in (fwsc, image, *xdata):

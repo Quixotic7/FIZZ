@@ -57,7 +57,8 @@ steps:
      block (late once, then single-core: the shed works on 16 again).
    - **Persistent bar:** a `.noinit` bar keeps core 1 off after a crash or watchdog reset that happened while it ran
      (ChoralRoot's, X0X's).
-   - **Packages:** ship a Standard and a Single-core package, as ChoralRoot and Melodee do.
+   - **Packages:** ship a Standard and a Single-core package, as ChoralRoot and Melodee do. (2026-11-15, the owner:
+     the single-core package is no longer built or shipped; every package is the dual build.)
 
 **The handshake.**
 - **Cost:** eight post-and-wait pairs a half: a few us each (csync, a sequence number, a check word).
@@ -114,7 +115,7 @@ steps:
 3. **The bar.**
 4. **Stats:** core 1 state (on, failed, gave up, barred), misreads, stalls, the per-half wait, and each core's voice
    time.
-5. **A build switch** for the single-core package (`FZ_SINGLE_CORE=1`).
+5. **A build switch** for the single-core package (`FZ_SINGLE_CORE=1`; removed 2026-11-15 with that package).
 6. **The simulator** runs core 1's job inline (as ChoralRoot's emulator), and the host tests compare.
 
 **Expected gain.** Voices are ~70 % of the interrupt now (2,849 of 3,987 us for 6 voices). Halved, the interrupt
@@ -163,24 +164,22 @@ voices need both.
 - **The record** (`fz_c1_bar_t` in `.noinit`, 12 B): a give-up, a crash beside core 1 (`APP_FAULT` -> `app_fault` ->
   `fz_dual_crashed`, only with a real back end), or a watchdog reset while core 1 ran keep core 1 off the next boot.
   A power-on clears it.
-- **Power-on** (`app_init`, before the sound): not in the single-core package, not when the setting is off, not after a
+- **Power-on** (`app_init`, before the sound): not when the setting is off, not after a
   failed boot (fm1-base's `bootguard.failed`: a crash or the watchdog in the 30 s of the boot before: one core this
   boot, nothing written), not when the record bars it; otherwise the back end starts, and if it does not answer it is
   held and the session is single-core ("failed").
 - **Stats**: a sixth line on `7D 46 50` (`fizz_xdata.py stats`): `c1=` on / off / failed / gave up / single, the back
   end, why it is barred, the start time, the jobs handed over, the jobs core 0 ran instead, stalls, refusals,
   misreads, the longest wait.
-- **The build switch**: `firmware/build.py --single-core` (also with `--host`, `--web`, `--release`) builds with
-  `FZ_SINGLE_CORE=1` into `fizz-1core.fwsc` (`fizz-1core_host`); core 1's start is compiled out and every job runs on
-  core 0. The Standard package is the plain build.
-- **The test** (`app/tests/dual_test.c`, both builds): the power-on rules and the record (garbage, setting off, safe
+- **The build switch** (`firmware/build.py --single-core`, `FZ_SINGLE_CORE=1`, `fizz-1core.fwsc`): removed on
+  2026-11-15 with the single-core package (the owner: "Dual Core stuff is ironed out").
+- **The test** (`app/tests/dual_test.c`): the power-on rules and the record (garbage, setting off, safe
   mode, a counted boot, no answer, a watchdog hang, a crash, a give-up and the boots after them), and 400 blocks of
   16 stand-in voices rendered 0..7 on core 0 and 8..15 as the job: bit for bit one core's samples with the job run
   first, run last, refused once, refused twice, and stalled in the middle.
 
   ```
   cc -O2 -Wall -Iapp app/tests/dual_test.c -o /tmp/dual_test && /tmp/dual_test
-  cc -O2 -Wall -Iapp -DFZ_SINGLE_CORE=1 app/tests/dual_test.c -o /tmp/dual_test1 && /tmp/dual_test1
   ```
 
 **Cost so far**: RAM 300 B (the mailbox's 128 B and its alignment, the counters), NOINIT 12 B, flash ~1 KB.
@@ -222,7 +221,8 @@ test stays, as a record of the protocol).
   2,816 B; the job writes only its voices' state and its bus.
 - **Stats line 6**: started or not, on, why it gave up, barred, misreads, its stack's depth, jobs, jobs core 0 ran
   instead (busy, fallbacks), each core's voice time a half and core 0's wait. The Geek Out pages' METERS: core 1's load.
-- **The single-core package** (`--single-core`): 8 voices, no second core (FM1B_CPU2=0).
+- **The single-core package** (`--single-core`: 8 voices, no second core): no longer built or shipped (2026-11-15, the
+  owner's decision); `firmware/build.py --single-core` now stops with a message.
 
 ## P2.16: core 1 asynchronous (design note, not built: A does not fit)
 

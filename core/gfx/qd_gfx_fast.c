@@ -503,17 +503,20 @@ static unsigned fb_index(qd_rgb col, uint16_t v565)     /* the palette's entry f
         f_alt = f_ca[h];
         return f_ci[h];
     }
-    {
-        uint32_t q = (v565 * 40503u) >> 7 & 511u;
+    {   /* (P2.6h) its entry: a ramp's level (or black) before a spare, else the first spare. 2026-11-15 (the flash
+         * diet): the palette scanned, not qd_fb_pal.h's 2.5 KB hash (QF_XK, QF_XI): the same entry for every RGB565
+         * value (checked for all 65,536), on a miss of the cache above only, as fb_near_level's scan */
+        unsigned k;
         i = 256u;
-        while (QF_XK[q]) {                              /* (P2.6h: its entry: a ramp's level before a spare, the
-                                                         * table qd_fb_pal.h's) */
-            if (QF_XK[q] == (uint32_t)v565 + 1u) {
-                i = QF_XI[q];
-                break;
+        for (k = 0; k < 256u; k++)
+            if (QF_PAL[k] == v565) {
+                if (!k || (k & 15u)) {
+                    i = k;
+                    break;
+                }
+                if (i == 256u)
+                    i = k;
             }
-            q = (q + 1u) & 511u;
-        }
     }
     if (i == 256u)
         i = QF_NEAR[(((col >> 16) & 255u) * 15u + 127u) / 255u << 8 | (((col >> 8) & 255u) * 15u + 127u) / 255u << 4 |
