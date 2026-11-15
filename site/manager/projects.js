@@ -8,7 +8,8 @@
 // store's restore (FZSR) in one go. No DOM: the tests run it in Node.
 //
 //   modelOf(image) -> {layout, magic, lib: Map(key -> bytes), prj: Map}      imageOf(model) -> the store image
-//   project(model, p) -> {p, there, name, demo, pats: [patSummary | null] x 64, used, pool: n}
+//   project(model, p) -> {p, there, name, demo, demoN, pats: [patSummary | null] x 64, used, pool: n} (demoN: the demo's
+//   patterns, compiled in)
 //   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt, pages, locks, trk} | null (a record it cannot read)
 //   poolEntry(model, p, n) -> {id} | {rec} | null
 //   copyPatterns(model, p, ks) -> a clip {from, names, pats: [{k, bytes}], pool: Map(n -> {id} | {rec}), presets: Map(id -> LIB record)}
@@ -37,7 +38,11 @@ import { dnReadZip } from "../js/fm1dnsnd.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 
 export const RK = { SET: 1, HDR: 2, PAT: 3, SND: 4, LIB: 5, FTAG: 6, MFX: 7 };       // persist.h QD_RK_*
-export const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 116, MINE0 = 0x100, DEMO_N = 3;   // (NPROJ, NLIB: the USB package's)
+export const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 116, MINE0 = 0x100;   // (NPROJ, NLIB: the USB package's)
+// a project's demo (HDR's demo byte, core/seq/demo.h): 2 ATRIUM (A01..A10, a fresh unit's project 1 since 2026-11-15),
+// 1 the old demo (A01..A03: a unit before ATRIUM; the firmware since plays those blank): its patterns compiled in
+export const DEMO_ATRIUM = 2, DEMO_N = 10;
+export const demoCount = (d) => (d === DEMO_ATRIUM ? DEMO_N : d ? 3 : 0);
 // (2026-11-15) factory ids 1..116: the first 23 (a pool that did not start empty holds them at places 1..23), the pack's
 // 93 after them; ids 4 5 10 11 12 16 retired (they still play; the unit's LIST leaves them out)
 export const NFACTORY_POOL = 23, FACTORY_RETIRED = [4, 5, 10, 11, 12, 16];
@@ -123,14 +128,14 @@ export function walkPat(b) {
 export function project(m, p) {
   const h = m.prj.get(rkey(RK.HDR, p, 0));
   const there = !!(h && h[0] === 0x48 && h[1] === 1);
-  const demo = there && !!h[2 + NAME];
+  const demo = there && !!h[2 + NAME], demoN = there ? demoCount(h[2 + NAME]) : 0;
   const pats = [];
   let used = 0;
   for (let k = 0; k < NPAT; k++) {
     const b = m.prj.get(rkey(RK.PAT, p, k));
     let s = null;
     if (b) s = walkPat(b) || { bad: true, used: true, trigs: 0, rows: [] };
-    else if (demo && k < DEMO_N) s = { demo: true, used: true, trigs: 0, rows: [] };   // (the demos' patterns, compiled in)
+    else if (k < demoN) s = { demo: true, used: true, trigs: 0, rows: [] };   // (the demos' patterns, compiled in)
     if (s && !(s.used || s.trigs)) s = { ...s, empty: true };
     if (s && !s.empty) used++;
     pats.push(s && !s.empty ? s : null);
@@ -138,7 +143,7 @@ export function project(m, p) {
   let pool = 0;
   const empty = poolStartsEmpty(m, p);
   for (let n = 1; n <= NPOOL; n++) if (there && poolEntry(m, p, n, empty)) pool++;
-  return { p, there, name: there ? cstr(h, 2, NAME - 1) : "", demo, pats, used, pool };
+  return { p, there, name: there ? cstr(h, 2, NAME - 1) : "", demo, demoN, pats, used, pool };
 }
 export const projects = (m) => Array.from({ length: limits(m).nproj }, (_, p) => project(m, p));
 
@@ -335,10 +340,11 @@ export function pastePatterns(m, q, j, clip) {
   });
   return { at, poolAdded, presetsAdded: added, copies };
 }
-// cleared: no record, as a pattern never written. A demo project's A01..A03 without a record play the demos (compiled
+// cleared: no record, as a pattern never written. A demo project's own patterns without a record play the demo (compiled
 // in): those are refused ({code: "demo"}), nothing changed
 export function clearPatterns(m, q, ks) {
-  if (project(m, q).demo && ks.some((k) => k < DEMO_N)) throw err("demo", "a demo project's A01..A03 cannot be cleared here");
+  const dn = project(m, q).demoN;
+  if (ks.some((k) => k < dn)) throw err("demo", `a demo project's A01..${patName(dn - 1)} cannot be cleared here`);
   for (const k of ks) m.prj.delete(rkey(RK.PAT, q, k));
 }
 

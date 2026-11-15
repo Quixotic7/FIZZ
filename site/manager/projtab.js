@@ -17,7 +17,7 @@
 // A project from the other package comes in as a .fizzprj (KEEP there, LOAD INTO here): its MY presets come along;
 // those MY PRESETS has no room for stay in it as its own copies (projects.js derefPat), so it sounds the same.
 import { modelOf, imageOf, cloneModel, projects, project, patName, copyPatterns, pastePatterns, clearPatterns, keepProject,
-  loadProject, renameKept, renameProject, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, limits, rkey, RK, DEMO_N } from "./projects.js";
+  loadProject, renameKept, renameProject, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, limits, rkey, RK } from "./projects.js";
 import { esc, confirmBox } from "./ui.js";
 
 const TC = ["--blue", "--green", "--cream", "--orange", "--pink", "--violet"];
@@ -73,7 +73,7 @@ export function mountProjects(ctx) {
   const refuse = (e) => (e.code === "poolfull" ? "The pool there is full (128): clear some of its sounds first."
     : e.code === "full" ? "That does not fit the FM-1's store: clear some patterns or projects first."
       : e.code === "range" ? (/slot/.test(e.message) ? `This FM-1 has ${nproj()} project slots.` : "The patterns run past D16 from there: pick an earlier pattern.")
-        : e.code === "demo" ? "A demo project's first three patterns stay the demo's here." : e.message);
+        : e.code === "demo" ? "A demo project's own patterns stay the demo's here." : e.message);
 
   // ---------------------------------------------------------------- the store read (and read again when it changed)
   const stale = () => !J.base || !S.unit || !S.unit.status || J.base.written !== S.unit.status.written;
@@ -458,7 +458,7 @@ export function mountProjects(ctx) {
       if (j < 0) { say(`${esc(nameOf(q))} has no free pattern: drop it on one to replace it.`, "--orange"); return; }
     }
     if (from.p === q && from.k === j) return;
-    if (move && project(m, from.p).demo && from.k < DEMO_N) { say("A demo's A01–A03 stay the demo's: drop it without ALT to copy it.", "--orange"); return; }
+    if (move && from.k < project(m, from.p).demoN) { say(`A demo's A01–${patName(project(m, from.p).demoN - 1)} stay the demo's: drop it without ALT to copy it.`, "--orange"); return; }
     const dst = `${nameOf(q)} ${patName(j)}`, src = from.p === q ? patName(from.k) : `${nameOf(from.p)} ${patName(from.k)}`, old = pr.pats[j];
     if (old) {
       const ok = await confirmBox({ title: move ? "MOVE OVER" : "COPY OVER", what: `${src} → ${dst}`, go: "REPLACE", color: "--yellow",

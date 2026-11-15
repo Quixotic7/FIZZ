@@ -228,7 +228,7 @@ export function restoreFit(image, unitSize, choice, withImage = false) {
 //       dropping pattern k of slot p on each project there does to its pool (pastePatterns tried on a copy at its first
 //       free pattern): the pool sounds it plays (their tag colours), how many come along, how many it has, the count after
 import { modelOf, imageOf, cloneModel, project as pjProject, copyPatterns, pastePatterns, clearPatterns, keepProject,
-  loadProject, renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, DEMO_N,
+  loadProject, renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, demoCount, patName,
   limits as pjLimits, poolEntry as pjPoolEntry } from "../../site/manager/projects.js";
 
 const PJ = new Map(), CLIPS = new Map();
@@ -307,7 +307,8 @@ export async function pjLoadKept(h, q, bytes, file = "") {
 export function pjDrop(h, p, k, q, j, move = false) {
   const s = pjGet(h), clip = copyPatterns(pjModel(s), p, [k]);
   if (!clip.pats.length) return pjFail(Object.assign(new Error("nothing to copy there"), { code: "empty" }));
-  if (move && pjProject(pjModel(s), p).demo && k < DEMO_N) return pjFail(Object.assign(new Error("a demo's A01..A03 stay the demo's"), { code: "demo" }));
+  const dn = pjProject(pjModel(s), p).demoN;
+  if (move && k < dn) return pjFail(Object.assign(new Error(`a demo's A01..${patName(dn - 1)} stay the demo's`), { code: "demo" }));
   return pjPush(s, { kind: "drop", q, j, clip, from: { p, k }, move: !!move });
 }
 const PJ_TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
@@ -459,7 +460,7 @@ export function demoPatterns(image, { prev = null, projects = [] } = {}) {
       r[at] = 0; r[at + 1] = 0;
       m.prj.set(rkey(RK.SND, p, n), r);
     }
-    const k0 = sp.demo ? DEMO_N : 0;
+    const k0 = sp.demo ? demoCount(1) : 0;            // (the old demo's byte, set above)
     for (let i = 0; i < (sp.pats || 0) - k0 && k0 + i < NPAT; i++) m.prj.set(rkey(RK.PAT, p, k0 + i), demoPat(rnd, ids, places));
   }
   return imageOf(m);

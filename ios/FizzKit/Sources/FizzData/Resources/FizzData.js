@@ -1702,7 +1702,8 @@ const __fizz_m5 = (function () {
 // store's restore (FZSR) in one go. No DOM: the tests run it in Node.
 //
 //   modelOf(image) -> {layout, magic, lib: Map(key -> bytes), prj: Map}      imageOf(model) -> the store image
-//   project(model, p) -> {p, there, name, demo, pats: [patSummary | null] x 64, used, pool: n}
+//   project(model, p) -> {p, there, name, demo, demoN, pats: [patSummary | null] x 64, used, pool: n} (demoN: the demo's
+//   patterns, compiled in)
 //   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt, pages, locks, trk} | null (a record it cannot read)
 //   poolEntry(model, p, n) -> {id} | {rec} | null
 //   copyPatterns(model, p, ks) -> a clip {from, names, pats: [{k, bytes}], pool: Map(n -> {id} | {rec}), presets: Map(id -> LIB record)}
@@ -1731,7 +1732,11 @@ const { dnReadZip } = __fizz_m0;
 const { FIZZ_TAGS } = __fizz_m1;
 
 const RK = { SET: 1, HDR: 2, PAT: 3, SND: 4, LIB: 5, FTAG: 6, MFX: 7 };       // persist.h QD_RK_*
-const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 116, MINE0 = 0x100, DEMO_N = 3;   // (NPROJ, NLIB: the USB package's)
+const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 116, MINE0 = 0x100;   // (NPROJ, NLIB: the USB package's)
+// a project's demo (HDR's demo byte, core/seq/demo.h): 2 ATRIUM (A01..A10, a fresh unit's project 1 since 2026-11-15),
+// 1 the old demo (A01..A03: a unit before ATRIUM; the firmware since plays those blank): its patterns compiled in
+const DEMO_ATRIUM = 2, DEMO_N = 10;
+const demoCount = (d) => (d === DEMO_ATRIUM ? DEMO_N : d ? 3 : 0);
 // (2026-11-15) factory ids 1..116: the first 23 (a pool that did not start empty holds them at places 1..23), the pack's
 // 93 after them; ids 4 5 10 11 12 16 retired (they still play; the unit's LIST leaves them out)
 const NFACTORY_POOL = 23, FACTORY_RETIRED = [4, 5, 10, 11, 12, 16];
@@ -1817,14 +1822,14 @@ function walkPat(b) {
 function project(m, p) {
   const h = m.prj.get(rkey(RK.HDR, p, 0));
   const there = !!(h && h[0] === 0x48 && h[1] === 1);
-  const demo = there && !!h[2 + NAME];
+  const demo = there && !!h[2 + NAME], demoN = there ? demoCount(h[2 + NAME]) : 0;
   const pats = [];
   let used = 0;
   for (let k = 0; k < NPAT; k++) {
     const b = m.prj.get(rkey(RK.PAT, p, k));
     let s = null;
     if (b) s = walkPat(b) || { bad: true, used: true, trigs: 0, rows: [] };
-    else if (demo && k < DEMO_N) s = { demo: true, used: true, trigs: 0, rows: [] };   // (the demos' patterns, compiled in)
+    else if (k < demoN) s = { demo: true, used: true, trigs: 0, rows: [] };   // (the demos' patterns, compiled in)
     if (s && !(s.used || s.trigs)) s = { ...s, empty: true };
     if (s && !s.empty) used++;
     pats.push(s && !s.empty ? s : null);
@@ -1832,7 +1837,7 @@ function project(m, p) {
   let pool = 0;
   const empty = poolStartsEmpty(m, p);
   for (let n = 1; n <= NPOOL; n++) if (there && poolEntry(m, p, n, empty)) pool++;
-  return { p, there, name: there ? cstr(h, 2, NAME - 1) : "", demo, pats, used, pool };
+  return { p, there, name: there ? cstr(h, 2, NAME - 1) : "", demo, demoN, pats, used, pool };
 }
 const projects = (m) => Array.from({ length: limits(m).nproj }, (_, p) => project(m, p));
 
@@ -2029,10 +2034,11 @@ function pastePatterns(m, q, j, clip) {
   });
   return { at, poolAdded, presetsAdded: added, copies };
 }
-// cleared: no record, as a pattern never written. A demo project's A01..A03 without a record play the demos (compiled
+// cleared: no record, as a pattern never written. A demo project's own patterns without a record play the demo (compiled
 // in): those are refused ({code: "demo"}), nothing changed
 function clearPatterns(m, q, ks) {
-  if (project(m, q).demo && ks.some((k) => k < DEMO_N)) throw err("demo", "a demo project's A01..A03 cannot be cleared here");
+  const dn = project(m, q).demoN;
+  if (ks.some((k) => k < dn)) throw err("demo", `a demo project's A01..${patName(dn - 1)} cannot be cleared here`);
   for (const k of ks) m.prj.delete(rkey(RK.PAT, q, k));
 }
 
@@ -2208,7 +2214,7 @@ async function readFizzpat(bytes, file = "") {
 }
 const patFileName = (clip) => `${safe(clip.from)} ${clip.names.length > 1 ? `${clip.names[0]}-${clip.names[clip.names.length - 1]}` : clip.names[0] || ""}.fizzpat`;
 const prjFileName = (kept) => `${safe(kept.name)}.fizzprj`;
-return { DEMO_N, FACTORY_RETIRED, FILE_VERSION, MINE0, NFACTORY, NFACTORY_POOL, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, addPreset, cleanName, clearPatterns, cloneModel, copyPatterns, copyRecord, derefPat, fitChoice, fitModel, ftagNextAt, idxOf, imageOf, keepProject, kindOf, limits, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, poolEntry, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, removePreset, renameKept, renameProject, rkey, walkPat };
+return { DEMO_ATRIUM, DEMO_N, FACTORY_RETIRED, FILE_VERSION, MINE0, NFACTORY, NFACTORY_POOL, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, addPreset, cleanName, clearPatterns, cloneModel, copyPatterns, copyRecord, demoCount, derefPat, fitChoice, fitModel, ftagNextAt, idxOf, imageOf, keepProject, kindOf, limits, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, poolEntry, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, removePreset, renameKept, renameProject, rkey, walkPat };
 })();
 
 // ======== site/manager/fizzvalues.js
@@ -4352,7 +4358,7 @@ function restoreFit(image, unitSize, choice, withImage = false) {
 //   pjDropPlan(h, p, k) -> {n, sounds, colours, targets: [{q, added, there, pool, after, full, had: [bool x sounds]}]}: what
 //       dropping pattern k of slot p on each project there does to its pool (pastePatterns tried on a copy at its first
 //       free pattern): the pool sounds it plays (their tag colours), how many come along, how many it has, the count after
-const { modelOf, imageOf, cloneModel, project: pjProject, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject, renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, DEMO_N, limits: pjLimits, poolEntry: pjPoolEntry } = __fizz_m5;
+const { modelOf, imageOf, cloneModel, project: pjProject, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject, renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, demoCount, patName, limits: pjLimits, poolEntry: pjPoolEntry } = __fizz_m5;
 
 const PJ = new Map(), CLIPS = new Map();
 let pjNext = 1, clipNext = 1;
@@ -4430,7 +4436,8 @@ async function pjLoadKept(h, q, bytes, file = "") {
 function pjDrop(h, p, k, q, j, move = false) {
   const s = pjGet(h), clip = copyPatterns(pjModel(s), p, [k]);
   if (!clip.pats.length) return pjFail(Object.assign(new Error("nothing to copy there"), { code: "empty" }));
-  if (move && pjProject(pjModel(s), p).demo && k < DEMO_N) return pjFail(Object.assign(new Error("a demo's A01..A03 stay the demo's"), { code: "demo" }));
+  const dn = pjProject(pjModel(s), p).demoN;
+  if (move && k < dn) return pjFail(Object.assign(new Error(`a demo's A01..${patName(dn - 1)} stay the demo's`), { code: "demo" }));
   return pjPush(s, { kind: "drop", q, j, clip, from: { p, k }, move: !!move });
 }
 const PJ_TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
@@ -4582,7 +4589,7 @@ function demoPatterns(image, { prev = null, projects = [] } = {}) {
       r[at] = 0; r[at + 1] = 0;
       m.prj.set(rkey(RK.SND, p, n), r);
     }
-    const k0 = sp.demo ? DEMO_N : 0;
+    const k0 = sp.demo ? demoCount(1) : 0;            // (the old demo's byte, set above)
     for (let i = 0; i < (sp.pats || 0) - k0 && k0 + i < NPAT; i++) m.prj.set(rkey(RK.PAT, p, k0 + i), demoPat(rnd, ids, places));
   }
   return imageOf(m);
