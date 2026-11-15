@@ -197,6 +197,7 @@ void qd_project_init(qd_project_t *pr)
     pr->pat_fb = -1;                                    /* P2.4 (nopage and the counters: the app's, kept) */
     pr->fb_blank = 0;
     pr->demo = 0;
+    memset(pr->kmap, 0, sizeof pr->kmap);               /* (2026-11-15: SOUND's keys in the pool's order) */
     qd_sounds_init(pr);
     pr->pool_empty = 0;
     pr->key_scale = QD_SCALE_CHROMATIC;

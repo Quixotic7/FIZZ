@@ -708,6 +708,18 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     `KEEP ${kept.name} (${kept.recs.length} records, ${kept.presets.size} MY preset), .fizzprj read back, loaded into slot 8 of another FIZZ as ${pl ? JSON.stringify(pl.list[7]) : "?"}: its preset added (${lr.presetsAdded})`);
   check(Object.keys(a0).length > 0 && eq(a0, d7) && refName === "KEPT ONE",
     `FIZZ plays it there as here: steps a sound ${JSON.stringify(d7)}${eq(a0, d7) ? "" : ` (here ${JSON.stringify(a0)})`}; track 1 names ${refName} (id ${ref})`);
+  // 2026-11-15: SOUND's keys ('K' 1, persist.h QD_RK_KMAP 8, a kind this page does not know): it travels with its project
+  {
+    const KMAP = 8, krec = new Uint8Array([0x4B, 1, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    const mk = modelOf(img); mk.prj.set(rkey(KMAP, 0, 0), krec);
+    const mk2 = modelOf(imageOf(mk));
+    const kp = await readFizzprj(makeFizzprj(keepProject(mk2, 0), { fizz: "test" }), "k.fizzprj");
+    const mt = modelOf(C.dev()); loadProject(mt, 6, kp);
+    const fk = fitModel(mk2, "ble").model;
+    check(same(mk2.prj.get(rkey(KMAP, 0, 0)), krec) && same(mt.prj.get(rkey(KMAP, 6, 0)), krec) &&
+      same(modelOf(imageOf(mt)).prj.get(rkey(KMAP, 6, 0)), krec) && same(fk.prj.get(rkey(KMAP, 0, 0)), krec),
+      "SOUND's keys' record (kind 8): kept in the store image, through a .fizzprj into slot 7, into the Bluetooth layout");
+  }
   // a backup as the browser FIZZ's flash
   const bak = makeFizzbak({ kind: "full", image: img, fizz: "test" });
   const bf = await backupFlash(bak, "FIZZ backup 2026-10-26 2140.fizzbak");

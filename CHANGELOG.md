@@ -11,6 +11,11 @@ its text becomes the release's notes on the install page and on GitHub.
 
 - There is no single-core package any more: the USB and the Bluetooth packages both play across the FM-1's two
   cores.
+- The preset browser remembers its view: open it again and it shows the source (ALL, MY PRESETS, POOL) and the tag
+  filter you left it with.
+- SOUND's keys can be put in your own order, like a drum kit: with nothing selected, hold a sound key (W1..W10 on the
+  step keyboard, or B1..B10 in the step latch) and turn KNOB 1 or PRESETS to choose the pool sound it plays; you hear
+  each one, and a band shows the key and its sound. The order is saved with the project.
 
 ## 0.12.0 (2026-11-14)
 

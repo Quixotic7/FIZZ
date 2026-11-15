@@ -621,7 +621,10 @@ typedef struct {
      * qd_mk_*): the notes they sound (0 none; one set) on track mk_tr, bit w of mk_on: W w sounds them; of mk_rec:
      * its press was recorded */
     uint8_t mk_nt[QD_NNOTE], mk_tr;
-    uint8_t mk_bm;                     /* .. held keys + B11: the band's mode (the confirmation's QD_CF_BAND, qd_mk_band) */
+    uint8_t mk_bm;                     /* .. held keys + B11: the band's mode (the confirmation's QD_CF_BAND, qd_mk_band;
+                                        * QD_MK_BM_KEY: a sound key remapped, km_key's) */
+    uint8_t km_key;                    /* 2026-11-15 (owner): SOUND's sound key held last (qd_mk_kmap): 1..10 W1..W10,
+                                        * 11..20 B1..B10; 0 none */
     uint16_t mk_on, mk_rec;
     uint8_t mk_svel;                   /* 2026-11-13 (owner): SOUND's pad velocity, W11..W16's last (0: the track's) */
     uint8_t mk_shw;                    /* .. LIVE: the W key whose value shows (+ 1; 0 none) while held, then a second */
@@ -887,7 +890,8 @@ void qd_keys_step_leds(const struct qd_app *a, uint8_t *key, int page);   /* 202
  * selected steps' value and sounds the step (stopped: its preview; playing: as a key), nothing selected it sounds the
  * track with that value; REC armed it is recorded at the playhead (SOUND: its sound lock and velocity). W1..W16:
  *   VEL 8, 16 .. 120, 127; LEN the lengths 1/8 .. 32, INF; MICRO -21 .. -3, 0 (W8), +3 .. +21, +23; RATCH x1..x8 flat,
- *   x1..x8 rising; CHNC 6 % .. 100 %; COND ALWAYS .. !1ST, 1:2 .. 2:4; SOUND the bank's ten sounds, velocity 20 .. 127
+ *   x1..x8 rising; CHNC 6 % .. 100 %; COND ALWAYS .. !1ST, 1:2 .. 2:4; SOUND the bank's ten sounds (2026-11-15: the
+ *   project's map, qd_bank_sound), velocity 20 .. 127
  * Keys held + B11 (qd_mk_b11): a selection's value back to the track's; nothing selected, the key's value the track's
  * default (NOTE and the keys that play: the held notes the track's notes); a band says what it is now */
 int qd_step_kb(const struct qd_app *a);         /* 2026-11-13: the step keyboard (a step view, the W keys the keys) */
@@ -898,6 +902,13 @@ uint32_t qd_ctl_len_ms(const struct qd_app *a, int len);   /* a length's ms on t
 int qd_mk_val(const struct qd_app *a, int m, int w);   /* W w's value in mode m (RATCH: w, COND: QD_COND_*) */
 void qd_mk_white(struct qd_app *a, int key, int w, int down, int vel);
 int qd_mk_b11(struct qd_app *a);                /* B11 pressed: orange keys held, done (1); else 0 */
+/* 2026-11-15 (owner): SOUND, nothing selected, a sound key held (W1..W10 on the step keyboard, B1..B10 in the step
+ * latch's VALUES) + KNOB 1 or PRESETS: the pool sound the key plays, through the pool's used sounds, heard and shown;
+ * the turn does nothing else. qd_mk_kmap_on: such a key is held; qd_mk_kmap: the turn (1 taken) */
+#define QD_MK_BM_KEY 0xFFu
+int qd_mk_kmap_on(const struct qd_app *a);
+int qd_mk_kmap(struct qd_app *a, int knob, int d);
+void qd_mk_kmap_key(struct qd_app *a, int key, int down);   /* .. a sound key down / up (key: as km_key) */
 void qd_mk_band(const struct qd_app *a, char *o);   /* .. its band's words, the track's value now (o: 48 bytes) */
 void qd_mk_leds(const struct qd_app *a, uint8_t *key);   /* the W keys: the value's key lit, a fade by the values */
 void qd_mk_kst(const struct qd_app *a, uint8_t *kst);    /* .. the drawn keys (ui_rec_key's states, a hint's fill) */
@@ -1151,6 +1162,11 @@ void qd_step_value_keys(const struct qd_app *a, char lab[10][6], uint16_t *lit, 
                         int *clr);
 int qd_step_entry_note(const struct qd_app *a, int b);   /* NOTE: B(b+1)'s note at the entry octave */
 int qd_step_sound_bank(const struct qd_app *a);     /* SOUND: the bank on the keys */
+/* 2026-11-15 (owner: "the bank order might not be the order you want to play sounds"): SOUND's keys through the
+ * project's map (pattern.h qd_project_t.kmap): key w (0..9) of the bank on the keys plays pool sound qd_bank_sound;
+ * qd_bank_key: the key of that bank playing sound k (-1 none) */
+int qd_bank_sound(const struct qd_app *a, int w);
+int qd_bank_key(const struct qd_app *a, int k);
 void qd_step_sound_pick(struct qd_app *a, int d);   /* PRESETS (or SOUND's ALGORITHM) with steps held: the sound lock */
 
 /* ---- ctl_rec.c */

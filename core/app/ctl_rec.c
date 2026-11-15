@@ -561,7 +561,7 @@ int qd_mk_val(const qd_app_t *a, int m, int w)
     case UI_F_LEN: return w == 15 ? QD_LEN_INF : w;     /* (the table's 1/8 .. 32) */
     case UI_F_MICRO: return w == 15 ? 23 : 3 * (w - 7);
     case UI_F_CHNC: return (w + 1) * 100 / 16;
-    case UI_F_SOUND: return w < 10 ? a->ui.sound_bank * 10 + w + 1 : MK_SVEL[w - 10];
+    case UI_F_SOUND: return w < 10 ? qd_bank_sound(a, w) : MK_SVEL[w - 10];
     default: return w;                                  /* (RATCH: x1..x8, then rising; COND: ALWAYS .. !1ST, then
                                                          * QD_COND_AB's 1:2 .. 2:4) */
     }
@@ -804,6 +804,8 @@ void qd_mk_white(qd_app_t *a, int key, int w, int down, int vel)
     }
     if (down && m == UI_F_SOUND && w >= 10)
         u->mk_svel = (uint8_t)v;                        /* (SOUND: the pads' velocity from now on) */
+    if (m == UI_F_SOUND && w < 10)
+        qd_mk_kmap_key(a, 1 + w, down);                 /* (2026-11-15: held + KNOB 1 / PRESETS: its sound) */
     if (!u->nheld && a->seq.playing && MK_OVR(m)) {     /* LIVE, playing: the override while held (no note struck) */
         if (down) {
             mk_ovr_set(a, w);
@@ -871,6 +873,14 @@ void qd_mk_band(const qd_app_t *a, char *o)
     const char *pre = "", *s = n, *suf = "";
     qd_rstep_t r;
     int i;
+    if (m == QD_MK_BM_KEY) {                            /* (2026-11-15: a sound key remapped: "W3 . 21 SNARE") */
+        const int w = (a->ui.km_key - 1) % 10, k = qd_bank_sound(a, w);
+        o[0] = a->ui.km_key > 10 ? 'B' : 'W';
+        ui_itoa(o + 1, w + 1);
+        strcat(strcat(strcat(o, " \xc2\xb7 "), ui_itoa(n, k)), " ");
+        strncat(o, qd_sound_name(&a->proj, k), 12);
+        return;
+    }
     mk_res(a, &r, 0);
     strcpy(o, "TRACK ");
     strcat(o, m == UI_F_NOTE ? "NOTES" : UI_FIELD_NAME[m]);
@@ -934,6 +944,58 @@ int qd_mk_b11(qd_app_t *a)
                                        : m == UI_F_COND ? mk_cond(r.cond, first) : v);
     }
     u->mk_bm = (uint8_t)m;
+    qd_ctl_confirm_col(a, "", 0, QD_CF_BAND);           /* (its words at the drawing: qd_mk_band) */
+    return 1;
+}
+
+/* 2026-11-15 (owner): a sound key's own sound (ctl.h qd_mk_kmap). The rule: the step view in SOUND, no step held or
+ * selected, no SHIFT, the key last pressed still held: W1..W10 with the step keyboard on (qd_mk_on), B1..B10 in the step
+ * latch's VALUES (qd_step_latch_default); KNOB 1 or PRESETS. A selection keeps PRESETS its sound lock (k_held) */
+void qd_mk_kmap_key(qd_app_t *a, int key, int down)
+{
+    if (down)
+        a->ui.km_key = (uint8_t)key;
+    else if (a->ui.km_key == key)
+        a->ui.km_key = 0;
+}
+int qd_mk_kmap_on(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    const int k = u->km_key;
+    if (!k || u->hmode != UI_F_SOUND || u->nheld || qd_ctl_shift(a))
+        return 0;
+    return k <= 10 ? qd_mk_on(a) && ((a->keys_held >> QD_WHITE_KEY[k - 1]) & 1u)
+                   : qd_step_latch_default(a) && ((a->keys_held >> QD_BLACK_KEY[k - 11]) & 1u);
+}
+int qd_mk_kmap(qd_app_t *a, int knob, int d)
+{
+    qd_ui_t *u = &a->ui;
+    qd_project_t *pr = &a->proj;
+    const int w = (u->km_key - 1) % 10, i = u->sound_bank * 10 + w;
+    int k = qd_bank_sound(a, w);
+    qd_rstep_t r;
+    if (knob != QD_K_1 && knob != QD_K_PRESETS)
+        return 0;                                       /* (the other knobs as ever) */
+    if (!pr->nsound || !d)
+        return 1;
+    if (!qd_sound_used(pr, k))                          /* (an empty key: right the first sound, left the last) */
+        k = d > 0 ? 0 : pr->nsound + 1;
+    k = qd_sound_step(pr, k, d, 1);
+    if (!qd_sound_used(pr, k))
+        return 1;
+    pr->kmap[i] = (uint8_t)(k == i + 1 ? 0 : k);
+    if (u->km_key > 10)                                 /* (B: what the key does, with its new sound: the track's) */
+        qd_step_value_key_default(a, w, 1);
+    mk_res(a, &r, 0);                                   /* heard: the key's press again (B: a moment) */
+    r.sound = k;
+    if (u->mk_svel)
+        r.vel = u->mk_svel;
+    mk_end(a, -1);
+    mk_strike(a, w, &r);
+    if (u->km_key > 10)
+        u->mk_off = (a->ms + QD_PREVIEW_MS) | 1u;
+    u->mk_shw = (uint8_t)(w + 1), u->mk_ms = a->ms;
+    u->mk_bm = QD_MK_BM_KEY;
     qd_ctl_confirm_col(a, "", 0, QD_CF_BAND);           /* (its words at the drawing: qd_mk_band) */
     return 1;
 }
