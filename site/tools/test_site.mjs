@@ -169,7 +169,10 @@ try {
   // the LCD's pixels (FIZZ's screens animate a little: compared by how many pixels differ, not exactly)
   const hash = "Array.from(FIZZ.state.pixels)";
   // (the bottom rows: the page's 16 steps; the picture above them may animate)
-  const diff = (x, y) => { let n = 0; for (let i = 180 * 240; i < x.length; i++) if (x[i] !== y[i]) n++; return n; };
+  // (2026-11-15: pixels that differ clearly, not by a grey's shade: ATRIUM's A01 has no steps on track 1, so the edit
+  // is the two steps alone and the cells' outlines' shading would outweigh them)
+  const c565 = (v) => [(v >> 11) & 31, (v >> 5) & 63, v & 31];
+  const diff = (x, y) => { let n = 0; for (let i = 180 * 240; i < x.length; i++) if (x[i] !== y[i]) { const a = c565(x[i]), b = c565(y[i]); n += 2 * Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + 2 * Math.abs(a[2] - b[2]) > 40; } return n; };
   const saved = await waitFor(`(() => { const s = FIZZ.state.saves.find(r => r.name === 'Autosave'); return !!s && Date.parse(s.saved) > ${t0}; })()`, 15000);
   const lag = await evaluate(`Date.parse(FIZZ.state.saves.find(r => r.name === 'Autosave').saved) - ${t0}`);
   check(saved, `FIZZ's autosave of the edit reached this browser's IndexedDB ${lag} ms after the first key`);
@@ -294,10 +297,10 @@ try {
   // P1.6d: ARP tapped, a group (ALGORITHM a click): the MIDI FX screen's labels on the panel
   await evaluate("FIZZ.controls.holdBtn(8, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(8, 4, false)"); await sleep(300);
   await evaluate("FIZZ.controls.turn(2, 1)");          // (2026-11-13: PRESETS the group, ALGORITHM the step cursor)
-  await waitFor("FIZZ.labels.keys[1].firstChild.textContent === 'EMPTY'", 3000);
+  await waitFor("FIZZ.labels.keys[1].firstChild.textContent === 'RANDOM'", 3000);   // (ATRIUM's group 1: the hats')
   const mfx = await evaluate("(() => { const L = FIZZ.labels, t = (d) => d.firstChild.textContent; return { algo: t(L.knobs[1]), presets: t(L.knobs[2]), b: [1, 3, 5, 8, 10, 13, 15, 17].map((k) => t(L.keys[k])) }; })()");
   await shot("labels-midifx.png");
-  check(mfx.algo === "STEP" && mfx.presets === "GROUP" && mfx.b[0] === "EMPTY" && mfx.b[7] === "SLOT 8",
+  check(mfx.algo === "STEP" && mfx.presets === "GROUP" && mfx.b[0] === "RANDOM" && mfx.b[7] === "SLOT 8",
     `the MIDI FX screen on the panel: ALGORITHM "${mfx.algo}", PRESETS "${mfx.presets}", B1..B8 ${mfx.b.join(" / ")}`);
   // the MIDI FX screen: the panel's W keys read STEP n and REC KEYBOARD; REC tapped: the keyboard page, REC reads
   // RECORD (a second tap would record); HOME: back

@@ -613,11 +613,12 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     const run = (ms) => { const end = e.deviceMs() + ms; while (e.deviceMs() < end) e.render(L, R); };
     const replies = () => { const out = [], b = e.midiOut(); let sx = null; for (const x of b) { if (x === 0xf0) sx = [x]; else if (sx) { sx.push(x); if (x === 0xf7) { out.push(parseReply(sx)); sx = null; } } } return out; };
     const ask = (f, n = 800) => { e.midiIn(f); const got = []; for (let i = 0; i < n; i++) { run(5); got.push(...replies().filter(Boolean)); if (got.length && got[got.length - 1].last !== false) return got; } return got; };
-    const t = e.info().panelTable, BT = { HOME: 6 };
+    const t = e.info().panelTable, BT = { HOME: 6, SEQ: 9 };
     let keys = 0, buttons = 0;
     const set = () => e.setPanel({ keys: keys >>> 0, buttons: buttons >>> 0, enc: new Int32Array(7), keyVel: new Uint8Array(27) });
     const tapB = (n) => { buttons |= 1 << t.btnId[BT[n]]; set(); run(80); buttons = 0; set(); run(60); };
     const tapK = (k) => { keys |= 1 << k; set(); run(80); keys = 0; set(); run(60); };
+    const pat = (k) => { buttons |= 1 << t.btnId[BT.SEQ]; set(); run(400); tapK(k); buttons = 0; set(); run(200); };   // (SEQ held + a white key)
     run(1500);
     const open = (p) => { ask(projectRequest({ op: "load", p: p + 1 })); run(600); };
     const byId = () => {
@@ -628,12 +629,14 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
       return m;
     };
     const dev = () => convertImage(e.flash().bytes, "device");
-    return { e, run, ask, tapB, tapK, open, byId, dev };
+    return { e, run, ask, tapB, tapK, pat, open, byId, dev };
   };
   const eq = (a, b) => Object.keys({ ...a, ...b }).every((k) => (a[k] || 0) === (b[k] || 0));
   // the writer: an image's records written again (both layouts) read back the same; too many for the region refused
   const A = await fizz();
-  A.tapB("HOME"); A.tapK(2); A.tapK(4);                       // the demo's A01 edited: its record, with the demo's sound locks
+  // ATRIUM's A02 (its beat: every drum a pool sound lock) edited: W1 and W5 (its kick and snare on 1 and 5) gone: its
+  // record, with the demo's sound locks
+  A.tapB("HOME"); A.pat(2); A.tapK(0); A.tapK(7);
   A.ask(storeSound({ name: "KEPT ONE", blob: blob(5), track: 0 }));   // a MY preset loaded on track 1 (a 'P' 6 reference)
   A.run(2500);
   A.ask(projectRequest({ op: "new", p: 2 })); A.run(800);
@@ -725,12 +728,12 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   check(n(pin) > 0 && n(pout) > 0 && n(pin) + n(pout) === n(all) && pin.fac.every((r) => poolPlaces(rows).has(r.id)), `IN POOL ${n(pin)} + NOT IN POOL ${n(pout)} = ${n(all)}`);
   // ---- NEON features: LIBRARY (USED BY with each pattern's steps; IN THIS BROWSER's store written offline)
   {
-    // (the edited A01: track 1 names KEPT ONE, but each of its trigs is locked to a factory sound; two locks cleared:
+    // (the edited A02: track 1 names KEPT ONE, but each of its trigs is locked to a factory sound; two locks cleared:
     // those two steps play it)
     const mu = modelOf(img), kp = readRegion(img).presets.find((x) => x.name === "KEPT ONE");
     const u0 = usedBy(mu, kp && kp.id);
     const pb = mu.prj.get(rkey(RK.PAT, 0, k0)).slice(), pw = walkPat(pb);
-    pb[pw.soundAt[0]] = 0; pb[pw.soundAt[1]] = 0;          // (track 1's first two locked steps: 1 and 4)
+    pb[pw.soundAt[0]] = 0; pb[pw.soundAt[1]] = 0;          // (track 1's first two locked steps: 8 and 11)
     mu.prj.set(rkey(RK.PAT, 0, k0), pb);
     const ub = usedBy(mu, kp && kp.id);
     const UB = await fizz(convertImage(imageOf(mu), "host"));
@@ -739,7 +742,7 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     const r0 = ub.rows[0], w0 = r0 && walkPat(mu.prj.get(rkey(RK.PAT, r0.p, r0.k)));
     const trigOk = r0 && r0.steps.every((x, s) => x.trig === !!((w0.pages[r0.track - 1][r0.page] >> s) & 1) && (!x.plays || x.trig));
     const lit = r0 ? r0.steps.map((x, s) => (x.plays ? s + 1 : 0)).filter(Boolean) : [];
-    check(kp && !u0.rows.length && r0 && r0.track === 1 && r0.pat === patName(k0) && ours === 2 && lit.join() === "1,4" && trigOk && ub.rows.every((x) => x.steps.length === 16),
+    check(kp && !u0.rows.length && r0 && r0.track === 1 && r0.pat === patName(k0) && ours === 2 && lit.join() === "8,11" && trigOk && ub.rows.every((x) => x.steps.length === 16),
       `USED BY: KEPT ONE, every trig locked elsewhere: none; two locks cleared: ${ub.rows.map((x) => `${x.project} ${x.pat} track ${x.track} steps ${lit.join(", ")}`).join("; ")} (FIZZ's USERS: ${fizzSteps})`);
     const cap = usedBy(mu, kp && kp.id, { max: 0 });
     check(cap.rows.length === 0 && cap.more === ub.total && usedBy(mu, 0x7777).rows.length === 0, `USED BY: capped (+${cap.more}); an id nothing plays: none`);

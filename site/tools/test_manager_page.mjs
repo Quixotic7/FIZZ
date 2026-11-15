@@ -983,12 +983,13 @@ try {
     const PJ = "__mgr.projtab.state";
     await evaluate(`(async () => { await __mgr.S.link.project('new', 2); ${PJ}.base = null; await __mgr.refreshRows({ projects: true }); await __mgr.projtab.show(); })()`);
     await waitFor(`!!${PJ}.base && !__mgr.S.busy`, 60000);
-    // a pattern with sound locks: the simulated unit's demo A01 edited by its keys, PASTEd at A05 of PROJECT 1 (waits)
-    const pasted = await evaluate(`(async () => { const P = await import('./projects.js'), s = __sim; s.press("HOME"); s.panel([], [2], 80); s.panel([], [], 60); s.panel([], [4], 80); s.panel([], [], 60); s.run(2500);
+    // a pattern with sound locks: the simulated unit's demo A02 (ATRIUM's beat: SEQ held + W2) edited by its keys,
+    // PASTEd at A13 of PROJECT 1 (waits)
+    const pasted = await evaluate(`(async () => { const P = await import('./projects.js'), s = __sim; s.press("HOME"); s.panel(["SEQ"], [], 400); s.panel(["SEQ"], [2], 80); s.panel([], [], 200); s.panel([], [2], 80); s.panel([], [], 60); s.panel([], [4], 80); s.panel([], [], 60); s.run(2500);
       const sm = P.modelOf(s.flash()), locks = (x) => { const w = P.walkPat(sm.prj.get(x)); return w ? w.soundAt.filter((o) => o < w.sndAt).length : -1; };
       const key = [...sm.prj.keys()].filter((x) => x >>> 24 === P.RK.PAT).sort((x, y) => locks(y) - locks(x))[0];
       if (key === undefined || locks(key) <= 0) return false;
-      ${PJ}.clip = P.copyPatterns(sm, (key >>> 16) & 255, [key & 0xFFFF]); ${PJ}.sel = 0; ${PJ}.view = 'patterns'; ${PJ}.pats = new Set([4]); __mgr.projtab.render();
+      ${PJ}.clip = P.copyPatterns(sm, (key >>> 16) & 255, [key & 0xFFFF]); ${PJ}.sel = 0; ${PJ}.view = 'patterns'; ${PJ}.pats = new Set([12]); __mgr.projtab.render();
       document.querySelector('#pj-tools [data-act="paste"]').click(); return ${PJ}.ops.length === 1; })()`);
     const recOf = (q, k) => `(async () => { const P = await import('./projects.js'); const m = ${PJ}.cache || ${PJ}.base.model; const b = m.prj.get(P.rkey(P.RK.PAT, ${q}, ${k})); return b ? Array.from(b).join() : ""; })()`;
     const badge = () => evaluate("(() => { const g = document.querySelector('.pjghost'); return g && !g.hidden ? g.querySelector('.badge').textContent : ''; })()");
@@ -1004,36 +1005,36 @@ try {
       await sleep(200);
       return true;
     }
-    const src = await evaluate(recOf(0, 4));
+    const src = await evaluate(recOf(0, 12));
     // copy onto an empty pattern, the badge flipped with ALT on the way (its key, then the mouse's altKey), let go as COPY
     const flips = [];
-    await dragOnto(4, '#pj-grid .pt[data-k="9"]', { during: async (t) => {
+    await dragOnto(12, '#pj-grid .pt[data-k="13"]', { during: async (t) => {
       flips.push(await badge()); await alt(true); flips.push(await badge()); await alt(false); flips.push(await badge());
       await mouse("mouseMoved", t.x + 1, t.y, { buttons: 1, modifiers: 1 }); flips.push(await badge());
       await mouse("mouseMoved", t.x, t.y, { buttons: 1 }); flips.push(await badge());
-      flips.push(await evaluate(`document.querySelector('#pj-grid .pt[data-k="9"]').classList.contains('drop')`));
+      flips.push(await evaluate(`document.querySelector('#pj-grid .pt[data-k="13"]').classList.contains('drop')`));
     } });
     const c1 = await evaluate(`({ n: ${PJ}.ops.length, last: ${PJ}.ops[${PJ}.ops.length - 1] && ${PJ}.ops[${PJ}.ops.length - 1].kind })`);
-    check(pasted && src && c1.n === 2 && c1.last === "drop" && (await evaluate(recOf(0, 9))) === src && (await evaluate(recOf(0, 4))) === src,
-      `PROJECTS drag: A05 dropped on A10 copies it (${c1.n} changes waiting)`);
+    check(pasted && src && c1.n === 2 && c1.last === "drop" && (await evaluate(recOf(0, 13))) === src && (await evaluate(recOf(0, 12))) === src,
+      `PROJECTS drag: A13 dropped on A14 copies it (${c1.n} changes waiting)`);
     check(flips.join() === "COPY,MOVE,COPY,MOVE,COPY,true", `PROJECTS drag: the ghost's badge follows ALT (${flips.join()}), the target lit`);
-    // ALT held: moved (A10 -> A12, A10 cleared)
-    await dragOnto(9, '#pj-grid .pt[data-k="11"]', { modifiers: 1 });
-    check((await evaluate(`${PJ}.ops.length`)) === 3 && (await evaluate(recOf(0, 11))) === src && (await evaluate(recOf(0, 9))) === "" &&
-      (await evaluate(`!document.querySelector('#pj-grid .pt[data-k="9"]').classList.contains('used')`)), "PROJECTS drag: ALT moves A10 to A12 (A10 empty)");
+    // ALT held: moved (A14 -> A16, A14 cleared)
+    await dragOnto(13, '#pj-grid .pt[data-k="15"]', { modifiers: 1 });
+    check((await evaluate(`${PJ}.ops.length`)) === 3 && (await evaluate(recOf(0, 15))) === src && (await evaluate(recOf(0, 13))) === "" &&
+      (await evaluate(`!document.querySelector('#pj-grid .pt[data-k="13"]').classList.contains('used')`)), "PROJECTS drag: ALT moves A14 to A16 (A14 empty)");
     // onto a used pattern: the confirm; CANCEL leaves it, REPLACE replaces it (a demo pattern, A02)
-    await dragOnto(11, '#pj-grid .pt[data-k="1"]');
+    await dragOnto(15, '#pj-grid .pt[data-k="1"]');
     const cf = await evaluate("({ open: !document.getElementById('cf').hidden, t: document.getElementById('cf-title').textContent, w: document.getElementById('cf-what').textContent })");
     await click("#cf-no");
     await sleep(150);
     const kept2 = (await evaluate(`${PJ}.ops.length`)) === 3 && (await evaluate(recOf(0, 1))) === "";
-    await dragOnto(11, '#pj-grid .pt[data-k="1"]');
+    await dragOnto(15, '#pj-grid .pt[data-k="1"]');
     await click("#cf-go");
     await sleep(200);
-    check(cf.open && cf.t === "COPY OVER" && /A12 → PROJECT 1 A02/.test(cf.w) && kept2 && (await evaluate(`${PJ}.ops.length`)) === 4 && (await evaluate(recOf(0, 1))) === src,
+    check(cf.open && cf.t === "COPY OVER" && /A16 → ATRIUM A02/.test(cf.w) && kept2 && (await evaluate(`${PJ}.ops.length`)) === 4 && (await evaluate(recOf(0, 1))) === src,
       `PROJECTS drag: onto a used pattern asks (${cf.t}: ${cf.w}); CANCEL leaves it, REPLACE replaces it`);
     // onto PROJECT 2's row: its first free pattern, the pool sounds carried
-    await dragOnto(4, '#pj-slots .slot[data-p="1"]');
+    await dragOnto(12, '#pj-slots .slot[data-p="1"]');
     const d2 = await evaluate(`(() => { const o = ${PJ}.ops[${PJ}.ops.length - 1]; return { n: ${PJ}.ops.length, q: o.q, j: o.j, pool: o.result.poolAdded, need: [...o.clip.pool.values()].filter(Boolean).length }; })()`);
     check(d2.n === 5 && d2.q === 1 && d2.j === 0 && d2.pool > 0 && d2.pool === d2.need, `PROJECTS drag: onto PROJECT 2 lands at its A01, +${d2.pool} pool sounds`);
     await shot("manager-projects-drag.png");
@@ -1049,17 +1050,17 @@ try {
         for (const o of w.soundAt) if (o < w.sndAt) { const n = name.get(b[o]) || '?'; locks[n] = (locks[n] || 0) + 1; }
         if (p) for (const x of pool) { const u = await L.users('pool', x.slot); const s = u && u.projects ? u.projects.reduce((a, y) => a + y.steps, 0) : 0; if (s) users[x.name] = (users[x.name] || 0) + s; }
         return { locks, users }; };
-      const a = await per(0, 4), b = await per(1, 0); await L.project('load', 1); return { a, b }; })()`);
+      const a = await per(0, 12), b = await per(1, 0); await L.project('load', 1); return { a, b }; })()`);
     const eqm = (x, y) => !!x && !!y && Object.keys({ ...x, ...y }).every((k) => x[k] === y[k]);
     check(wrote2 && steps.a && steps.b && Object.keys(steps.a.locks).length > 0 && eqm(steps.a.locks, steps.b.locks) && eqm(steps.b.locks, steps.b.users),
-      `PROJECTS drag: WRITE, read back: PROJECT 2 A01 locks the sounds A05 does, FIZZ counts the same steps a sound there (${JSON.stringify(steps.b && steps.b.users)})`);
+      `PROJECTS drag: WRITE, read back: PROJECT 2 A01 locks the sounds A13 does, FIZZ counts the same steps a sound there (${JSON.stringify(steps.b && steps.b.users)})`);
     await idle();
     // a phone: a long press lifts it (the ghost), let go over nothing: the TO sheet; MOVE, PROJECT 2, its A03
     await size(390, 844, true);
     await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     await evaluate(`${PJ}.sel = 0; ${PJ}.view = 'patterns'; __mgr.projtab.render()`);
     await sleep(300);
-    const p4 = await centre('#pj-grid .pt[data-k="4"]');
+    const p4 = await centre('#pj-grid .pt[data-k="12"]');
     await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: p4.x, y: p4.y }] });
     await sleep(550);
     const lifted = await badge();
@@ -1071,8 +1072,8 @@ try {
     await click('#pj-sheet .shg [data-j="2"]');
     await sleep(200);
     const sm = await evaluate(`(() => { const o = ${PJ}.ops[${PJ}.ops.length - 1]; return o ? { kind: o.kind, q: o.q, j: o.j, move: o.move } : null; })()`);
-    check(lifted === "COPY" && sheetOn && sm && sm.kind === "drop" && sm.q === 1 && sm.j === 2 && sm.move && (await evaluate(recOf(0, 4))) === "" && (await noScroll()),
-      `PROJECTS at 390: a long press lifts A05 (${lifted || "no ghost"}), let go: the TO sheet; MOVE to PROJECT 2 A03 waits (${JSON.stringify(sm)})`);
+    check(lifted === "COPY" && sheetOn && sm && sm.kind === "drop" && sm.q === 1 && sm.j === 2 && sm.move && (await evaluate(recOf(0, 12))) === "" && (await noScroll()),
+      `PROJECTS at 390: a long press lifts A13 (${lifted || "no ghost"}), let go: the TO sheet; MOVE to PROJECT 2 A03 waits (${JSON.stringify(sm)})`);
     await click('#pj-pending [data-act="undo"]');
     await send("Emulation.setTouchEmulationEnabled", { enabled: false });
     await size(1280, 800);
@@ -1535,17 +1536,22 @@ try {
   await click("#t-library");
   check(kOn.shown && kOn.lit && kOff && kHid && /play/i.test(kOn.text) && /OCTAVE · [A-G]#?-?\d/.test(kOn.oct), `the keys' strip: G lit while held ("${kOn.text}", ${kOn.oct}); hidden on BACKUP`);
   // USED BY: a MY preset on track 1 of the open pattern, read from the store PROJECTS would show (here: the sim's flash).
-  // (The demo's A01 has steps on track 1 only, each locked to a pool sound: four locks cleared, those steps play it)
+  // (The edited demo pattern (ATRIUM's A02, above): its drums on track 1 each locked to a pool sound: four locks cleared,
+  // those steps play it)
   await evaluate(`(async () => { const { storeSound } = await import('../js/fizz_sysex.js'); const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = 3;
-    window.__sim.engine.midiIn(storeSound({ name: 'USED ONE', blob: b, tags: 4, track: 0 })); })()`);
+    const s = window.__sim; s.panel(["SEQ"], [], 400); s.panel(["SEQ"], [2], 80); s.panel([], [], 200);   // (A02: ATRIUM's beat, its drums locked)
+    s.engine.midiIn(storeSound({ name: 'USED ONE', blob: b, tags: 4, track: 0 })); })()`);
   await sleep(2600);
   await click("#refresh");
   await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'USED ONE') && !__mgr.S.refreshing");
   await idle();
   await evaluate(`(async () => { const P = await import('./projects.js'); const img = window.__sim.engine.flash().bytes.slice();
-    const m = P.modelOf(img), pb = m.prj.get(P.rkey(P.RK.PAT, 0, 0)).slice(), pw = P.walkPat(pb);
+    const { readRegion } = await import('./fizzstore.js'), id = readRegion(img).presets.find((x) => x.name === 'USED ONE').id;
+    const m = P.modelOf(img), locks = (x) => { const w = P.walkPat(m.prj.get(x)); return w ? w.soundAt.filter((o) => o < w.sndAt).length : -1; };
+    const key = [...m.prj.keys()].filter((x) => x >>> 24 === P.RK.PAT && (P.walkPat(m.prj.get(x)) || { trk: [] }).trk.some((t, i) => !i && t.ref === id)).sort((x, y) => locks(y) - locks(x))[0];
+    const pb = m.prj.get(key).slice(), pw = P.walkPat(pb);
     for (let i = 0; i < 4; i++) pb[pw.soundAt[i]] = 0;
-    m.prj.set(P.rkey(P.RK.PAT, 0, 0), pb);
+    m.prj.set(key, pb);
     __mgr.projtab.state.base = { model: m, image: img, written: null }; })()`);
   const usedSlot = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.name === 'USED ONE').slot");
   await click(MINE(usedSlot));
@@ -2049,6 +2055,12 @@ try {
   await sleep(120);
   await pup(hm);
   await sleep(800);
+  {                                                     // (ATRIUM's A01 has no step on track 1: W5 tapped makes one, held it sounds)
+    const w5 = await pdown("#pl-board .k[data-key='7']");
+    await sleep(100);
+    await pup(w5);
+    await sleep(300);
+  }
   await evaluate(`(() => { const p = __mgr.bu().player; window.__pan = p.ctx.createAnalyser(); window.__pan.fftSize = 2048; p.out.connect(window.__pan); window.__pb = new Float32Array(2048);
     window.__ppk = () => { window.__pan.getFloatTimeDomainData(window.__pb); let m = 0; for (const x of window.__pb) m = Math.max(m, Math.abs(x)); return m; };
     window.__psent = 0; const o = p.panel.bind(p); p.panel = (m) => { if (m.keys & (1 << 7)) window.__psent++; o(m); }; })()`);
@@ -2822,7 +2834,7 @@ try {
     const fmBack = fk && (await evaluate(`(async () => { const P = await import('./projects.js'), b = ${PJ}.base.model.prj.get(P.rkey(P.RK.PAT, 0, ${fk.j})); return !!b && Array.from(b).join() === ${JSON.stringify(fk.rec)}; })()`));
     check(fk && f1.r - f0.r >= Math.ceil(f0.size / 256) && f2.w - f1.w >= 2 * Math.ceil(f0.size / 512) && fmBack && (await logHas("/restore: FZOK/")) && !(await logHas("/THIS BROWSER's store/")),
       `nf-speed: the FM-1 (?sim) still paced: its read ${f1.r - f0.r} FZBR (${fmRead} ms), its WRITE ${f2.w - f1.w} FZSR reads (${fmWrite} ms), the drop there after a re-read`);
-    // THIS BROWSER, the sound on: the clip of the FM-1's pattern pasted at A10, then dropped (moved) to A12, one WRITE
+    // THIS BROWSER, the sound on: the clip of the FM-1's pattern pasted at A13, then dropped (moved) to A15, one WRITE
     const clip = fk ? await evaluate(`(async () => { const P = await import('./projects.js'); window.__nfClip = P.copyPatterns(${PJ}.base.model, 0, [${fk.k}]); return true; })()`) : false;
     await realClick("#unit");
     await waitFor("!document.getElementById('upick').hidden", 3000);
@@ -2833,18 +2845,18 @@ try {
     const b0 = await evaluate("({ r: __mgr.bu().counts.fzbr, w: __mgr.bu().counts.fzsrReads })");
     const bRead = await evaluate(timedRead);
     const staged = clip && (await evaluate(`(async () => { const P = await import('./projects.js'), J = ${PJ}, m = P.cloneModel(J.base.model);
-      P.pastePatterns(m, 0, 9, window.__nfClip);
-      const drop = { kind: 'drop', q: 0, j: 11, clip: P.copyPatterns(m, 0, [9]), from: { p: 0, k: 9 }, move: true };
-      P.pastePatterns(m, 0, 11, drop.clip); P.clearPatterns(m, 0, [9]);
-      J.ops.push({ kind: 'paste', q: 0, j: 9, clip: window.__nfClip }, drop); J.cache = null; __mgr.projtab.render();
-      window.__nfWant = Array.from(m.prj.get(P.rkey(P.RK.PAT, 0, 11))).join(); return J.ops.length === 2 && !document.getElementById('pj-pending').hidden; })()`));
+      P.pastePatterns(m, 0, 12, window.__nfClip);
+      const drop = { kind: 'drop', q: 0, j: 14, clip: P.copyPatterns(m, 0, [12]), from: { p: 0, k: 12 }, move: true };
+      P.pastePatterns(m, 0, 14, drop.clip); P.clearPatterns(m, 0, [12]);
+      J.ops.push({ kind: 'paste', q: 0, j: 12, clip: window.__nfClip }, drop); J.cache = null; __mgr.projtab.render();
+      window.__nfWant = Array.from(m.prj.get(P.rkey(P.RK.PAT, 0, 14))).join(); return J.ops.length === 2 && !document.getElementById('pj-pending').hidden; })()`));
     const bWrite = staged ? await evaluate(timedWrite) : -1;
     const wsay = await evaluate("document.getElementById('say').textContent");
     const bBack = await evaluate(`(async () => { const t = performance.now(); ${PJ}.base = null; await __mgr.projtab.show(); const P = await import('./projects.js'), { convertImage } = await import('./fizzstore.js');
-      const at = (m) => { const b = m.prj.get(P.rkey(P.RK.PAT, 0, 11)); return { moved: !!b && Array.from(b).join() === window.__nfWant, left: !m.prj.has(P.rkey(P.RK.PAT, 0, 9)) }; };
+      const at = (m) => { const b = m.prj.get(P.rkey(P.RK.PAT, 0, 14)); return { moved: !!b && Array.from(b).join() === window.__nfWant, left: !m.prj.has(P.rkey(P.RK.PAT, 0, 12)) }; };
       const fizz = await __mgr.bu().hostFlash();
       return { reread: at(${PJ}.base.model), running: at(P.modelOf(convertImage(fizz, 'device'))), kept: at(P.modelOf(convertImage(__mgr.S.brow.img, 'device'))),
-        a12: !!(${PJ}.base.model && P.project(${PJ}.base.model, 0).pats[11]), ms: Math.round(performance.now() - t) }; })()`);
+        a12: !!(${PJ}.base.model && P.project(${PJ}.base.model, 0).pats[14]), ms: Math.round(performance.now() - t) }; })()`);
     const b1 = await evaluate("({ r: __mgr.bu().counts.fzbr, w: __mgr.bu().counts.fzsrReads })");
     const ok3 = (x) => x && x.moved && x.left;
     check(bOn && bRead >= 0 && bRead < SPEED_MS.read && b1.r === b0.r && (await logHas("/read: THIS BROWSER's store, \\d+ B in the page/")),
@@ -2852,7 +2864,7 @@ try {
     check(staged && bWrite >= 0 && bWrite < SPEED_MS.write && b1.w === b0.w && !/did not finish|cut off|could not/i.test(wsay),
       `nf-speed: THIS BROWSER: WRITE of a paste and a drop in ${bWrite} ms (under ${SPEED_MS.write}; the FM-1's ${fmWrite}), no FZSR read pulled${wsay ? ` ("${wsay}")` : ""}`);
     check(ok3(bBack.reread) && ok3(bBack.running) && ok3(bBack.kept) && bBack.a12,
-      `nf-speed: THIS BROWSER: A10 moved to A12 after a re-read (${bBack.ms} ms), in the running FIZZ's flash and in the one kept here (${JSON.stringify(bBack)})`);
+      `nf-speed: THIS BROWSER: A13 moved to A15 after a re-read (${bBack.ms} ms), in the running FIZZ's flash and in the one kept here (${JSON.stringify(bBack)})`);
     // BACK UP of THIS BROWSER: the same read, kept in BACKUP
     const nb = await evaluate("__mgr.S.baks.length");
     const bk = await evaluate("(async () => { const t = performance.now(); const r = await __mgr.backup('full'); return { ms: Math.round(performance.now() - t), ok: !!r && !!r.image } })()");
